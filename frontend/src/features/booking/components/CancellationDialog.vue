@@ -15,6 +15,8 @@ const props = defineProps<{
   isOpen: boolean
   isCancelling: boolean
   isFace: boolean
+  // Producteur, booking payé, à partir du jour du tournage : fonds retenus 72 h (pas de remboursement immédiat).
+  isLateCancel?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -118,8 +120,21 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
             </div>
           </div>
 
+          <!-- Producer: paid booking cancelled from the shoot day — funds held 72 h -->
+          <div
+            v-if="isPaid && !isFace && isLateCancel"
+            class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4"
+            data-testid="late-cancel-notice"
+          >
+            <p class="mb-2 text-sm font-medium text-amber-900">Conséquences financières</p>
+            <p class="text-sm text-amber-800">
+              Le tournage est arrivé : le remboursement n'est pas immédiat. Les fonds restent en séquestre pendant 72 h et la Face peut contester.
+              Sans contestation, {{ formatCurrency(refundAmount) }} vous sont remboursés ({{ formatCurrency(retainedAmount) }} retenus par WEACT) ; en cas de contestation, un administrateur tranche — s'il tranche en faveur de la Face, vous ne serez pas remboursé.
+            </p>
+          </div>
+
           <!-- Producer: paid booking — show refund breakdown -->
-          <div v-if="isPaid && !isFace" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
+          <div v-else-if="isPaid && !isFace" class="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
             <p class="mb-2 text-sm font-medium text-amber-900">Conséquences financières</p>
             <div class="space-y-1.5 text-sm text-amber-800">
               <div class="flex items-center justify-between">

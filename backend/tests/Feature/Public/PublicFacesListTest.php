@@ -11,6 +11,7 @@ use App\Models\FaceSubscription;
 use App\Models\User;
 use App\Services\FaceListingRankingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -395,19 +396,14 @@ class PublicFacesListTest extends TestCase
         $this->assertEquals($adjoua->uuid, $response->json('data.0.id'));
     }
 
-    public function test_search_by_nom_returns_matching_faces(): void
+    public function test_search_by_nom_does_not_return_the_face(): void
     {
         $face = Face::factory()->create(['nom' => 'Dossou']);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
 
-        $other = Face::factory()->create(['nom' => 'Agbangla']);
-        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $other->id]);
-
-        $response = $this->getJson('/api/v1/public/faces?search=Dossou');
-
-        $response->assertOk();
-        $this->assertEquals(1, $response->json('meta.total'));
-        $this->assertEquals($face->uuid, $response->json('data.0.id'));
+        $this->getJson('/api/v1/public/faces?search=Dossou')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 0);
     }
 
     public function test_search_by_username_returns_matching_faces(): void
@@ -979,31 +975,40 @@ class PublicFacesListTest extends TestCase
 
     public function test_rank_join_adds_no_per_row_queries(): void
     {
-        // The rank is a single LEFT JOIN inside the paginated SELECT — it
-        // must add zero per-Face queries. Proven by querying the same
-        // 10-Face list with and without rank rows: the count is identical.
+        // The ranking is read for the whole page in set-based statements — it
+        // must add zero per-Face queries. Proven by querying a 5-Face ranked
+        // list and a 10-Face ranked list (cached total warmed on both): the
+        // count is identical.
         $faces = [];
-        for ($i = 0; $i < 10; $i++) {
+        for ($i = 0; $i < 5; $i++) {
             $faces[] = $this->makeListedFace();
         }
+        $this->seedRankGeneration(1, array_map(fn (Face $f) => $f->id, $faces));
 
         DB::enableQueryLog();
 
         try {
             $this->getJson('/api/v1/public/faces?per_page=15')->assertOk();
-            $withoutRanks = count(DB::getQueryLog());
-
-            $this->seedRankGeneration(1, array_map(fn (Face $f) => $f->id, $faces));
-
             DB::flushQueryLog();
             $this->getJson('/api/v1/public/faces?per_page=15')->assertOk();
-            $withRanks = count(DB::getQueryLog());
+            $fiveFaces = count(DB::getQueryLog());
 
-            $this->assertGreaterThan(0, $withoutRanks);
+            for ($i = 0; $i < 5; $i++) {
+                $faces[] = $this->makeListedFace();
+            }
+            $this->seedRankGeneration(2, array_map(fn (Face $f) => $f->id, $faces));
+
+            Cache::flush();
+            $this->getJson('/api/v1/public/faces?per_page=15')->assertOk();
+            DB::flushQueryLog();
+            $this->getJson('/api/v1/public/faces?per_page=15')->assertOk();
+            $tenFaces = count(DB::getQueryLog());
+
+            $this->assertGreaterThan(0, $fiveFaces);
             $this->assertSame(
-                $withoutRanks,
-                $withRanks,
-                'The materialized-rank join must not add a query per ranked Face.',
+                $fiveFaces,
+                $tenFaces,
+                'The materialized-rank read must not add a query per ranked Face.',
             );
         } finally {
             DB::disableQueryLog();
@@ -1273,37 +1278,38 @@ class PublicFacesListTest extends TestCase
         $this->getJson('/api/v1/public/faces?generation=abc')->assertStatus(422);
     }
 
-    public function test_the_unpinned_listing_resolves_the_current_generation_inside_the_query(): void
+    public function test_the_unpinned_listing_resolves_the_current_generation_once_for_every_statement(): void
     {
-        // "The current window" must be resolved by a CORRELATED subquery, in
-        // the same statement as the join — not frozen into a number read by a
-        // separate SELECT. A retention purge committing between the two would
-        // leave the join matching nothing and drop the WHOLE public listing
-        // onto its id-DESC fallback, silently.
+        // The current window is resolved ONCE per request and bound in EVERY
+        // statement that reads the ranking (ranked page, unranked tail, ranked
+        // count): a rotation committing mid-request cannot make two statements
+        // disagree and skip or repeat a Face.
         $a = $this->makeListedFace();
         $b = $this->makeListedFace();
+        $unranked = $this->makeListedFace();
+        $this->seedRankGeneration(6, [$a->id, $b->id], 'nightly');
         $this->seedRankGeneration(7, [$b->id, $a->id], 'tick');
 
-        /** @var list<string> $executed */
+        /** @var list<array{sql: string, bindings: array<int, mixed>}> $executed */
         $executed = [];
         DB::listen(function ($query) use (&$executed): void {
-            $executed[] = $query->sql;
+            $executed[] = ['sql' => $query->sql, 'bindings' => $query->bindings];
         });
 
-        $this->getJson('/api/v1/public/faces?per_page=10')->assertOk();
+        $response = $this->getJson('/api/v1/public/faces?per_page=10')->assertOk();
 
-        $joined = array_values(array_filter(
+        $this->assertSame([$b->uuid, $a->uuid, $unranked->uuid], array_column($response->json('data'), 'id'));
+
+        $rankReaders = array_values(array_filter(
             $executed,
-            fn (string $sql): bool => str_contains($sql, 'left join') && str_contains($sql, 'face_listing_ranks'),
+            fn (array $q): bool => str_contains($q['sql'], 'face_listing_ranks')
+                && ! str_contains($q['sql'], 'max(`generation`)'),
         ));
 
-        $this->assertNotEmpty($joined, 'The listing must join the ranking table.');
-        foreach ($joined as $sql) {
-            $this->assertStringContainsString(
-                'select max(generation) from face_listing_ranks',
-                $sql,
-                'The unpinned listing must resolve MAX(generation) inside its own statement.',
-            );
+        $this->assertGreaterThanOrEqual(2, count($rankReaders), 'Ranked page and unranked tail both read the ranking.');
+        foreach ($rankReaders as $query) {
+            $this->assertStringNotContainsString('select max(generation)', $query['sql']);
+            $this->assertContains(7, $query['bindings'], 'Every ranking read is bound to the one resolved generation: '.$query['sql']);
         }
     }
 

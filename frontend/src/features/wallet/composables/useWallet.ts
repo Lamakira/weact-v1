@@ -20,6 +20,7 @@ export function useWallet() {
 
   const balance = computed<number>(() => walletData.value?.balance ?? 0)
   const pendingEscrow = computed<number>(() => walletData.value?.pending_escrow ?? 0)
+  const heldInDispute = computed<number>(() => walletData.value?.held_in_dispute ?? 0)
   const withdrawalMode = computed<'manual' | 'fedapay'>(() => walletData.value?.withdrawal_mode ?? 'manual')
   const withdrawalRequests = computed<WalletWithdrawalRequest[]>(() => walletData.value?.withdrawal_requests ?? [])
   const transactions = computed<WalletTransaction[]>(() => walletData.value?.transactions ?? [])
@@ -79,6 +80,7 @@ export function useWallet() {
     error,
     balance,
     pendingEscrow,
+    heldInDispute,
     withdrawalMode,
     withdrawalRequests,
     transactions,

@@ -114,6 +114,9 @@ function formatCurrency(amount: number): string {
           :alt="`Photo de ${producerName}`"
           loading="lazy"
           class="h-full w-full object-cover"
+          width="32"
+          height="32"
+          decoding="async"
         />
         <div
           v-else

@@ -146,16 +146,16 @@ function handleDelete(): void {
     </div>
 
     <!-- Photo display area -->
-    <div class="flex flex-col items-center gap-4">
+    <div class="flex flex-wrap items-center gap-x-5 gap-y-3" data-testid="photo-layout">
       <!-- Avatar container -->
       <div
-        class="relative"
+        class="relative shrink-0"
         :class="{ 'cursor-pointer': !isProcessing }"
         @click="!isProcessing && triggerFileInput()"
       >
         <!-- Current photo or placeholder -->
         <div
-          class="w-32 h-32 rounded-full overflow-hidden border-4 transition-all"
+          class="w-24 h-24 rounded-full overflow-hidden border-2 transition-all"
           :class="[
             isDragging ? 'border-weact-500 ring-4 ring-weact-200' : 'border-gray-200',
             isProcessing ? 'opacity-50' : '',
@@ -180,7 +180,7 @@ function handleDelete(): void {
             data-testid="photo-placeholder"
           >
             <svg
-              class="w-12 h-12 text-gray-400"
+              class="w-10 h-10 text-gray-400"
               xmlns="http://www.w3.org/2000/svg"
               fill="none"
               viewBox="0 0 24 24"
@@ -260,8 +260,9 @@ function handleDelete(): void {
         data-testid="file-input"
       />
 
+      <div class="min-w-0 space-y-2">
       <!-- Action buttons -->
-      <div class="flex gap-3">
+      <div class="flex flex-wrap gap-2">
         <!-- Upload/Change button -->
         <button
           type="button"
@@ -287,9 +288,10 @@ function handleDelete(): void {
       </div>
 
       <!-- Help text -->
-      <p class="text-xs text-gray-500 text-center">
+      <p class="text-xs text-gray-500">
         Format JPG ou PNG. Taille max: 8 Mo
       </p>
+      </div>
     </div>
   </div>
 </template>

@@ -17,6 +17,7 @@ import { FloatingField, FloatingDateField, FloatingSelect } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { BENIN_CITY_OPTIONS } from '@/shared/constants/beninCities'
 import { useToast } from '@/composables/useToast'
+import { tomorrowIso } from '@/lib/dates'
 import {
   X,
   Calendar,
@@ -103,6 +104,10 @@ const { handleSubmit, setFieldError, resetForm } = useForm({
 
 const { value: date_debut, errorMessage: dateDebutError } = useField<string>('date_debut')
 const { value: date_fin, errorMessage: dateFinError } = useField<string>('date_fin')
+
+// Bornes alignées sur le backend : date_debut `after:today`, date_fin `after_or_equal:date_debut`.
+const dateDebutMin = tomorrowIso()
+const dateFinMin = computed(() => date_debut.value || dateDebutMin)
 const { value: duree_heures, errorMessage: dureeError } = useField<number>('duree_heures')
 const { value: type_contenu, errorMessage: typeContenuError } = useField<string>('type_contenu')
 const { value: lieu, errorMessage: lieuError } = useField<string>('lieu')
@@ -193,6 +198,8 @@ watch(
       }
     }
   },
+  // Le composant est chargé en asynchrone : il peut se monter déjà ouvert
+  { immediate: true },
 )
 
 // Handle Escape key and focus trap
@@ -366,6 +373,7 @@ const onSubmit = handleSubmit(async (values) => {
                   id="date_debut"
                   v-model="date_debut"
                   label="Date de début"
+                  :min="dateDebutMin"
                   :icon="Calendar"
                   :error="dateDebutError"
                   required
@@ -374,6 +382,7 @@ const onSubmit = handleSubmit(async (values) => {
                   id="date_fin"
                   v-model="date_fin"
                   label="Date de fin"
+                  :min="dateFinMin"
                   :icon="Calendar"
                   :error="dateFinError"
                   required

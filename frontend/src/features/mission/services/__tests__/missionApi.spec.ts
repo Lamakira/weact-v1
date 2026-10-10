@@ -2,12 +2,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { CreateMissionData } from '../../types'
 
 const mockPost = vi.fn()
+const mockGet = vi.fn()
 const mockGetCsrfCookie = vi.fn()
 
 vi.mock('@/services/apiClient', () => ({
   default: {
     post: (...args: unknown[]) => mockPost(...args),
-    get: vi.fn(),
+    get: (...args: unknown[]) => mockGet(...args),
     put: vi.fn(),
     delete: vi.fn(),
   },
@@ -77,5 +78,40 @@ describe('missionApi.createMission — FormData photos produit', () => {
     expect(formData.has('budget')).toBe(false)
     expect(formData.has('date_tournage')).toBe(false)
     expect(formData.has('lieu')).toBe(false)
+  })
+})
+
+describe('missionApi.getMissions / getMissionsPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGet.mockResolvedValue({ data: { data: [], meta: {} } })
+  })
+
+  it('getMissions keeps the historical unpaginated call (no query string)', async () => {
+    await missionApi.getMissions()
+    expect(mockGet).toHaveBeenCalledWith('/producer/missions')
+  })
+
+  it('getMissionsPage always opts in to pagination (page + per_page)', async () => {
+    await missionApi.getMissionsPage({ page: 2, perPage: 25 })
+    expect(mockGet).toHaveBeenCalledWith('/producer/missions?page=2&per_page=25')
+  })
+
+  it('getMissionsPage adds status, sort and direction when provided', async () => {
+    await missionApi.getMissionsPage({
+      page: 1,
+      perPage: 15,
+      status: 'closed',
+      sort: 'candidatures_count',
+      direction: 'desc',
+    })
+    expect(mockGet).toHaveBeenCalledWith(
+      '/producer/missions?page=1&per_page=15&status=closed&sort=candidatures_count&direction=desc',
+    )
+  })
+
+  it('getMissionsPage omits direction without sort', async () => {
+    await missionApi.getMissionsPage({ page: 1, perPage: 15, sort: null, direction: 'desc' })
+    expect(mockGet).toHaveBeenCalledWith('/producer/missions?page=1&per_page=15')
   })
 })

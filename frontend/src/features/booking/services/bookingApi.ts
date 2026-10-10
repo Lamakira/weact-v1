@@ -4,6 +4,7 @@ import type {
   BookingResponse,
   BookingListResponse,
   BookingFilterStatus,
+  BookingListOptions,
   CancellationReasonValue,
   BookingRatingResponse,
 } from '../types'
@@ -16,11 +17,22 @@ export const bookingApi = {
   /**
    * Get paginated list of authenticated user's bookings
    */
-  async getBookings(page: number = 1, status?: BookingFilterStatus): Promise<BookingListResponse> {
+  async getBookings(
+    page: number = 1,
+    status?: BookingFilterStatus,
+    options: BookingListOptions = {},
+  ): Promise<BookingListResponse> {
     const params = new URLSearchParams()
     params.append('page', String(page))
     if (status) {
       params.append('status', status)
+    }
+    if (options.sort) {
+      params.append('sort', options.sort)
+      params.append('direction', options.direction ?? 'asc')
+    }
+    if (options.perPage) {
+      params.append('per_page', String(options.perPage))
     }
     const response = await apiClient.get<BookingListResponse>(`/bookings?${params.toString()}`)
     return response.data
@@ -130,6 +142,15 @@ export const bookingApi = {
   async reportNoShow(bookingId: string): Promise<BookingResponse> {
     await getCsrfCookie()
     const response = await apiClient.post<BookingResponse>(`/bookings/${bookingId}/report-no-show`)
+    return response.data
+  },
+
+  /**
+   * Contest a no-show report / late Producer cancellation within the 72 h window (Face only)
+   */
+  async contestBooking(bookingId: string, message: string): Promise<BookingResponse> {
+    await getCsrfCookie()
+    const response = await apiClient.post<BookingResponse>(`/bookings/${bookingId}/contest`, { message })
     return response.data
   },
 

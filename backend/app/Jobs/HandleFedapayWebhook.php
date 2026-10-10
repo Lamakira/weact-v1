@@ -181,15 +181,27 @@ class HandleFedapayWebhook implements ShouldQueue
                     throw $e;
                 }
 
-                Log::critical('Fedapay webhook: mission payment settlement rejected by business guard — money possibly collected on an invalid state, manual review required', [
-                    'payment_id' => $missionPayment->id,
-                    'mission_id' => $missionPayment->mission_id,
-                    'producer_id' => $missionPayment->producer_id,
-                    'event_name' => $this->eventName,
-                    'fedapay_transaction_id' => $transactionId,
-                    'exception' => $e::class,
-                    'exception_message' => $e->getMessage(),
-                ]);
+                // Course webhook / réinitialisation de sélection : la row a pu être supprimée entre
+                // la lecture et le règlement — si un audit de détachement existe, on rend l'argent.
+                $credited = $this->creditDetached($missionPaymentService, $transactionId, $transactionData);
+
+                if ($credited !== null) {
+                    Log::warning('Fedapay webhook: sélection détachée payée — déjà crédité automatiquement au wallet du Producteur ('.$credited.' FCFA) — aucune action manuelle', [
+                        'payment_id' => $missionPayment->id,
+                        'fedapay_transaction_id' => $transactionId,
+                        'event_name' => $this->eventName,
+                    ]);
+                } else {
+                    Log::critical('Fedapay webhook: mission payment settlement rejected by business guard — money possibly collected on an invalid state, manual review required', [
+                        'payment_id' => $missionPayment->id,
+                        'mission_id' => $missionPayment->mission_id,
+                        'producer_id' => $missionPayment->producer_id,
+                        'event_name' => $this->eventName,
+                        'fedapay_transaction_id' => $transactionId,
+                        'exception' => $e::class,
+                        'exception_message' => $e->getMessage(),
+                    ]);
+                }
             }
 
             $this->markProcessed($webhookEvent);
@@ -206,7 +218,7 @@ class HandleFedapayWebhook implements ShouldQueue
 
         if ($ugcEntry) {
             match ($this->eventName) {
-                'transaction.approved' => $missionPaymentService->markUgcMissionCandidaturePaid($ugcEntry, $fedapayRef),
+                'transaction.approved' => $missionPaymentService->markUgcMissionCandidaturePaid($ugcEntry, $fedapayRef, $this->extractPaidAmount($transactionData)),
                 'transaction.declined', 'transaction.canceled' => $missionPaymentService->markUgcMissionCandidatureFailed(
                     $ugcEntry,
                     "Payment {$this->eventName}"
@@ -316,6 +328,40 @@ class HandleFedapayWebhook implements ShouldQueue
             $this->markProcessed($webhookEvent);
 
             return;
+        }
+
+        // Money collected on a transaction nothing is attached to any more (detached cash
+        // selection / deleted hybrid escrow entry, or unknown): never auto-settled — escalate
+        // CRITICAL with the detachment audit (if any) so an admin reconciles manually.
+        if (in_array($this->eventName, ['transaction.approved', 'transaction.transferred'], true)) {
+            $detachment = FinancialEvent::where('fedapay_ref', (string) $transactionId)
+                ->where('type', FinancialEventType::PaymentDetached)
+                ->first();
+
+            // Paiement détaché (sélection cash ou escrow hybride) puis payé : on rend l'argent au
+            // Producteur (montant réellement débité, issu de l'événement signé) — idempotent. La
+            // sélection détachée n'est JAMAIS réglée.
+            $credited = $this->creditDetached($missionPaymentService, $transactionId, $transactionData);
+
+            if ($credited !== null) {
+                Log::warning('Fedapay webhook: paiement reçu pour une transaction détachée — déjà crédité automatiquement au wallet du Producteur ('.$credited.' FCFA) — aucune action manuelle', [
+                    'transaction_id' => $transactionId,
+                    'event_name' => $this->eventName,
+                    'producer_wallet_credited_amount' => $credited,
+                ]);
+            } else {
+                Log::critical('Fedapay webhook: paiement reçu pour une transaction détachée ou inconnue — argent encaissé, rien de réglé, réconciliation manuelle requise', [
+                    'transaction_id' => $transactionId,
+                    'event_name' => $this->eventName,
+                    'transaction_status' => $transactionData['status'] ?? null,
+                    'detachment_audit_found' => $detachment !== null,
+                    'detachment_audit' => $detachment === null ? null : [
+                        'financial_event_id' => $detachment->id,
+                        'status' => $detachment->status,
+                        'metadata' => $detachment->metadata,
+                    ],
+                ]);
+            }
         }
 
         Log::warning('Fedapay webhook: no booking, mission payment or withdrawal found for transaction', [
@@ -478,6 +524,24 @@ class HandleFedapayWebhook implements ShouldQueue
      *
      * @param  array<string, mixed>  $transactionData
      */
+    /**
+     * Late approval of a detached payment: credits the Producer (idempotent) from the signed amount.
+     *
+     * @param  array<string, mixed>  $transactionData
+     * @return int|null amount credited (now or earlier), null when nothing could be credited
+     */
+    private function creditDetached(MissionPaymentService $missionPaymentService, mixed $transactionId, array $transactionData): ?int
+    {
+        if (! in_array($this->eventName, ['transaction.approved', 'transaction.transferred'], true)) {
+            return null;
+        }
+
+        return $missionPaymentService->creditDetachedPayment(
+            (string) $transactionId,
+            fn (): ?int => $this->extractPaidAmount($transactionData),
+        );
+    }
+
     private function extractPaidAmount(array $transactionData): ?int
     {
         $raw = $transactionData['amount'] ?? null;

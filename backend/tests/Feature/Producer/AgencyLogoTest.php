@@ -112,6 +112,68 @@ class AgencyLogoTest extends TestCase
         Storage::disk('public')->assertExists('logos/agencies/thumbnails/'.$this->agencyProducer->agency_logo_thumbnail);
     }
 
+    public function test_logo_upload_does_not_decode_in_the_request_and_thumbnail_is_generated_by_a_job(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+
+        $this->actingAs($this->agencyUser)
+            ->postJson('/api/v1/producer/profile/logo', ['logo' => UploadedFile::fake()->image('logo.png', 200, 100)])
+            ->assertOk();
+
+        $this->agencyProducer->refresh();
+        $logo = (string) $this->agencyProducer->agency_logo;
+        Storage::disk('public')->assertExists('logos/agencies/'.$logo);
+        $this->assertNull($this->agencyProducer->agency_logo_thumbnail, 'aucune vignette générée dans la requête');
+        \Illuminate\Support\Facades\Queue::assertPushed(\App\Jobs\GenerateAgencyLogoThumbnail::class);
+
+        // Le job (worker de queue) décode et remplit la colonne.
+        (new \App\Jobs\GenerateAgencyLogoThumbnail($this->agencyProducer->id, $logo))->handle();
+
+        $this->agencyProducer->refresh();
+        $this->assertNotNull($this->agencyProducer->agency_logo_thumbnail);
+        Storage::disk('public')->assertExists('logos/agencies/thumbnails/'.$this->agencyProducer->agency_logo_thumbnail);
+    }
+
+    public function test_thumbnail_job_is_a_noop_when_the_logo_was_replaced_or_deleted_meanwhile(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        $this->actingAs($this->agencyUser)
+            ->postJson('/api/v1/producer/profile/logo', ['logo' => UploadedFile::fake()->image('logo.png', 50, 50)])
+            ->assertOk();
+        $this->agencyProducer->refresh();
+        $oldLogo = (string) $this->agencyProducer->agency_logo;
+
+        $this->actingAs($this->agencyUser)
+            ->postJson('/api/v1/producer/profile/logo', ['logo' => UploadedFile::fake()->image('logo2.png', 50, 50)])
+            ->assertOk();
+
+        (new \App\Jobs\GenerateAgencyLogoThumbnail($this->agencyProducer->id, $oldLogo))->handle(); // job périmé
+
+        $this->agencyProducer->refresh();
+        $this->assertNull($this->agencyProducer->agency_logo_thumbnail);
+        $this->assertSame([], Storage::disk('public')->files('logos/agencies/thumbnails'));
+    }
+
+    public function test_delete_logo_removes_a_thumbnail_claimed_by_the_job_after_the_model_was_loaded(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        $service = app(\App\Services\AgencyLogoService::class);
+        $service->uploadLogo($this->agencyProducer, UploadedFile::fake()->image('logo.png', 60, 60));
+
+        // Modèle chargé AVANT que le job ne réclame la colonne (cas requête de suppression de compte).
+        $stale = Producer::find($this->agencyProducer->id);
+        $this->assertNull($stale->agency_logo_thumbnail);
+        (new \App\Jobs\GenerateAgencyLogoThumbnail($stale->id, (string) $stale->agency_logo))->handle();
+        $thumbnail = 'logos/agencies/thumbnails/'.pathinfo((string) $stale->agency_logo, PATHINFO_FILENAME).'.jpg';
+        Storage::disk('public')->assertExists($thumbnail);
+
+        $service->deleteLogo($stale);
+
+        Storage::disk('public')->assertMissing($thumbnail);
+        $this->assertSame([], Storage::disk('public')->allFiles());
+        $this->assertNull(Producer::find($stale->id)->agency_logo_thumbnail);
+    }
+
     public function test_old_logo_is_deleted_when_uploading_new_one(): void
     {
         // Upload first logo

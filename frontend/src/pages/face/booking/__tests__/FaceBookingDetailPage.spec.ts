@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import FaceBookingDetailPage from '../FaceBookingDetailPage.vue'
+import { bookingApi } from '@/features/booking/services/bookingApi'
 
 const mockBooking = ref<Record<string, unknown> | null>(null)
 const mockIsLoading = ref(false)
@@ -10,13 +11,19 @@ const mockError = ref<string | null>(null)
 const mockIsConfirming = ref(false)
 const mockActionError = ref<string | null>(null)
 const mockActionErrorCode = ref<string | null>(null)
+const mockActionErrorStatus = ref<number | null>(null)
 const mockIsReportingNoShow = ref(false)
 const mockAccept = vi.fn()
 const mockReportNoShow = vi.fn()
+const mockContest = vi.fn()
 const mockFetchBooking = vi.fn()
 const mockRefreshBooking = vi.fn()
 const mockUserableType = ref('Face')
 const mockUserId = ref(1)
+
+vi.mock('@/features/booking/services/bookingApi', () => ({
+  bookingApi: { checkPaymentStatus: vi.fn(), checkCommissionStatus: vi.fn() },
+}))
 
 vi.mock('@/features/booking/composables', () => ({
   useBookingDetail: () => ({
@@ -33,13 +40,16 @@ vi.mock('@/features/booking/composables', () => ({
     isRefusing: ref(false),
     isCancelling: ref(false),
     isReportingNoShow: mockIsReportingNoShow,
+    isContesting: ref(false),
     error: mockActionError,
     errorCode: mockActionErrorCode,
+    errorStatus: mockActionErrorStatus,
     confirm: vi.fn(),
     accept: mockAccept,
     refuse: vi.fn(),
     cancel: vi.fn(),
     reportNoShow: mockReportNoShow,
+    contest: mockContest,
     clearError: vi.fn(),
   }),
 }))
@@ -257,6 +267,98 @@ async function mountPage(
   return wrapper
 }
 
+describe('FaceBookingDetailPage — return from the same-tab FedaPay checkout', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    mockFetchBooking.mockReset()
+    mockToastSuccess.mockReset()
+    vi.mocked(bookingApi.checkPaymentStatus).mockReset()
+    vi.mocked(bookingApi.checkCommissionStatus).mockReset()
+  })
+
+  it('does not verify anything without ?payment_return', async () => {
+    const wrapper = await mountPage(makeBooking({ status: 'accepted', producer_id: 2 }))
+
+    expect(bookingApi.checkPaymentStatus).not.toHaveBeenCalled()
+    expect(bookingApi.checkCommissionStatus).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="payment-return-verifying"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('payment_return=booking polls the CASH payment-status endpoint and shows the verification state', async () => {
+    vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue({ data: { status: 'accepted' } } as never)
+    const wrapper = await mountPage(
+      makeBooking({ status: 'accepted', producer_id: 2, can_pay: true }),
+      { payment_return: 'booking' },
+    )
+
+    expect(bookingApi.checkPaymentStatus).toHaveBeenCalledWith('booking-uuid-1')
+    expect(bookingApi.checkCommissionStatus).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="payment-return-verifying"]').text()).toContain(
+      'Vérification de votre paiement',
+    )
+    wrapper.unmount()
+  })
+
+  it('payment_return=booking confirmed: success toast, booking refetched, verification state gone', async () => {
+    vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue({ data: { status: 'paid' } } as never)
+    const wrapper = await mountPage(
+      makeBooking({ status: 'accepted', producer_id: 2 }),
+      { payment_return: 'booking' },
+    )
+    await flushPromises()
+
+    expect(mockToastSuccess).toHaveBeenCalledTimes(1)
+    expect(mockFetchBooking).toHaveBeenCalledTimes(2) // mount + refetch after confirmation
+    expect(wrapper.find('[data-testid="payment-return-verifying"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('payment_return=booking_commission polls the commission-status endpoint, not the cash one', async () => {
+    vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue({ data: { status: 'pending' } } as never)
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', type_contenu: 'UGC', commission_ugc: 2500, producer_id: 2 }),
+      { payment_return: 'booking_commission' },
+    )
+
+    expect(bookingApi.checkCommissionStatus).toHaveBeenCalledWith('booking-uuid-1')
+    expect(bookingApi.checkPaymentStatus).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('failed commission shows « Réessayer le paiement » which reopens the UGC overlay', async () => {
+    vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue({
+      data: { status: 'pending' },
+      commission_payment_status: 'failed',
+    } as never)
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', type_contenu: 'UGC', commission_ugc: 2500, producer_id: 2 }),
+      { payment_return: 'booking_commission' },
+    )
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="ugc-overlay-stub"]').attributes('data-open')).toBe('false')
+    await wrapper.find('[data-testid="payment-return-retry"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="ugc-overlay-stub"]').attributes('data-open')).toBe('true')
+    wrapper.unmount()
+  })
+
+  it('?pay=1 is suppressed when a payment_return is present (no auto-open of the tunnel)', async () => {
+    vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue({ data: { status: 'pending' } } as never)
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', type_contenu: 'UGC', commission_ugc: 2500, producer_id: 2 }),
+      { pay: '1', payment_return: 'booking_commission' },
+    )
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="ugc-overlay-stub"]').attributes('data-open')).toBe('false')
+    wrapper.unmount()
+  })
+})
+
 describe('FaceBookingDetailPage — shooting date guard', () => {
   beforeEach(() => {
     mockBooking.value = null
@@ -422,6 +524,54 @@ describe('FaceBookingDetailPage — no-show report button', () => {
     expect(btn.exists()).toBe(false)
   })
 
+  it('shows "Signaler une absence" when the Face already confirmed (confirmed_by_face)', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const pastDate = new Date(Date.now() - 86400000).toISOString()
+    const wrapper = await mountPage(makeBooking({ status: 'confirmed_by_face', date_debut: pastDate, producer_id: 2 }))
+
+    expect(wrapper.find('[data-testid="report-no-show-btn"]').exists()).toBe(true)
+  })
+
+  it('hides "Signaler une absence" on the shoot day itself (allowed from the day after only)', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-10T15:00:00Z'))
+
+    try {
+      const wrapper = await mountPage(makeBooking({ date_debut: '2026-10-10T00:00:00Z', producer_id: 2 }))
+      expect(wrapper.find('[data-testid="report-no-show-btn"]').exists()).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('shows "Signaler une absence" the day after the shoot day', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-11T00:30:00Z'))
+
+    try {
+      const wrapper = await mountPage(makeBooking({ date_debut: '2026-10-10T00:00:00Z', producer_id: 2 }))
+      expect(wrapper.find('[data-testid="report-no-show-btn"]').exists()).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('explains the 72h hold in the no-show dialog', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const pastDate = new Date(Date.now() - 86400000).toISOString()
+    const wrapper = await mountPage(makeBooking({ date_debut: pastDate, producer_id: 2 }), {})
+    await wrapper.find('[data-testid="report-no-show-btn"]').trigger('click')
+
+    expect(document.body.textContent).toContain('séquestre pendant 72 h')
+    wrapper.unmount()
+  })
+
   it('shows the custom cancellation reason when present on the booking', async () => {
     mockUserableType.value = 'Producer'
     mockUserId.value = 2
@@ -524,6 +674,21 @@ describe('FaceBookingDetailPage — UGC commission CTA (story 1.6)', () => {
     const overlay = wrapper.find('[data-testid="ugc-overlay-stub"]')
     expect(overlay.exists()).toBe(true)
     expect(overlay.attributes('data-open')).toBe('true')
+  })
+
+  it('consumes ?pay=1 from the URL once handled, so a full-reload Back cannot reopen the tunnel', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', type_contenu: 'UGC', commission_ugc: 2500, producer_id: 2 }),
+      { pay: '1', keep: 'me' },
+    )
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="ugc-overlay-stub"]').attributes('data-open')).toBe('true')
+    const query = wrapper.vm.$route.query
+    expect(query.pay).toBeUndefined()
+    expect(query.keep).toBe('me')
   })
 
   it('opens the engagement modal on Accepter for a UGC booking without calling accept (story 2.4)', async () => {
@@ -990,5 +1155,253 @@ describe('FaceBookingDetailPage — carte de suivi Face & réception (story 3.4)
     // D-4.2.d : le 201 porte la DeliverableResource → refetch (mount + refetch).
     expect(mockFetchBooking).toHaveBeenCalledTimes(2)
     expect(mockFetchBooking).toHaveBeenLastCalledWith('booking-uuid-1')
+  })
+})
+
+describe('FaceBookingDetailPage — fenêtre de contestation 72 h', () => {
+  const dueAt = '2099-01-01T12:00:00Z'
+
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    mockBooking.value = null
+    mockIsLoading.value = false
+    mockError.value = null
+    mockActionError.value = null
+    mockActionErrorCode.value = null
+    mockActionErrorStatus.value = null
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    mockFetchBooking.mockReset()
+    mockRefreshBooking.mockReset()
+    mockContest.mockReset()
+    mockToastSuccess.mockReset()
+    mockToastError.mockReset()
+  })
+
+  it('shows the producer a refund date banner and no contest button', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(makeBooking({ status: 'no_show', producer_id: 2, settlement_due_at: dueAt }))
+
+    expect(wrapper.find('[data-testid="settlement-producer"]').text()).toContain('Remboursement prévu le')
+    expect(wrapper.find('[data-testid="settlement-producer"]').text()).toContain('si la Face ne conteste pas')
+    expect(wrapper.find('[data-testid="contest-btn"]').exists()).toBe(false)
+  })
+
+  it('shows the face the contest deadline and a Contester button', async () => {
+    const wrapper = await mountPage(makeBooking({ status: 'no_show', settlement_due_at: dueAt }))
+
+    expect(wrapper.find('[data-testid="settlement-face"]').text()).toContain('Vous pouvez contester jusqu\'au')
+    expect(wrapper.find('[data-testid="contest-btn"]').exists()).toBe(true)
+  })
+
+  it('shows the same banner for a late producer cancellation', async () => {
+    const wrapper = await mountPage(
+      makeBooking({ status: 'cancelled_by_producer', settlement_due_at: dueAt, cancellation_reason: 'other' }),
+    )
+
+    expect(wrapper.find('[data-testid="contest-btn"]').exists()).toBe(true)
+  })
+
+  it('hides the contest button once the window is over', async () => {
+    const wrapper = await mountPage(
+      makeBooking({ status: 'no_show', settlement_due_at: '2020-01-01T00:00:00Z' }),
+    )
+
+    expect(wrapper.find('[data-testid="contest-btn"]').exists()).toBe(false)
+    // Avant le passage du job horaire : plus de date passée promise, message neutre aux deux parties.
+    expect(wrapper.find('[data-testid="settlement-over"]').text()).toContain('Délai terminé : règlement en cours.')
+    expect(wrapper.find('[data-testid="settlement-face"]').exists()).toBe(false)
+  })
+
+  it('tells the producer too that the window is over instead of a past refund date', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(
+      makeBooking({ status: 'no_show', producer_id: 2, settlement_due_at: '2020-01-01T00:00:00Z' }),
+    )
+
+    expect(wrapper.find('[data-testid="settlement-over"]').text()).toContain('Délai terminé : règlement en cours.')
+    expect(wrapper.find('[data-testid="settlement-producer"]').exists()).toBe(false)
+  })
+
+  it('tells the face what happens without a contest', async () => {
+    const wrapper = await mountPage(makeBooking({ status: 'no_show', settlement_due_at: dueAt }))
+
+    expect(wrapper.find('[data-testid="settlement-face"]').text()).toContain(
+      'Sans contestation de votre part, le Producteur sera remboursé le',
+    )
+  })
+
+  it.each([
+    ['Face', 1, 'favor_producer', null, 'Délai de contestation écoulé : le Producteur a été remboursé.'],
+    ['Face', 1, 'favor_producer', '2026-10-10T10:00:00Z', 'L\'administrateur a tranché en faveur du Producteur.'],
+    ['Face', 1, 'favor_face', '2026-10-10T10:00:00Z', 'L\'administrateur a tranché en votre faveur'],
+    ['Producer', 2, 'favor_producer', null, 'Aucune contestation : vous avez été remboursé.'],
+    ['Producer', 2, 'favor_producer', '2026-10-10T10:00:00Z', 'L\'administrateur a tranché en votre faveur : vous avez été remboursé.'],
+    ['Producer', 2, 'favor_face', '2026-10-10T10:00:00Z', 'L\'administrateur a tranché en faveur de la Face'],
+  ])('outcome line for %s (outcome %s, disputed_at %s)', async (role, userId, outcome, disputedAt, expected) => {
+    mockUserableType.value = role as string
+    mockUserId.value = userId as number
+    const wrapper = await mountPage(
+      makeBooking({
+        status: outcome === 'favor_face' ? 'completed' : 'no_show',
+        producer_id: 2,
+        settlement_due_at: dueAt,
+        disputed_at: disputedAt,
+        dispute_resolved_at: '2026-10-11T10:00:00Z',
+        dispute_outcome: outcome,
+      }),
+    )
+
+    expect(wrapper.find('[data-testid="dispute-outcome"]').text()).toContain(expected as string)
+  })
+
+  it('closes the dialog and refetches the booking when the contest is rejected with a 422', async () => {
+    mockContest.mockResolvedValue(null)
+    mockActionError.value = 'Le délai de contestation de 72 h est dépassé.'
+    mockActionErrorStatus.value = 422
+    const wrapper = await mountPage(makeBooking({ status: 'no_show', settlement_due_at: dueAt }))
+    mockFetchBooking.mockClear()
+
+    await wrapper.find('[data-testid="contest-btn"]').trigger('click')
+    const textarea = document.body.querySelector<HTMLTextAreaElement>('[data-testid="contest-message"]')!
+    textarea.value = 'Message de contestation suffisant.'
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    document.body.querySelector<HTMLButtonElement>('[data-testid="confirm-contest-btn"]')!.click()
+    await flushPromises()
+
+    expect(document.body.querySelector('[data-testid="contest-dialog"]')).toBeNull()
+    expect(mockFetchBooking).toHaveBeenCalledWith('booking-uuid-1')
+    mockActionErrorStatus.value = null
+    wrapper.unmount()
+  })
+
+  it('shows "Contestation en cours" when disputed, without contest button', async () => {
+    const wrapper = await mountPage(
+      makeBooking({ status: 'no_show', settlement_due_at: dueAt, disputed_at: '2026-10-10T10:00:00Z' }),
+    )
+
+    expect(wrapper.find('[data-testid="settlement-disputed"]').text()).toContain(
+      'Contestation en cours : un administrateur va trancher.',
+    )
+    expect(wrapper.find('[data-testid="contest-btn"]').exists()).toBe(false)
+  })
+
+  it('shows the resolved outcome on one line', async () => {
+    const wrapper = await mountPage(
+      makeBooking({
+        status: 'completed',
+        settlement_due_at: dueAt,
+        dispute_resolved_at: '2026-10-11T10:00:00Z',
+        dispute_outcome: 'favor_face',
+      }),
+    )
+
+    expect(wrapper.find('[data-testid="settlement-banner"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="dispute-outcome"]').text()).toContain('en votre faveur')
+  })
+
+  it('shows no settlement banner on a legacy no-show (no settlement_due_at)', async () => {
+    const wrapper = await mountPage(makeBooking({ status: 'no_show', settlement_due_at: null }))
+
+    expect(wrapper.find('[data-testid="settlement-banner"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="dispute-outcome"]').exists()).toBe(false)
+  })
+
+  it('keeps the confirm button disabled until the message has 10 characters, then calls the API', async () => {
+    const contested = makeBooking({ status: 'no_show', settlement_due_at: dueAt, disputed_at: '2026-10-10T10:00:00Z' })
+    mockContest.mockResolvedValue(contested)
+    const wrapper = await mountPage(makeBooking({ status: 'no_show', settlement_due_at: dueAt }))
+
+    await wrapper.find('[data-testid="contest-btn"]').trigger('click')
+    const textarea = document.body.querySelector<HTMLTextAreaElement>('[data-testid="contest-message"]')
+    const confirmBtn = () => document.body.querySelector<HTMLButtonElement>('[data-testid="confirm-contest-btn"]')
+    expect(textarea).not.toBeNull()
+    expect(confirmBtn()!.disabled).toBe(true)
+
+    textarea!.value = 'court'
+    textarea!.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    expect(confirmBtn()!.disabled).toBe(true)
+
+    textarea!.value = '  J\'étais bien présente sur place.  '
+    textarea!.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    expect(confirmBtn()!.disabled).toBe(false)
+
+    confirmBtn()!.click()
+    await flushPromises()
+
+    expect(mockContest).toHaveBeenCalledWith('booking-uuid-1', 'J\'étais bien présente sur place.')
+    expect(mockToastSuccess).toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="settlement-disputed"]').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('shows an error toast and keeps the dialog open when the contest fails', async () => {
+    mockContest.mockResolvedValue(null)
+    mockActionError.value = 'Le délai de contestation de 72 h est dépassé.'
+    const wrapper = await mountPage(makeBooking({ status: 'no_show', settlement_due_at: dueAt }))
+
+    await wrapper.find('[data-testid="contest-btn"]').trigger('click')
+    const textarea = document.body.querySelector<HTMLTextAreaElement>('[data-testid="contest-message"]')!
+    textarea.value = 'Message de contestation suffisant.'
+    textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+    document.body.querySelector<HTMLButtonElement>('[data-testid="confirm-contest-btn"]')!.click()
+    await flushPromises()
+
+    expect(mockToastError).toHaveBeenCalledWith('Le délai de contestation de 72 h est dépassé.')
+    expect(document.body.querySelector('[data-testid="contest-dialog"]')).not.toBeNull()
+    wrapper.unmount()
+  })
+})
+
+describe('FaceBookingDetailPage — délai d\'annulation Face (24 h avant le jour du tournage)', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    mockFetchBooking.mockReset()
+  })
+
+  it('avant l\'échéance : bouton Annuler visible et échéance affichée', async () => {
+    const deadline = new Date(Date.now() + 2 * 86400000).toISOString()
+    const wrapper = await mountPage(
+      makeBooking({ status: 'accepted', face_cancellation_deadline: deadline }),
+    )
+
+    expect(wrapper.find('[data-testid="face-cancel-btn"]').exists()).toBe(true)
+    const info = wrapper.find('[data-testid="face-cancel-deadline"]')
+    expect(info.exists()).toBe(true)
+    expect(info.text()).toContain('Annulation possible jusqu\'au')
+    wrapper.unmount()
+  })
+
+  it('après l\'échéance : bouton masqué et explication affichée', async () => {
+    const deadline = new Date(Date.now() - 60000).toISOString()
+    const wrapper = await mountPage(
+      makeBooking({ status: 'paid', face_cancellation_deadline: deadline }),
+    )
+
+    expect(wrapper.find('[data-testid="face-cancel-btn"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="face-cancel-closed"]').text()).toContain(
+      'Annulation impossible à moins de 24 h du jour du tournage',
+    )
+    wrapper.unmount()
+  })
+
+  it('le Producteur n\'est pas concerné par l\'échéance', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const deadline = new Date(Date.now() - 60000).toISOString()
+    const wrapper = await mountPage(
+      makeBooking({ status: 'accepted', producer_id: 2, face_cancellation_deadline: deadline }),
+    )
+
+    expect(wrapper.find('[data-testid="face-cancel-closed"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 })

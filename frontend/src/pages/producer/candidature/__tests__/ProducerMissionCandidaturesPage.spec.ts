@@ -3,14 +3,22 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import ProducerMissionCandidaturesPage from '../ProducerMissionCandidaturesPage.vue'
 import { missionApi } from '@/features/mission/services/missionApi'
+import { candidatureApi } from '@/features/candidature/services/candidatureApi'
 import type { Mission } from '@/features/mission/types'
 
 const toastErrorSpy = vi.fn()
+const redirectSpy = vi.hoisted(() => vi.fn())
+const openCandidaturePaymentSpy = vi.hoisted(() => vi.fn())
 
 // Mock router composables so the page can read `route.params.id`.
+const routeState = vi.hoisted(() => ({
+  query: {} as Record<string, unknown>,
+  replace: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { id: 'mission-uuid-under-test' } }),
-  useRouter: () => ({ push: vi.fn() }),
+  useRoute: () => ({ params: { id: 'mission-uuid-under-test' }, query: routeState.query }),
+  useRouter: () => ({ push: vi.fn(), replace: routeState.replace }),
 }))
 
 vi.mock('@/composables/useToast', () => ({
@@ -37,7 +45,8 @@ vi.mock('@/features/candidature/components', () => ({
       allowRetrySelection: { type: Boolean, required: false, default: false },
     },
     emits: ['selection-confirmed', 'selection-failed'],
-    setup(props, { slots }) {
+    setup(props, { slots, expose }) {
+      expose({ openCandidaturePayment: openCandidaturePaymentSpy })
       return () => h('div', {
         'data-testid': 'candidatures-section-stub',
         'data-retry-selection-enabled': String(props.allowRetrySelection),
@@ -61,7 +70,15 @@ vi.mock('@/features/mission/services/missionApi', () => ({
   missionApi: {
     getMission: vi.fn(),
     getPaymentStatus: vi.fn(),
+    getCommissionStatus: vi.fn(),
+    confirmSelection: vi.fn(),
   },
+}))
+
+vi.mock('@/lib/redirectToCheckout', () => ({ redirectToCheckout: redirectSpy }))
+
+vi.mock('@/features/candidature/services/candidatureApi', () => ({
+  candidatureApi: { getCandidaturePaymentStatus: vi.fn() },
 }))
 
 function makePendingPaymentMission(overrides: Partial<Mission> = {}): Mission {
@@ -93,6 +110,7 @@ function makePendingPaymentMission(overrides: Partial<Mission> = {}): Mission {
 describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    routeState.query = {}
     vi.spyOn(console, 'error').mockImplementation(() => {})
     toastErrorSpy.mockReset()
   })
@@ -393,5 +411,256 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
 
     expect(missionApi.getPaymentStatus).not.toHaveBeenCalled()
     expect(startPollingSpy).not.toHaveBeenCalled()
+  })
+
+  describe('return from the same-tab FedaPay checkout', () => {
+    it('candidature_escrow polls the candidature payment-status and NOT the cash mission one (no false « initialisation échouée » banner)', async () => {
+      routeState.query = { payment_return: 'candidature_escrow', candidature: 'cand-uuid-1' }
+      vi.mocked(missionApi.getMission).mockResolvedValue({
+        data: makePendingPaymentMission({ status: 'published', type_mission: 'ugc' } as Partial<Mission>),
+        message: 'ok',
+      })
+      vi.mocked(candidatureApi.getCandidaturePaymentStatus).mockResolvedValue({
+        data: { candidature_status: 'pending', payment_status: 'pending', is_trackable: true },
+      })
+
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+      await flushPromises()
+
+      expect(candidatureApi.getCandidaturePaymentStatus).toHaveBeenCalledWith('cand-uuid-1')
+      expect(missionApi.getPaymentStatus).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="payment-return-verifying"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="mission-payment-init-failed-banner"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
+
+    it('mission_selection polls the cash payment-status; confirmed shows the success banner and refetches the mission', async () => {
+      routeState.query = { payment_return: 'mission_selection' }
+      vi.mocked(missionApi.getMission).mockResolvedValue({
+        data: makePendingPaymentMission(),
+        message: 'ok',
+      })
+      vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+        data: { has_payment: true, is_trackable: true, status: 'paid', mission_status: 'closed' },
+      })
+
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+      await flushPromises()
+
+      expect(missionApi.getPaymentStatus).toHaveBeenCalledWith('mission-uuid-under-test')
+      expect(wrapper.find('[data-testid="mission-payment-success-banner"]').exists()).toBe(true)
+      expect(missionApi.getMission).toHaveBeenCalledTimes(2)
+      wrapper.unmount()
+    })
+
+    it('refetches the mission on a bfcache restore (Back from FedaPay after a cash selection) but not on a normal pageshow', async () => {
+      vi.mocked(missionApi.getMission).mockResolvedValue({
+        data: makePendingPaymentMission({ status: 'published', status_label: 'Publiée' }),
+        message: 'ok',
+      })
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+      // (earlier tests of this file leave mounted pages listening: compare deltas)
+      const afterMount = vi.mocked(missionApi.getMission).mock.calls.length
+
+      const normal = new Event('pageshow')
+      Object.defineProperty(normal, 'persisted', { value: false })
+      window.dispatchEvent(normal)
+      await flushPromises()
+      expect(missionApi.getMission).toHaveBeenCalledTimes(afterMount)
+
+      const restored = new Event('pageshow')
+      Object.defineProperty(restored, 'persisted', { value: true })
+      window.dispatchEvent(restored)
+      await flushPromises()
+      expect(vi.mocked(missionApi.getMission).mock.calls.length).toBeGreaterThan(afterMount)
+      wrapper.unmount()
+    })
+
+    it('without payment_return the return flow stays idle', async () => {
+      vi.mocked(missionApi.getMission).mockResolvedValue({
+        data: makePendingPaymentMission({ status: 'published', status_label: 'Publiée' }),
+        message: 'ok',
+      })
+
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+
+      expect(candidatureApi.getCandidaturePaymentStatus).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="payment-return-verifying"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
+
+    it('candidature_escrow failed: « Réessayer le paiement » reopens the règlement overlay through the section exposure', async () => {
+      routeState.query = { payment_return: 'candidature_escrow', candidature: 'cand-uuid-1' }
+      vi.mocked(missionApi.getMission).mockResolvedValue({
+        data: makePendingPaymentMission({ status: 'published', type_mission: 'ugc' } as Partial<Mission>),
+        message: 'ok',
+      })
+      vi.mocked(candidatureApi.getCandidaturePaymentStatus).mockResolvedValue({
+        data: { candidature_status: 'pending', payment_status: 'failed', is_trackable: false },
+      })
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+      await flushPromises()
+
+      await wrapper.find('[data-testid="payment-return-retry"]').trigger('click')
+
+      expect(openCandidaturePaymentSpy).toHaveBeenCalledWith('cand-uuid-1')
+      wrapper.unmount()
+    })
+
+    it('mission_selection failed: one failure banner (no orange spinner), the normal evaluation is back so the producer can reconfirm', async () => {
+      routeState.query = { payment_return: 'mission_selection', fedapay_status: 'canceled' }
+      vi.mocked(missionApi.getMission).mockResolvedValue({
+        data: makePendingPaymentMission(),
+        message: 'ok',
+      })
+      // 1st call = the return check (canceled → released server-side → not trackable);
+      // 2nd call = the page's own evaluation re-enabled after the flow.
+      vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+        data: { has_payment: true, is_trackable: false, status: 'pending', mission_status: 'pending_payment' },
+      })
+
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+      await flushPromises()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="payment-return-failed"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="mission-payment-pending-banner"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="mission-payment-init-failed-banner"]').exists()).toBe(false)
+      expect(vi.mocked(missionApi.getPaymentStatus).mock.calls.length).toBeGreaterThanOrEqual(2)
+      // Pending payment row without a live transaction → relaunch with the SAME selection
+      // (re-picking would be rejected: confirm-selection prohibits ids while a Pending payment exists).
+      expect(wrapper.find('[data-testid="mission-payment-resume-btn"]').exists()).toBe(true)
+      expect(wrapper.get('[data-testid="candidatures-section-stub"]').attributes('data-retry-selection-enabled')).toBe('false')
+      wrapper.unmount()
+    })
+
+    it('mission_selection timeout: the page resumes its normal pending polling so a late webhook still updates it', async () => {
+      vi.useFakeTimers()
+      try {
+        routeState.query = { payment_return: 'mission_selection' }
+        vi.mocked(missionApi.getMission).mockResolvedValue({
+          data: makePendingPaymentMission(),
+          message: 'ok',
+        })
+        vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+          data: { has_payment: true, is_trackable: true, status: 'pending', mission_status: 'pending_payment' },
+        })
+
+        const wrapper = mount(ProducerMissionCandidaturesPage)
+        await flushPromises()
+        expect(startPollingSpy).not.toHaveBeenCalled()
+
+        await vi.advanceTimersByTimeAsync(120000)
+        await flushPromises()
+
+        expect(wrapper.find('[data-testid="payment-return-timeout"]').exists()).toBe(true)
+        expect(startPollingSpy).toHaveBeenCalled()
+        wrapper.unmount()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('bfcache restore on a REAL pending_payment mission re-evaluates the payment state (init-failed banner appears, selection can be reconfirmed)', async () => {
+      vi.mocked(missionApi.getMission).mockResolvedValue({
+        data: makePendingPaymentMission(),
+        message: 'ok',
+      })
+      vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+        data: { has_payment: true, is_trackable: true, status: 'pending', mission_status: 'pending_payment' },
+      })
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+      expect(wrapper.find('[data-testid="mission-payment-pending-banner"]').exists()).toBe(true)
+
+      // While on FedaPay the payment was canceled: the server now reports it non-trackable.
+      vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+        data: { has_payment: true, is_trackable: false, status: 'pending', mission_status: 'pending_payment' },
+      })
+      const restored = new Event('pageshow')
+      Object.defineProperty(restored, 'persisted', { value: true })
+      window.dispatchEvent(restored)
+      await flushPromises()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="mission-payment-init-failed-banner"]').exists()).toBe(true)
+      // Pending payment row without a live transaction → relaunch with the SAME selection
+      // (re-picking would be rejected: confirm-selection prohibits ids while a Pending payment exists).
+      expect(wrapper.find('[data-testid="mission-payment-resume-btn"]').exists()).toBe(true)
+      expect(wrapper.get('[data-testid="candidatures-section-stub"]').attributes('data-retry-selection-enabled')).toBe('false')
+      wrapper.unmount()
+    })
+
+    it('released state: « Relancer le paiement » posts NO candidature ids and redirects to the fresh checkout', async () => {
+      vi.mocked(missionApi.getMission).mockResolvedValue({ data: makePendingPaymentMission(), message: 'ok' })
+      vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+        data: { has_payment: true, is_trackable: false, status: 'pending', mission_status: 'pending_payment' },
+      })
+      vi.mocked(missionApi.confirmSelection).mockResolvedValue({
+        data: { checkout_url: 'https://checkout.fedapay.test/fresh' },
+        message: 'ok',
+      } as never)
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+
+      expect(wrapper.text()).toContain('Relancer le paiement')
+      expect(wrapper.text()).not.toContain('reconfirmant votre sélection')
+      await wrapper.get('[data-testid="mission-payment-resume-btn"]').trigger('click')
+      await flushPromises()
+
+      expect(missionApi.confirmSelection).toHaveBeenCalledWith('mission-uuid-under-test', [])
+      expect(redirectSpy).toHaveBeenCalledWith('https://checkout.fedapay.test/fresh')
+      wrapper.unmount()
+    })
+
+    it('resume failure: error toast, no redirect, the page state is refreshed', async () => {
+      vi.mocked(missionApi.getMission).mockResolvedValue({ data: makePendingPaymentMission(), message: 'ok' })
+      vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+        data: { has_payment: true, is_trackable: false, status: 'pending', mission_status: 'pending_payment' },
+      })
+      vi.mocked(missionApi.confirmSelection).mockRejectedValue(new Error('422'))
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+      const fetchesBefore = vi.mocked(missionApi.getMission).mock.calls.length
+
+      await wrapper.get('[data-testid="mission-payment-resume-btn"]').trigger('click')
+      await flushPromises()
+
+      expect(toastErrorSpy).toHaveBeenCalledWith('Le paiement n\'a pas pu être relancé. Veuillez réessayer.')
+      expect(redirectSpy).not.toHaveBeenCalled()
+      expect(vi.mocked(missionApi.getMission).mock.calls.length).toBeGreaterThan(fetchesBefore)
+      wrapper.unmount()
+    })
+
+    it('no payment row at all: no resume button, the re-pick selection mode stays available', async () => {
+      vi.mocked(missionApi.getMission).mockResolvedValue({ data: makePendingPaymentMission(), message: 'ok' })
+      vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+        data: { has_payment: false, is_trackable: false, status: undefined, mission_status: 'pending_payment' },
+      })
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="mission-payment-resume-btn"]').exists()).toBe(false)
+      expect(wrapper.get('[data-testid="candidatures-section-stub"]').attributes('data-retry-selection-enabled')).toBe('true')
+      wrapper.unmount()
+    })
+
+    it('a live trackable payment never offers the resume button', async () => {
+      vi.mocked(missionApi.getMission).mockResolvedValue({ data: makePendingPaymentMission(), message: 'ok' })
+      vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+        data: { has_payment: true, is_trackable: true, status: 'pending', mission_status: 'pending_payment' },
+      })
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="mission-payment-resume-btn"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
   })
 })

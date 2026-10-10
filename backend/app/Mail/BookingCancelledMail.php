@@ -38,8 +38,23 @@ class BookingCancelledMail extends Mailable
                 'reasonLabel' => $this->reasonLabel(),
                 'cancelledByFace' => $this->cancelledBy === 'face',
                 'cancelledAt' => $this->cancelledAt(),
+                'contestDeadline' => $this->contestDeadline(),
             ],
         );
+    }
+
+    /**
+     * Annulation tardive du Producteur (fonds retenus 72 h) : échéance de contestation de la Face, en fuseau métier.
+     */
+    private function contestDeadline(): ?string
+    {
+        if ($this->cancelledBy !== 'producer'
+            || $this->booking->settlement_due_at === null
+            || $this->booking->dispute_resolved_at !== null) {
+            return null;
+        }
+
+        return Booking::formatForBusiness($this->booking->settlement_due_at);
     }
 
     private function cancellerName(): string

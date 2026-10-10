@@ -105,7 +105,7 @@ class BookingPolicy
 
     /**
      * Determine if the Face can cancel the booking.
-     * Face can cancel only accepted or paid bookings.
+     * Face can cancel only accepted or paid bookings, until 24 h before the shoot day.
      */
     public function cancelByFace(User $user, Booking $booking): bool
     {
@@ -122,7 +122,8 @@ class BookingPolicy
         ];
 
         return $user->id === $booking->face_id
-            && in_array($booking->status, $cancellableStatuses, true);
+            && in_array($booking->status, $cancellableStatuses, true)
+            && $booking->faceCancellationWindowOpen();
     }
 
     /**
@@ -149,11 +150,27 @@ class BookingPolicy
 
     /**
      * Determine if the user can report a Face no-show.
-     * Only the Producer can report, and only when status is paid.
+     * Only the Producer can report, when status is paid or confirmed by the Face
+     * (a Face confirming on the shoot day must not shield an absence). Never UGC.
      */
     public function reportNoShow(User $user, Booking $booking): bool
     {
-        return $user->id === $booking->producer_id;
+        return $user->id === $booking->producer_id
+            && in_array($booking->status, [BookingStatus::Paid, BookingStatus::ConfirmedByFace], true)
+            && $booking->type_contenu !== 'UGC';
+    }
+
+    /**
+     * Determine if the Face can contest a no-show report / late Producer cancellation.
+     * Only while a settlement is pending (legacy rows have no settlement_due_at) and not yet contested.
+     */
+    public function contest(User $user, Booking $booking): bool
+    {
+        return $user->id === $booking->face_id
+            && in_array($booking->status, [BookingStatus::NoShow, BookingStatus::CancelledByProducer], true)
+            && $booking->settlement_due_at !== null
+            && $booking->disputed_at === null
+            && $booking->dispute_resolved_at === null;
     }
 
     /**

@@ -13,6 +13,12 @@ nouvel upload génère un nouvel UUID, et la suppression retire le fichier. Une 
 donnée pointe donc vers un contenu immuable → `max-age` d'un an + `immutable`
 sans risque de contenu périmé.
 
+> Exception : la commande `media:strip-metadata` (voir
+> `docs/runbook-media-metadata-cleanup.md`) réécrit les ORIGINAUX en place pour
+> en retirer l'EXIF/GPS, sans changer leur URL. Après son exécution avec
+> `--apply`, purger le cache partagé / CDN de `/storage/` ; les navigateurs
+> garderont l'ancienne version jusqu'à expiration de leur cache.
+
 ## 2. Bloc nginx à ajouter
 
 Dans le `server {}` qui sert le site (avant le `location /` générique) :

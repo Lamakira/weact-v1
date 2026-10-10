@@ -39,6 +39,9 @@
                             @else
                                 <p style="margin: 20px 0 0; padding: 12px 16px; background-color: #ecfdf5; border-radius: 6px; color: #065f46; font-size: 13px; line-height: 1.5;">
                                     Le Producteur a annulé ce booking. Vous n'êtes pas pénalisé(e).
+                                    @if($contestDeadline)
+                                        L'annulation étant tardive, vous pouvez contester jusqu'au {{ $contestDeadline }} depuis la page du booking.
+                                    @endif
                                 </p>
                             @endif
                         </td>

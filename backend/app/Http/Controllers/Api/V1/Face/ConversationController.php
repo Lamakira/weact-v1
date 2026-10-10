@@ -8,6 +8,8 @@ use App\Http\Controllers\Controller;
 use App\Http\Resources\ConversationListResource;
 use App\Http\Resources\ConversationResource;
 use App\Models\Conversation;
+use App\Services\Messaging\ConversationRealtime;
+use App\Services\Messaging\ConversationUnreadCounter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -24,7 +26,7 @@ class ConversationController extends Controller
      *
      * Returns conversations ordered by most recent message, with pagination.
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, ConversationUnreadCounter $counter): JsonResponse
     {
         $user = $request->user();
         $face = $user->userable;
@@ -37,8 +39,10 @@ class ConversationController extends Controller
             ->with([
                 'candidature.mission.producer',
                 'candidature.face',
+                'candidature.paymentEntry.missionPayment',
                 'latestMessage.sender.userable',
             ])
+            ->withUnreadCountFor($user)
             ->orderByRaw('COALESCE((SELECT MAX(created_at) FROM messages WHERE conversation_id = conversations.id), conversations.updated_at) DESC')
             ->paginate(15);
 
@@ -49,7 +53,18 @@ class ConversationController extends Controller
                 'last_page' => $conversations->lastPage(),
                 'per_page' => $conversations->perPage(),
                 'total' => $conversations->total(),
+                'unread_conversations_count' => $counter->countFor($user),
             ],
+        ]);
+    }
+
+    /**
+     * Number of conversations with at least one unread message (sidebar badge).
+     */
+    public function unreadCount(Request $request, ConversationUnreadCounter $counter): JsonResponse
+    {
+        return response()->json([
+            'data' => ['count' => $counter->countFor($request->user())],
         ]);
     }
 
@@ -58,18 +73,15 @@ class ConversationController extends Controller
      *
      * Also marks unread messages from other participant as read.
      */
-    public function show(Request $request, Conversation $conversation): JsonResponse
+    public function show(Request $request, Conversation $conversation, ConversationRealtime $realtime, ConversationUnreadCounter $counter): JsonResponse
     {
         // Authorization via policy - checks if user can view conversation
         Gate::authorize('view', $conversation);
 
         $user = $request->user();
 
-        // Mark unread messages from other participant as read
-        $conversation->messages()
-            ->whereNull('read_at')
-            ->where('sender_id', '!=', $user->id)
-            ->update(['read_at' => now()]);
+        // Mark unread messages from other participant as read (+ live read receipt)
+        $realtime->markRead($conversation, $user);
 
         // Load relationships for the resource with explicit chronological ordering
         $conversation->load([
@@ -77,10 +89,32 @@ class ConversationController extends Controller
             'messages.sender.userable',
             'candidature.mission.producer',
             'candidature.face',
+            'candidature.paymentEntry.missionPayment',
         ]);
 
         return response()->json([
             'data' => new ConversationResource($conversation),
+            'meta' => ['unread_conversations_count' => $counter->countFor($user)],
+        ]);
+    }
+
+    /**
+     * Mark the other participant's messages as read without reloading the thread.
+     *
+     * Idempotent: a second call marks nothing and broadcasts nothing.
+     */
+    public function markRead(Request $request, Conversation $conversation, ConversationRealtime $realtime, ConversationUnreadCounter $counter): JsonResponse
+    {
+        Gate::authorize('view', $conversation);
+
+        $user = $request->user();
+        $marked = $realtime->markRead($conversation, $user);
+
+        return response()->json([
+            'data' => [
+                'marked' => $marked,
+                'unread_conversations_count' => $counter->countFor($user),
+            ],
         ]);
     }
 }

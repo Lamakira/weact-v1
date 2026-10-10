@@ -13,10 +13,12 @@ vi.mock('vue-router', () => ({
 // Mock adminAuthApi
 const mockLogin = vi.fn()
 const mockLogout = vi.fn()
+const mockVerifyTwoFactor = vi.fn()
 vi.mock('../../services/adminAuthApi', () => ({
   adminAuthApi: {
     login: (...args: unknown[]) => mockLogin(...args),
     logout: (...args: unknown[]) => mockLogout(...args),
+    verifyTwoFactor: (...args: unknown[]) => mockVerifyTwoFactor(...args),
     getMe: vi.fn(),
   },
   getApiErrorDetails: vi.fn(() => ({})),
@@ -104,6 +106,67 @@ describe('useAdminAuth - login', () => {
 
     // Loading should be false after completion
     expect(adminAuthStore.isLoading).toBe(false)
+  })
+})
+
+describe('useAdminAuth - two-factor login', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    localStorage.clear()
+  })
+
+  it('returns the challenge and stores NO token when the backend requires 2FA', async () => {
+    mockLogin.mockResolvedValue({
+      data: { two_factor_required: true, challenge: 'challenge-123' },
+      message: 'Code de vérification requis',
+      meta: {},
+    })
+
+    const { login } = useAdminAuth()
+    const result = await login({ email: 'admin@weact.bj', password: 'password' })
+
+    expect(result.success).toBe(false)
+    expect(result.twoFactorChallenge).toBe('challenge-123')
+
+    const adminAuthStore = useAdminAuthStore()
+    expect(adminAuthStore.token).toBeNull()
+    expect(adminAuthStore.isAuthenticated).toBe(false)
+  })
+
+  it('stores token and admin once the second step succeeds', async () => {
+    mockVerifyTwoFactor.mockResolvedValue({
+      data: {
+        admin: { id: 'a1', name: 'Admin', email: 'admin@weact.bj', role: 'admin', two_factor_enabled: true },
+        token: 'final-token',
+      },
+      message: 'Connexion admin réussie',
+      meta: {},
+    })
+
+    const { verifyTwoFactor } = useAdminAuth()
+    const result = await verifyTwoFactor({ challenge: 'challenge-123', code: '123456' })
+
+    expect(mockVerifyTwoFactor).toHaveBeenCalledWith({ challenge: 'challenge-123', code: '123456' })
+    expect(result.success).toBe(true)
+
+    const adminAuthStore = useAdminAuthStore()
+    expect(adminAuthStore.token).toBe('final-token')
+    expect(adminAuthStore.admin?.two_factor_enabled).toBe(true)
+  })
+
+  it('reports the error code and stores nothing when the code is wrong', async () => {
+    mockVerifyTwoFactor.mockRejectedValue({
+      response: {
+        data: { error: { message: 'Code de vérification incorrect', code: 'TWO_FACTOR_INVALID_CODE' } },
+      },
+    })
+
+    const { verifyTwoFactor } = useAdminAuth()
+    const result = await verifyTwoFactor({ challenge: 'challenge-123', code: '000000' })
+
+    expect(result.success).toBe(false)
+    expect(useAdminAuthStore().token).toBeNull()
   })
 })
 

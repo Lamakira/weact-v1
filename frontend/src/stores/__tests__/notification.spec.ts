@@ -88,7 +88,7 @@ describe('useNotificationStore', () => {
   })
 
   describe('initial state', () => {
-    it('starts with correct defaults', () => {
+    it('starts with correct defaults', async () => {
       const store = useNotificationStore()
 
       expect(store.unreadCount).toBe(0)
@@ -262,13 +262,13 @@ describe('useNotificationStore', () => {
   })
 
   describe('subscribe', () => {
-    it('sets up Echo listener on correct channel', () => {
+    it('sets up Echo listener on correct channel', async () => {
       const store = useNotificationStore()
       const authStore = useAuthStore()
       authStore.setUser({ id: 42, email: 'test@test.com' } as never)
       authStore.setToken('test-token')
 
-      store.subscribe()
+      await store.subscribe()
 
       expect(mockPrivate).toHaveBeenCalledWith('App.Models.User.42')
       expect(mockListen).toHaveBeenCalledWith('.notification.created', expect.any(Function))
@@ -278,25 +278,25 @@ describe('useNotificationStore', () => {
       expect(store.isSubscribed).toBe(false)
     })
 
-    it('is a no-op when already subscribed (idempotent)', () => {
+    it('is a no-op when already subscribed (idempotent)', async () => {
       const store = useNotificationStore()
       const authStore = useAuthStore()
       authStore.setUser({ id: 42, email: 'test@test.com' } as never)
       authStore.setToken('test-token')
 
-      store.subscribe()
-      store.subscribe()
+      await store.subscribe()
+      await store.subscribe()
 
       expect(mockPrivate).toHaveBeenCalledTimes(1)
     })
 
-    it('marks the store subscribed only after channel subscription succeeds', () => {
+    it('marks the store subscribed only after channel subscription succeeds', async () => {
       const store = useNotificationStore()
       const authStore = useAuthStore()
       authStore.setUser({ id: 42, email: 'test@test.com' } as never)
       authStore.setToken('test-token')
 
-      store.subscribe()
+      await store.subscribe()
 
       const subscribedHandler = mockSubscribed.mock.calls[0][0] as () => void
       subscribedHandler()
@@ -304,13 +304,13 @@ describe('useNotificationStore', () => {
       expect(store.isSubscribed).toBe(true)
     })
 
-    it('resets subscription state when the channel reports an error', () => {
+    it('resets subscription state when the channel reports an error', async () => {
       const store = useNotificationStore()
       const authStore = useAuthStore()
       authStore.setUser({ id: 42, email: 'test@test.com' } as never)
       authStore.setToken('test-token')
 
-      store.subscribe()
+      await store.subscribe()
 
       const subscribedHandler = mockSubscribed.mock.calls[0][0] as () => void
       subscribedHandler()
@@ -323,25 +323,25 @@ describe('useNotificationStore', () => {
       expect(mockLeave).toHaveBeenCalledWith('App.Models.User.42')
     })
 
-    it('does not subscribe when no user is authenticated', () => {
+    it('does not subscribe when no user is authenticated', async () => {
       const store = useNotificationStore()
       const authStore = useAuthStore()
       authStore.clearAuth()
 
-      store.subscribe()
+      await store.subscribe()
 
       expect(mockPrivate).not.toHaveBeenCalled()
       expect(store.isSubscribed).toBe(false)
     })
 
-    it('registers a window focus listener', () => {
+    it('registers a window focus listener', async () => {
       const addEventListenerSpy = vi.spyOn(window, 'addEventListener')
       const store = useNotificationStore()
       const authStore = useAuthStore()
       authStore.setUser({ id: 42, email: 'test@test.com' } as never)
       authStore.setToken('test-token')
 
-      store.subscribe()
+      await store.subscribe()
 
       expect(addEventListenerSpy).toHaveBeenCalledWith('focus', expect.any(Function))
     })
@@ -354,7 +354,7 @@ describe('useNotificationStore', () => {
       authStore.setUser({ id: 42, email: 'test@test.com' } as never)
       authStore.setToken('test-token')
 
-      store.subscribe()
+      await store.subscribe()
       vi.advanceTimersByTime(120_000)
       await Promise.resolve()
 
@@ -368,7 +368,7 @@ describe('useNotificationStore', () => {
       const authStore = useAuthStore()
       authStore.clearAuth()
 
-      store.subscribe()
+      await store.subscribe()
       vi.advanceTimersByTime(120_000)
       await Promise.resolve()
 
@@ -377,12 +377,12 @@ describe('useNotificationStore', () => {
   })
 
   describe('realtime event handling', () => {
-    function subscribeAndGetHandler() {
+    async function subscribeAndGetHandler() {
       const store = useNotificationStore()
       const authStore = useAuthStore()
       authStore.setUser({ id: 42, email: 'test@test.com' } as never)
       authStore.setToken('test-token')
-      store.subscribe()
+      await store.subscribe()
 
       // Extract the event handler passed to .listen()
       const handler = mockListen.mock.calls[0][1] as (event: Notification) => void
@@ -390,7 +390,7 @@ describe('useNotificationStore', () => {
     }
 
     it('increments unreadCount and prepends to items when items are fetched', async () => {
-      const { store, handler } = subscribeAndGetHandler()
+      const { store, handler } = await subscribeAndGetHandler()
       // Simulate items having been fetched
       mockGetNotifications.mockResolvedValue({ data: [createNotification({ id: 'existing-1' })] })
       await store.fetchNotifications()
@@ -404,8 +404,8 @@ describe('useNotificationStore', () => {
       expect(store.items).toHaveLength(2)
     })
 
-    it('increments unreadCount without mutating items when items have not been fetched', () => {
-      const { store, handler } = subscribeAndGetHandler()
+    it('increments unreadCount without mutating items when items have not been fetched', async () => {
+      const { store, handler } = await subscribeAndGetHandler()
       expect(store.hasFetchedItems).toBe(false)
       store.unreadCount = 3
 
@@ -417,7 +417,7 @@ describe('useNotificationStore', () => {
     })
 
     it('does not prepend or increment twice for duplicate notification id', async () => {
-      const { store, handler } = subscribeAndGetHandler()
+      const { store, handler } = await subscribeAndGetHandler()
       mockGetNotifications.mockResolvedValue({ data: [] })
       await store.fetchNotifications()
       store.unreadCount = 0
@@ -431,7 +431,7 @@ describe('useNotificationStore', () => {
     })
 
     it('does not prepend notification already present from fetchNotifications', async () => {
-      const { store, handler } = subscribeAndGetHandler()
+      const { store, handler } = await subscribeAndGetHandler()
       const existing = createNotification({ id: 'known-id' })
       mockGetNotifications.mockResolvedValue({ data: [existing] })
       await store.fetchNotifications()
@@ -446,12 +446,12 @@ describe('useNotificationStore', () => {
   })
 
   describe('unsubscribe', () => {
-    it('leaves Echo channel and resets state', () => {
+    it('leaves Echo channel and resets state', async () => {
       const store = useNotificationStore()
       const authStore = useAuthStore()
       authStore.setUser({ id: 42, email: 'test@test.com' } as never)
       authStore.setToken('test-token')
-      store.subscribe()
+      await store.subscribe()
       store.unreadCount = 5
 
       store.unsubscribe()
@@ -463,14 +463,14 @@ describe('useNotificationStore', () => {
       expect(store.hasFetchedItems).toBe(false)
     })
 
-    it('removes the window focus listener', () => {
+    it('removes the window focus listener', async () => {
       const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
       const store = useNotificationStore()
       const authStore = useAuthStore()
       authStore.setUser({ id: 42, email: 'test@test.com' } as never)
       authStore.setToken('test-token')
 
-      store.subscribe()
+      await store.subscribe()
       store.unsubscribe()
 
       expect(removeEventListenerSpy).toHaveBeenCalledWith('focus', expect.any(Function))
@@ -484,7 +484,7 @@ describe('useNotificationStore', () => {
       authStore.setUser({ id: 42, email: 'test@test.com' } as never)
       authStore.setToken('test-token')
 
-      store.subscribe()
+      await store.subscribe()
       store.unsubscribe()
       vi.advanceTimersByTime(120_000)
       await Promise.resolve()
@@ -492,13 +492,13 @@ describe('useNotificationStore', () => {
       expect(mockGetUnreadCount).not.toHaveBeenCalled()
     })
 
-    it('unbinds the reconnect handler', () => {
+    it('unbinds the reconnect handler', async () => {
       const store = useNotificationStore()
       const authStore = useAuthStore()
       authStore.setUser({ id: 42, email: 'test@test.com' } as never)
       authStore.setToken('test-token')
 
-      store.subscribe()
+      await store.subscribe()
 
       const reconnectHandler = mockBind.mock.calls[0][1] as () => void
       store.unsubscribe()
@@ -508,18 +508,18 @@ describe('useNotificationStore', () => {
   })
 
   describe('fallback mechanisms', () => {
-    function subscribeWithAuthenticatedUser() {
+    async function subscribeWithAuthenticatedUser() {
       const store = useNotificationStore()
       const authStore = useAuthStore()
       authStore.setUser({ id: 42, email: 'test@test.com' } as never)
       authStore.setToken('test-token')
-      store.subscribe()
+      await store.subscribe()
       return store
     }
 
     it('triggers fetchUnreadCount on window focus', async () => {
       mockGetUnreadCount.mockResolvedValue({ count: 7 })
-      subscribeWithAuthenticatedUser()
+      await subscribeWithAuthenticatedUser()
 
       window.dispatchEvent(new Event('focus'))
       await Promise.resolve()
@@ -529,7 +529,7 @@ describe('useNotificationStore', () => {
 
     it('also triggers fetchNotifications on window focus when items were already fetched', async () => {
       mockGetNotifications.mockResolvedValue({ data: [createNotification()] })
-      const store = subscribeWithAuthenticatedUser()
+      const store = await subscribeWithAuthenticatedUser()
       await store.fetchNotifications()
       mockGetNotifications.mockClear()
 
@@ -541,7 +541,7 @@ describe('useNotificationStore', () => {
 
     it('does not fetch notifications on window focus when items were not fetched yet', async () => {
       mockGetUnreadCount.mockResolvedValue({ count: 7 })
-      subscribeWithAuthenticatedUser()
+      await subscribeWithAuthenticatedUser()
 
       window.dispatchEvent(new Event('focus'))
       await Promise.resolve()
@@ -549,12 +549,40 @@ describe('useNotificationStore', () => {
       expect(mockGetNotifications).not.toHaveBeenCalled()
     })
 
+    it('throttles window focus refetches to once per 30 seconds', async () => {
+      vi.useFakeTimers()
+      mockGetUnreadCount.mockResolvedValue({ count: 7 })
+      await subscribeWithAuthenticatedUser()
+
+      window.dispatchEvent(new Event('focus'))
+      window.dispatchEvent(new Event('focus'))
+      vi.advanceTimersByTime(29_000)
+      window.dispatchEvent(new Event('focus'))
+      expect(mockGetUnreadCount).toHaveBeenCalledTimes(1)
+
+      vi.advanceTimersByTime(1_500)
+      window.dispatchEvent(new Event('focus'))
+      expect(mockGetUnreadCount).toHaveBeenCalledTimes(2)
+    })
+
+    it('ignores the initial `connected` event (count already loaded at boot)', async () => {
+      mockGetUnreadCount.mockResolvedValue({ count: 7 })
+      await subscribeWithAuthenticatedUser()
+
+      const connectedHandler = mockBind.mock.calls[0][1] as () => void
+      connectedHandler()
+      await Promise.resolve()
+
+      expect(mockGetUnreadCount).not.toHaveBeenCalled()
+    })
+
     it('triggers fetchUnreadCount on reconnect', async () => {
       mockGetUnreadCount.mockResolvedValue({ count: 7 })
-      subscribeWithAuthenticatedUser()
+      await subscribeWithAuthenticatedUser()
 
       const reconnectHandler = mockBind.mock.calls[0][1] as () => void
-      reconnectHandler()
+      reconnectHandler() // première connexion : ignorée
+      reconnectHandler() // reconnexion
       await Promise.resolve()
 
       expect(mockGetUnreadCount).toHaveBeenCalledOnce()
@@ -562,12 +590,13 @@ describe('useNotificationStore', () => {
 
     it('also triggers fetchNotifications on reconnect when items were already fetched', async () => {
       mockGetNotifications.mockResolvedValue({ data: [createNotification()] })
-      const store = subscribeWithAuthenticatedUser()
+      const store = await subscribeWithAuthenticatedUser()
       await store.fetchNotifications()
       mockGetNotifications.mockClear()
 
       const reconnectHandler = mockBind.mock.calls[0][1] as () => void
-      reconnectHandler()
+      reconnectHandler() // première connexion : ignorée
+      reconnectHandler() // reconnexion
       await Promise.resolve()
 
       expect(mockGetNotifications).toHaveBeenCalledWith(1)
@@ -577,7 +606,7 @@ describe('useNotificationStore', () => {
       vi.useFakeTimers()
       mockGetUnreadCount.mockResolvedValue({ count: 7 })
       const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
-      subscribeWithAuthenticatedUser()
+      await subscribeWithAuthenticatedUser()
 
       const reconnectHandler = mockBind.mock.calls[0][1] as () => void
       const errorHandler = mockError.mock.calls[0][0] as () => void
@@ -602,7 +631,7 @@ describe('useNotificationStore', () => {
         throw new Error('Echo init failed')
       })
 
-      subscribeWithAuthenticatedUser()
+      await subscribeWithAuthenticatedUser()
 
       expect(removeEventListenerSpy).toHaveBeenCalledWith('focus', expect.any(Function))
 

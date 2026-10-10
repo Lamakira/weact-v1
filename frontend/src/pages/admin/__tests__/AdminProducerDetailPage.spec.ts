@@ -135,6 +135,29 @@ describe('AdminProducerDetailPage', () => {
     expect(dd.textContent?.trim()).toBe('—')
   })
 
+  it('shows the WhatsApp number as a digits-only wa.me link', async () => {
+    const { wrapper } = await mountPage(makeProducer({ whatsapp_number: '+229 01 97 12 34 56' }))
+
+    const link = wrapper.get('[data-testid="identity-section"] [data-testid="whatsapp-link"]')
+
+    expect(link.attributes('href')).toBe('https://wa.me/2290197123456')
+    expect(link.text()).toBe('+229 01 97 12 34 56')
+    expect(wrapper.find('[data-testid="whatsapp-missing"]').exists()).toBe(false)
+  })
+
+  it('shows a dash and no link when the producer has no WhatsApp number', async () => {
+    const { wrapper } = await mountPage(makeProducer({ whatsapp_number: null }))
+
+    expect(wrapper.find('[data-testid="whatsapp-link"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="whatsapp-missing"]').text()).toBe('—')
+  })
+
+  it('shows no link when the number holds no digit', async () => {
+    const { wrapper } = await mountPage(makeProducer({ whatsapp_number: '+ - ()' }))
+
+    expect(wrapper.find('[data-testid="whatsapp-link"]').exists()).toBe(false)
+  })
+
   it('keeps email visible after a successful save', async () => {
     mockUpdateProducer.mockImplementation(async () => {
       producerRef.value = makeProducer({

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Enums\BookingStatus;
+use App\Models\Admin;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Auth;
@@ -31,6 +32,7 @@ class BookingResource extends JsonResource
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
             'date_debut' => $this->date_debut?->toIso8601String(),
+            'face_cancellation_deadline' => $this->faceCancellationDeadline()?->toIso8601String(),
             'date_fin' => $this->date_fin?->toIso8601String(),
             'duree_heures' => $this->duree_heures,
             'type_contenu' => $this->type_contenu,
@@ -51,6 +53,20 @@ class BookingResource extends JsonResource
             'fedapay_transaction_id' => $user && $user->id === $this->producer_id ? $this->fedapay_transaction_id : null,
             'payment_mode' => $this->payment_mode,
             'accepted_at' => $this->accepted_at?->toISOString(),
+            // Présent uniquement quand le contrôleur a fait loadExists('escrowTransaction') (show).
+            'was_paid' => $this->when(
+                array_key_exists('escrow_transaction_exists', $this->resource->getAttributes()),
+                fn () => (bool) $this->resource->getAttribute('escrow_transaction_exists'),
+            ),
+            'settlement_due_at' => $this->settlement_due_at?->toIso8601String(),
+            'disputed_at' => $this->disputed_at?->toIso8601String(),
+            'dispute_resolved_at' => $this->dispute_resolved_at?->toIso8601String(),
+            'dispute_outcome' => $this->dispute_outcome,
+            'completion_reminder_sent_at' => $this->completion_reminder_sent_at?->toIso8601String(),
+            // Message de contestation : visible de la Face concernée et des admins uniquement.
+            'dispute_message' => $user instanceof Admin || ($user && $user->id === $this->face_id)
+                ? $this->dispute_message
+                : null,
             'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
             'deliverables' => DeliverableResource::collection($this->whenLoaded('deliverables')),
             // Photos produit UGC (spec photos produit) — whenLoaded : la clé est OMISE
@@ -63,7 +79,7 @@ class BookingResource extends JsonResource
             'can_pay' => $user && $user->can('pay', $this->resource),
             // Short-circuit: skip the DB exists() check for non-completed bookings
             // to avoid N+1 on list endpoints.
-            'can_rate' => $user && $this->status === BookingStatus::Completed && $user->can('rate', $this->resource),
+            'can_rate' => $user && $this->status === BookingStatus::Completed && $this->canRate($user),
             'my_rating' => $this->when(
                 $this->resource->relationLoaded('raterBookingRating'),
                 fn () => $this->raterBookingRating ? new BookingRatingResource($this->raterBookingRating) : null,
@@ -72,5 +88,21 @@ class BookingResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * The policy (the real gate for POST rate) always runs its own query. The list
+     * pre-loads `viewer_has_rated` for the authenticated viewer (BookingController::index):
+     * only this resource trusts it, to avoid one exists() per completed booking.
+     */
+    private function canRate(object $user): bool
+    {
+        if (! array_key_exists('viewer_has_rated', $this->resource->getAttributes())) {
+            return $user->can('rate', $this->resource);
+        }
+
+        $isParty = $user->id === $this->face_id || $user->id === $this->producer_id;
+
+        return $isParty && ! (bool) $this->resource->getAttribute('viewer_has_rated');
     }
 }

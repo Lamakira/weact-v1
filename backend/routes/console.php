@@ -11,17 +11,21 @@ use App\Console\Commands\ExpireUnpaidBookingsCommand;
 use App\Console\Commands\ExpireUnreconfirmedUgcCandidaturesCommand;
 use App\Console\Commands\FailStalePendingFaceSubscriptionsCommand;
 use App\Console\Commands\ProcessUgcDeadlinesCommand;
+use App\Console\Commands\PurgeExpiredCacheCommand;
 use App\Console\Commands\PurgeExpiredMediaCommand;
 use App\Console\Commands\RebuildFaceListingRanksCommand;
 use App\Console\Commands\ReconcileWalletCommand;
 use App\Console\Commands\RemindBookingPaymentCommand;
 use App\Console\Commands\RemindFaceSubscriptionRenewalsCommand;
+use App\Console\Commands\RemindPendingBookingConfirmationCommand;
 use App\Console\Commands\RemindShootingDayCommand;
 use App\Console\Commands\RotateFaceListingRanksCommand;
+use App\Console\Commands\SettleBookingDisputesCommand;
 use App\Console\Commands\SettleDisputedMissionAttendanceCommand;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -29,6 +33,8 @@ Artisan::command('inspire', function () {
 
 // Register scheduled commands
 app(Schedule::class)->command(AutoCompleteBookingsCommand::class)->hourly();
+app(Schedule::class)->command(SettleBookingDisputesCommand::class)->hourly()->withoutOverlapping();
+app(Schedule::class)->command(RemindPendingBookingConfirmationCommand::class)->hourly()->withoutOverlapping();
 app(Schedule::class)->command(ExpireUnacceptedBookingsCommand::class)->hourly();
 app(Schedule::class)->command(ExpireUnpaidBookingsCommand::class)->hourly();
 app(Schedule::class)->command(ExpireUnacceptedUgcDealsCommand::class)->hourly();
@@ -50,6 +56,13 @@ app(Schedule::class)->command(FailStalePendingFaceSubscriptionsCommand::class)->
 app(Schedule::class)->command(RemindFaceSubscriptionRenewalsCommand::class)->hourly();
 app(Schedule::class)->command(PurgeExpiredMediaCommand::class)
     ->dailyAt('03:00')
+    ->timezone('UTC')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// Le cache `database` ne purge jamais ses lignes expirées : nettoyage quotidien (no-op hors store database).
+app(Schedule::class)->command(PurgeExpiredCacheCommand::class)
+    ->dailyAt('04:00')
     ->timezone('UTC')
     ->withoutOverlapping()
     ->onOneServer();
@@ -85,6 +98,25 @@ app(Schedule::class)->command(CheckFaceListingRanksFreshnessCommand::class)->hou
 // more than 24h, so abandoned/non-expiring sessions don't accumulate forever.
 app(Schedule::class)->command('sanctum:prune-expired', ['--hours' => 24])
     ->dailyAt('03:30')
+    ->timezone('UTC')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+// Database cache hygiene: with the `database` store an expired row is only deleted
+// when that very key is read, so single-use entries that are never read again
+// (abandoned `oauth:state:*`, `:spent` markers) accumulate. No-op on any other store.
+app(Schedule::class)->call(function (): void {
+    if (config('cache.default') !== 'database') {
+        return;
+    }
+
+    DB::connection(config('cache.stores.database.connection'))
+        ->table((string) config('cache.stores.database.table'))
+        ->where('expiration', '<=', now()->getTimestamp())
+        ->delete();
+})
+    ->name('cache:prune-expired-database-rows')
+    ->dailyAt('03:45')
     ->timezone('UTC')
     ->withoutOverlapping()
     ->onOneServer();

@@ -4,8 +4,10 @@ import type {
   ChartStatsResponse,
   MissionsCountResponse,
   ProducerDashboardStatsResponse,
+  ProducerActiveMissionsResponse,
   BookingStatsResponse,
   BookingChartStatsResponse,
+  FaceTodoResponse,
 } from '../types'
 
 /**
@@ -64,12 +66,32 @@ export const dashboardApi = {
   },
 
   /**
+   * Get the Face « À faire » queue (up to 8 items, most urgent first)
+   */
+  async getFaceTodo(): Promise<FaceTodoResponse> {
+    const response = await apiClient.get<FaceTodoResponse>('/face/dashboard/todo')
+    return response.data
+  },
+
+  /**
    * Get Producer dashboard statistics
    * Returns mission counts grouped by status
    * @returns Dashboard stats with published, in_progress, closed, completed counts
    */
   async getProducerStats(): Promise<ProducerDashboardStatsResponse> {
     const response = await apiClient.get<ProducerDashboardStatsResponse>('/producer/dashboard/stats')
+    return response.data
+  },
+
+  /**
+   * Get the Producer's active missions (published or in progress) for the dashboard module
+   * @param limit Number of rows to return (meta.total counts all active missions)
+   */
+  async getProducerActiveMissions(limit = 5): Promise<ProducerActiveMissionsResponse> {
+    const response = await apiClient.get<ProducerActiveMissionsResponse>(
+      '/producer/dashboard/active-missions',
+      { params: { limit } },
+    )
     return response.data
   },
 }

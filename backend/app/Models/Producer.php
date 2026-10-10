@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Concerns\HasImageVariantUrls;
+use App\Concerns\HasRatingAggregates;
 use App\Concerns\HasRouteUuid;
 use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
@@ -27,6 +28,7 @@ use Illuminate\Support\Str;
  * @property string|null $first_name
  * @property string|null $last_name
  * @property string|null $bio
+ * @property string|null $whatsapp_number
  * @property string|null $slug
  * @property-read User|null $user
  * @property-read string $display_name
@@ -49,7 +51,7 @@ use Illuminate\Support\Str;
  */
 class Producer extends Model
 {
-    use HasFactory, HasImageVariantUrls, HasRouteUuid;
+    use HasFactory, HasImageVariantUrls, HasRatingAggregates, HasRouteUuid;
 
     /**
      * Boot the model.
@@ -124,8 +126,19 @@ class Producer extends Model
         'profile_photo_grid',
         'profile_photo_large',
         'bio',
+        'whatsapp_number',
         'agency_logo',
         'agency_logo_thumbnail',
+    ];
+
+    /**
+     * Hidden from raw model serialization: the WhatsApp number is PII visible to
+     * the owner and admins only. ProducerResource exposes it explicitly for them.
+     *
+     * @var list<string>
+     */
+    protected $hidden = [
+        'whatsapp_number',
     ];
 
     /**
@@ -330,26 +343,20 @@ class Producer extends Model
 
     /**
      * Get the average rating score for this Producer.
+     *
+     * Reads the aggregates pre-loaded by withRatingAggregates() when present.
      */
     protected function averageRating(): Attribute
     {
         return Attribute::make(
             get: function (): ?float {
-                $candidatureRatings = $this->ratingsReceived()->selectRaw('COALESCE(SUM(score), 0) as score_sum, COUNT(*) as score_count')->first();
-                $bookingRatings = $this->bookingRatingsReceived()->selectRaw('COALESCE(SUM(score), 0) as score_sum, COUNT(*) as score_count')->groupBy('users.userable_id')->first();
+                $totals = $this->ratingTotals();
 
-                $candidatureCount = (int) data_get($candidatureRatings, 'score_count', 0);
-                $bookingCount = (int) data_get($bookingRatings, 'score_count', 0);
-                $totalCount = $candidatureCount + $bookingCount;
-
-                if ($totalCount === 0) {
+                if ($totals['count'] === 0) {
                     return null;
                 }
 
-                $totalScore = (float) data_get($candidatureRatings, 'score_sum', 0.0)
-                    + (float) data_get($bookingRatings, 'score_sum', 0.0);
-
-                return $totalScore / $totalCount;
+                return $totals['sum'] / $totals['count'];
             },
         );
     }
@@ -360,7 +367,7 @@ class Producer extends Model
     protected function ratingsCount(): Attribute
     {
         return Attribute::make(
-            get: fn (): int => $this->ratingsReceived()->count() + $this->bookingRatingsReceived()->count(),
+            get: fn (): int => $this->ratingTotals()['count'],
         );
     }
 }

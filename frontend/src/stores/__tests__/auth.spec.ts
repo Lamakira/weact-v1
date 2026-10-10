@@ -102,3 +102,93 @@ describe('auth store — per-account shared-cache hygiene', () => {
     expect(cache.data.value).toBe('public-or-fresh-login-data')
   })
 })
+
+describe('auth store — per-account sessionStorage hygiene', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+    sessionStorage.clear()
+  })
+
+  it('clearAuth() removes weact.auth.* keys but keeps the OAuth nonce', () => {
+    sessionStorage.setItem('weact.auth.google_reauth', '{"token":"t","purpose":"set_password"}')
+    sessionStorage.setItem('weact.auth.google_pending_registration', '{}')
+    sessionStorage.setItem('weact.oauth_nonce', 'nonce-in-flight')
+
+    useAuthStore().clearAuth()
+
+    expect(sessionStorage.getItem('weact.auth.google_reauth')).toBeNull()
+    expect(sessionStorage.getItem('weact.auth.google_pending_registration')).toBeNull()
+    expect(sessionStorage.getItem('weact.oauth_nonce')).toBe('nonce-in-flight')
+  })
+
+  it('setUser() with a different identity clears weact.auth.* keys', () => {
+    const store = useAuthStore()
+    store.setUser(makeUser(1))
+    sessionStorage.setItem('weact.auth.google_reauth', '{"token":"t","purpose":"set_password"}')
+    sessionStorage.setItem('weact.oauth_nonce', 'nonce-in-flight')
+
+    store.setUser(makeUser(2))
+
+    expect(sessionStorage.getItem('weact.auth.google_reauth')).toBeNull()
+    expect(sessionStorage.getItem('weact.oauth_nonce')).toBe('nonce-in-flight')
+  })
+
+  it('setUser() with the same identity keeps weact.auth.* keys', () => {
+    const store = useAuthStore()
+    store.setUser(makeUser(1))
+    sessionStorage.setItem('weact.auth.google_reauth', 'ticket')
+
+    store.setUser({ ...makeUser(1), email: 'updated@example.test' })
+
+    expect(sessionStorage.getItem('weact.auth.google_reauth')).toBe('ticket')
+  })
+})
+
+/**
+ * `auth_user` is restored from localStorage and only re-fetched by refreshUser(),
+ * so every session already open on deploy day hydrates a User object that predates
+ * `has_password`. Defaulting that to false would hide the password form from users
+ * who do have a password.
+ */
+describe('auth store — hasPassword staleness default', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  it('defaults to true when the stored user predates the field', () => {
+    const store = useAuthStore()
+    const legacyUser = makeUser(1)
+    delete (legacyUser as Partial<User>).has_password
+
+    store.setUser(legacyUser)
+
+    expect(store.hasPassword).toBe(true)
+  })
+
+  it('reports false only when the server says so explicitly', () => {
+    const store = useAuthStore()
+
+    store.setUser({ ...makeUser(1), has_password: false })
+    expect(store.hasPassword).toBe(false)
+
+    store.setUser({ ...makeUser(1), has_password: true })
+    expect(store.hasPassword).toBe(true)
+  })
+
+  it('defaults to true when logged out', () => {
+    const store = useAuthStore()
+
+    expect(store.hasPassword).toBe(true)
+  })
+})

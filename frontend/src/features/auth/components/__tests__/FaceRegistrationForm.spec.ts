@@ -37,8 +37,9 @@ describe('FaceRegistrationForm', () => {
     vi.clearAllMocks()
   })
 
-  const mountComponent = () => {
+  const mountComponent = (props: Record<string, unknown> = {}) => {
     return mount(FaceRegistrationForm, {
+      props,
       global: {
         plugins: [
           createTestingPinia({
@@ -48,41 +49,37 @@ describe('FaceRegistrationForm', () => {
         ],
         stubs: {
           RouterLink: true,
+          GoogleSignInButton: {
+            props: ['intent', 'disabled', 'label'],
+            template:
+              '<button data-testid="google-sign-in-button" :data-intent="intent" :disabled="disabled" />',
+          },
         },
       },
     })
   }
 
-  it('renders all form fields including personal info', () => {
+  it('renders exactly the six signup fields', () => {
     const wrapper = mountComponent()
 
     expect(wrapper.find('[data-testid="nom-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="prenom-input"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="username-input"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="sexe-select"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="date-naissance-input"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="nationalite-input"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="pays-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="email-input"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="whatsapp-number-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="date-naissance-input"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="password-input"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="password-confirmation-input"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="accept-cgu-checkbox"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="submit-button"]').exists()).toBe(true)
   })
 
-  it('renders nationality and country as selects with shared options', () => {
+  it('no longer renders the fields deferred to profile completion', () => {
     const wrapper = mountComponent()
 
-    const nationaliteSelect = wrapper.find('[data-testid="nationalite-input"]')
-    const paysSelect = wrapper.find('[data-testid="pays-input"]')
-    const nationalityOptions = nationaliteSelect.findAll('option').map((option) => option.text())
-
-    expect(nationaliteSelect.element.tagName).toBe('SELECT')
-    expect(paysSelect.element.tagName).toBe('SELECT')
-    expect(nationaliteSelect.findAll('option').length).toBeGreaterThan(10)
-    expect(paysSelect.findAll('option').length).toBeGreaterThan(10)
-    expect(nationalityOptions).toContain('Béninoise')
-    expect(nationalityOptions).toContain('Française')
+    expect(wrapper.find('[data-testid="username-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="sexe-select"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="nationalite-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="pays-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="whatsapp-number-input"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="password-confirmation-input"]').exists()).toBe(false)
   })
 
   it('displays validation errors for empty fields on submit', async () => {
@@ -95,86 +92,55 @@ describe('FaceRegistrationForm', () => {
     // Check for validation error messages
     expect(wrapper.find('[data-testid="nom-error"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="prenom-error"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="username-error"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="sexe-error"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="date_naissance-error"]').exists()).toBe(true)
-    expect(wrapper.find('[data-testid="nationalite-error"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="email-error"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="date_naissance-error"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="password-error"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="accept-cgu-error"]').exists()).toBe(true)
   })
 
   it('displays password validation error for weak password', async () => {
     const wrapper = mountComponent()
 
-    // Fill in all fields with a weak password (shorter than 8 chars)
     await wrapper.find('[data-testid="nom-input"]').setValue('Doe')
     await wrapper.find('[data-testid="prenom-input"]').setValue('John')
-    await wrapper.find('[data-testid="username-input"]').setValue('johndoe')
-    await wrapper.find('[data-testid="sexe-select"]').setValue('homme')
-    await wrapper.find('[data-testid="date-naissance-input"]').setValue('1995-06-15')
-    await wrapper.find('[data-testid="nationalite-input"]').setValue('Béninoise')
-    await wrapper.find('[data-testid="pays-input"]').setValue('Bénin')
     await wrapper.find('[data-testid="email-input"]').setValue('john@example.com')
+    await wrapper.find('[data-testid="date-naissance-input"]').setValue('1995-06-15')
     await wrapper.find('[data-testid="password-input"]').setValue('Ab1')
-    await wrapper.find('[data-testid="password-confirmation-input"]').setValue('Ab1')
+    await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
     await wrapper.find('form').trigger('submit')
     await waitForValidation()
 
-    // Either show password error (min length) or password confirmation error
     const passwordError = wrapper.find('[data-testid="password-error"]')
-    if (passwordError.exists()) {
-      expect(passwordError.text()).toContain('8 caractères')
-    } else {
-      // If not showing, verify the password requirements hint is visible
-      expect(wrapper.text()).toContain('8 caractères minimum')
-    }
+    expect(passwordError.exists()).toBe(true)
+    expect(passwordError.text()).toContain('8 caractères')
   })
 
-  it('displays password confirmation error when passwords do not match', async () => {
+  it('rejects an applicant under 16', async () => {
     const wrapper = mountComponent()
 
-    // Fill in ALL required fields with mismatched passwords
+    const underage = new Date()
+    underage.setFullYear(underage.getFullYear() - 15)
+
     await wrapper.find('[data-testid="nom-input"]').setValue('Doe')
     await wrapper.find('[data-testid="prenom-input"]').setValue('John')
-    await wrapper.find('[data-testid="username-input"]').setValue('johndoe')
-    await wrapper.find('[data-testid="sexe-select"]').setValue('homme')
-    await wrapper.find('[data-testid="date-naissance-input"]').setValue('1995-06-15')
-    await wrapper.find('[data-testid="nationalite-input"]').setValue('Béninoise')
-    await wrapper.find('[data-testid="pays-input"]').setValue('Bénin')
     await wrapper.find('[data-testid="email-input"]').setValue('john@example.com')
+    await wrapper.find('[data-testid="date-naissance-input"]').setValue(underage.toISOString().slice(0, 10))
     await wrapper.find('[data-testid="password-input"]').setValue('Password123')
-    await wrapper.find('[data-testid="password-confirmation-input"]').setValue('DifferentPassword123')
+    await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
     await wrapper.find('form').trigger('submit')
     await waitForValidation()
 
-    const confirmError = wrapper.find('[data-testid="password_confirmation-error"]')
-    expect(confirmError.exists()).toBe(true)
-    expect(confirmError.text()).toContain('ne correspond pas')
+    const dateError = wrapper.find('[data-testid="date_naissance-error"]')
+    expect(dateError.exists()).toBe(true)
+    expect(dateError.text()).toContain('16 ans')
   })
 
   it('has correct input types for security', () => {
     const wrapper = mountComponent()
 
     expect(wrapper.find('[data-testid="email-input"]').attributes('type')).toBe('email')
-    expect(wrapper.find('[data-testid="whatsapp-number-input"]').attributes('type')).toBe('tel')
+    expect(wrapper.find('[data-testid="date-naissance-input"]').attributes('type')).toBe('date')
     expect(wrapper.find('[data-testid="password-input"]').attributes('type')).toBe('password')
-    expect(wrapper.find('[data-testid="password-confirmation-input"]').attributes('type')).toBe('password')
-  })
-
-  it('pre-fills pays with Bénin', () => {
-    const wrapper = mountComponent()
-
-    const paysInput = wrapper.find('[data-testid="pays-input"]')
-    expect(paysInput.exists()).toBe(true)
-    expect((paysInput.element as HTMLInputElement).value).toBe('Bénin')
-  })
-
-  it('pre-fills nationalite with Béninoise', () => {
-    const wrapper = mountComponent()
-
-    const nationaliteInput = wrapper.find('[data-testid="nationalite-input"]')
-    expect(nationaliteInput.exists()).toBe(true)
-    expect((nationaliteInput.element as HTMLInputElement).value).toBe('Béninoise')
   })
 
   it('has correct autocomplete attributes', () => {
@@ -182,10 +148,50 @@ describe('FaceRegistrationForm', () => {
 
     expect(wrapper.find('[data-testid="nom-input"]').attributes('autocomplete')).toBe('family-name')
     expect(wrapper.find('[data-testid="prenom-input"]').attributes('autocomplete')).toBe('given-name')
-    expect(wrapper.find('[data-testid="username-input"]').attributes('autocomplete')).toBe('username')
     expect(wrapper.find('[data-testid="email-input"]').attributes('autocomplete')).toBe('email')
-    expect(wrapper.find('[data-testid="whatsapp-number-input"]').attributes('autocomplete')).toBe('tel')
     expect(wrapper.find('[data-testid="password-input"]').attributes('autocomplete')).toBe('new-password')
+  })
+
+  it('caps nom and prenom at 100 characters on the inputs', () => {
+    const wrapper = mountComponent()
+
+    expect(wrapper.find('[data-testid="nom-input"]').attributes('maxlength')).toBe('100')
+    expect(wrapper.find('[data-testid="prenom-input"]').attributes('maxlength')).toBe('100')
+  })
+
+  it('rejects a nom or prenom longer than 100 characters', async () => {
+    const wrapper = mountComponent()
+    const tooLong = 'a'.repeat(101)
+
+    await wrapper.find('[data-testid="nom-input"]').setValue(tooLong)
+    await wrapper.find('[data-testid="prenom-input"]').setValue(tooLong)
+    await wrapper.find('[data-testid="email-input"]').setValue('john@example.com')
+    await wrapper.find('[data-testid="date-naissance-input"]').setValue('1995-06-15')
+    await wrapper.find('[data-testid="password-input"]').setValue('Password123')
+    await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(wrapper.find('[data-testid="nom-error"]').text()).toContain('100 caractères')
+    expect(wrapper.find('[data-testid="prenom-error"]').text()).toContain('100 caractères')
+  })
+
+  it('toggles the password input between password and text', async () => {
+    const wrapper = mountComponent()
+
+    expect(wrapper.find('[data-testid="password-input"]').attributes('type')).toBe('password')
+
+    await wrapper.find('[data-testid="toggle-password-visibility"]').trigger('click')
+    expect(wrapper.find('[data-testid="password-input"]').attributes('type')).toBe('text')
+
+    await wrapper.find('[data-testid="toggle-password-visibility"]').trigger('click')
+    expect(wrapper.find('[data-testid="password-input"]').attributes('type')).toBe('password')
+  })
+
+  it('states the 16+ requirement in the consent label', () => {
+    const wrapper = mountComponent()
+
+    expect(wrapper.find('[data-testid="accept-cgu-field"]').text()).toContain('16 ans ou plus')
   })
 
   it('displays submit button with correct text', () => {
@@ -193,5 +199,30 @@ describe('FaceRegistrationForm', () => {
 
     const submitButton = wrapper.find('[data-testid="submit-button"]')
     expect(submitButton.text()).toContain("S'inscrire en tant que Face")
+  })
+
+  describe('Google Sign-In', () => {
+    it('is absent unless the backend advertises it', () => {
+      const wrapper = mountComponent()
+
+      expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(false)
+    })
+
+    it('carries the face intent and stays disabled until the CGU are ticked', async () => {
+      const wrapper = mountComponent({ googleEnabled: true })
+
+      const button = wrapper.find('[data-testid="google-sign-in-button"]')
+      expect(button.exists()).toBe(true)
+      expect(button.attributes('data-intent')).toBe('face')
+      expect(button.attributes('disabled')).toBeDefined()
+      expect(wrapper.find('[data-testid="google-cgu-hint"]').exists()).toBe(true)
+
+      await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
+
+      expect(
+        wrapper.find('[data-testid="google-sign-in-button"]').attributes('disabled')
+      ).toBeUndefined()
+      expect(wrapper.find('[data-testid="google-cgu-hint"]').exists()).toBe(false)
+    })
   })
 })

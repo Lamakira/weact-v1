@@ -142,6 +142,31 @@ class UgcBookingCommissionPaymentTest extends TestCase
             ->count());
     }
 
+    #[DataProvider('terminalFailedProviderStatuses')]
+    public function test_retry_never_reuses_a_terminal_transaction_and_creates_a_fresh_checkout(string $providerStatus): void
+    {
+        $booking = $this->makePendingUgcBooking();
+        $booking->update(['fedapay_transaction_id' => 930]);
+
+        $dead = \Mockery::mock(\FedaPay\Transaction::class);
+        $dead->status = $providerStatus;
+
+        $this->mock(FedapayService::class, function ($mock) use ($dead): void {
+            $mock->shouldReceive('retrieveTransaction')->once()->with(930)->andReturn($dead);
+            $mock->shouldNotReceive('regenerateTokenFromTransaction');
+            $mock->shouldReceive('initiatePaymentForUgcBooking')
+                ->once()
+                ->andReturn(['fedapay_transaction_id' => 931, 'checkout_url' => 'https://fedapay.test/fresh']);
+        });
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/pay-commission")
+            ->assertOk()
+            ->assertJsonPath('checkout_url', 'https://fedapay.test/fresh');
+
+        $this->assertSame(931, (int) $booking->fresh()->fedapay_transaction_id);
+    }
+
     public function test_webhook_approved_marks_commission_paid(): void
     {
         // Fake ONLY the domain event — a bare Event::fake() would also stub the
@@ -312,6 +337,7 @@ class UgcBookingCommissionPaymentTest extends TestCase
             'declined' => ['declined'],
             'canceled' => ['canceled'],
             'refunded' => ['refunded'],
+            'expired' => ['expired'],
         ];
     }
 

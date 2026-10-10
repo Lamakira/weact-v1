@@ -4,18 +4,23 @@ import { useRouter, useRoute } from 'vue-router'
 import FaceRegistrationForm from '@/features/auth/components/FaceRegistrationForm.vue'
 import { useToast } from '@/composables/useToast'
 import { authApi } from '@/features/auth/services/authApi'
+import { safeRedirect } from '@/lib/safeRedirect'
 import logoNoir from '@/assets/images/logonoir.png'
 import registerFaceIllustration from '@/assets/images/register-face-illustration.webp'
+import LargeScreenImage from '@/components/auth/LargeScreenImage.vue'
 
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
 const registrationEnabled = ref<boolean | null>(null)
+// Hidden by default: a network failure must not surface a button that would 403.
+const googleEnabled = ref(false)
 
 onMounted(async () => {
   try {
     const response = await authApi.getRegistrationStatus()
     registrationEnabled.value = response.data.enabled
+    googleEnabled.value = response.data.google_enabled === true
   } catch {
     // FIX-23.1 — Fallback build-time permissif : si l'API /auth/registration-status
     // échoue (réseau, 5xx, CDN), on lit VITE_REGISTRATION_ENABLED. Valeur par défaut
@@ -37,14 +42,10 @@ function handleSuccess() {
   // Redirect post-registration: honor ?redirect= bounce-back from /login (FP-2.15),
   // else default to the post-registration upsell page (FP-3.5). A valid ?redirect=
   // still wins so a Face sent here from a protected deep-link returns there.
-  // Defensive guard (FP-2.15 review P3): startsWith('/') && !startsWith('//')
-  // rejects protocol-relative (//evil.com) and absolute URLs that would otherwise
-  // crash pushState with a SecurityError.
-  const redirectQuery = typeof route.query.redirect === 'string' ? route.query.redirect : null
-  const redirectPath =
-    redirectQuery && redirectQuery.startsWith('/') && !redirectQuery.startsWith('//')
-      ? redirectQuery
-      : null
+  // Defensive guard (FP-2.15 review P3): safeRedirect() rejects protocol-relative
+  // (//evil.com), backslash and absolute URLs that would otherwise crash
+  // pushState with a SecurityError.
+  const redirectPath = safeRedirect(route.query.redirect)
   router.push(redirectPath ?? { name: 'face-upsell' })
 }
 </script>
@@ -92,7 +93,7 @@ function handleSuccess() {
         </div>
 
         <!-- Registration Form -->
-        <FaceRegistrationForm v-else @success="handleSuccess" />
+        <FaceRegistrationForm v-else :google-enabled="googleEnabled" @success="handleSuccess" />
 
         <!-- Terms Notice -->
         <p class="mt-6 text-xs text-center text-gray-500">
@@ -130,7 +131,7 @@ function handleSuccess() {
     <div class="hidden lg:flex lg:w-1/2 relative flex-col justify-center overflow-hidden bg-gray-900">
       <!-- Background Image with Overlay -->
       <div class="absolute inset-0 z-0">
-        <img
+        <LargeScreenImage
           :src="registerFaceIllustration"
           alt="Talent Creative"
           class="h-full w-full object-cover opacity-60"

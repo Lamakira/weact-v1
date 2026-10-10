@@ -7,9 +7,11 @@ import WBadge from '@/components/ui/WBadge.vue'
 
 interface Props {
   face: PublicFace
+  /** Première rangée visible (candidat LCP) : chargement immédiat et prioritaire */
+  priority?: boolean
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), { priority: false })
 const route = useRoute()
 
 // Compute availability indicator classes
@@ -33,6 +35,14 @@ const photoUrl = computed(() => {
     props.face.profile_photo_thumbnail_url
   )
 })
+
+// Variantes grid (400 px) + medium (800 px) exposées par l'API : le navigateur choisit
+// selon la largeur de colonne (2/3/4 colonnes) et la densité de l'écran.
+const photoSrcset = computed(() => {
+  const { profile_photo_grid_url: grid, profile_photo_medium_url: medium } = props.face
+  return grid && medium ? `${grid} 400w, ${medium} 800w` : undefined
+})
+const PHOTO_SIZES = '(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw'
 
 const hasPhoto = computed(() => {
   return !!photoUrl.value
@@ -60,9 +70,15 @@ const profileUrl = computed(() => {
     <img
       v-if="hasPhoto"
       :src="photoUrl!"
+      :srcset="photoSrcset"
+      :sizes="photoSrcset ? PHOTO_SIZES : undefined"
+      width="400"
+      height="500"
       :alt="`Photo de ${face.prenom}`"
       class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-110"
-      loading="lazy"
+      :loading="priority ? 'eager' : 'lazy'"
+      :fetchpriority="priority ? 'high' : undefined"
+      decoding="async"
     />
 
     <!-- Placeholder when no photo -->

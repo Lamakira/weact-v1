@@ -3,6 +3,10 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, Loader2, AlertCircle, CheckCircle } from 'lucide-vue-next'
 import { ProducerCandidaturesSection } from '@/features/candidature/components'
+import { redirectToCheckout } from '@/lib/redirectToCheckout'
+import { useCheckoutRedirect } from '@/lib/useCheckoutRedirect'
+import { usePaymentReturn } from '@/composables/usePaymentReturn'
+import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
 import { missionApi } from '@/features/mission/services/missionApi'
 import { useMissionPayment } from '@/features/mission/composables'
 import { useToast } from '@/composables/useToast'
@@ -26,6 +30,14 @@ const paymentSuccessBanner = ref(false)
 // reports no trackable FedaPay transaction, show a dedicated error banner
 // instead of the "Paiement en attente de confirmation..." spinner.
 const paymentInitializationFailed = ref(false)
+// True when the failed state comes from a still-existing Pending payment row without
+// a live transaction (e.g. the canceled transaction was released server-side): the
+// producer can relaunch it with the SAME selection through the resume path.
+const resumablePaymentRow = ref(false)
+const isResumingPayment = ref(false)
+const paymentResumable = computed(
+  () => paymentInitializationFailed.value && resumablePaymentRow.value,
+)
 const paymentStatusUnavailable = ref(false)
 let isPageActive = true
 let paymentStateRequestId = 0
@@ -37,6 +49,49 @@ const missionId = computed(() => route.params.id as string)
 
 const { startPolling, stopPolling } = useMissionPayment(0, missionId.value || '')
 const toast = useToast()
+
+// Return from the same-tab FedaPay checkout (?payment_return=mission_selection|
+// candidature_escrow). The return composable owns the verification: the cash-only
+// pending evaluation below is skipped meanwhile (it polls the CASH payment-status
+// endpoint, which is wrong for a UGC payment and raised a false « initialisation
+// échouée » banner). Once the return flow is over (any outcome) the normal
+// evaluation is back, so a late webhook still updates the page.
+let returnFinished = false
+const sectionRef = ref<InstanceType<typeof ProducerCandidaturesSection> | null>(null)
+const paymentReturn = usePaymentReturn({
+  kinds: ['mission_selection', 'candidature_escrow'],
+  ids: () => ({ missionId: missionId.value }),
+  onConfirmed: async (kind) => {
+    if (kind === 'mission_selection') paymentSuccessBanner.value = true
+    await fetchMission()
+  },
+  onFinished: (kind, outcome) => {
+    returnFinished = true
+    // Not confirmed (failed / timeout): re-evaluate the cash pending state now — failed
+    // offers « reconfirmer votre sélection », timeout resumes the normal polling.
+    if (kind === 'mission_selection' && outcome !== 'confirmed') void fetchMission()
+  },
+  onRetry: (kind, ids) => {
+    if (kind === 'candidature_escrow' && ids.candidatureId) {
+      sectionRef.value?.openCandidaturePayment(ids.candidatureId)
+    } else {
+      // mission_selection: the selection was consumed — re-evaluate the page so
+      // the producer can re-confirm it (« reconfirmer votre sélection »).
+      void fetchMission()
+    }
+  },
+})
+
+// Back from FedaPay (bfcache) after a cash selection: the selection was consumed
+// and the mission is now pending_payment — re-evaluate the page so the producer
+// can re-confirm instead of staring at a frozen state.
+useCheckoutRedirect(() => {
+  void fetchMission()
+})
+
+function isPaymentReturnActive(): boolean {
+  return !returnFinished && (route.query.payment_return !== undefined || paymentReturn.isVerifying.value)
+}
 
 /**
  * Decide whether to start polling the payment status and show the "pending"
@@ -76,6 +131,8 @@ async function evaluatePendingPaymentState(): Promise<void> {
       return
     }
 
+    resumablePaymentRow.value = false
+
     if (data.is_trackable) {
       paymentInitializationFailed.value = false
       paymentStatusUnavailable.value = false
@@ -92,6 +149,8 @@ async function evaluatePendingPaymentState(): Promise<void> {
       // (pending-without-transaction, failed, refunded, or missing row) — the
       // paid / mission_status-changed branches above already returned.
       paymentInitializationFailed.value = data.mission_status === 'pending_payment'
+      resumablePaymentRow.value =
+        data.has_payment === true && data.status === 'pending' && data.mission_status === 'pending_payment'
       paymentStatusUnavailable.value = false
       stopPolling()
     }
@@ -126,7 +185,7 @@ async function fetchMission(): Promise<void> {
 
     mission.value = response.data
 
-    if (mission.value.status === 'pending_payment') {
+    if (mission.value.status === 'pending_payment' && !isPaymentReturnActive()) {
       await evaluatePendingPaymentState()
     } else {
       paymentInitializationFailed.value = false
@@ -160,7 +219,28 @@ function goBack(): void {
  * Redirects to FedaPay checkout — FedaPay webhook handles the rest.
  */
 function handleSelectionConfirmed(checkoutUrl: string): void {
-  window.location.href = checkoutUrl
+  redirectToCheckout(checkoutUrl)
+}
+
+/**
+ * « Relancer le paiement »: the payment row exists but has no live transaction. The
+ * server-side resume path (confirm-selection with NO candidature ids on a
+ * pending_payment mission) keeps the same selection and creates a fresh checkout.
+ */
+async function handleResumePayment(): Promise<void> {
+  if (isResumingPayment.value || !missionId.value) return
+
+  isResumingPayment.value = true
+  try {
+    const response = await missionApi.confirmSelection(missionId.value, [])
+    redirectToCheckout(response.data.checkout_url)
+  } catch (err: unknown) {
+    console.error('Failed to resume mission payment:', err)
+    toast.error('Le paiement n\'a pas pu être relancé. Veuillez réessayer.')
+    await fetchMission()
+  } finally {
+    isResumingPayment.value = false
+  }
 }
 
 /**
@@ -179,7 +259,9 @@ async function handleSelectionFailed(message: string): Promise<void> {
  */
 onMounted(() => {
   isPageActive = true
-  void fetchMission()
+  void fetchMission().then(() => {
+    if (route.query.payment_return !== undefined) void paymentReturn.start()
+  })
 })
 
 onUnmounted(() => {
@@ -237,6 +319,12 @@ onUnmounted(() => {
           <p class="mt-1 text-muted-foreground">
             Candidatures reçues pour cette mission
           </p>
+          <PaymentReturnBanner
+            class="mt-3"
+            :state="paymentReturn.state.value"
+            @retry="paymentReturn.retry"
+            @dismiss="paymentReturn.dismiss"
+          />
           <!-- Payment success banner -->
           <div
             v-if="paymentSuccessBanner"
@@ -255,7 +343,7 @@ onUnmounted(() => {
             show the spinner-style "pending confirmation" banner.
           -->
           <div
-            v-else-if="mission.status === 'pending_payment' && paymentInitializationFailed"
+            v-else-if="mission.status === 'pending_payment' && paymentInitializationFailed && paymentReturn.state.value !== 'failed'"
             data-testid="mission-payment-init-failed-banner"
             role="alert"
             aria-live="assertive"
@@ -263,7 +351,9 @@ onUnmounted(() => {
           >
             <AlertCircle class="mt-0.5 h-4 w-4 shrink-0" />
             <span>
-              L'initialisation du paiement a échoué. Veuillez réessayer en reconfirmant votre sélection.
+              {{ paymentResumable
+                ? 'Votre paiement n\'a pas abouti. Vous pouvez le relancer avec la même sélection.'
+                : 'L\'initialisation du paiement a échoué. Veuillez réessayer en reconfirmant votre sélection.' }}
             </span>
           </div>
           <div
@@ -280,7 +370,7 @@ onUnmounted(() => {
           </div>
           <!-- Pending payment banner (only when we have a trackable transaction to poll) -->
           <div
-            v-else-if="mission.status === 'pending_payment'"
+            v-else-if="mission.status === 'pending_payment' && paymentReturn.state.value === 'idle'"
             data-testid="mission-payment-pending-banner"
             role="status"
             aria-live="polite"
@@ -289,6 +379,18 @@ onUnmounted(() => {
             <Loader2 class="h-4 w-4 shrink-0 animate-spin" />
             Paiement en attente de confirmation...
           </div>
+          <!-- Resume the payment with the same selection (shown whichever banner is up). -->
+          <button
+            v-if="mission.status === 'pending_payment' && paymentResumable"
+            type="button"
+            data-testid="mission-payment-resume-btn"
+            class="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
+            :disabled="isResumingPayment"
+            @click="handleResumePayment"
+          >
+            <Loader2 v-if="isResumingPayment" class="h-4 w-4 animate-spin" />
+            Relancer le paiement
+          </button>
         </template>
       </div>
     </header>
@@ -298,11 +400,12 @@ onUnmounted(() => {
       <!-- Show section only when we have the mission ID -->
       <ProducerCandidaturesSection
         v-if="!isLoading && !error && mission"
+        ref="sectionRef"
         :mission-id="missionId"
         :mission-budget="mission.budget"
         :mission-status="mission.status"
         :nombre-faces-voulu="mission.nombre_faces_voulu"
-        :allow-retry-selection="mission.status === 'pending_payment' && paymentInitializationFailed"
+        :allow-retry-selection="mission.status === 'pending_payment' && paymentInitializationFailed && !paymentResumable"
         :is-ugc-mission="isUgcMission(mission)"
         :ugc-compensation-type="mission.type_compensation"
         :ugc-product-name="mission.nom_produit"

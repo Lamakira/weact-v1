@@ -2,10 +2,14 @@
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import LoginForm from '@/features/auth/components/LoginForm.vue'
+import GoogleSignInButton from '@/features/auth/components/GoogleSignInButton.vue'
+import { authApi } from '@/features/auth/services/authApi'
 import { useAuthStore } from '@/stores/auth'
+import { safeRedirect } from '@/lib/safeRedirect'
 import { useToast } from '@/composables/useToast'
 import logoNoir from '@/assets/images/logonoir.png'
 import loginIllustration from '@/assets/images/login-weact-illustration.webp'
+import LargeScreenImage from '@/components/auth/LargeScreenImage.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -16,6 +20,19 @@ const toast = useToast()
 // avertissement, pas une confirmation — il doit rester à l'écran le temps que
 // l'utilisateur se reconnecte. Seuls les messages de SUCCÈS passent en toast.
 const warningMessage = ref<string | null>(null)
+
+// Same probe both register pages already use. Defaults to hidden: a network
+// failure must not surface a button that would 403.
+const googleEnabled = ref(false)
+
+onMounted(async () => {
+  try {
+    const status = await authApi.getRegistrationStatus()
+    googleEnabled.value = status.data.google_enabled === true
+  } catch {
+    googleEnabled.value = false
+  }
+})
 
 onMounted(() => {
   const message = route.query.message
@@ -41,8 +58,8 @@ function handleLoginSuccess(): void {
   // string[] case from duplicate ?redirect= params ; the same-origin path
   // check rejects protocol-relative (//evil.com) and absolute URLs that would
   // otherwise crash pushState with a SecurityError.
-  const redirectPath = typeof route.query.redirect === 'string' ? route.query.redirect : null
-  if (redirectPath && redirectPath.startsWith('/') && !redirectPath.startsWith('//')) {
+  const redirectPath = safeRedirect(route.query.redirect)
+  if (redirectPath) {
     router.push(redirectPath)
     return
   }
@@ -106,6 +123,22 @@ function handleLoginSuccess(): void {
         <!-- Login Form -->
         <LoginForm @success="handleLoginSuccess" />
 
+        <!-- Google Sign-In. From here the role is unknown: an existing account
+             logs straight in, a brand-new one goes through /auth/finaliser. -->
+        <template v-if="googleEnabled">
+          <div class="mt-6 relative">
+            <div class="absolute inset-0 flex items-center">
+              <div class="w-full border-t border-gray-200" />
+            </div>
+            <div class="relative flex justify-center text-sm">
+              <span class="px-2 bg-white text-gray-500">ou</span>
+            </div>
+          </div>
+          <div class="mt-6">
+            <GoogleSignInButton intent="login" />
+          </div>
+        </template>
+
         <!-- Forgot password link -->
         <div class="mt-6 text-center">
           <router-link
@@ -150,7 +183,7 @@ function handleLoginSuccess(): void {
     <div class="hidden lg:flex lg:w-1/2 relative flex-col justify-center overflow-hidden bg-gray-900">
       <!-- Background Image with Overlay -->
       <div class="absolute inset-0 z-0">
-        <img
+        <LargeScreenImage
           :src="loginIllustration"
           alt="Creative Studio"
           class="h-full w-full object-cover opacity-60"

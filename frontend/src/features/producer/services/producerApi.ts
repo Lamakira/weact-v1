@@ -15,6 +15,8 @@ import type {
 /**
  * Producer API service
  */
+let deliverablesToReviewInFlight: Promise<DeliverableReviewListResponse> | null = null
+
 export const producerApi = {
   /**
    * Get the current producer profile
@@ -128,9 +130,18 @@ export const producerApi = {
   /**
    * Liste les livrables in_review du Producteur (booking + candidature agrégés).
    */
-  async listDeliverablesToReview(): Promise<DeliverableReviewListResponse> {
-    const response = await apiClient.get<DeliverableReviewListResponse>('/producer/deliverables')
-    return response.data
+  listDeliverablesToReview(): Promise<DeliverableReviewListResponse> {
+    // Le badge de la sidebar et le module du dashboard la demandent au même instant :
+    // une requête déjà en cours est partagée au lieu d'être doublée.
+    if (!deliverablesToReviewInFlight) {
+      deliverablesToReviewInFlight = apiClient
+        .get<DeliverableReviewListResponse>('/producer/deliverables')
+        .then((response) => response.data)
+        .finally(() => {
+          deliverablesToReviewInFlight = null
+        })
+    }
+    return deliverablesToReviewInFlight
   },
 
   /**

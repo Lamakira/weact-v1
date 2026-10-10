@@ -1,92 +1,120 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { Check, Clock, Circle } from 'lucide-vue-next'
+import { Check, Clock, Circle, X } from 'lucide-vue-next'
 import { BookingStatus, type BookingStatusType } from '../types'
 
+// `cancellationReason` reste dans l'API du composant (passée par la page).
 const props = defineProps<{
   status: BookingStatusType
   cancellationReason?: string | null
+  /** Date d'acceptation réelle (statuts négatifs) ; absent = comportement par défaut. */
+  acceptedAt?: string | null
+  /** Un paiement (escrow) a réellement eu lieu (statuts négatifs). */
+  wasPaid?: boolean
 }>()
+
+type StepState = 'completed' | 'current' | 'future' | 'failed'
 
 interface TimelineStep {
   label: string
   key: string
+  state: StepState
 }
 
-const baseSteps: TimelineStep[] = [
-  { label: 'Demande envoyée', key: 'pending' },
-  { label: 'Acceptation', key: 'accepted' },
-  { label: 'Paiement', key: 'paid' },
-  { label: 'Confirmation Face', key: 'confirmed_by_face' },
-  { label: 'Confirmation Producteur', key: 'confirmed_by_producer' },
-  { label: 'Terminé', key: 'completed' },
-]
+const REQUEST = { label: 'Demande envoyée', key: 'pending' }
+const ACCEPTANCE = { label: 'Acceptation', key: 'accepted' }
+const PAYMENT = { label: 'Paiement', key: 'paid' }
+const FACE_CONFIRMATION = { label: 'Confirmation Face', key: 'confirmed_by_face' }
+const PRODUCER_CONFIRMATION = { label: 'Confirmation Producteur', key: 'confirmed_by_producer' }
+const DONE = { label: 'Terminé', key: 'completed' }
+
+const cashFlow = [REQUEST, ACCEPTANCE, PAYMENT, FACE_CONFIRMATION, PRODUCER_CONFIRMATION, DONE]
+
+/**
+ * Cash flow (statuts positifs) : une étape dont le jalon est atteint est « completed » ;
+ * « current » = la/les prochaine(s) action(s) encore attendue(s). Les deux confirmations
+ * sont indépendantes.
+ */
+const positiveProgress: Record<string, { done: string[]; current: string[] }> = {
+  [BookingStatus.PENDING]: { done: ['pending'], current: ['accepted'] },
+  [BookingStatus.ACCEPTED]: { done: ['pending', 'accepted'], current: ['paid'] },
+  [BookingStatus.PAID]: {
+    done: ['pending', 'accepted', 'paid'],
+    current: ['confirmed_by_face', 'confirmed_by_producer'],
+  },
+  // UGC commission réglée : analogue de `paid`.
+  [BookingStatus.COMMISSION_PAID]: {
+    done: ['pending', 'accepted', 'paid'],
+    current: ['confirmed_by_face', 'confirmed_by_producer'],
+  },
+  [BookingStatus.IN_PROGRESS]: {
+    done: ['pending', 'accepted', 'paid'],
+    current: ['confirmed_by_face', 'confirmed_by_producer'],
+  },
+  [BookingStatus.CONFIRMED_BY_FACE]: {
+    done: ['pending', 'accepted', 'paid', 'confirmed_by_face'],
+    current: ['confirmed_by_producer'],
+  },
+  [BookingStatus.CONFIRMED_BY_PRODUCER]: {
+    done: ['pending', 'accepted', 'paid', 'confirmed_by_producer'],
+    current: ['confirmed_by_face'],
+  },
+  [BookingStatus.COMPLETED]: {
+    done: ['pending', 'accepted', 'paid', 'confirmed_by_face', 'confirmed_by_producer', 'completed'],
+    current: [],
+  },
+}
+
+/** Statuts négatifs : jalons réellement atteints + étape finale rouge. */
+const negativeProgress: Record<string, { done: TimelineStep['key'][]; label: string }> = {
+  [BookingStatus.REFUSED]: { done: ['pending'], label: 'Refusée' },
+  [BookingStatus.EXPIRED]: { done: ['pending'], label: 'Expirée' },
+  [BookingStatus.CANCELLED_BY_FACE]: { done: ['pending'], label: 'Annulée par la Face' },
+  [BookingStatus.CANCELLED_BY_PRODUCER]: { done: ['pending'], label: 'Annulée par le Producteur' },
+  [BookingStatus.NO_SHOW]: { done: ['pending', 'accepted', 'paid'], label: 'Absence signalée' },
+}
 
 const steps = computed<TimelineStep[]>(() => {
-  if (props.status === BookingStatus.NO_SHOW) {
-    return [
-      baseSteps[0]!,
-      baseSteps[1]!,
-      baseSteps[2]!,
-      { label: 'Absence signalée', key: 'no_show' },
-    ]
+  const negative = negativeProgress[props.status]
+  if (negative) {
+    // Avec les données réelles (props fournies), les jalons atteints en découlent ; no_show implique
+    // toujours un booking payé.
+    const hasRealData = props.acceptedAt !== undefined || props.wasPaid !== undefined
+    const done = !hasRealData || props.status === BookingStatus.NO_SHOW
+      ? negative.done
+      : ['pending', ...(props.acceptedAt ? ['accepted'] : []), ...(props.wasPaid ? ['accepted', 'paid'] : [])]
+    const reached = cashFlow
+      .filter((s) => done.includes(s.key))
+      .map((s): TimelineStep => ({ ...s, state: 'completed' }))
+    return [...reached, { label: negative.label, key: props.status, state: 'failed' }]
   }
 
-  return baseSteps
+  const progress = positiveProgress[props.status]
+  return cashFlow.map((s): TimelineStep => ({
+    ...s,
+    state: progress?.done.includes(s.key)
+      ? 'completed'
+      : progress?.current.includes(s.key)
+        ? 'current'
+        : 'future',
+  }))
 })
-
-// Map booking status to the step index it corresponds to
-const statusToStepIndex: Record<string, number> = {
-  [BookingStatus.PENDING]: 0,
-  [BookingStatus.ACCEPTED]: 1,
-  [BookingStatus.PAID]: 2,
-  // UGC commission settled — analog of `paid` (review finding F2): without this entry a
-  // `commission_paid` booking falls to currentStepIndex -1 and the whole timeline renders 'future'.
-  [BookingStatus.COMMISSION_PAID]: 2,
-  [BookingStatus.IN_PROGRESS]: 2,
-  [BookingStatus.CONFIRMED_BY_FACE]: 3,
-  [BookingStatus.CONFIRMED_BY_PRODUCER]: 4,
-  [BookingStatus.COMPLETED]: 5,
-  [BookingStatus.NO_SHOW]: 3,
-}
-
-const terminalNegativeStatuses: BookingStatusType[] = [
-  BookingStatus.REFUSED,
-  BookingStatus.EXPIRED,
-  BookingStatus.CANCELLED_BY_FACE,
-  BookingStatus.CANCELLED_BY_PRODUCER,
-  BookingStatus.NO_SHOW,
-]
-
-const isTerminalNegative = computed(() => {
-  return terminalNegativeStatuses.includes(props.status)
-})
-
-const currentStepIndex = computed(() => {
-  return statusToStepIndex[props.status] ?? -1
-})
-
-function getStepState(index: number): 'completed' | 'current' | 'future' {
-  if (isTerminalNegative.value) {
-    const lastReachedIndex = props.status === BookingStatus.REFUSED ? 0 : currentStepIndex.value
-    if (index <= lastReachedIndex) return 'completed'
-    return 'future'
-  }
-
-  if (index < currentStepIndex.value) return 'completed'
-  if (index === currentStepIndex.value) return 'current'
-  return 'future'
-}
 </script>
 
 <template>
   <div class="space-y-0">
-    <div v-for="(step, index) in steps" :key="step.key" class="relative flex items-start gap-3">
+    <div
+      v-for="(step, index) in steps"
+      :key="step.key"
+      class="relative flex items-start gap-3"
+      data-testid="timeline-step"
+      :data-state="step.state"
+    >
       <!-- Vertical line connector -->
       <div v-if="index < steps.length - 1" class="absolute left-3.5 top-7 w-0.5 h-full -ml-px"
         :class="{
-          'bg-emerald-400': getStepState(index) === 'completed',
-          'bg-gray-200': getStepState(index) !== 'completed',
+          'bg-emerald-400': step.state === 'completed',
+          'bg-gray-200': step.state !== 'completed',
         }"
       />
 
@@ -94,14 +122,15 @@ function getStepState(index: number): 'completed' | 'current' | 'future' {
       <div
         class="relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
         :class="{
-          'bg-emerald-500 text-white': getStepState(index) === 'completed',
-          'bg-weact text-white ring-4 ring-weact/20': getStepState(index) === 'current' && !isTerminalNegative,
-          'bg-red-500 text-white ring-4 ring-red-100': getStepState(index) === 'current' && isTerminalNegative,
-          'bg-gray-100 text-gray-400': getStepState(index) === 'future',
+          'bg-emerald-500 text-white': step.state === 'completed',
+          'bg-weact text-white ring-4 ring-weact/20': step.state === 'current',
+          'bg-red-500 text-white ring-4 ring-red-100': step.state === 'failed',
+          'bg-gray-100 text-gray-400': step.state === 'future',
         }"
       >
-        <Check v-if="getStepState(index) === 'completed'" class="h-4 w-4" />
-        <Clock v-else-if="getStepState(index) === 'current'" class="h-4 w-4" />
+        <Check v-if="step.state === 'completed'" class="h-4 w-4" />
+        <Clock v-else-if="step.state === 'current'" class="h-4 w-4" />
+        <X v-else-if="step.state === 'failed'" class="h-4 w-4" />
         <Circle v-else class="h-3 w-3" />
       </div>
 
@@ -110,26 +139,15 @@ function getStepState(index: number): 'completed' | 'current' | 'future' {
         <span
           class="text-sm font-medium"
           :class="{
-            'text-emerald-700': getStepState(index) === 'completed',
-            'text-gray-900': getStepState(index) === 'current',
-            'text-gray-400': getStepState(index) === 'future',
+            'text-emerald-700': step.state === 'completed',
+            'text-gray-900': step.state === 'current',
+            'text-red-700': step.state === 'failed',
+            'text-gray-400': step.state === 'future',
           }"
         >
           {{ step.label }}
         </span>
       </div>
-    </div>
-
-    <!-- Terminal negative state indicator -->
-    <div v-if="isTerminalNegative" class="flex items-center gap-3 mt-2 pt-2 border-t border-red-100">
-      <div class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-red-500 text-white">
-        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </div>
-      <span class="text-sm font-medium text-red-700">
-        {{ status === BookingStatus.REFUSED ? 'Refusé' : status === BookingStatus.EXPIRED ? 'Expiré' : status === BookingStatus.NO_SHOW ? 'Absence signalée' : 'Annulé' }}
-      </span>
     </div>
   </div>
 </template>

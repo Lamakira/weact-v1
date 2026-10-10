@@ -9,6 +9,7 @@ use App\Http\Requests\Producer\SendMessageRequest;
 use App\Http\Resources\MessageResource;
 use App\Models\Conversation;
 use App\Models\Message;
+use App\Services\Messaging\ConversationRealtime;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
@@ -22,7 +23,7 @@ class MessageController extends Controller
     /**
      * Send a message in a conversation.
      */
-    public function store(SendMessageRequest $request, Conversation $conversation): JsonResponse
+    public function store(SendMessageRequest $request, Conversation $conversation, ConversationRealtime $realtime): JsonResponse
     {
         // Authorization via policy - checks if user can send message
         Gate::authorize('sendMessage', $conversation);
@@ -38,6 +39,8 @@ class MessageController extends Controller
 
         // Load the sender relationship for the resource
         $message->load('sender.userable');
+
+        $realtime->messageSent($conversation, $message);
 
         return response()->json([
             'data' => new MessageResource($message),

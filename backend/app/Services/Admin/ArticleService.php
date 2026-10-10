@@ -8,10 +8,10 @@ use App\Enums\ArticleCategory;
 use App\Enums\ArticleStatus;
 use App\Models\Admin;
 use App\Models\Article;
+use App\Support\UploadedMedia;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class ArticleService
 {
@@ -120,8 +120,10 @@ class ArticleService
         }
 
         if ($featuredImage) {
+            // Nouveau fichier stocké (et validé) AVANT de supprimer l'ancien.
+            $newImage = $this->uploadFeaturedImage($featuredImage);
             $this->deleteOldImage($article);
-            $updateData['featured_image'] = $this->uploadFeaturedImage($featuredImage);
+            $updateData['featured_image'] = $newImage;
         }
 
         if (! empty($updateData)) {
@@ -146,11 +148,6 @@ class ArticleService
 
     private function uploadFeaturedImage(UploadedFile $image): string
     {
-        $extension = $image->getClientOriginalExtension() ?: 'jpg';
-        $filename = Str::uuid()->toString().'.'.$extension;
-
-        Storage::disk('public')->putFileAs(self::STORAGE_PATH, $image, $filename);
-
-        return $filename;
+        return UploadedMedia::storeImage('public', self::STORAGE_PATH, $image, 'featured_image');
     }
 }

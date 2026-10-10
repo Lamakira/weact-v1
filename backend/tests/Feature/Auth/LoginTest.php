@@ -452,6 +452,75 @@ class LoginTest extends TestCase
         ]));
     }
 
+    /**
+     * An OAuth-only account must be indistinguishable from a wrong password, or the
+     * response becomes an enumeration oracle ("this email exists, it uses Google").
+     */
+    public function test_password_login_on_a_passwordless_account_returns_the_same_generic_401(): void
+    {
+        $face = Face::create(['nom' => 'Oauth', 'prenom' => 'Only', 'username' => 'oauthonly']);
+        User::create([
+            'email' => 'oauth@example.com',
+            'password' => null,
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+
+        $passwordless = $this->postJson('/api/v1/auth/login', [
+            'email' => 'oauth@example.com',
+            'password' => $this->password,
+        ]);
+
+        $wrongPassword = $this->postJson('/api/v1/auth/login', [
+            'email' => 'face@example.com',
+            'password' => 'wrongpassword',
+        ]);
+
+        $passwordless->assertStatus(401);
+        $wrongPassword->assertStatus(401);
+        $this->assertSame($wrongPassword->json('error'), $passwordless->json('error'));
+    }
+
+    public function test_passwordless_account_still_consumes_the_login_throttle(): void
+    {
+        $face = Face::create(['nom' => 'Oauth', 'prenom' => 'Only', 'username' => 'oauthonly']);
+        User::create([
+            'email' => 'oauth@example.com',
+            'password' => null,
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson('/api/v1/auth/login', [
+                'email' => 'oauth@example.com',
+                'password' => 'whatever',
+            ])->assertStatus(401);
+        }
+
+        $this->assertFrenchThrottleResponse($this->postJson('/api/v1/auth/login', [
+            'email' => 'oauth@example.com',
+            'password' => 'whatever',
+        ]));
+    }
+
+    public function test_deactivated_passwordless_account_cannot_be_revived_by_login(): void
+    {
+        $face = Face::create(['nom' => 'Oauth', 'prenom' => 'Gone', 'username' => 'oauthgone']);
+        User::create([
+            'email' => 'oauthgone@example.com',
+            'password' => null,
+            'is_active' => false,
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+
+        $this->postJson('/api/v1/auth/login', [
+            'email' => 'oauthgone@example.com',
+            'password' => $this->password,
+        ])->assertStatus(401);
+    }
+
     public function test_login_returns_userable_data(): void
     {
         $response = $this->postJson('/api/v1/auth/login', [

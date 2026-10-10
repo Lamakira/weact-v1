@@ -6,12 +6,17 @@ import {
   getApiErrorDetails,
   getApiErrorMessage,
   type AdminLoginForm,
+  type AdminTwoFactorLoginForm,
 } from '../services/adminAuthApi'
+import { getApiErrorCode } from '@/services/errorFormatter'
 
 interface AuthResult {
   success: boolean
   errors?: Record<string, string[]>
   message?: string
+  /** Set when the password was accepted but a second factor is required */
+  twoFactorChallenge?: string
+  errorCode?: string | null
 }
 
 /**
@@ -31,6 +36,11 @@ export function useAdminAuth() {
     try {
       const response = await adminAuthApi.login(data)
 
+      // 2FA enabled: no token yet, only a short-lived challenge for step 2
+      if ('two_factor_required' in response.data) {
+        return { success: false, twoFactorChallenge: response.data.challenge }
+      }
+
       // Store token and admin data
       adminAuthStore.setToken(response.data.token)
       adminAuthStore.setAdmin(response.data.admin)
@@ -41,6 +51,31 @@ export function useAdminAuth() {
       const message = getApiErrorMessage(error)
 
       return { success: false, errors, message }
+    } finally {
+      adminAuthStore.setLoading(false)
+    }
+  }
+
+  /**
+   * Login step 2: challenge + TOTP code (or recovery code) -> token
+   */
+  async function verifyTwoFactor(data: AdminTwoFactorLoginForm): Promise<AuthResult> {
+    adminAuthStore.setLoading(true)
+
+    try {
+      const response = await adminAuthApi.verifyTwoFactor(data)
+
+      adminAuthStore.setToken(response.data.token)
+      adminAuthStore.setAdmin(response.data.admin)
+
+      return { success: true }
+    } catch (error) {
+      return {
+        success: false,
+        errors: getApiErrorDetails(error),
+        message: getApiErrorMessage(error),
+        errorCode: getApiErrorCode(error),
+      }
     } finally {
       adminAuthStore.setLoading(false)
     }
@@ -66,6 +101,7 @@ export function useAdminAuth() {
 
   return {
     login,
+    verifyTwoFactor,
     logout,
     isAuthenticated,
     isLoading,

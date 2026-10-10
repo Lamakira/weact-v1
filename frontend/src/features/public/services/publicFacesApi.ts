@@ -16,10 +16,10 @@ export interface ValueLabel {
 
 export interface PublicFace {
   id: string
-  user_id: number
   username: string
   prenom: string
-  nom: string
+  nom?: string | null
+  display_name?: string
   ville: string | null
   categories: ValueLabel[]
   is_available: boolean

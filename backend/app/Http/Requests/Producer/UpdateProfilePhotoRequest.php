@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Producer;
 
+use App\Support\UploadedMedia;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\File;
 
@@ -32,7 +33,8 @@ class UpdateProfilePhotoRequest extends FormRequest
                 'required',
                 File::image()
                     ->types(['jpg', 'jpeg', 'png'])
-                    ->max(8 * 1024), // 8MB in KB
+                    ->max(8 * 1024)
+                    ->rules([UploadedMedia::maxDimensions()]), // 8MB in KB
             ],
         ];
     }

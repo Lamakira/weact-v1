@@ -20,6 +20,11 @@ class ConversationPolicy
     {
         $candidature = $conversation->candidature;
 
+        // Orphaned conversation (candidature deleted): nobody may view it
+        if ($candidature === null) {
+            return false;
+        }
+
         // Check if user is the Face
         if ($user->userable_type === Face::class) {
             return $candidature->face_id === $user->userable_id;
@@ -27,7 +32,7 @@ class ConversationPolicy
 
         // Check if user is the Producer
         if ($user->userable_type === Producer::class) {
-            return $candidature->mission->producer_id === $user->userable_id;
+            return $candidature->mission?->producer_id === $user->userable_id;
         }
 
         return false;

@@ -40,7 +40,8 @@ return [
             'connection' => env('DB_QUEUE_CONNECTION'),
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
-            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
+            // Doit rester STRICTEMENT supérieur au `--timeout` du worker (supervisor, 90 s en prod).
+            'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 150),
             'after_commit' => false,
         ],
 

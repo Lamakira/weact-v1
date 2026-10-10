@@ -255,11 +255,11 @@ class UgcReceptionPhotosTest extends TestCase
 
         $shipment = $this->shippedShipment();
 
-        // putFileAs RETOURNE false (disque plein/permissions, disque `throw => false`) :
+        // put RETOURNE false (disque plein/permissions, disque `throw => false`) :
         // attach() lève → la transaction de markReceived rollback le passage
         // Shipped → Received ET le dispatch post-commit n'a pas lieu.
         $disk = Mockery::mock(Filesystem::class);
-        $disk->shouldReceive('putFileAs')->once()->andReturn(false);
+        $disk->shouldReceive('put')->once()->andReturn(false);
         Storage::shouldReceive('disk')->with('local')->andReturn($disk);
 
         try {

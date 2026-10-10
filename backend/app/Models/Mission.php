@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Concerns\HasRouteUuid;
+use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\CompensationType;
+use App\Enums\EscrowStatus;
 use App\Enums\MissionGender;
+use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Enums\UgcRefundReason;
@@ -52,6 +55,8 @@ use Illuminate\Support\Str;
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property int|null $candidatures_count
+ * @property int|null $new_candidatures_count Candidatures created in the last 24 h (ProducerDashboardService::activeMissions)
+ * @property int|null $confirmed_count Confirmed / in-progress / completed candidatures (ProducerDashboardService::activeMissions)
  * @property-read \App\Models\Producer|null $producer
  * @property-read \App\Models\MissionPayment|null $payment
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Candidature> $candidatures
@@ -245,6 +250,16 @@ class Mission extends Model
     }
 
     /**
+     * Pre-load the `has_paid_payment` flag read by MissionResource (no per-row query).
+     */
+    public function scopeWithPaidPaymentFlag(Builder $query): Builder
+    {
+        return $query->withExists([
+            'payment as has_paid_payment' => fn ($q) => $q->where('status', MissionPaymentStatus::Paid),
+        ]);
+    }
+
+    /**
      * Scope a query to only include missions pending payment.
      */
     public function scopePendingPayment(Builder $query): Builder
@@ -337,6 +352,53 @@ class Mission extends Model
     public function hasPendingPayment(): bool
     {
         return $this->status === MissionStatus::PendingPayment;
+    }
+
+    /**
+     * Whether cash money is (or was) held for this mission: a paid MissionPayment, or any
+     * escrow entry attached to a MissionPayment (parent set) that is Locked or already
+     * settled (Released / Refunded). Parentless hybrid UGC entries are NOT cash and are
+     * ignored. Such a mission can never be deleted nor reopened.
+     */
+    public function hasCashEscrow(): bool
+    {
+        $paid = MissionPayment::query()
+            ->where('mission_id', $this->id)
+            ->where('status', MissionPaymentStatus::Paid->value)
+            ->exists();
+
+        if ($paid) {
+            return true;
+        }
+
+        return MissionPaymentCandidature::query()
+            ->whereHas('missionPayment', fn (Builder $q) => $q->where('mission_id', $this->id))
+            ->whereIn('escrow_status', [
+                EscrowStatus::Locked->value,
+                EscrowStatus::Released->value,
+                EscrowStatus::Refunded->value,
+            ])
+            ->exists();
+    }
+
+    /**
+     * Whether a cash entry still blocks completion: a Disputed entry (open dispute) or an
+     * Absent one whose 72 h dispute window has not elapsed. A legacy Absent row without `notified_at`
+     * counts as a closed window (the settle cron skips it too — treating it as open would freeze it forever).
+     */
+    public function hasOpenAttendanceDispute(): bool
+    {
+        return MissionPaymentCandidature::query()
+            ->whereHas('missionPayment', fn (Builder $q) => $q->where('mission_id', $this->id))
+            ->where('escrow_status', EscrowStatus::Locked->value)
+            ->where(function (Builder $q): void {
+                $q->where('attendance_status', AttendanceStatus::Disputed->value)
+                    ->orWhere(function (Builder $absent): void {
+                        $absent->where('attendance_status', AttendanceStatus::Absent->value)
+                            ->where('notified_at', '>', now()->subHours(72));
+                    });
+            })
+            ->exists();
     }
 
     /**

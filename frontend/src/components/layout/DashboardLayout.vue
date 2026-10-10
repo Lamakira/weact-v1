@@ -2,11 +2,12 @@
 /**
  * DashboardLayout Component
  * Main layout wrapper combining sidebar, header, and content area.
- * Design: Creative Flow (Soft & Organic)
+ * Design: Régie (dense, filets 1 px, couleur réservée aux états et à l'action)
  *
  * Features:
  * - Collapsible sidebar on desktop
- * - Hamburger menu with slide-in overlay on mobile
+ * - Hamburger menu with slide-in overlay on mobile (every destination)
+ * - Optional bottom tab bar on mobile (`mobileTabs`: the 4 main destinations)
  * - Shared between Face and Producer dashboards
  */
 import { ref, watch, nextTick, onMounted, onUnmounted, provide } from 'vue'
@@ -14,6 +15,7 @@ import { useRoute } from 'vue-router'
 import { X, LogOut, Loader2 } from 'lucide-vue-next'
 import DashboardSidebar, { type SidebarItem } from './DashboardSidebar.vue'
 import DashboardHeader from './DashboardHeader.vue'
+import DashboardMobileTabs from './DashboardMobileTabs.vue'
 import { useSidebarState } from '@/composables/useSidebarState'
 import logoPng from '@/assets/images/logonoir.png'
 import {
@@ -23,6 +25,8 @@ import {
 
 interface Props {
   sidebarItems: SidebarItem[]
+  /** Destinations principales de la barre d'onglets mobile (absente = pas de barre) */
+  mobileTabs?: SidebarItem[]
   title?: string
   logoText?: string
   userEmail?: string
@@ -34,6 +38,7 @@ interface Props {
 }
 
 withDefaults(defineProps<Props>(), {
+  mobileTabs: () => [],
   title: 'Dashboard',
   logoText: 'WEACT',
   userEmail: '',
@@ -164,7 +169,7 @@ function handleLogout() {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-50" data-testid="dashboard-layout">
+  <div class="min-h-screen bg-canvas" data-testid="dashboard-layout">
     <!-- Mobile Sidebar Overlay -->
     <Teleport to="body">
       <Transition name="fade">
@@ -179,17 +184,17 @@ function handleLogout() {
       <Transition name="slide">
         <aside
           v-if="isMobileOpen"
-          class="fixed left-0 top-0 bottom-0 w-72 bg-white shadow-2xl z-50 lg:hidden flex flex-col"
+          class="fixed left-0 top-0 bottom-0 w-72 bg-sidebar shadow-2xl z-50 lg:hidden flex flex-col"
           data-testid="mobile-sidebar"
         >
           <!-- Mobile sidebar header -->
-          <div class="flex items-center justify-between p-4 border-b border-gray-100">
+          <div class="flex items-center justify-between p-4 border-b border-line">
             <RouterLink to="/" class="flex items-center">
               <img :src="logoPng" alt="WEACT" class="h-8 w-auto" />
             </RouterLink>
             <button
               @click="closeMobile"
-              class="w-10 h-10 rounded-2xl hover:bg-gray-100 flex items-center justify-center text-slate-400 transition-colors"
+              class="w-11 h-11 rounded-lg hover:bg-white flex items-center justify-center text-ink-3 transition-colors"
               aria-label="Fermer le menu"
               data-testid="mobile-sidebar-close"
             >
@@ -199,20 +204,20 @@ function handleLogout() {
 
           <!-- Mobile sidebar navigation -->
           <nav class="flex-1 p-4 overflow-y-auto">
-            <ul class="space-y-2">
+            <ul class="space-y-0.5">
               <li v-for="item in sidebarItems" :key="item.to">
                 <RouterLink
                   :to="item.to"
-                  class="flex items-center gap-3 px-4 py-3 rounded-2xl text-slate-600 hover:bg-teal-50 hover:text-primary transition-all"
-                  active-class="bg-teal-50 text-primary font-medium"
+                  class="flex min-h-11 items-center gap-2.5 px-3 rounded-lg text-dash text-ink-2 hover:bg-white/70 hover:text-ink transition-colors"
+                  active-class="!bg-white !text-ink font-semibold ring-1 ring-line [&_svg]:text-weact-700"
                   @click="closeMobile"
                   :data-testid="`mobile-sidebar-item-${item.label.toLowerCase().replace(/\s+/g, '-')}`"
                 >
-                  <component :is="item.icon" class="w-5 h-5 flex-shrink-0" />
-                  <span class="text-sm">{{ item.label }}</span>
+                  <component :is="item.icon" class="w-[18px] h-[18px] flex-shrink-0" />
+                  <span>{{ item.label }}</span>
                   <span
                     v-if="item.badge && item.badge > 0"
-                    class="ml-auto bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full"
+                    class="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-weact-600 px-1.5 text-[11px] font-semibold text-white"
                   >
                     {{ item.badge }}
                   </span>
@@ -222,16 +227,16 @@ function handleLogout() {
           </nav>
 
           <!-- Mobile sidebar logout -->
-          <div class="p-4 border-t border-gray-100">
+          <div class="p-4 border-t border-line">
             <button
               @click="handleLogout"
               :disabled="isLoggingOut"
-              class="flex items-center gap-3 w-full px-4 py-3 rounded-2xl text-slate-600 hover:bg-red-50 hover:text-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              class="flex min-h-11 items-center gap-2.5 w-full px-3 rounded-lg text-dash text-ink-2 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               data-testid="mobile-sidebar-logout"
             >
-              <LogOut v-if="!isLoggingOut" class="w-5 h-5 flex-shrink-0" />
-              <Loader2 v-else class="w-5 h-5 flex-shrink-0 animate-spin" />
-              <span class="text-sm">{{ isLoggingOut ? 'Déconnexion...' : 'Déconnexion' }}</span>
+              <LogOut v-if="!isLoggingOut" class="w-[18px] h-[18px] flex-shrink-0" />
+              <Loader2 v-else class="w-[18px] h-[18px] flex-shrink-0 animate-spin" />
+              <span>{{ isLoggingOut ? 'Déconnexion...' : 'Déconnexion' }}</span>
             </button>
           </div>
         </aside>
@@ -251,7 +256,7 @@ function handleLogout() {
       />
 
       <!-- Main Content Area -->
-      <div class="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
+      <div class="flex-1 flex flex-col min-w-0 h-dvh overflow-hidden">
         <!-- Header (sticky) -->
         <DashboardHeader
           :title="title"
@@ -263,38 +268,32 @@ function handleLogout() {
           :profile-route="profileRoute"
           class="flex-shrink-0"
           @logout="handleLogout"
-        />
+        >
+          <template v-if="$slots['header-actions']" #actions>
+            <slot name="header-actions" />
+          </template>
+        </DashboardHeader>
 
         <!-- Content (scrollable) -->
         <main
           ref="contentEl"
-          class="flex-1 p-6 lg:p-12 overflow-y-auto overflow-x-hidden relative"
+          class="flex-1 p-4 sm:p-6 lg:p-7 overflow-y-auto overflow-x-hidden relative text-dash"
           data-testid="dashboard-content"
         >
-          <!-- Background Decoration -->
-          <div
-            class="absolute top-0 right-0 w-96 h-96 bg-teal-50 rounded-full blur-3xl -mr-48 -mt-48 opacity-50 pointer-events-none"
-            aria-hidden="true"
-          />
-
           <!-- Content Slot -->
           <div class="relative z-10 max-w-7xl mx-auto">
             <slot />
           </div>
         </main>
+
+        <!-- Bottom tab bar (mobile only): the main destinations; the drawer keeps the rest -->
+        <DashboardMobileTabs v-if="mobileTabs.length > 0" :tabs="mobileTabs" />
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.text-primary {
-  color: var(--color-weact, #198496);
-}
-.bg-primary {
-  background-color: var(--color-weact, #198496);
-}
-
 /* Transitions */
 .fade-enter-active,
 .fade-leave-active {

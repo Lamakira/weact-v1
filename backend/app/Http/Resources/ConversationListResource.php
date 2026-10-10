@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Models\Face;
+use App\Services\Messaging\ConversationContextBuilder;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
@@ -34,13 +35,18 @@ class ConversationListResource extends JsonResource
             'candidature_id' => $this->candidature_id,
             'mission_title' => data_get($this->candidature, 'mission.titre', ''),
             'other_participant' => $this->getOtherParticipant($currentUser),
+            'context' => $currentUser ? app(ConversationContextBuilder::class)->build($this->resource, $currentUser, false) : null,
             'latest_message' => $latestMessage ? [
                 'content' => Str::limit($latestMessage->content, 50),
                 'sender_name' => data_get($latestMessage, 'sender.userable.display_name', 'Inconnu'),
                 'is_mine' => $latestMessage->sender_id === $currentUser?->id,
                 'created_at' => $latestMessage->created_at->toIso8601String(),
             ] : null,
-            'unread_count' => $currentUser ? $this->resource->unreadCountFor($currentUser) : 0,
+            'unread_count' => $currentUser
+                ? (array_key_exists('unread_count', $this->resource->getAttributes())
+                    ? (int) $this->resource->getAttribute('unread_count')
+                    : $this->resource->unreadCountFor($currentUser))
+                : 0,
             'updated_at' => $this->updated_at->toIso8601String(),
         ];
     }

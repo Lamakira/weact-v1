@@ -1,5 +1,4 @@
 import { ref, onMounted, onUnmounted, type Ref } from 'vue'
-import { echo } from '@/plugins/echo'
 import { bookingChatApi } from '../services/bookingChatApi'
 import type { BookingMessage, BookingMessageBroadcast } from '../types'
 
@@ -25,6 +24,7 @@ export function useBookingChat(
   const reverbError = ref(false)
   let pollingTimer: ReturnType<typeof setInterval> | null = null
   let isPollingRequestInFlight = false
+  let isDisposed = false
 
   interface EchoChannel {
     listen: (event: string, callback: (payload: BookingMessageBroadcast) => void) => EchoChannel
@@ -67,6 +67,10 @@ export function useBookingChat(
 
   async function subscribeToChannel(): Promise<void> {
     try {
+      // Echo (pusher-js + laravel-echo) chargé à la demande, hors des chunks de listes
+      const { echo } = await import('@/plugins/echo')
+      if (isDisposed) return
+
       const channel = echo.private(`booking.${realtimeChannelKey}`) as EchoChannel
 
       channel
@@ -101,6 +105,7 @@ export function useBookingChat(
   async function unsubscribeFromChannel(): Promise<void> {
     stopPolling()
     try {
+      const { echo } = await import('@/plugins/echo')
       echo.leave(`booking.${realtimeChannelKey}`)
     } catch {
       // Ignore cleanup errors
@@ -138,6 +143,7 @@ export function useBookingChat(
   })
 
   onUnmounted(() => {
+    isDisposed = true
     void unsubscribeFromChannel()
   })
 

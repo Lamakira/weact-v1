@@ -283,6 +283,14 @@ class CandidatureController extends Controller
             abort(403, 'Cette candidature ne concerne pas une de vos missions');
         }
 
+        // Le release ne concerne que les missions UGC : sur une mission cash il rembourserait
+        // l'escrow d'une Face au Producteur et rouvrirait une mission payée.
+        if ($candidature->mission->type_mission !== MissionType::Ugc) {
+            return response()->json(ErrorCodes::InvalidStatus->envelope(
+                'La libération d\'une place n\'est possible que sur une mission UGC.'
+            ), 422);
+        }
+
         // Seule une candidature acceptée peut être libérée (escrow intact sinon).
         if ($candidature->status !== CandidatureStatus::Accepted) {
             return response()->json([
@@ -378,9 +386,70 @@ class CandidatureController extends Controller
             ], 400);
         }
 
-        // Update status
-        $candidature->status = CandidatureStatus::Rejected;
-        $candidature->save();
+        // Checkout cash : FedaPay (API serveur) est interrogé AVANT tout verrou — voir assessCashCheckout.
+        $assessment = $this->missionPayments->assessCashCheckout($candidature);
+
+        if ($assessment !== null) {
+            if ($assessment['kind'] === MissionPaymentService::CHECKOUT_UNVERIFIABLE) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope(
+                    'Impossible de vérifier le paiement pour le moment, réessayez dans quelques minutes.'
+                ), 422);
+            }
+
+            if ($assessment['kind'] === MissionPaymentService::CHECKOUT_IN_FLIGHT) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope(
+                    'Un paiement est en cours pour cette sélection : réessayez dans une heure s\'il n\'aboutit pas.'
+                ), 422);
+            }
+        }
+
+        // Sous verrou : relit la candidature et refuse si un paiement hybride est en vol — sinon
+        // l'argent encaissé serait séquestré pour une candidature refusée.
+        $blocked = DB::transaction(function () use ($candidature, $assessment): ?JsonResponse {
+            // Ordre de verrous (aligné sur markAsPaid) : payment → entries → mission → candidature.
+            if ($assessment !== null && $assessment['kind'] === MissionPaymentService::CHECKOUT_RESETTABLE) {
+                $this->missionPayments->lockCashSelection($assessment['payment_id']);
+            }
+            Mission::query()->lockForUpdate()->find($candidature->mission_id);
+
+            /** @var Candidature $locked */
+            $locked = Candidature::query()->lockForUpdate()->findOrFail($candidature->id);
+
+            if ($locked->status !== CandidatureStatus::Pending) {
+                return response()->json([
+                    'error' => [
+                        'code' => 'INVALID_STATUS',
+                        'message' => 'Seules les candidatures en attente peuvent être refusées',
+                    ],
+                ], 400);
+            }
+
+            if ($this->missionPayments->hasInFlightHybridPayment($locked)) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope(
+                    'Un paiement est en cours pour cette candidature : attendez sa confirmation avant de la refuser.'
+                ), 422);
+            }
+
+            // Checkout cash abandonné / mort : la sélection est réinitialisée (le Producteur est
+            // notifié), puis le refus se poursuit normalement.
+            if ($assessment !== null
+                && ! $this->missionPayments->resetPendingCashSelection($locked, 'producer_rejected_stale_checkout', $assessment)) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope(
+                    'Un paiement est en cours pour cette sélection : réessayez dans une heure s\'il n\'aboutit pas.'
+                ), 422);
+            }
+
+            $locked->status = CandidatureStatus::Rejected;
+            $locked->save();
+
+            return null;
+        }, 3);
+
+        if ($blocked !== null) {
+            return $blocked;
+        }
+
+        $candidature->refresh();
 
         // Create notification for the Face
         $candidature->loadMissing('face.user');

@@ -1,45 +1,37 @@
 <script setup lang="ts">
 /**
  * FaceDashboardPage
- * Dashboard home for Face users — profile card + KPIs + quick access.
- * Two-column layout: profile photo (left) and stats/actions (right).
+ * Dashboard home for Face users — direction « Régie » :
+ * en-tête profil + « À faire » + matrice d'activité + portefeuille / profil / abonnement.
  */
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter, RouterLink } from 'vue-router'
+import { Camera, Eye } from 'lucide-vue-next'
 import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
 import { useCategoryNiche } from '@/features/face/composables/useCategoryNiche'
 import { useBioLocation } from '@/features/face/composables/useBioLocation'
-import {
-  AlertCircle,
-  Pencil,
-  Briefcase,
-  MessageCircle,
-  Clock,
-  CheckCircle2,
-  PlayCircle,
-  CheckSquare,
-  Wallet,
-} from 'lucide-vue-next'
+import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'
+import { TIER_PRESENTATION, displayTierOf } from '@/features/face/tierPresentation'
 import {
   useDashboardStats,
   useDashboardCharts,
-  useMissionsCount,
   useBookingStats,
   useDashboardBookingCharts,
-  ActivityChart,
-  BookingActivityChart,
+  useFaceDashboardTodo,
 } from '@/features/dashboard'
+import FaceTodoPanel from '@/features/dashboard/components/FaceTodoPanel.vue'
+import FaceActivityMatrix from '@/features/dashboard/components/FaceActivityMatrix.vue'
+import FaceWalletPanel from '@/features/dashboard/components/FaceWalletPanel.vue'
+import FaceProfilePanel from '@/features/dashboard/components/FaceProfilePanel.vue'
 import { useWallet } from '@/features/wallet'
+import { Button } from '@/components/ui/button'
+import PushSoftPrompt from '@/features/notification/components/PushSoftPrompt.vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import CurrentPlanCard from '@/features/face/components/CurrentPlanCard.vue'
 
 const router = useRouter()
-const {
-  profile,
-  isLoading: isProfileBaseLoading,
-  fetchProfile,
-} = useProfilePhoto()
+const { profile, isLoading: isProfileBaseLoading, fetchProfile } = useProfilePhoto()
 const {
   categoryNicheInfo: categoryNiche,
   isLoading: isCategoryNicheLoading,
@@ -51,14 +43,13 @@ const {
   fetchBioLocation,
 } = useBioLocation()
 
-// Profile completion composable
 const {
   isLoading: isCompletionLoading,
   percentage: completionPercentage,
+  missingItems,
   fetchCompletion,
 } = useProfileCompletion()
 
-// Dashboard stats composable
 const {
   stats,
   isLoading: isStatsLoading,
@@ -67,40 +58,29 @@ const {
   retry: retryStats,
 } = useDashboardStats()
 
-// Dashboard charts composable
-const {
-  candidaturesByMonth,
-  missionsCompletedByMonth,
-  isLoading: isChartsLoading,
-  error: chartsError,
-  fetchChartStats,
-  retry: retryCharts,
-} = useDashboardCharts()
+const { candidaturesByMonth, fetchChartStats } = useDashboardCharts()
 
-// Missions count composable
 const {
-  fetchMissionsCount,
-} = useMissionsCount()
+  balance: walletBalance,
+  pendingEscrow,
+  withdrawalRequests,
+  isLoading: isWalletLoading,
+  fetchWallet,
+} = useWallet()
 
-// Wallet balance composable
-const { balance: walletBalance, fetchWallet } = useWallet()
+const { bookingStats, isLoading: isBookingStatsLoading, fetchBookingStats } = useBookingStats()
 
-// Booking stats composable
+const { bookingsByMonth, fetchBookingChartStats } = useDashboardBookingCharts()
+
 const {
-  bookingStats,
-  isLoading: isBookingStatsLoading,
-  fetchBookingStats,
-} = useBookingStats()
+  items: todoItems,
+  isLoading: isTodoLoading,
+  error: todoError,
+  fetchTodo,
+  retry: retryTodo,
+} = useFaceDashboardTodo()
 
-// Booking chart composable
-const {
-  bookingsByMonth,
-  bookingsCompletedByMonth,
-  isLoading: isBookingChartsLoading,
-  error: bookingChartsError,
-  fetchBookingChartStats,
-  retry: retryBookingCharts,
-} = useDashboardBookingCharts()
+const { current: subscription, fetchStatus: fetchSubscriptionStatus } = useSubscriptionStatus()
 
 const isProfileLoading = computed(() => {
   return (
@@ -110,7 +90,6 @@ const isProfileLoading = computed(() => {
   )
 })
 
-// Computed values
 const fullName = computed(() => {
   if (profile.value) return `${profile.value.prenom} ${profile.value.nom}`
   return ''
@@ -123,6 +102,15 @@ const initials = computed(() => {
   return 'U'
 })
 
+// Photo illisible (URL cassée) : repli sur les initiales ; réarmé si l'URL change
+const photoFailed = ref(false)
+watch(
+  () => profile.value?.profile_photo_url,
+  () => {
+    photoFailed.value = false
+  },
+)
+
 const categoryDisplay = computed(() => {
   const parts: string[] = []
   if (categoryNiche.value?.categories?.length) {
@@ -134,12 +122,20 @@ const categoryDisplay = computed(() => {
   return parts.join(' · ')
 })
 
-// SVG Circle math for profile completion
-const radius = 36
-const circumference = 2 * Math.PI * radius
-const completionOffset = computed(() => circumference - (completionPercentage.value / 100) * circumference)
+// Badge de plan : même règle que le panneau Abonnement (plan déchu si annulé/expiré)
+const planName = computed(() =>
+  subscription.value ? TIER_PRESENTATION[displayTierOf(subscription.value)].name : null,
+)
 
-// Fetch all data on mount
+// Dernier virement = dernier retrait approuvé (date de traitement)
+const lastWithdrawalAt = computed<string | null>(() => {
+  const processed = withdrawalRequests.value
+    .filter((r) => r.status === 'approved' && r.processed_at)
+    .map((r) => r.processed_at as string)
+    .sort()
+  return processed.length ? (processed[processed.length - 1] ?? null) : null
+})
+
 onMounted(async () => {
   await Promise.all([
     fetchProfile(),
@@ -148,403 +144,146 @@ onMounted(async () => {
     fetchCompletion(),
     fetchStats(),
     fetchChartStats(),
-    fetchMissionsCount(),
     fetchWallet(),
     fetchBookingStats(),
     fetchBookingChartStats(),
+    fetchTodo(),
+    fetchSubscriptionStatus(),
   ])
 })
 
+// La photo se change depuis la fiche (même flux que l'ancien bouton « Modifier »)
 function goToProfile(): void {
   router.push({ name: 'face-profile' })
-}
-
-function goToMissions(): void {
-  router.push({ name: 'face-missions' })
-}
-
-function goToMessages(): void {
-  router.push({ name: 'face-messages' })
 }
 </script>
 
 <template>
-  <div data-testid="face-dashboard-page">
-    <div class="grid grid-cols-1 lg:grid-cols-10 gap-6 items-start">
+  <div class="space-y-4" data-testid="face-dashboard-page">
+    <h1 class="sr-only">Tableau de bord</h1>
 
-      <!-- LEFT COLUMN: Profile Photo + Wallet (sticky) -->
-      <div class="lg:col-span-3 lg:sticky lg:top-0 lg:self-start flex flex-col gap-4">
-        <div
-          class="relative h-96 rounded-2xl overflow-hidden shadow-sm group bg-white border border-gray-200 transition-all duration-200 hover:shadow-md"
-          data-testid="profile-photo-card"
-        >
-          <!-- Loading skeleton -->
-          <template v-if="isProfileLoading">
-            <Skeleton class="absolute inset-0 w-full h-full rounded-2xl" />
-          </template>
-
-          <template v-else>
-            <!-- Profile Photo / Fallback -->
-            <div class="absolute inset-0 w-full h-full">
-              <!-- Grid variant (400px) fits this card; no lazy — likely the page's LCP -->
-              <img
-                v-if="profile?.profile_photo_url"
-                :src="profile.profile_photo_grid_url || profile.profile_photo_url"
-                :alt="fullName"
-                class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-              />
-              <div
-                v-else
-                class="w-full h-full bg-gradient-to-br from-[#198496] to-[#146c7a] flex items-center justify-center"
-              >
-                <span class="text-white text-7xl font-bold tracking-tighter opacity-40">{{ initials }}</span>
-              </div>
-            </div>
-
-            <!-- Bottom Overlay -->
-            <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent pt-20 flex flex-col justify-end p-5 sm:p-6 text-white">
-              <h1 class="text-2xl sm:text-3xl font-bold mb-0.5" data-testid="profile-name">
-                {{ fullName }}
-              </h1>
-              <p
-                v-if="categoryDisplay"
-                class="text-white/70 text-sm sm:text-base mb-3"
-                data-testid="profile-category"
-              >
-                {{ categoryDisplay }}
-              </p>
-
-              <div class="flex items-center justify-between pt-3 border-t border-white/20">
-                <div
-                  v-if="bioLocation?.ville"
-                  class="bg-white/20 backdrop-blur-md px-4 py-1.5 rounded-full text-sm font-medium flex items-center gap-2"
-                  data-testid="profile-city"
-                >
-                  <span class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
-                  {{ bioLocation.ville }}
-                </div>
-                <div v-else></div>
-
-                <button
-                  @click="goToProfile"
-                  class="flex items-center gap-2 bg-white text-gray-900 px-4 py-2 rounded-md font-medium text-sm hover:bg-gray-100 transition-all duration-200 active:scale-95"
-                  data-testid="profile-edit-button"
-                >
-                  <Pencil :size="16" />
-                  Modifier
-                </button>
-              </div>
-            </div>
-          </template>
+    <!-- En-tête profil -->
+    <header class="flex items-center gap-3" data-testid="face-dashboard-header">
+      <template v-if="isProfileLoading">
+        <Skeleton class="size-10 rounded-full" />
+        <div class="space-y-2">
+          <Skeleton class="h-4 w-40" />
+          <Skeleton class="h-3 w-56" />
         </div>
+      </template>
 
-        <!-- Wallet Balance Card (always visible, anchored below photo) -->
-        <RouterLink
-          :to="{ name: 'face-wallet' }"
-          class="group bg-white rounded-2xl border border-gray-200 shadow-sm p-5 flex items-center gap-4 transition-all duration-200 hover:border-[#198496] hover:shadow-md"
-          data-testid="wallet-card"
-        >
-          <div class="w-11 h-11 rounded-xl bg-[#198496]/10 flex items-center justify-center text-[#198496] flex-shrink-0 group-hover:bg-[#198496]/20 transition-colors">
-            <Wallet :size="20" />
-          </div>
-          <div class="min-w-0">
-            <p class="text-xs font-medium text-gray-500 uppercase tracking-wider">Mon portefeuille</p>
-            <p class="text-xl font-bold text-gray-900 mt-0.5">
-              {{ new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'XOF', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(walletBalance) }}
-            </p>
-          </div>
-          <span class="ml-auto text-xs font-medium text-[#198496] group-hover:underline flex-shrink-0">Gérer →</span>
-        </RouterLink>
-
-        <!-- Current Plan Card (FP-3.2) — tier + status, anchored below the wallet -->
-        <CurrentPlanCard />
-      </div>
-
-      <!-- RIGHT COLUMN: Stats + Quick Access (scrolls with page) -->
-      <div class="lg:col-span-7 flex flex-col gap-6">
-
-        <!-- Stats Panel -->
-        <div
-          class="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 shadow-sm flex flex-col"
-          data-testid="stats-panel"
-        >
-          <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-6 sm:mb-8">Mes candidatures</h2>
-
-          <!-- Error State -->
-          <div
-            v-if="statsError"
-            class="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center justify-between mb-6"
-            data-testid="stats-error"
-          >
-            <div class="flex items-center gap-3">
-              <AlertCircle class="w-5 h-5 text-red-500" aria-hidden="true" />
-              <span class="text-sm text-red-700">{{ statsError }}</span>
-            </div>
-            <button
-              @click="retryStats"
-              class="text-sm font-medium text-red-600 hover:text-red-800 underline"
-              data-testid="retry-stats-button"
+      <template v-else>
+        <div class="relative shrink-0" data-testid="profile-photo-card">
+          <div class="size-10 overflow-hidden rounded-full bg-sidebar ring-1 ring-line">
+            <img
+              v-if="profile?.profile_photo_url && !photoFailed"
+              :src="profile.thumbnail_url || profile.profile_photo_url"
+              :alt="fullName"
+              class="size-full object-cover"
+              @error="photoFailed = true"
+            />
+            <span
+              v-else
+              class="grid size-full place-items-center bg-weact-50 text-[13px] font-semibold text-weact-700"
+              data-testid="profile-avatar-fallback"
             >
-              Réessayer
-            </button>
+              {{ initials }}
+            </span>
           </div>
-
-          <!-- Stats Grid -->
-          <div
-            v-else
-            class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6 mb-8 sm:mb-10"
-            data-testid="kpi-cards-grid"
+          <button
+            type="button"
+            class="absolute -bottom-1 -right-1 grid size-5 place-items-center rounded-full bg-white text-ink-2 ring-1 ring-line after:absolute after:-inset-2 after:content-[''] hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-weact-600"
+            aria-label="Changer la photo de profil"
+            data-testid="profile-photo-edit"
+            @click="goToProfile"
           >
-            <!-- Pending -->
-            <div class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50/50" data-testid="kpi-card-pending">
-              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 flex-shrink-0">
-                <template v-if="isStatsLoading">
-                  <Skeleton class="w-5 h-5 sm:w-6 sm:h-6 rounded" />
-                </template>
-                <Clock v-else :size="22" />
-              </div>
-              <div class="min-w-0">
-                <p class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wider truncate">En attente</p>
-                <template v-if="isStatsLoading">
-                  <Skeleton class="h-7 w-10 mt-1" />
-                </template>
-                <p v-else class="text-xl sm:text-2xl font-bold text-gray-900">{{ stats?.pending ?? 0 }}</p>
-              </div>
-            </div>
-
-            <!-- Accepted -->
-            <div class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50/50" data-testid="kpi-card-accepted">
-              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-50 flex items-center justify-center text-green-600 flex-shrink-0">
-                <template v-if="isStatsLoading">
-                  <Skeleton class="w-5 h-5 sm:w-6 sm:h-6 rounded" />
-                </template>
-                <CheckCircle2 v-else :size="22" />
-              </div>
-              <div class="min-w-0">
-                <p class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wider truncate">Acceptées</p>
-                <template v-if="isStatsLoading">
-                  <Skeleton class="h-7 w-10 mt-1" />
-                </template>
-                <p v-else class="text-xl sm:text-2xl font-bold text-gray-900">{{ stats?.accepted ?? 0 }}</p>
-              </div>
-            </div>
-
-            <!-- In Progress -->
-            <div class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50/50" data-testid="kpi-card-in_progress">
-              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
-                <template v-if="isStatsLoading">
-                  <Skeleton class="w-5 h-5 sm:w-6 sm:h-6 rounded" />
-                </template>
-                <PlayCircle v-else :size="22" />
-              </div>
-              <div class="min-w-0">
-                <p class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wider truncate">En cours</p>
-                <template v-if="isStatsLoading">
-                  <Skeleton class="h-7 w-10 mt-1" />
-                </template>
-                <p v-else class="text-xl sm:text-2xl font-bold text-gray-900">{{ stats?.in_progress ?? 0 }}</p>
-              </div>
-            </div>
-
-            <!-- Completed -->
-            <div class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50/50" data-testid="kpi-card-completed">
-              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#198496]/10 flex items-center justify-center text-[#198496] flex-shrink-0">
-                <template v-if="isStatsLoading">
-                  <Skeleton class="w-5 h-5 sm:w-6 sm:h-6 rounded" />
-                </template>
-                <CheckSquare v-else :size="22" />
-              </div>
-              <div class="min-w-0">
-                <p class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wider truncate">Terminées</p>
-                <template v-if="isStatsLoading">
-                  <Skeleton class="h-7 w-10 mt-1" />
-                </template>
-                <p v-else class="text-xl sm:text-2xl font-bold text-gray-900">{{ stats?.completed ?? 0 }}</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Profile Completion Section -->
-          <div class="mt-auto pt-6 sm:pt-8 border-t border-gray-100 flex items-center gap-6 sm:gap-8">
-            <div class="relative w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center flex-shrink-0">
-              <template v-if="isCompletionLoading">
-                <Skeleton class="w-20 h-20 sm:w-24 sm:h-24 rounded-full" />
-              </template>
-              <template v-else>
-                <svg class="transform -rotate-90 w-20 h-20 sm:w-24 sm:h-24">
-                  <circle
-                    cx="50%"
-                    cy="50%"
-                    :r="radius"
-                    stroke="currentColor"
-                    stroke-width="6"
-                    fill="transparent"
-                    class="text-gray-100"
-                  />
-                  <circle
-                    cx="50%"
-                    cy="50%"
-                    :r="radius"
-                    stroke="currentColor"
-                    stroke-width="6"
-                    fill="transparent"
-                    :stroke-dasharray="circumference"
-                    :stroke-dashoffset="completionOffset"
-                    class="text-[#198496]"
-                    stroke-linecap="round"
-                  />
-                </svg>
-                <span
-                  class="absolute text-lg sm:text-xl font-bold text-gray-900"
-                  data-testid="profile-completion-percentage"
-                >
-                  {{ completionPercentage }}%
-                </span>
-              </template>
-            </div>
-            <div class="min-w-0">
-              <p class="text-gray-500 font-medium mb-1 text-sm sm:text-base">Profil complété à</p>
-              <p class="text-gray-900 font-bold text-base sm:text-lg">Optimisez votre visibilité</p>
-              <p class="text-xs sm:text-sm text-gray-400">Plus votre profil est complet, plus vous attirez de producteurs.</p>
-            </div>
-          </div>
+            <Camera class="size-3" aria-hidden="true" />
+          </button>
         </div>
 
-        <!-- Booking Stats Panel -->
-        <div
-          class="bg-white rounded-2xl border border-gray-200 p-6 sm:p-8 shadow-sm"
-          data-testid="booking-stats-panel"
+        <div class="min-w-0 flex-1">
+          <p class="truncate text-[16px] font-semibold tracking-[-0.01em] text-ink" data-testid="profile-name">
+            {{ fullName }}
+          </p>
+          <p class="flex min-w-0 items-center gap-2 text-[12.5px] text-ink-3">
+            <span v-if="categoryDisplay" class="truncate" data-testid="profile-category">{{ categoryDisplay }}</span>
+            <span v-if="bioLocation?.ville" class="shrink-0" data-testid="profile-city">{{ bioLocation.ville }}</span>
+            <span
+              v-if="planName"
+              class="shrink-0 rounded-full px-2 py-0.5 text-[11.5px] font-medium text-ink-2 ring-1 ring-line"
+              data-testid="profile-plan-badge"
+            >
+              {{ planName }}
+            </span>
+          </p>
+        </div>
+      </template>
+
+      <!-- Actions d'en-tête : une seule visible sur mobile -->
+      <div class="ml-auto flex shrink-0 items-center gap-2">
+        <Button
+          v-if="profile?.username"
+          as-child
+          variant="regie-secondary"
+          size="regie"
+          class="hidden md:inline-flex"
         >
-          <h2 class="text-lg sm:text-xl font-bold text-gray-900 mb-6">Mes bookings</h2>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
-            <!-- En attente -->
-            <div class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50/50" data-testid="booking-kpi-pending">
-              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 flex-shrink-0">
-                <template v-if="isBookingStatsLoading">
-                  <Skeleton class="w-5 h-5 sm:w-6 sm:h-6 rounded" />
-                </template>
-                <Clock v-else :size="22" />
-              </div>
-              <div class="min-w-0">
-                <p class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wider truncate">En attente</p>
-                <template v-if="isBookingStatsLoading">
-                  <Skeleton class="h-7 w-10 mt-1" />
-                </template>
-                <p v-else class="text-xl sm:text-2xl font-bold text-gray-900">{{ bookingStats?.pending ?? 0 }}</p>
-              </div>
-            </div>
-
-            <!-- Acceptés -->
-            <div class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50/50" data-testid="booking-kpi-accepted">
-              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-50 flex items-center justify-center text-green-600 flex-shrink-0">
-                <template v-if="isBookingStatsLoading">
-                  <Skeleton class="w-5 h-5 sm:w-6 sm:h-6 rounded" />
-                </template>
-                <CheckCircle2 v-else :size="22" />
-              </div>
-              <div class="min-w-0">
-                <p class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wider truncate">Acceptés</p>
-                <template v-if="isBookingStatsLoading">
-                  <Skeleton class="h-7 w-10 mt-1" />
-                </template>
-                <p v-else class="text-xl sm:text-2xl font-bold text-gray-900">{{ bookingStats?.accepted ?? 0 }}</p>
-              </div>
-            </div>
-
-            <!-- En cours -->
-            <div class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50/50" data-testid="booking-kpi-in-progress">
-              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
-                <template v-if="isBookingStatsLoading">
-                  <Skeleton class="w-5 h-5 sm:w-6 sm:h-6 rounded" />
-                </template>
-                <PlayCircle v-else :size="22" />
-              </div>
-              <div class="min-w-0">
-                <p class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wider truncate">En cours</p>
-                <template v-if="isBookingStatsLoading">
-                  <Skeleton class="h-7 w-10 mt-1" />
-                </template>
-                <p v-else class="text-xl sm:text-2xl font-bold text-gray-900">{{ bookingStats?.in_progress ?? 0 }}</p>
-              </div>
-            </div>
-
-            <!-- Terminés -->
-            <div class="flex items-center gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-gray-50/50" data-testid="booking-kpi-completed">
-              <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-[#198496]/10 flex items-center justify-center text-[#198496] flex-shrink-0">
-                <template v-if="isBookingStatsLoading">
-                  <Skeleton class="w-5 h-5 sm:w-6 sm:h-6 rounded" />
-                </template>
-                <CheckSquare v-else :size="22" />
-              </div>
-              <div class="min-w-0">
-                <p class="text-gray-500 text-xs sm:text-sm font-medium uppercase tracking-wider truncate">Terminés</p>
-                <template v-if="isBookingStatsLoading">
-                  <Skeleton class="h-7 w-10 mt-1" />
-                </template>
-                <p v-else class="text-xl sm:text-2xl font-bold text-gray-900">{{ bookingStats?.completed ?? 0 }}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Quick Access Cards — compact row -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" data-testid="quick-access-cards-grid">
-          <!-- Missions -->
-          <button
-            @click="goToMissions"
-            class="group bg-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm transition-all duration-200 hover:border-[#198496] hover:shadow-md flex items-center gap-3"
-            data-testid="browse-missions-card"
+          <RouterLink
+            :to="{ name: 'public-face-profile', params: { username: profile.username } }"
+            data-testid="public-profile-link"
           >
-            <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500 group-hover:bg-[#198496]/10 group-hover:text-[#198496] transition-colors flex-shrink-0">
-              <Briefcase :size="16" />
-            </div>
-            <p class="font-semibold text-gray-900 text-xs sm:text-sm truncate">Missions</p>
-            <span class="ml-auto text-[10px] sm:text-xs font-medium text-[#198496] group-hover:underline flex-shrink-0">Voir tout</span>
-          </button>
-
-          <!-- Messages -->
-          <button
-            @click="goToMessages"
-            class="group bg-white px-4 py-3 rounded-xl border border-gray-200 shadow-sm transition-all duration-200 hover:border-[#198496] hover:shadow-md flex items-center gap-3"
-            data-testid="messages-card"
-          >
-            <div class="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500 group-hover:bg-[#198496]/10 group-hover:text-[#198496] transition-colors flex-shrink-0">
-              <MessageCircle :size="16" />
-            </div>
-            <p class="font-semibold text-gray-900 text-xs sm:text-sm truncate">Messages</p>
-          </button>
-        </div>
-
+            <Eye aria-hidden="true" />
+            Fiche publique
+          </RouterLink>
+        </Button>
+        <Button type="button" variant="regie" size="regie" data-testid="profile-edit-button" @click="goToProfile">
+          Modifier le profil
+        </Button>
       </div>
+    </header>
+
+    <!-- Invite web push (une fois, fermable) -->
+    <PushSoftPrompt audience="face" />
+
+    <!-- À faire -->
+    <FaceTodoPanel :items="todoItems" :is-loading="isTodoLoading" :error="todoError" @retry="retryTodo" />
+
+    <!-- Activité -->
+    <div data-testid="stats-panel">
+      <div
+        v-if="statsError"
+        class="flex items-center justify-between gap-3 rounded-panel bg-white p-4 ring-1 ring-line"
+        data-testid="stats-error"
+      >
+        <span class="text-dash text-ink-2">{{ statsError }}</span>
+        <Button type="button" variant="regie-secondary" size="regie" data-testid="retry-stats-button" @click="retryStats">
+          Réessayer
+        </Button>
+      </div>
+      <FaceActivityMatrix
+        v-else
+        :stats="stats"
+        :booking-stats="bookingStats"
+        :candidatures-by-month="candidaturesByMonth"
+        :bookings-by-month="bookingsByMonth"
+        :is-loading="isStatsLoading || isBookingStatsLoading"
+      />
     </div>
 
-    <!-- Candidatures Charts -->
-    <section class="mt-8">
-      <ActivityChart
-        :candidatures-by-month="candidaturesByMonth"
-        :missions-completed-by-month="missionsCompletedByMonth"
-        :is-loading="isChartsLoading"
-        :error="chartsError"
-        @retry="retryCharts"
+    <!-- Portefeuille / Profil / Abonnement -->
+    <div class="grid grid-cols-1 gap-4 md:grid-cols-3" data-testid="face-dashboard-bottom-row">
+      <FaceWalletPanel
+        :balance="walletBalance"
+        :pending-escrow="pendingEscrow"
+        :last-withdrawal-at="lastWithdrawalAt"
+        :is-loading="isWalletLoading"
       />
-    </section>
-
-    <!-- Booking Charts -->
-    <section class="mt-8">
-      <BookingActivityChart
-        :bookings-by-month="bookingsByMonth"
-        :bookings-completed-by-month="bookingsCompletedByMonth"
-        :is-loading="isBookingChartsLoading"
-        :error="bookingChartsError"
-        @retry="retryBookingCharts"
+      <FaceProfilePanel
+        :percentage="completionPercentage"
+        :missing-items="missingItems"
+        :is-loading="isCompletionLoading"
       />
-    </section>
+      <CurrentPlanCard />
+    </div>
   </div>
 </template>
-
-<style scoped>
-/* Smooth circular progress animation */
-svg circle {
-  transition: stroke-dashoffset 1.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-</style>

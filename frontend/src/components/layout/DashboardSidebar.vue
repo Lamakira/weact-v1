@@ -6,15 +6,21 @@
  */
 import { type Component } from 'vue'
 import { useRoute } from 'vue-router'
-import { ChevronLeft, ChevronRight, Home } from 'lucide-vue-next'
+import { Home, PanelLeftClose } from 'lucide-vue-next'
 import { useSidebarState } from '@/composables/useSidebarState'
+import { formatBadge } from './formatBadge'
 import logoPng from '@/assets/images/logonoir.png'
+import logoMark from '@/assets/images/logo-mark.svg'
 
 export interface SidebarItem {
   label: string
   icon: Component
   to: string
   badge?: number
+  /** Plafond d'affichage du badge : au-delà, « {badgeMax}+ » (ex. 9 pour Messages). */
+  badgeMax?: number
+  /** Autres préfixes de route qui appartiennent à cet item (ex. /face/conversations pour Messages). */
+  match?: string[]
 }
 
 interface Props {
@@ -29,71 +35,86 @@ withDefaults(defineProps<Props>(), {
 const route = useRoute()
 const { isExpanded, toggle } = useSidebarState()
 
-/** Check if a route is active (exact match only) */
-const isActive = (path: string) => {
-  return route.path === path
+/** Active : route exacte de l'item, ou une route rattachée via `match` (ex. une conversation ouverte). */
+const isActive = (item: SidebarItem) => {
+  return route.path === item.to
+    || (item.match ?? []).some((p) => route.path === p || route.path.startsWith(`${p}/`))
 }
 
-/** Get item classes based on active state */
+/** Item classes: identical colors whether the sidebar is expanded or collapsed */
 const getItemClasses = (item: SidebarItem) => {
-  const active = isActive(item.to)
-  if (isExpanded.value) {
-    return active
-      ? 'bg-primary/10 text-primary font-medium'
-      : 'text-slate-600 hover:bg-gray-50 hover:text-primary'
-  }
-  return active
-    ? 'bg-primary/10 text-primary'
-    : 'text-slate-400 hover:bg-gray-50 hover:text-primary'
+  return isActive(item)
+    ? 'bg-white text-ink font-semibold ring-1 ring-line [&_svg]:text-weact-700'
+    : 'text-ink-2 hover:bg-white/70 hover:text-ink'
 }
 </script>
 
 <template>
   <aside
-    class="flex-none bg-white border-r border-gray-100 flex flex-col transition-all duration-300 ease-in-out sticky top-0 h-screen"
+    class="flex-none bg-sidebar border-r border-line flex flex-col transition-all duration-300 ease-in-out sticky top-0 h-screen"
     :class="isExpanded ? 'w-64' : 'w-20'"
     data-testid="dashboard-sidebar"
   >
-    <!-- Logo -->
+    <!-- Header: full logo + collapse button (expanded) / W mark that expands (collapsed) -->
     <div
-      class="flex items-center py-6 border-b border-gray-100"
-      :class="isExpanded ? 'px-6' : 'px-4 justify-center'"
+      class="flex items-center py-5"
+      :class="isExpanded ? 'px-6 justify-between gap-2' : 'px-4 justify-center'"
+      data-testid="sidebar-header"
     >
-      <RouterLink to="/" class="flex items-center" data-testid="sidebar-logo">
-        <img
-          :src="logoPng"
-          alt="WEACT"
-          :class="isExpanded ? 'h-8 w-auto' : 'h-7 w-auto'"
-        />
-      </RouterLink>
+      <template v-if="isExpanded">
+        <RouterLink to="/" class="flex items-center" data-testid="sidebar-logo">
+          <img :src="logoPng" alt="WEACT" class="h-8 w-auto" />
+        </RouterLink>
+        <button
+          type="button"
+          @click="toggle"
+          class="flex h-9 w-9 flex-none items-center justify-center rounded-lg text-ink-3 hover:bg-white hover:text-ink transition-colors"
+          data-testid="sidebar-toggle"
+          aria-label="Réduire la barre latérale"
+          title="Réduire la barre latérale"
+        >
+          <PanelLeftClose class="w-5 h-5" />
+        </button>
+      </template>
+      <button
+        v-else
+        type="button"
+        @click="toggle"
+        class="flex h-11 w-11 items-center justify-center rounded-lg hover:bg-white transition-colors"
+        data-testid="sidebar-logo-mark"
+        aria-label="Agrandir la barre latérale"
+        title="Agrandir la barre latérale"
+      >
+        <img :src="logoMark" alt="" class="h-7 w-auto" />
+      </button>
     </div>
 
     <!-- Navigation Items -->
     <nav class="flex-1 px-3 py-4 overflow-y-auto" data-testid="sidebar-nav">
-      <ul class="space-y-1">
+      <ul class="space-y-0.5">
         <li v-for="item in items" :key="item.to">
           <RouterLink
             :to="item.to"
-            class="flex items-center rounded-xl transition-all duration-200 cursor-pointer"
+            class="flex items-center rounded-lg text-dash transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-weact-600"
             :class="[
               getItemClasses(item),
-              isExpanded ? 'px-4 py-2.5 gap-3' : 'w-11 h-11 justify-center mx-auto',
+              isExpanded ? 'h-9 px-2.5 gap-2.5' : 'w-11 h-11 justify-center mx-auto',
             ]"
             :data-testid="`sidebar-item-${item.label.toLowerCase().replace(/\s+/g, '-')}`"
           >
-            <component :is="item.icon" class="w-5 h-5 flex-shrink-0" />
+            <component :is="item.icon" class="w-[18px] h-[18px] flex-shrink-0" />
             <span
               v-if="isExpanded"
-              class="text-sm truncate"
+              class="truncate"
             >
               {{ item.label }}
             </span>
             <span
               v-if="item.badge && item.badge > 0 && isExpanded"
-              class="ml-auto bg-primary text-white text-xs font-bold px-2 py-0.5 rounded-full"
+              class="ml-auto inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-weact-600 px-1.5 text-[11px] font-semibold text-white"
               data-testid="sidebar-badge"
             >
-              {{ item.badge }}
+              {{ formatBadge(item.badge, item.badgeMax) }}
             </span>
           </RouterLink>
         </li>
@@ -101,39 +122,17 @@ const getItemClasses = (item: SidebarItem) => {
     </nav>
 
     <!-- Bottom Actions -->
-    <div class="p-4 border-t border-gray-100 space-y-2">
+    <div class="p-3 border-t border-line space-y-2">
       <!-- Back to site -->
       <RouterLink
         to="/"
-        class="flex items-center rounded-xl py-2.5 text-slate-500 hover:bg-gray-50 hover:text-primary transition-all"
-        :class="isExpanded ? 'px-4 gap-3' : 'justify-center'"
+        class="flex items-center rounded-lg h-9 text-dash text-ink-3 hover:bg-white hover:text-ink transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-weact-600"
+        :class="isExpanded ? 'px-2.5 gap-2.5' : 'justify-center'"
         data-testid="sidebar-back-to-site"
       >
-        <Home class="w-5 h-5 flex-shrink-0" />
-        <span v-if="isExpanded" class="text-sm font-medium">Retour au site</span>
+        <Home class="w-[18px] h-[18px] flex-shrink-0" />
+        <span v-if="isExpanded">Retour au site</span>
       </RouterLink>
-
-      <!-- Collapse Toggle -->
-      <button
-        @click="toggle"
-        class="w-full flex items-center rounded-xl py-2.5 text-slate-400 hover:bg-gray-50 hover:text-slate-600 transition-all"
-        :class="isExpanded ? 'px-4 gap-3' : 'justify-center'"
-        data-testid="sidebar-toggle"
-        :aria-label="isExpanded ? 'Réduire le menu' : 'Agrandir le menu'"
-      >
-        <ChevronLeft v-if="isExpanded" class="w-5 h-5 flex-shrink-0" />
-        <ChevronRight v-else class="w-5 h-5 flex-shrink-0" />
-        <span v-if="isExpanded" class="text-sm font-medium">Réduire</span>
-      </button>
     </div>
   </aside>
 </template>
-
-<style scoped>
-.text-primary {
-  color: var(--color-weact, #198496);
-}
-.bg-primary {
-  background-color: var(--color-weact, #198496);
-}
-</style>

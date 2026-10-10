@@ -5,17 +5,20 @@ declare(strict_types=1);
 namespace App\Http\Requests\Ugc;
 
 use App\Models\Face;
+use App\Models\Shipment;
 use App\Services\Ugc\UgcDeliverableService;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rules\File;
 
 /**
- * Validation du fichier livrable (calque UploadFaceVideoRequest). N'autorise
- * que « est une Face » ; la propriété du deal est vérifiée par
- * Gate::authorize('uploadDeliverable', $shipment) dans le contrôleur (le
- * {shipment} n'est pas dans le payload). Limites lues depuis config('ugc.media').
+ * Validation du fichier livrable (calque UploadFaceVideoRequest). authorize()
+ * exige « est une Face » ET la propriété du deal (Gate uploadDeliverable sur le
+ * {shipment} de la route) : un non-propriétaire reçoit 403 AVANT toute
+ * validation/sonde ffprobe du fichier (jusqu'à 200 Mo). Limites lues depuis
+ * config('ugc.media').
  */
 class UploadDeliverableRequest extends FormRequest
 {
@@ -23,9 +26,16 @@ class UploadDeliverableRequest extends FormRequest
     {
         $user = $this->user();
 
-        return $user !== null
-            && $user->userable_type === Face::class
-            && $user->userable_id !== null;
+        if ($user === null
+            || $user->userable_type !== Face::class
+            || $user->userable_id === null) {
+            return false;
+        }
+
+        $shipment = $this->route('shipment');
+
+        return $shipment instanceof Shipment
+            && Gate::forUser($user)->allows('uploadDeliverable', $shipment);
     }
 
     /**

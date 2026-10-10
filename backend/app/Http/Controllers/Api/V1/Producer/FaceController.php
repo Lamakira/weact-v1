@@ -27,6 +27,9 @@ class FaceController extends Controller
             abort(403, 'Accès réservé aux Producteurs');
         }
 
+        // Same visibility rule as the public profile: a deactivated Face is not viewable.
+        abort_unless($face->user()->where('is_active', true)->exists(), 404);
+
         // Load relationships for full profile
         $face->load(['photos', 'experiences', 'videos', 'activeSubscription']);
 

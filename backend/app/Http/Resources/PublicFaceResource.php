@@ -29,7 +29,10 @@ class PublicFaceResource extends JsonResource
             'id' => $this->uuid,
             'username' => $this->username,
             'prenom' => $this->prenom,
-            'nom' => $this->nom,
+            // Public payloads carry the initial only ("K."); the full last name is
+            // reserved to logged-in Producers, the owner and admins (FaceResource).
+            'nom' => $this->lastNameInitial(),
+            'display_name' => $this->publicDisplayName(),
             'ville' => $this->ville,
             'categories' => $this->categoriesWithLabels(),
             'is_available' => $this->is_available,

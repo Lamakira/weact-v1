@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Face;
 
+use App\Http\Requests\Concerns\FaceUsernameRules;
 use App\Models\Face;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateBasicInfoRequest extends FormRequest
 {
+    use FaceUsernameRules;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -21,25 +23,29 @@ class UpdateBasicInfoRequest extends FormRequest
     }
 
     /**
+     * Normalize the username before validation.
+     *
+     * `username` is the public profile URL segment (`/faces/{username}`), so it is
+     * trimmed and lowercased here rather than rejected on case alone. An unchanged
+     * username is dropped from the input, so a legacy handle is neither
+     * re-validated nor rewritten.
+     */
+    protected function prepareForValidation(): void
+    {
+        $this->normalizeUsernameInput(Face::find($this->user()?->userable_id));
+    }
+
+    /**
      * Get the validation rules that apply to the request.
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
-        $user = $this->user();
-        $faceId = $user?->userable_id;
-
         return [
             'nom' => ['sometimes', 'required', 'string', 'max:100'],
             'prenom' => ['sometimes', 'required', 'string', 'max:100'],
-            'username' => [
-                'sometimes',
-                'required',
-                'string',
-                'max:50',
-                Rule::unique('faces', 'username')->ignore($faceId),
-            ],
+            'username' => $this->usernameRules($this->user()?->userable_id),
         ];
     }
 
@@ -55,9 +61,6 @@ class UpdateBasicInfoRequest extends FormRequest
             'nom.max' => 'Le nom ne peut pas dépasser 100 caractères',
             'prenom.required' => 'Le prénom est obligatoire',
             'prenom.max' => 'Le prénom ne peut pas dépasser 100 caractères',
-            'username.required' => "Le nom d'utilisateur est obligatoire",
-            'username.max' => "Le nom d'utilisateur ne peut pas dépasser 50 caractères",
-            'username.unique' => "Ce nom d'utilisateur est déjà pris",
-        ];
+        ] + $this->usernameMessages();
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Concerns\HasImageVariantUrls;
+use App\Concerns\HasRatingAggregates;
 use App\Concerns\HasRouteUuid;
 use App\Enums\FaceCategory;
 use App\Enums\FaceGender;
@@ -72,7 +73,7 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
  */
 class Face extends Model
 {
-    use HasFactory, HasImageVariantUrls, HasRouteUuid;
+    use HasFactory, HasImageVariantUrls, HasRatingAggregates, HasRouteUuid;
 
     /**
      * The attributes that are mass assignable.
@@ -175,6 +176,44 @@ class Face extends Model
                 return $fullName !== '' ? $fullName : ($this->username ?? 'Face');
             },
         );
+    }
+
+    /**
+     * Initial of the last name with a trailing dot ("K."), null when no last name.
+     * Public payloads never carry the full last name.
+     */
+    public function lastNameInitial(): ?string
+    {
+        $nom = trim((string) $this->nom);
+
+        return $nom === '' ? null : mb_strtoupper(mb_substr($nom, 0, 1)).'.';
+    }
+
+    /**
+     * Public display name: first name + initial of the last name ("Aïcha K.").
+     */
+    public function publicDisplayName(): string
+    {
+        $name = trim("{$this->prenom} {$this->lastNameInitial()}");
+
+        return $name !== '' ? $name : ($this->username ?? 'Face');
+    }
+
+    /**
+     * Whether the Face is known to be under 18. An unknown birth date is not a minor.
+     */
+    public function isMinor(): bool
+    {
+        return $this->age !== null && $this->age < 18;
+    }
+
+    /**
+     * Age as shown to anyone other than the owner/admin: never for a minor,
+     * otherwise only when the Face opted in via show_age.
+     */
+    public function publiclyVisibleAge(): ?int
+    {
+        return $this->show_age && ! $this->isMinor() ? $this->age : null;
     }
 
     /**
@@ -396,11 +435,29 @@ class Face extends Model
     }
 
     /**
+     * Pre-load the acting-video flag read by the profile-completion accessors
+     * (listings: no per-row exists query).
+     *
+     * @param  Builder<static>  $query
+     */
+    public function scopeWithActingVideoFlag(Builder $query): void
+    {
+        $query->withExists([
+            'videos as has_acting_video' => fn ($q) => $q->where('type', FaceVideoType::Acting),
+        ]);
+    }
+
+    /**
      * Whether this Face has at least one acting portfolio video. Eager-load
-     * aware: reads the loaded `videos` relation when present, else one query.
+     * aware: reads the pre-loaded flag or the loaded `videos` relation when
+     * present, else one query.
      */
     private function hasActingVideo(): bool
     {
+        if (array_key_exists('has_acting_video', $this->attributes)) {
+            return (bool) $this->attributes['has_acting_video'];
+        }
+
         if ($this->relationLoaded('videos')) {
             return $this->videos->contains(
                 fn (FaceVideo $video): bool => $video->type === FaceVideoType::Acting
@@ -413,8 +470,10 @@ class Face extends Model
     /**
      * Get the profile completion percentage (0-100).
      *
-     * Required fields (8 total):
+     * Required fields (11 total):
      * - profile_photo
+     * - sexe
+     * - nationalite
      * - presentation_video
      * - acting_video
      * - bio
@@ -423,15 +482,26 @@ class Face extends Model
      * - tarif_horaire OR tarif_journalier (at least one)
      * - langues
      * - whatsapp_number
+     *
+     * `sexe`, `nationalite` and `whatsapp_number` are no longer asked at signup, so
+     * the completion meter is what brings them in. `pays` is deliberately excluded:
+     * it has a database default, so it would always count as complete — whereas
+     * `nationalite` is a nullable column with no default.
      */
     protected function profileCompletionPercentage(): Attribute
     {
         return Attribute::make(
             get: function (): int {
                 $completed = 0;
-                $total = 9;
+                $total = 11;
 
                 if ($this->profile_photo) {
+                    $completed++;
+                }
+                if ($this->sexe) {
+                    $completed++;
+                }
+                if ($this->nationalite) {
                     $completed++;
                 }
                 if ($this->presentation_video) {
@@ -472,6 +542,12 @@ class Face extends Model
 
                 if (! $this->profile_photo) {
                     $missing[] = ['key' => 'profile_photo', 'label' => 'Ajoutez une photo de profil'];
+                }
+                if (! $this->sexe) {
+                    $missing[] = ['key' => 'sexe', 'label' => 'Indiquez votre sexe'];
+                }
+                if (! $this->nationalite) {
+                    $missing[] = ['key' => 'nationalite', 'label' => 'Indiquez votre nationalité'];
                 }
                 if (! $this->presentation_video) {
                     $missing[] = ['key' => 'presentation_video', 'label' => 'Ajoutez une vidéo de présentation'];
@@ -570,26 +646,20 @@ class Face extends Model
 
     /**
      * Get the average rating score for this Face.
+     *
+     * Reads the aggregates pre-loaded by withRatingAggregates() when present.
      */
     protected function averageRating(): Attribute
     {
         return Attribute::make(
             get: function (): ?float {
-                $candidatureRatings = $this->ratingsReceived()->selectRaw('COALESCE(SUM(score), 0) as score_sum, COUNT(*) as score_count')->first();
-                $bookingRatings = $this->bookingRatingsReceived()->selectRaw('COALESCE(SUM(score), 0) as score_sum, COUNT(*) as score_count')->groupBy('users.userable_id')->first();
+                $totals = $this->ratingTotals();
 
-                $candidatureCount = (int) data_get($candidatureRatings, 'score_count', 0);
-                $bookingCount = (int) data_get($bookingRatings, 'score_count', 0);
-                $totalCount = $candidatureCount + $bookingCount;
-
-                if ($totalCount === 0) {
+                if ($totals['count'] === 0) {
                     return null;
                 }
 
-                $totalScore = (float) data_get($candidatureRatings, 'score_sum', 0.0)
-                    + (float) data_get($bookingRatings, 'score_sum', 0.0);
-
-                $avg = $totalScore / $totalCount;
+                $avg = $totals['sum'] / $totals['count'];
                 $penalized = $avg - (float) ($this->rating_penalty ?? 0.0);
 
                 return max(1.0, $penalized);
@@ -603,7 +673,7 @@ class Face extends Model
     protected function ratingsCount(): Attribute
     {
         return Attribute::make(
-            get: fn (): int => $this->ratingsReceived()->count() + $this->bookingRatingsReceived()->count(),
+            get: fn (): int => $this->ratingTotals()['count'],
         );
     }
 }

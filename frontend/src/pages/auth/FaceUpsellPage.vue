@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
-import { Crown } from 'lucide-vue-next'
+import { Crown, UserPen } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
@@ -30,6 +30,15 @@ const router = useRouter()
 // store right after registration (no fetch needed).
 const authStore = useAuthStore()
 const isEmailVerified = computed(() => authStore.isEmailVerified)
+
+// Signup no longer asks for the handle: it is generated server-side from the
+// first/last name. Surface it here, right after registration, so nobody discovers
+// a `jeandupont3` handle on a business card — and offer the one-click rename.
+const generatedUsername = computed<string | null>(() => {
+  const userable = authStore.user?.userable as { username?: string } | undefined
+
+  return userable?.username ?? null
+})
 
 // Tier-aware guard (FP-3.5 review D2): /bienvenue only guards requiresAuth + role,
 // not subscription tier. An already-subscribed Face reaching it directly would see
@@ -63,6 +72,40 @@ onMounted(async () => {
            that can't open the payment modal yet (review D1-A). -->
       <div v-if="!isEmailVerified" class="mb-8 text-left" data-testid="upsell-verify-email">
         <EmailVerificationBanner />
+      </div>
+
+      <!-- Signup collects only 6 fields now; the rest (sexe, nationalité, pays,
+           WhatsApp, photo, tarifs…) is collected here, through the completion
+           meter that already exists on /face/profile. -->
+      <div
+        class="mb-8 rounded-2xl border border-gray-200 bg-white p-6 text-left"
+        data-testid="upsell-complete-profile"
+      >
+        <div class="flex items-start gap-3">
+          <UserPen class="h-5 w-5 shrink-0 text-[#198496] mt-0.5" />
+          <div class="flex-grow">
+            <h2 class="text-lg font-bold text-gray-900">Complétez votre profil</h2>
+            <p class="mt-1 text-sm text-gray-500">
+              Photo, ville, tarifs, langues et numéro WhatsApp. Un profil complet inspire confiance
+              aux producteurs et vous permet de postuler aux missions sans blocage.
+            </p>
+            <p v-if="generatedUsername" class="mt-3 text-sm text-gray-500">
+              Votre lien public&nbsp;:
+              <span class="font-mono font-medium text-gray-900">/faces/{{ generatedUsername }}</span>
+              —
+              <RouterLink
+                :to="{ name: 'face-profile', query: { tab: 'profil', section: 'infos' } }"
+                data-testid="upsell-customize-handle"
+                class="font-medium text-[#198496] hover:underline"
+              >personnalisez-le</RouterLink>.
+            </p>
+            <RouterLink
+              :to="{ name: 'face-profile', query: { tab: 'profil', section: 'identite' } }"
+              data-testid="upsell-complete-profile-cta"
+              class="mt-4 inline-block text-sm font-semibold py-2.5 px-4 rounded-md bg-[#198496] text-white hover:bg-[#146c7a] transition-colors"
+            >Compléter mon profil</RouterLink>
+          </div>
+        </div>
       </div>
 
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8" data-testid="upsell-tiers">

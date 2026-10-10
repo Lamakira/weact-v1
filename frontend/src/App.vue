@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { RouterView, useRoute } from 'vue-router'
 import AppHeader from '@/components/layout/AppHeader.vue'
 import AppFooter from '@/components/layout/AppFooter.vue'
@@ -38,10 +38,27 @@ function cancelEnteringPublicRoute(element: Element): void {
 // Bootstrap notification store on app reload for authenticated users
 onMounted(() => {
   if (authStore.isAuthenticated && !notificationStore.isSubscribed) {
-    notificationStore.subscribe()
+    void notificationStore.subscribe()
     notificationStore.fetchUnreadCount()
   }
 })
+
+// Service worker web push (push uniquement, aucun cache) : enregistré seulement pour un
+// utilisateur connecté et un navigateur qui sait faire du push. Import différé : ce
+// module n'est chargé que pour un utilisateur connecté, hors du chunk d'entrée.
+watch(
+  () => authStore.isAuthenticated,
+  (isAuthenticated) => {
+    if (isAuthenticated) {
+      void import('@/features/notification/push/webPush').then(async (m) => {
+        await m.registerPushServiceWorker()
+        // Ré-attache l'abonnement existant au compte courant (compte changé sans déconnexion propre).
+        await m.resyncExistingSubscription().catch(() => undefined)
+      })
+    }
+  },
+  { immediate: true },
+)
 
 /** Check if current route uses dashboard layout (no AppHeader/footer) */
 const isDashboardRoute = computed(() => {
@@ -135,7 +152,7 @@ const isLandingPage = computed(() => {
       <SitewideSubscriptionPaymentBanner />
 
       <!-- Main Content -->
-      <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-8">
+      <main class="flex-1 min-h-screen supports-[height:100dvh]:min-h-[100dvh] max-w-7xl w-full mx-auto px-4 py-8">
         <RouterView v-slot="{ Component }">
           <Transition
             name="page"
@@ -181,7 +198,7 @@ const isLandingPage = computed(() => {
   <CookieConsentBanner />
 
   <!-- Toasts (global, all layouts) — réglages repris à l'identique de l'ancien
-       plugin vue-toastification : haut-droite, 5 s, couleurs par type, fermeture
+       plugin vue-toastification : haut-centre (décision PO UX-1), 5 s, couleurs par type, fermeture
        possible. Monté ici et nulle part ailleurs : un second <Toaster> dupliquerait
        chaque notification.
        close-button-position : sonner ancre sa croix en haut à GAUCHE par défaut,
@@ -189,7 +206,7 @@ const isLandingPage = computed(() => {
        de bouton d'action, donc on la remet à droite comme partout ailleurs — à
        revérifier le jour où un toast portera une action. -->
   <Toaster
-    position="top-right"
+    position="top-center"
     close-button-position="top-right"
     :duration="5000"
     rich-colors

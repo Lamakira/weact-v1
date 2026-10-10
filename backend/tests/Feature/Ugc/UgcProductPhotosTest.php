@@ -487,13 +487,13 @@ class UgcProductPhotosTest extends TestCase
 
     public function test_attach_throws_and_persists_nothing_when_the_original_write_fails(): void
     {
-        // Les disques `local`/`public` sont `throw => false` : putFileAs RETOURNE
+        // Les disques `local`/`public` sont `throw => false` : put RETOURNE
         // false sur échec d'écriture. attach() doit le détecter et lever, sinon
         // une row pointerait un fichier absent (vignette cassée permanente).
         $booking = $this->makeUgcBooking();
 
         $disk = \Mockery::mock(\Illuminate\Contracts\Filesystem\Filesystem::class);
-        $disk->shouldReceive('putFileAs')->once()->andReturn(false);
+        $disk->shouldReceive('put')->once()->andReturn(false);
         Storage::shouldReceive('disk')->with('local')->andReturn($disk);
 
         try {

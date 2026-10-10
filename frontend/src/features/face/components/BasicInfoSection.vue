@@ -147,8 +147,8 @@ const handleSubmit = async () => {
           required
           data-testid="username-input"
         />
-        <p class="text-xs text-gray-500 -mt-2">
-          Votre identifiant unique sur la plateforme. Maximum 50 caractères.
+        <p class="text-xs text-gray-500 -mt-2" data-testid="username-hint">
+          Votre identifiant unique sur la plateforme. 3 à 50 caractères : lettres minuscules, chiffres, - et _.
         </p>
 
         <!-- Action Button -->

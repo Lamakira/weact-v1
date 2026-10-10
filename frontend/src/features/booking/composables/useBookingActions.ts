@@ -10,13 +10,16 @@ interface UseBookingActionsReturn {
   isConfirming: Ref<boolean>
   isCancelling: Ref<boolean>
   isReportingNoShow: Ref<boolean>
+  isContesting: Ref<boolean>
   error: Ref<string | null>
   errorCode: Ref<string | null>
+  errorStatus: Ref<number | null>
   accept: (bookingId: string) => Promise<Booking | null>
   refuse: (bookingId: string, reason?: string) => Promise<Booking | null>
   confirm: (bookingId: string) => Promise<Booking | null>
   cancel: (bookingId: string, reason: CancellationReasonValue, customReason?: string) => Promise<Booking | null>
   reportNoShow: (bookingId: string) => Promise<Booking | null>
+  contest: (bookingId: string, message: string) => Promise<Booking | null>
   clearError: () => void
 }
 
@@ -26,14 +29,18 @@ export function useBookingActions(): UseBookingActionsReturn {
   const isConfirming = ref(false)
   const isCancelling = ref(false)
   const isReportingNoShow = ref(false)
+  const isContesting = ref(false)
   const error = ref<string | null>(null)
   // Code de l'envelope backend (2.4) — permet de router les erreurs par code
   // (ex. UGC_SUBSCRIPTION_REQUIRED → /pricing) sans parser le message.
   const errorCode = ref<string | null>(null)
+  // Statut HTTP de la dernière erreur de contestation (403/422 = données périmées côté page)
+  const errorStatus = ref<number | null>(null)
 
   function clearError(): void {
     error.value = null
     errorCode.value = null
+    errorStatus.value = null
   }
 
   function extractErrorCode(err: unknown): string | null {
@@ -131,19 +138,41 @@ export function useBookingActions(): UseBookingActionsReturn {
     }
   }
 
+  async function contest(bookingId: string, message: string): Promise<Booking | null> {
+    isContesting.value = true
+    error.value = null
+    errorCode.value = null
+    errorStatus.value = null
+
+    try {
+      const response = await bookingApi.contestBooking(bookingId, message)
+      return response.data
+    } catch (err) {
+      error.value = getApiErrorMessage(err)
+      errorCode.value = extractErrorCode(err)
+      errorStatus.value = isAxiosError(err) ? (err.response?.status ?? null) : null
+      return null
+    } finally {
+      isContesting.value = false
+    }
+  }
+
   return {
     isAccepting,
     isRefusing,
     isConfirming,
     isCancelling,
     isReportingNoShow,
+    isContesting,
     error,
     errorCode,
+    errorStatus,
     accept,
     refuse,
     confirm,
     cancel,
     reportNoShow,
+    contest,
     clearError,
   }
 }

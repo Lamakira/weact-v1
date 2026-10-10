@@ -21,7 +21,7 @@ interface UseProfileCompletionReturn {
   completionInfo: Ref<ProfileCompletionInfo | null>
   isLoading: Ref<boolean>
   error: Ref<string | null>
-  fetchCompletion: () => Promise<void>
+  fetchCompletion: (options?: { force?: boolean }) => Promise<void>
   percentage: ComputedRef<number>
   missingItems: ComputedRef<ProfileCompletionMissingItem[]>
   isComplete: ComputedRef<boolean>
@@ -44,10 +44,12 @@ export function useProfileCompletion(): UseProfileCompletionReturn {
   }
 
   /**
-   * Fetch the current profile completion status
+   * Fetch the current profile completion status.
+   * `force` bypasses the shared-resource TTL: needed right after a save that
+   * changes a completion criterion, otherwise the cached value comes back.
    */
-  async function fetchCompletion(): Promise<void> {
-    await profileCompletionResource.fetch()
+  async function fetchCompletion(options: { force?: boolean } = {}): Promise<void> {
+    await profileCompletionResource.fetch(options)
   }
 
   /**

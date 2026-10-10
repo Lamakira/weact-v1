@@ -25,6 +25,33 @@ describe('ProfileEditPage structure', () => {
     expect(block).not.toContain('DataPrivacySection')
   })
 
+  it('Sécurité : les formulaires mot de passe/email ne sont montés qu\'après la 1re ouverture de la section', () => {
+    const tpl = template.slice(template.indexOf('<template>'))
+    const start = tpl.indexOf('data-testid="panel-securite"')
+    const next = tpl.indexOf('data-testid="panel-', start + 1)
+    const block = tpl.slice(start, next === -1 ? start + 600 : next)
+    // Les deux formulaires sont sous un v-if="securityVisited" (pas de champ mot de passe
+    // dans le DOM au premier rendu -> pas de popup du gestionnaire de mots de passe).
+    const guard = block.indexOf('v-if="securityVisited"')
+    expect(guard).toBeGreaterThan(-1)
+    expect(block.indexOf('<EmailChangeForm')).toBeGreaterThan(guard)
+    expect(block.indexOf('<PasswordChangeForm')).toBeGreaterThan(guard)
+    expect(template).toMatch(/securityVisited\.value = true/)
+  })
+
+  it.each(['sexe', 'nationalite'])(
+    'completion item %s maps to the identity section of the profil tab',
+    (key) => {
+      const start = template.indexOf('const COMPLETION_TO_TAB')
+      expect(start).toBeGreaterThan(-1)
+      const block = template.slice(start, template.indexOf('const incompleteSectionKeys', start))
+
+      expect(block).toMatch(
+        new RegExp(`\\b${key}: \\{ family: 'profil', section: 'identite' \\}`),
+      )
+    },
+  )
+
   it('DataPrivacySection appears AFTER the main form sections', () => {
     const experiencesIndex = template.indexOf('ExperiencesList')
     const dataPrivacyIndex = template.indexOf('<DataPrivacySection', experiencesIndex)

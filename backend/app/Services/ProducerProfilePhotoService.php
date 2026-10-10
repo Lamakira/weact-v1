@@ -7,9 +7,9 @@ namespace App\Services;
 use App\Jobs\GenerateImageVariants;
 use App\Models\Producer;
 use App\Support\ImageVariantGenerator;
+use App\Support\UploadedMedia;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class ProducerProfilePhotoService
 {
@@ -24,21 +24,32 @@ class ProducerProfilePhotoService
      */
     public function uploadProfilePhoto(Producer $producer, UploadedFile $photo): array
     {
-        $this->deleteProfilePhoto($producer);
+        // Original nettoyé (EXIF supprimé), extension dérivée du contenu
+        $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $photo, 'photo');
 
-        $extension = $photo->getClientOriginalExtension() ?: 'jpg';
-        $filename = Str::uuid()->toString().'.'.$extension;
+        // Relit le modèle : des variantes réclamées entre-temps par le job précédent doivent aussi
+        // être supprimées. L'ancienne photo n'est supprimée qu'APRÈS le succès de l'écriture DB.
+        $producer->refresh();
+        $generator = app(ImageVariantGenerator::class);
+        $oldFiles = $generator->candidateFiles($producer);
 
-        Storage::disk('public')->putFileAs(self::STORAGE_PATH, $photo, $filename);
+        // UNE seule mise à jour vers le nouveau nom (variant columns stay null until the job fills
+        // them) : pas d'état intermédiaire « sans photo ».
+        try {
+            $producer->update([
+                'profile_photo' => $filename,
+                'profile_photo_thumbnail' => null,
+                'profile_photo_medium' => null,
+                'profile_photo_grid' => null,
+                'profile_photo_large' => null,
+            ]);
+        } catch (\Throwable $e) {
+            Storage::disk('public')->delete(self::STORAGE_PATH.'/'.$filename); // l'ancienne photo reste intacte
 
-        // Variant columns stay null until the job fills them
-        $producer->update([
-            'profile_photo' => $filename,
-            'profile_photo_thumbnail' => null,
-            'profile_photo_medium' => null,
-            'profile_photo_grid' => null,
-            'profile_photo_large' => null,
-        ]);
+            throw $e;
+        }
+
+        Storage::disk(ImageVariantGenerator::diskFor($producer))->delete($oldFiles);
 
         dispatch(GenerateImageVariants::forModel($producer));
 
@@ -52,6 +63,11 @@ class ProducerProfilePhotoService
      */
     public function deleteProfilePhoto(Producer $producer): bool
     {
+        // Relit les colonnes (variantes réclamées par un job depuis le chargement du modèle).
+        if ($producer->exists) {
+            $producer->refresh();
+        }
+
         // File cleanup (original + every variant) is driven by the shared
         // catalog in ImageVariantGenerator — no per-variant paths to keep in
         // sync here.

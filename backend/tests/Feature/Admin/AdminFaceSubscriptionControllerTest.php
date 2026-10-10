@@ -34,7 +34,7 @@ class AdminFaceSubscriptionControllerTest extends TestCase
 
     private function withAdminApiToken(Admin $admin): static
     {
-        return $this->withToken($admin->createToken('admin-token')->plainTextToken);
+        return $this->withToken($admin->createToken('admin-token', ['2fa'])->plainTextToken);
     }
 
     protected function setUp(): void

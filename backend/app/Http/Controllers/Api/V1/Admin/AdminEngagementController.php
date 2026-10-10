@@ -9,6 +9,7 @@ use App\Enums\CandidatureStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Candidature;
+use App\Support\Whatsapp;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -208,12 +209,6 @@ class AdminEngagementController extends Controller
 
     private function hasDialableWhatsapp(?string $whatsapp): bool
     {
-        if ($whatsapp === null) {
-            return false;
-        }
-
-        $digits = preg_replace('/\D+/', '', $whatsapp) ?? '';
-
-        return $digits !== '';
+        return Whatsapp::isDialable($whatsapp);
     }
 }

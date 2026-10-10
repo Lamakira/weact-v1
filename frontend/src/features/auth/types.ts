@@ -12,15 +12,9 @@ export interface LoginForm {
 export interface FaceRegistrationForm {
   nom: string
   prenom: string
-  username: string
   email: string
-  password: string
-  password_confirmation: string
-  sexe: string
   date_naissance: string
-  nationalite: string
-  pays: string
-  whatsapp_number?: string
+  password: string
   accept_cgu: boolean
 }
 
@@ -32,7 +26,6 @@ export interface ProducerRegistrationFormBase {
   type: ProducerType
   email: string
   password: string
-  password_confirmation: string
   accept_cgu: boolean
 }
 
@@ -43,10 +36,10 @@ export interface AgencyRegistrationForm extends ProducerRegistrationFormBase {
 }
 
 // Registration form data - Producer Particulier
+// Collected as one field; the backend splits it into first_name/last_name.
 export interface ParticulierRegistrationForm extends ProducerRegistrationFormBase {
   type: 'particulier'
-  first_name: string
-  last_name: string
+  nom_complet: string
 }
 
 // Union type for Producer registration
@@ -72,6 +65,8 @@ export interface Producer {
   first_name: string | null
   last_name: string | null
   display_name: string
+  /** Public profile URL segment (`/producers/:slug`). */
+  slug?: string | null
   created_at: string
   updated_at: string
 }
@@ -85,8 +80,49 @@ export interface User {
   userable?: Face | Producer | null
   email_verified: boolean
   email_verified_at: string | null
+  // Optional: sessions restored from localStorage predate this field. Read it
+  // through the auth store's `hasPassword`, which defaults it to true.
+  has_password?: boolean
   created_at: string
   updated_at: string
+}
+
+// Which button started the Google flow. Drives what the finalisation screen asks
+// for, and is ignored entirely when the account already exists (userable_type is
+// never mutated). `reauth` is the odd one out: it proves ownership before an
+// irreversible action and opens no session.
+export type GoogleIntent = 'face' | 'producer' | 'login' | 'reauth'
+
+// Result of trading the one-shot callback code.
+export interface GoogleExchangeResult {
+  needs_completion?: boolean
+  redirect: string | null
+  // Present on the re-authentication path only: proves ownership before an
+  // irreversible action, and opens no session.
+  reauth_token?: string
+  // Present when needs_completion is false
+  user?: User
+  token?: string
+  // Present when needs_completion is true
+  pending_token?: string
+  email?: string
+  prenom?: string
+  nom?: string
+  intent?: GoogleIntent
+}
+
+export interface CompleteGoogleRegistrationData {
+  pending_token: string
+  role: 'face' | 'producer'
+  accept_cgu: boolean
+  // Face branch
+  nom?: string
+  prenom?: string
+  date_naissance?: string
+  // Producer branch
+  type?: ProducerType
+  agency_name?: string
+  nom_complet?: string
 }
 
 // Auth response from API

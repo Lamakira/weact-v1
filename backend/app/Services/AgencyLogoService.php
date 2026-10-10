@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Jobs\GenerateAgencyLogoThumbnail;
 use App\Models\Producer;
+use App\Support\UploadedMedia;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
-use Intervention\Image\Laravel\Facades\Image;
 use InvalidArgumentException;
 
 class AgencyLogoService
@@ -17,14 +17,10 @@ class AgencyLogoService
 
     private const THUMBNAIL_PATH = 'logos/agencies/thumbnails';
 
-    private const THUMBNAIL_SIZE = 150;
-
-    private const THUMBNAIL_QUALITY = 85;
-
     /**
-     * Upload a logo for an Agency Producer and generate thumbnail.
+     * Upload a logo for an Agency Producer ; la vignette est générée par un job de queue.
      *
-     * @return array{logo: string, thumbnail: string}
+     * @return array{logo: string, thumbnail: string|null}
      *
      * @throws InvalidArgumentException If producer is not an Agency
      */
@@ -35,28 +31,24 @@ class AgencyLogoService
             throw new InvalidArgumentException('Only Agency producers can upload logos.');
         }
 
-        // Delete old logos if they exist
+        // Original ré-encodé (EXIF supprimé), extension dérivée du contenu
+        $filename = UploadedMedia::storeImage('public', self::STORAGE_PATH, $logo, 'logo');
+
+        // L'ancien logo (et sa vignette) n'est supprimé qu'APRÈS le stockage réussi du nouveau.
         $this->deleteLogo($producer);
 
-        // Generate unique filename with UUID
-        $extension = $logo->getClientOriginalExtension() ?: 'jpg';
-        $filename = Str::uuid()->toString().'.'.$extension;
-
-        // Store original logo using the public disk
-        Storage::disk('public')->putFileAs(self::STORAGE_PATH, $logo, $filename);
-
-        // Generate and save thumbnail from the uploaded file directly
-        $thumbnailFilename = $this->generateThumbnail($logo, $filename);
-
-        // Update Producer model
+        // Aucun décodage dans la requête (memory_limit FPM) : la vignette est générée par
+        // un job de queue ; la colonne reste null (URL de vignette null) en attendant.
         $producer->update([
             'agency_logo' => $filename,
-            'agency_logo_thumbnail' => $thumbnailFilename,
+            'agency_logo_thumbnail' => null,
         ]);
+
+        dispatch(new GenerateAgencyLogoThumbnail($producer->id, $filename));
 
         return [
             'logo' => $filename,
-            'thumbnail' => $thumbnailFilename,
+            'thumbnail' => null,
         ];
     }
 
@@ -68,7 +60,20 @@ class AgencyLogoService
         $deleted = false;
         $disk = Storage::disk('public');
 
+        // Le modèle a pu être chargé avant que le job de vignette ne réclame sa colonne
+        // (suppression de compte, ré-upload) : on relit pour ne pas orpheliner la vignette.
+        if ($producer->exists) {
+            $producer->refresh();
+        }
+
         if ($producer->agency_logo) {
+            // Nom dérivé de la vignette (même uuid, .jpg) : supprimé même si la colonne est encore null.
+            $derived = self::THUMBNAIL_PATH.'/'.pathinfo((string) $producer->agency_logo, PATHINFO_FILENAME).'.jpg';
+            if ($disk->exists($derived)) {
+                $disk->delete($derived);
+                $deleted = true;
+            }
+
             $logoPath = self::STORAGE_PATH.'/'.$producer->agency_logo;
             if ($disk->exists($logoPath)) {
                 $disk->delete($logoPath);
@@ -93,28 +98,5 @@ class AgencyLogoService
         }
 
         return $deleted;
-    }
-
-    /**
-     * Generate a thumbnail from the uploaded logo.
-     *
-     * @return string The thumbnail filename (always .jpg extension)
-     */
-    private function generateThumbnail(UploadedFile $logo, string $filename): string
-    {
-        // Read the original image from the uploaded file's temp path
-        $image = Image::read($logo->getRealPath());
-        $image->cover(self::THUMBNAIL_SIZE, self::THUMBNAIL_SIZE);
-
-        // Convert to JPEG and get the encoded data
-        $encoded = $image->toJpeg(self::THUMBNAIL_QUALITY);
-
-        // Thumbnail filename always uses .jpg extension since we convert to JPEG
-        $thumbnailFilename = Str::beforeLast($filename, '.').'.jpg';
-
-        // Store thumbnail using public disk (works with fake storage in tests)
-        Storage::disk('public')->put(self::THUMBNAIL_PATH.'/'.$thumbnailFilename, $encoded->toString());
-
-        return $thumbnailFilename;
     }
 }

@@ -13,6 +13,7 @@ use App\Models\Producer;
 use App\Models\User;
 use FedaPay\Balance;
 use FedaPay\FedaPay;
+use FedaPay\HttpClient\CurlClient;
 use FedaPay\Payout;
 use FedaPay\Transaction;
 use FedaPay\Webhook;
@@ -20,6 +21,25 @@ use Illuminate\Support\Facades\Log;
 
 class FedapayService
 {
+    /**
+     * FedaPay transaction statuses after which a checkout can no longer be paid:
+     * every « reuse the existing transaction / checkout URL » path must create a
+     * brand-new transaction instead of handing the old one back.
+     *
+     * @var list<string>
+     */
+    public const TERMINAL_FAILED_STATUSES = ['declined', 'canceled', 'refunded', 'expired'];
+
+    /**
+     * Timeouts applied ONLY around the status reads of the polled endpoints
+     * (SDK defaults: 80 s read / 30 s connect). Writes — transaction create,
+     * token, payouts, refunds — keep the SDK defaults: a payout executed
+     * remotely but answered late must never surface here as a timeout.
+     */
+    public const HTTP_TIMEOUT_SECONDS = 10;
+
+    public const HTTP_CONNECT_TIMEOUT_SECONDS = 5;
+
     public function __construct()
     {
         FedaPay::setApiKey(config('services.fedapay.secret_key'));
@@ -270,8 +290,17 @@ class FedapayService
      */
     public function retrieveTransaction(int $id): Transaction
     {
-        /** @var Transaction $transaction */
-        $transaction = Transaction::retrieve($id);
+        $client = CurlClient::instance();
+        $previousTimeout = $client->getTimeout();
+        $previousConnectTimeout = $client->getConnectTimeout();
+        $client->setTimeout(self::HTTP_TIMEOUT_SECONDS)->setConnectTimeout(self::HTTP_CONNECT_TIMEOUT_SECONDS);
+
+        try {
+            /** @var Transaction $transaction */
+            $transaction = Transaction::retrieve($id);
+        } finally {
+            $client->setTimeout($previousTimeout)->setConnectTimeout($previousConnectTimeout);
+        }
 
         return $transaction;
     }

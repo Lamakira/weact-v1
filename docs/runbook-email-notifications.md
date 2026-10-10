@@ -200,11 +200,11 @@ php artisan migrate --force
 ### Commande worker
 
 ```bash
-php artisan queue:work database --queue=default --tries=3 --backoff=60 --timeout=120 --sleep=3 --max-time=3600
+php artisan queue:work database --queue=default --tries=3 --backoff=60 --timeout=90 --sleep=3 --max-time=3600
 ```
 
 - `--tries=3 --backoff=60` : 3 tentatives espacées de 60 s. Après 3 échecs, le job va dans `failed_jobs`.
-- `--timeout=120` : un job qui dépasse 120 s est tué.
+- `--timeout=90` : un job qui dépasse 90 s est tué (valeur réelle en production, vérifiée sur le serveur). Règle : `retry_after` de la connexion `database` (`config/queue.php`, défaut du dépôt : 150 s, variable `DB_QUEUE_RETRY_AFTER`) doit rester STRICTEMENT supérieur au `--timeout` du worker, sinon un job encore en cours peut être repris une seconde fois par un autre worker. Les jobs d'images ont de plus un `$timeout = 60` explicite, `failOnTimeout` et `tries = 1`.
 - `--max-time=3600` : le worker redémarre après 1 h → protection contre les memory leaks Laravel connus.
 - `--sleep=3` : 3 s d'attente entre 2 checks de la file si vide.
 
@@ -215,7 +215,7 @@ Le worker doit tourner sous `supervisor` pour redémarrer automatiquement après
 ```ini
 [program:weact-queue-worker]
 process_name=%(program_name)s_%(process_num)02d
-command=php /var/www/weact/backend/artisan queue:work database --queue=default --tries=3 --backoff=60 --timeout=120 --sleep=3 --max-time=3600
+command=php /var/www/weact/backend/artisan queue:work database --queue=default --tries=3 --backoff=60 --timeout=90 --sleep=3 --max-time=3600
 autostart=true
 autorestart=true
 stopasgroup=true

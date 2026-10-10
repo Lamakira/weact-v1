@@ -2,12 +2,33 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import PasswordChangeForm from '../PasswordChangeForm.vue'
+import { setGoogleReauthTicket, takeGoogleReauthTicket } from '../../googleReauth'
+
+// The form reads has_password from the auth store: with a password it changes one,
+// without it sets one (the OAuth-only case).
+const mockRefreshUser = vi.fn().mockResolvedValue(true)
+const mockHasPassword = ref(true)
+const mockUserId = ref(5)
+
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({
+    get hasPassword() {
+      return mockHasPassword.value
+    },
+    get user() {
+      return { id: mockUserId.value }
+    },
+    refreshUser: mockRefreshUser,
+  }),
+}))
 
 // Mock usePasswordChange composable
 const mockIsLoading = ref(false)
 const mockError = ref<string | null>(null)
 const mockFieldErrors = ref<Record<string, string[]>>({})
+const mockErrorCode = ref<string | null>(null)
 const mockChangePassword = vi.fn()
+const mockSetPassword = vi.fn()
 const mockClearError = vi.fn()
 
 vi.mock('../../composables/usePasswordChange', () => ({
@@ -15,7 +36,9 @@ vi.mock('../../composables/usePasswordChange', () => ({
     isLoading: mockIsLoading,
     error: mockError,
     fieldErrors: mockFieldErrors,
+    errorCode: mockErrorCode,
     changePassword: mockChangePassword,
+    setPassword: mockSetPassword,
     clearError: mockClearError,
   }),
 }))
@@ -38,8 +61,16 @@ const waitForValidation = async () => {
   await flushPromises()
 }
 
+const GoogleSignInButtonStub = {
+  props: ['intent', 'label', 'reauthPurpose'],
+  template:
+    '<button type="button" data-testid="google-sign-in-button" :data-intent="intent" :data-purpose="reauthPurpose" />',
+}
+
 function mountForm() {
-  return mount(PasswordChangeForm)
+  return mount(PasswordChangeForm, {
+    global: { stubs: { GoogleSignInButton: GoogleSignInButtonStub } },
+  })
 }
 
 async function openForm(wrapper: ReturnType<typeof mount>) {
@@ -65,7 +96,13 @@ describe('PasswordChangeForm', () => {
     mockIsLoading.value = false
     mockError.value = null
     mockFieldErrors.value = {}
+    mockErrorCode.value = null
+    sessionStorage.clear()
     mockChangePassword.mockResolvedValue(true)
+    mockSetPassword.mockResolvedValue(true)
+    mockHasPassword.value = true
+    mockUserId.value = 5
+    mockRefreshUser.mockResolvedValue(true)
   })
 
   it('shows toggle button by default', () => {
@@ -235,6 +272,178 @@ describe('PasswordChangeForm', () => {
 
       await waitForValidation()
       expect(wrapper.text()).toContain('Le mot de passe est trop faible.')
+    })
+  })
+
+  describe('OAuth-only account (no password set)', () => {
+    beforeEach(() => {
+      mockHasPassword.value = false
+    })
+
+    async function fillNewPassword(wrapper: ReturnType<typeof mount>) {
+      await wrapper.find('[data-testid="new-password-input"]').setValue('NewPassword2')
+      await wrapper.find('[data-testid="confirm-password-input"]').setValue('NewPassword2')
+      await wrapper.find('[data-testid="password-change-form"]').trigger('submit')
+      await waitForValidation()
+    }
+
+    it('reframes the section as setting a password', () => {
+      const wrapper = mountForm()
+
+      expect(wrapper.text()).toContain('Définir un mot de passe')
+      expect(wrapper.text()).not.toContain('Changer de mot de passe')
+      expect(wrapper.find('[data-testid="set-password-hint"]').exists()).toBe(true)
+    })
+
+    describe('without a Google ticket', () => {
+      it('offers the Google confirmation and no fields', () => {
+        const wrapper = mountForm()
+
+        const button = wrapper.find('[data-testid="google-sign-in-button"]')
+        expect(button.exists()).toBe(true)
+        expect(button.attributes('data-intent')).toBe('reauth')
+        expect(button.attributes('data-purpose')).toBe('set_password')
+        expect(wrapper.find('[data-testid="show-form-button"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="new-password-input"]').exists()).toBe(false)
+      })
+    })
+
+    describe('with a set_password ticket', () => {
+      beforeEach(() => {
+        setGoogleReauthTicket('reauth-pwd', 'set_password', 5)
+      })
+
+      it('shows the new password fields without a current password and consumes the ticket from storage', () => {
+        const wrapper = mountForm()
+
+        expect(wrapper.find('[data-testid="current-password-input"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="new-password-input"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="confirm-password-input"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(false)
+        expect(takeGoogleReauthTicket('set_password', 5)).toBeNull()
+      })
+
+      it('submits the ticket and never a current password', async () => {
+        const wrapper = mountForm()
+        await fillNewPassword(wrapper)
+
+        expect(mockSetPassword).toHaveBeenCalledWith('NewPassword2', 'NewPassword2', 'reauth-pwd')
+        expect(mockChangePassword).not.toHaveBeenCalled()
+      })
+
+      it('refreshes the user so email change and deletion unlock without a reload', async () => {
+        const wrapper = mountForm()
+        await fillNewPassword(wrapper)
+
+        expect(mockRefreshUser).toHaveBeenCalled()
+        expect(mockToastSuccess).toHaveBeenCalledWith('Votre mot de passe a été défini avec succès.')
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+      })
+
+      it('drops the ticket and returns to the Google button on REAUTH_TOKEN_INVALID', async () => {
+        mockSetPassword.mockImplementation(async () => {
+          mockErrorCode.value = 'REAUTH_TOKEN_INVALID'
+          mockError.value = 'Confirmation expirée. Reprenez la confirmation avec Google.'
+          return false
+        })
+
+        const wrapper = mountForm()
+        await fillNewPassword(wrapper)
+
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="form-error"]').text()).toContain(
+          'Confirmation expirée. Reprenez la confirmation avec Google.'
+        )
+      })
+
+      it('also drops the ticket on a reauth_token field error', async () => {
+        mockSetPassword.mockImplementation(async () => {
+          mockFieldErrors.value = { reauth_token: ['La confirmation Google est requise.'] }
+          mockError.value = 'La confirmation Google est requise.'
+          return false
+        })
+
+        const wrapper = mountForm()
+        await fillNewPassword(wrapper)
+
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(true)
+      })
+
+      it('drops the ticket, refreshes the user and shows the Google button on a server error', async () => {
+        mockSetPassword.mockImplementation(async () => {
+          mockError.value = 'Une erreur est survenue.'
+          return false
+        })
+
+        const wrapper = mountForm()
+        await fillNewPassword(wrapper)
+
+        expect(mockRefreshUser).toHaveBeenCalled()
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="form-error"]').text()).toContain('Une erreur est survenue.')
+      })
+
+      it('switches to change-password mode when the refreshed user turns out to have a password', async () => {
+        mockSetPassword.mockImplementation(async () => {
+          mockError.value = 'Une erreur est survenue.'
+          return false
+        })
+        mockRefreshUser.mockImplementationOnce(async () => {
+          mockHasPassword.value = true
+          return true
+        })
+
+        const wrapper = mountForm()
+        await fillNewPassword(wrapper)
+
+        expect(wrapper.text()).toContain('Changer de mot de passe')
+        expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(false)
+      })
+
+      it('never picks up a ticket minted for another account', () => {
+        sessionStorage.clear()
+        setGoogleReauthTicket('reauth-pwd', 'set_password', 99)
+
+        const wrapper = mountForm()
+
+        expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(true)
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+      })
+
+      it('keeps the form on an ordinary field error', async () => {
+        mockSetPassword.mockImplementation(async () => {
+          mockFieldErrors.value = { new_password: ['Le mot de passe est trop faible.'] }
+          mockError.value = 'Le mot de passe est trop faible.'
+          return false
+        })
+
+        const wrapper = mountForm()
+        await fillNewPassword(wrapper)
+
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(true)
+      })
+
+      it('goes back to the Google button on cancel (the ticket is spent)', async () => {
+        const wrapper = mountForm()
+        await wrapper.find('[data-testid="cancel-form-button"]').trigger('click')
+
+        expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+        expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(true)
+      })
+    })
+
+    it('does not consume a delete_account ticket', () => {
+      setGoogleReauthTicket('reauth-del', 'delete_account', 5)
+
+      const wrapper = mountForm()
+
+      expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="password-change-form"]').exists()).toBe(false)
+      expect(takeGoogleReauthTicket('delete_account', 5)).toBe('reauth-del')
     })
   })
 })

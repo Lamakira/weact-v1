@@ -37,9 +37,20 @@ vi.mock('@/composables/useToast', () => ({
   }),
 }))
 
+// Changing the email re-authenticates with a password; an OAuth-only account has none.
+const mockHasPassword = ref(true)
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({
+    get hasPassword() {
+      return mockHasPassword.value
+    },
+  }),
+}))
+
 describe('EmailChangeForm', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockHasPassword.value = true
     mockPendingEmail.value = null
     mockIsLoading.value = false
     mockIsSuccess.value = false
@@ -70,6 +81,19 @@ describe('EmailChangeForm', () => {
 
     expect(wrapper.find('[data-testid="email-change-form"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="show-form-button"]').exists()).toBe(false)
+  })
+
+  it('uses non-login autocomplete hints (no password manager login prompt)', async () => {
+    const wrapper = mount(EmailChangeForm)
+
+    await wrapper.find('[data-testid="show-form-button"]').trigger('click')
+
+    const email = wrapper.find('[data-testid="new-email-input"]')
+    expect(email.attributes('autocomplete')).toBe('off')
+    expect(email.attributes('name')).toBe('new_email')
+    expect(wrapper.find('[data-testid="password-input"]').attributes('autocomplete')).toBe(
+      'current-password',
+    )
   })
 
   it('hides form when cancel button is clicked', async () => {
@@ -210,6 +234,30 @@ describe('EmailChangeForm', () => {
       await wrapper.find('[data-testid="show-form-button"]').trigger('click')
 
       expect(wrapper.find('[data-testid="submit-button"]').attributes('disabled')).toBeDefined()
+    })
+  })
+
+  describe('OAuth-only account (no password set)', () => {
+    beforeEach(() => {
+      mockHasPassword.value = false
+    })
+
+    it('replaces the form with a set-a-password pointer', () => {
+      const wrapper = mount(EmailChangeForm)
+
+      expect(wrapper.find('[data-testid="email-change-requires-password"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="show-form-button"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="email-change-form"]').exists()).toBe(false)
+    })
+
+    it('still shows a pending change so it can be cancelled', () => {
+      mockPendingEmail.value = 'nouvelle@example.com'
+
+      const wrapper = mount(EmailChangeForm)
+
+      expect(wrapper.find('[data-testid="pending-email-notice"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="cancel-pending-button"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="email-change-requires-password"]').exists()).toBe(false)
     })
   })
 })

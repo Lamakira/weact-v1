@@ -35,8 +35,9 @@ vi.mock('@/features/notification/components/NotificationBell.vue', () => ({
 }))
 
 describe('DashboardHeader', () => {
-  function mountHeader(props = {}) {
+  function mountHeader(props = {}, slots = {}) {
     return mount(DashboardHeader, {
+      slots,
       props: {
         title: 'Dashboard',
         userEmail: 'test@example.com',
@@ -108,6 +109,18 @@ describe('DashboardHeader', () => {
       expect(avatar.find('img').attributes('src')).toBe('https://example.com/avatar.jpg')
     })
 
+    it('falls back to initials on a teal circle when the image fails to load', async () => {
+      const wrapper = mountHeader({ userName: 'John Doe', avatarUrl: 'https://example.com/broken.jpg' })
+      const avatar = wrapper.find('[data-testid="header-avatar"]')
+
+      await avatar.find('img').trigger('error')
+
+      expect(avatar.find('img').exists()).toBe(false)
+      expect(avatar.text()).toBe('J')
+      expect(avatar.classes()).toContain('bg-weact-50')
+      expect(avatar.find('span').classes()).toContain('text-weact-700')
+    })
+
     it('shows initials when no avatarUrl', () => {
       const wrapper = mountHeader({ userName: 'John Doe', avatarUrl: null })
       const avatar = wrapper.find('[data-testid="header-avatar"]')
@@ -151,6 +164,19 @@ describe('DashboardHeader', () => {
       // Open the avatar dropdown first
       await wrapper.find('[data-testid="header-avatar"]').trigger('click')
       expect(wrapper.find('[data-testid="dropdown-logout-button"]').attributes('disabled')).toBeDefined()
+    })
+  })
+
+  describe('Régie header', () => {
+    it('renders the secondary actions slot next to the bell', () => {
+      const wrapper = mountHeader({}, { actions: '<button data-testid="extra-action">Fiche publique</button>' })
+      expect(wrapper.find('[data-testid="extra-action"]').exists()).toBe(true)
+    })
+
+    it('shows the page title in ink with tight tracking', () => {
+      const classes = mountHeader().find('[data-testid="header-title"]').classes()
+      expect(classes).toContain('text-ink')
+      expect(classes.some((c) => c.startsWith('tracking-'))).toBe(true)
     })
   })
 })

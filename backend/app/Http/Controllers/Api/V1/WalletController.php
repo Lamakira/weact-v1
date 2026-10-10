@@ -9,6 +9,7 @@ use App\Exceptions\WithdrawalLockException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\WithdrawWalletRequest;
 use App\Http\Resources\WalletResource;
+use App\Models\Booking;
 use App\Models\EscrowTransaction;
 use App\Models\Face;
 use App\Models\WalletTransaction;
@@ -23,14 +24,32 @@ class WalletController extends Controller
     {
         $user = $request->user();
 
+        $isFace = $user->userable_type === Face::class;
+
+        // Fonds en attente = séquestre « normal » ; les fonds retenus par une fenêtre de
+        // contestation (absence / annulation tardive, souvent restitués au Producteur)
+        // sont comptés à part pour ne pas promettre à la Face un gain incertain.
+        /** @var list<int> $heldBookingIds */
+        $heldBookingIds = $isFace
+            ? Booking::query()->where('face_id', $user->id)->pendingSettlement()->pluck('id')->all()
+            : [];
+
         /** @var int $pendingEscrow */
-        $pendingEscrow = ($user->userable_type === Face::class)
+        $pendingEscrow = $isFace
             ? (int) EscrowTransaction::whereHas('booking', function ($query) use ($user): void {
                 $query->where('face_id', $user->id);
             })
+                ->whereNotIn('booking_id', $heldBookingIds)
                 ->where('status', 'locked')
                 ->sum('amount')
             : 0;
+
+        /** @var int $heldInDispute */
+        $heldInDispute = $heldBookingIds === []
+            ? 0
+            : (int) EscrowTransaction::whereIn('booking_id', $heldBookingIds)
+                ->where('status', 'locked')
+                ->sum('amount');
 
         $transactions = WalletTransaction::where('user_id', $user->id)
             ->latest()
@@ -45,6 +64,7 @@ class WalletController extends Controller
         return new WalletResource([
             'balance' => (int) $user->balance,
             'pending_escrow' => $pendingEscrow,
+            'held_in_dispute' => $heldInDispute,
             'transactions' => $transactions,
             'withdrawal_requests' => $withdrawalRequests,
         ]);

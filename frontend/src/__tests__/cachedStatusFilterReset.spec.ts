@@ -6,29 +6,17 @@ import FaceBookingsListPage from '@/pages/face/booking/FaceBookingsListPage.vue'
 import ProducerBookingsListPage from '@/pages/producer/booking/ProducerBookingsListPage.vue'
 import FaceCandidaturesPage from '@/pages/face/candidature/FaceCandidaturesPage.vue'
 
-const bookingStatusFilter = ref('')
 const candidatureStatusFilter = ref('')
-const fetchBookings = vi.fn()
 const fetchCandidatures = vi.fn()
 
-vi.mock('@/features/booking/composables', () => ({
-  useBookingsList: () => ({
-    bookings: ref([]),
-    isLoading: ref(false),
-    error: ref(null),
-    currentPage: ref(1),
-    lastPage: ref(1),
-    total: ref(0),
-    hasNextPage: ref(false),
-    hasPrevPage: ref(false),
-    isEmpty: ref(true),
-    statusFilter: bookingStatusFilter,
-    fetchBookings,
-    nextPage: vi.fn(),
-    prevPage: vi.fn(),
-    goToPage: vi.fn(),
-    setStatusFilter: vi.fn(),
-  }),
+// Bookings lists keep their state in the URL (no cached status in the composable):
+// the probe is the status argument of the last API call.
+const getBookings = vi.fn()
+vi.mock('@/features/booking/services/bookingApi', () => ({
+  bookingApi: { getBookings: (...args: unknown[]) => getBookings(...args) },
+}))
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({ user: { id: 1, userable_type: 'Face' } }),
 }))
 
 vi.mock('@/features/candidature/composables', () => ({
@@ -91,9 +79,12 @@ interface Scenario {
   path: string
   routeName: string
   page: Component
-  statusFilter: typeof bookingStatusFilter
-  fetchList: typeof fetchBookings
+  /** Status the list was last asked for. */
+  currentStatus: () => string
+  fetchList: ReturnType<typeof vi.fn>
 }
+
+const lastBookingsStatus = (): string => String(getBookings.mock.lastCall?.[1] ?? '')
 
 const scenarios: Scenario[] = [
   {
@@ -101,32 +92,36 @@ const scenarios: Scenario[] = [
     path: '/face/bookings',
     routeName: 'face-bookings',
     page: FaceBookingsListPage,
-    statusFilter: bookingStatusFilter,
-    fetchList: fetchBookings,
+    currentStatus: lastBookingsStatus,
+    fetchList: getBookings,
   },
   {
     name: 'Producer bookings',
     path: '/producer/bookings',
     routeName: 'producer-bookings',
     page: ProducerBookingsListPage,
-    statusFilter: bookingStatusFilter,
-    fetchList: fetchBookings,
+    currentStatus: lastBookingsStatus,
+    fetchList: getBookings,
   },
   {
     name: 'Face candidatures',
     path: '/face/candidatures',
     routeName: 'face-candidatures',
     page: FaceCandidaturesPage,
-    statusFilter: candidatureStatusFilter,
+    currentStatus: () => candidatureStatusFilter.value,
     fetchList: fetchCandidatures,
   },
 ]
 
 describe.each(scenarios)('$name — cached status filter vs clean URL', (scenario) => {
   beforeEach(() => {
-    bookingStatusFilter.value = ''
     candidatureStatusFilter.value = ''
     vi.clearAllMocks()
+    getBookings.mockResolvedValue({
+      data: [],
+      links: { first: null, last: null, prev: null, next: null },
+      meta: { current_page: 1, last_page: 1, per_page: 15, total: 0 },
+    })
   })
 
   it('clears the cached status when returning through a URL without status', async () => {
@@ -158,7 +153,7 @@ describe.each(scenarios)('$name — cached status filter vs clean URL', (scenari
       },
     })
     await flushPromises()
-    expect(scenario.statusFilter.value).toBe('pending')
+    expect(scenario.currentStatus()).toBe('pending')
     const fetchCountBeforeReturn = scenario.fetchList.mock.calls.length
 
     await router.push('/other')
@@ -167,9 +162,9 @@ describe.each(scenarios)('$name — cached status filter vs clean URL', (scenari
     await flushPromises()
 
     expect(router.currentRoute.value.query).toEqual({})
-    expect(scenario.statusFilter.value).toBe('')
+    expect(scenario.currentStatus()).toBe('')
     expect(scenario.fetchList.mock.calls.length).toBeGreaterThan(fetchCountBeforeReturn)
-    expect(scenario.fetchList).toHaveBeenLastCalledWith(1)
+    expect(scenario.fetchList.mock.lastCall?.[0]).toBe(1)
     wrapper.unmount()
   })
 })

@@ -61,10 +61,12 @@ class BasicInfoController extends Controller
      */
     private function formatBasicInfo(Producer $producer): array
     {
+        // Owner-only endpoint: the number is returned to the Producer themself.
         if ($producer->type === ProducerType::Agency) {
             return [
                 'type' => 'agency',
                 'agency_name' => $producer->agency_name,
+                'whatsapp_number' => $producer->whatsapp_number,
             ];
         }
 
@@ -72,6 +74,7 @@ class BasicInfoController extends Controller
             'type' => 'particulier',
             'first_name' => $producer->first_name,
             'last_name' => $producer->last_name,
+            'whatsapp_number' => $producer->whatsapp_number,
         ];
     }
 

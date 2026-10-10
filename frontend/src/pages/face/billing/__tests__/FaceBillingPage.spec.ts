@@ -1,3 +1,5 @@
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
@@ -15,6 +17,9 @@ const ctx = vi.hoisted(() => ({
   payment: {} as Record<string, unknown>,
   getHistory: vi.fn(),
   routerPush: vi.fn(),
+  routerReplace: vi.fn().mockResolvedValue(undefined),
+  route: { query: {} as Record<string, unknown> },
+  verifySubscriptionPayment: vi.fn(),
   toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
 }))
 
@@ -27,8 +32,12 @@ vi.mock('@/features/face/composables/useSubscriptionPayment', () => ({
 vi.mock('@/features/face/services/faceBillingApi', () => ({
   faceBillingApi: { getHistory: ctx.getHistory },
 }))
+vi.mock('@/features/face/services/faceApi', () => ({
+  faceApi: { verifySubscriptionPayment: ctx.verifySubscriptionPayment },
+}))
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: ctx.routerPush }),
+  useRoute: () => ctx.route,
+  useRouter: () => ({ push: ctx.routerPush, replace: ctx.routerReplace }),
 }))
 vi.mock('@/composables/useToast', () => ({
   useToast: () => ctx.toast,
@@ -92,14 +101,12 @@ function setupStatus(opts: {
 function setupPayment(opts: {
   paymentState?: 'idle' | 'waiting' | 'confirmed' | 'failed'
   isInitiating?: boolean
-  isPolling?: boolean
   isVerifying?: boolean
   isCancelling?: boolean
   paymentError?: string | null
   cancelPendingResult?: boolean
 } = {}): void {
   ctx.payment.isInitiating = ref(opts.isInitiating ?? false)
-  ctx.payment.isPolling = ref(opts.isPolling ?? false)
   ctx.payment.isVerifying = ref(opts.isVerifying ?? false)
   ctx.payment.isCancelling = ref(opts.isCancelling ?? false)
   ctx.payment.paymentState = ref(opts.paymentState ?? 'idle')
@@ -131,6 +138,7 @@ function histItem(overrides: Partial<FaceBillingHistoryItem>): FaceBillingHistor
 describe('FaceBillingPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    ctx.route.query = {}
     setupStatus()
     setupPayment()
     ctx.getHistory.mockResolvedValue({ data: [] })
@@ -296,6 +304,16 @@ describe('FaceBillingPage', () => {
     await row.find('button').trigger('click')
     expect(row.text()).toContain('TX-ABC')
     expect(row.find('button').attributes('aria-expanded')).toBe('true')
+    // Panneau animé (hauteur + opacité) via la classe globale, et collapse au second clic.
+    expect(row.find('.collapsible-smooth').exists()).toBe(true)
+    await row.find('button').trigger('click')
+    expect(row.find('button').attributes('aria-expanded')).toBe('false')
+  })
+
+  it('the smooth collapsible animation is declared with a reduced-motion opt-out', () => {
+    const css = readFileSync(resolve(__dirname, '../../../../assets/main.css'), 'utf-8')
+    expect(css).toContain('--reka-collapsible-content-height')
+    expect(css).toMatch(/prefers-reduced-motion: reduce\)\s*\{\s*\.collapsible-smooth/)
   })
 
   it('dedups the current representative row out of the history list (cancelled current)', async () => {
@@ -400,5 +418,104 @@ describe('FaceBillingPage', () => {
 
     expect(wrapper.find('[data-testid="billing-banner-waiting"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="billing-banner-pending"]').exists()).toBe(false)
+  })
+
+  describe('return from the same-tab FedaPay checkout', () => {
+    it('without payment_return, verify-payment is not called', async () => {
+      const wrapper = mount(FaceBillingPage)
+      await flushPromises()
+
+      expect(ctx.verifySubscriptionPayment).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="payment-return-verifying"]').exists()).toBe(false)
+    })
+
+    it('payment_return=subscription runs verify-payment, refreshes the status and shows the verification state', async () => {
+      ctx.route.query = { payment_return: 'subscription' }
+      ctx.verifySubscriptionPayment.mockResolvedValue({ data: { subscription_id: 's', status: 'pending_payment' } })
+      const wrapper = mount(FaceBillingPage)
+      await flushPromises()
+
+      expect(ctx.verifySubscriptionPayment).toHaveBeenCalledTimes(1)
+      expect((ctx.status.refreshStatus as ReturnType<typeof vi.fn>)).toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="payment-return-verifying"]').text()).toContain(
+        'Vérification de votre paiement',
+      )
+      wrapper.unmount()
+    })
+
+    it('confirmed: toasts « Votre abonnement est activé. », reloads the history and cleans the URL', async () => {
+      ctx.route.query = { payment_return: 'subscription' }
+      ctx.verifySubscriptionPayment.mockResolvedValue({ data: { subscription_id: 's', status: 'active' } })
+      const wrapper = mount(FaceBillingPage)
+      await flushPromises()
+
+      expect(ctx.toast.success).toHaveBeenCalledWith('Votre abonnement est activé.')
+      expect(ctx.getHistory).toHaveBeenCalledTimes(2) // mount + after confirmation
+      expect(ctx.routerReplace).toHaveBeenCalledWith({ query: {} })
+      wrapper.unmount()
+    })
+
+    it('ONE banner: the pending resume/verify/cancel banner is suppressed while the return flow is verifying', async () => {
+      setupStatus({
+        current: makeCurrent({ tier: 'free', status: 'pending_payment', plan: 'pro' }),
+        cta: PENDING_CTA,
+      })
+      ctx.route.query = { payment_return: 'subscription' }
+      ctx.verifySubscriptionPayment.mockResolvedValue({ data: { subscription_id: 's', status: 'pending_payment' } })
+      const wrapper = mount(FaceBillingPage)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="payment-return-verifying"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="billing-banner-pending"]').exists()).toBe(false)
+      wrapper.unmount()
+    })
+
+    it('without a return, the pending banner is shown as before', async () => {
+      setupStatus({
+        current: makeCurrent({ tier: 'free', status: 'pending_payment', plan: 'pro' }),
+        cta: PENDING_CTA,
+      })
+      const wrapper = mount(FaceBillingPage)
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="billing-banner-pending"]').exists()).toBe(true)
+      wrapper.unmount()
+    })
+
+    it('ONE toast: the reconciler confirmation toast stays silent during the return flow', async () => {
+      ctx.route.query = { payment_return: 'subscription' }
+      ctx.verifySubscriptionPayment.mockResolvedValue({ data: { subscription_id: 's', status: 'pending_payment' } })
+      const wrapper = mount(FaceBillingPage)
+      await flushPromises()
+
+      ;(ctx.payment.paymentState as { value: string }).value = 'confirmed'
+      await flushPromises()
+
+      expect(ctx.toast.success).not.toHaveBeenCalledWith('Paiement confirmé — ton abonnement est actif.')
+      wrapper.unmount()
+    })
+
+    it('without a return, the confirmation toast still fires', async () => {
+      const wrapper = mount(FaceBillingPage)
+      await flushPromises()
+
+      ;(ctx.payment.paymentState as { value: string }).value = 'confirmed'
+      await flushPromises()
+
+      expect(ctx.toast.success).toHaveBeenCalledWith('Paiement confirmé — ton abonnement est actif.')
+      wrapper.unmount()
+    })
+
+    it('failed: shows « Réessayer le paiement » which sends the Face back to the plans', async () => {
+      ctx.route.query = { payment_return: 'subscription' }
+      ctx.verifySubscriptionPayment.mockResolvedValue({ data: { subscription_id: 's', status: 'failed' } })
+      const wrapper = mount(FaceBillingPage)
+      await flushPromises()
+
+      await wrapper.get('[data-testid="payment-return-retry"]').trigger('click')
+
+      expect(ctx.routerPush).toHaveBeenCalledWith({ name: 'pricing' })
+      wrapper.unmount()
+    })
   })
 })

@@ -22,6 +22,8 @@ use App\Models\Deliverable;
 use App\Models\Shipment;
 use App\Services\BookingService;
 use App\Services\MissionPaymentService;
+use App\Support\UploadedMedia;
+use App\Support\VideoMetadataStripper;
 use FFMpeg\Coordinate\TimeCode;
 use FFMpeg\FFMpeg;
 use FFMpeg\FFProbe;
@@ -226,6 +228,16 @@ class UgcDeliverableService
 
         // Post-commit : un rollback ne notifie pas / n'efface pas (D-2.4.f reconduite).
         if ($result['outcome'] === 'uploaded') {
+            // Remux sans ré-encodage (métadonnées conteneur, GPS…) APRÈS le commit : jamais
+            // sous le lock du Shipment. Fait AVANT la notification Producteur pour qu'il
+            // ne récupère jamais la version brute. Un échec n'invalide pas l'upload
+            // (warning loggé, rattrapé par media:strip-metadata).
+            $storedPath = $result['deliverable']->video_path;
+            $disk = Storage::disk((string) config('ugc.storage_disk', 'local'));
+            if ($disk->exists($storedPath)) {
+                VideoMetadataStripper::stripOrLog($disk->path($storedPath));
+            }
+
             // Ancien média (re-upload) supprimé POST-COMMIT, hors transaction (un
             // rollback ne doit pas effacer le fichier de la ligne courante — AC6).
             $oldMedia = $result['old_media'] ?? null;
@@ -349,7 +361,7 @@ class UgcDeliverableService
     {
         $disk = Storage::disk((string) config('ugc.storage_disk', 'local'));
         $uuid = (string) Str::uuid();
-        $extension = $video->getClientOriginalExtension() ?: 'mp4';
+        $extension = UploadedMedia::videoExtension($video, 'video');
 
         $dir = "ugc/deliverables/{$kind->value}";
         $thumbnailDir = "{$dir}/thumbnails";

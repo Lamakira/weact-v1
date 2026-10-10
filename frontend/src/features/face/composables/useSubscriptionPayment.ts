@@ -2,10 +2,10 @@ import { computed, onMounted, onUnmounted, ref, watch, type Ref } from 'vue'
 import { faceApi } from '../services/faceApi'
 import type { FaceSubscriptionPlan, FaceSubscriptionTier, SubscriptionPaymentState } from '../types'
 import { useSubscriptionStatus } from './useSubscriptionStatus'
-import { getApiErrorMessage } from '@/features/auth/services/authApi'
-
-const POLL_INTERVAL_MS = 5000
-const POLL_TIMEOUT_MS = 120000
+import { getApiErrorCode, getApiErrorMessage } from '@/features/auth/services/authApi'
+import { saveSubscriptionPaymentSnapshot } from '../services/subscriptionPaymentSnapshot'
+import { redirectToCheckout } from '@/lib/redirectToCheckout'
+import { useCheckoutRedirect } from '@/lib/useCheckoutRedirect'
 
 interface PaymentSnapshot {
   tier: FaceSubscriptionTier
@@ -18,7 +18,6 @@ interface VerifyPaymentOptions {
 
 interface UseSubscriptionPaymentReturn {
   isInitiating: Ref<boolean>
-  isPolling: Ref<boolean>
   isVerifying: Ref<boolean>
   isCancelling: Ref<boolean>
   paymentState: Ref<SubscriptionPaymentState>
@@ -27,14 +26,12 @@ interface UseSubscriptionPaymentReturn {
   resumePayment: () => Promise<boolean>
   verifyPayment: (options?: VerifyPaymentOptions) => Promise<void>
   cancelPending: () => Promise<boolean>
-  stopPolling: () => void
   dismissPaymentError: () => void
   reset: () => void
 }
 
 export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
   const isInitiating = ref(false)
-  const isPolling = ref(false)
   const isVerifying = ref(false)
   const isCancelling = ref(false)
   const paymentState = ref<SubscriptionPaymentState>('idle')
@@ -63,13 +60,11 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
     )
   })
 
-  let pollTimer: ReturnType<typeof setInterval> | null = null
-  let pollTimeoutTimer: ReturnType<typeof setTimeout> | null = null
   let snapshot: PaymentSnapshot = { tier: 'free', expiresAt: null }
 
   // Round 2 D3 — re-arm the verify guard when the composable mounts (or status
-  // refreshes) into a pending_payment state. Without this, a user who closed the
-  // Fedapay tab, returns to /face/profile, and clicks "Vérifier maintenant" after
+  // refreshes) into a pending_payment state. Without this, a user who left the
+  // Fedapay checkout, returns to /face/profile, and clicks "Vérifier maintenant" after
   // the backend already confirmed sees no terminal feedback (paymentState stays
   // 'idle', no `subscription-changed` emit). The cross-device Pro/Élite false-
   // positive guarded by Round 1 #1 is unaffected: that scenario keeps the Pro
@@ -88,18 +83,6 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
     { immediate: true },
   )
 
-  function stopPolling(): void {
-    if (pollTimer) {
-      clearInterval(pollTimer)
-      pollTimer = null
-    }
-    if (pollTimeoutTimer) {
-      clearTimeout(pollTimeoutTimer)
-      pollTimeoutTimer = null
-    }
-    isPolling.value = false
-  }
-
   // Decision #7 — confirmed when the refreshed status is active AND it differs
   // from the pre-initiate snapshot (tier changed → activation/upgrade/downgrade;
   // expires_at changed → renewal while still active).
@@ -107,25 +90,6 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
     const c = current.value
     if (!c || c.status !== 'active') return false
     return c.tier !== snapshot.tier || c.expires_at !== snapshot.expiresAt
-  }
-
-  function startPolling(): void {
-    stopPolling()
-    isPolling.value = true
-
-    pollTimer = setInterval(() => {
-      void verifyPayment()
-    }, POLL_INTERVAL_MS)
-
-    pollTimeoutTimer = setTimeout(() => {
-      if (isPolling.value) {
-        stopPolling()
-        // FP-2.15.1 — keep hasArmedPayment armed so a deferred webhook + visibility-change can reconcile.
-        error.value =
-          'Le délai de confirmation a expiré. Vérifiez votre paiement puis rafraîchissez la page.'
-        paymentState.value = 'failed'
-      }
-    }, POLL_TIMEOUT_MS)
   }
 
   async function verifyPayment(options: VerifyPaymentOptions = {}): Promise<void> {
@@ -138,17 +102,9 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
     if (isCancelling.value) return
     isVerifying.value = true
 
-    // P4 — capture polling state pre-await; if a polling-triggered verify completes
-    // after stopPolling()/timeout/unmount ran, do not mutate paymentState.
-    const wasPolling = isPolling.value
-
     try {
       await faceApi.verifySubscriptionPayment()
       await refreshStatus()
-
-      // P4 — bail out if polling was alive when we started but has since been cleared
-      // (timeout fired, component unmounted, or another path called stopPolling).
-      if (wasPolling && !isPolling.value) return
 
       // Findings #1 — only emit terminal confirmation/failure when an in-session
       // payment attempt was actually armed. Without this guard, a manual verify
@@ -158,18 +114,16 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
       if (!hasArmedPayment.value) return
 
       if (isConfirmed()) {
-        stopPolling()
         hasArmedPayment.value = false
         paymentState.value = 'confirmed'
       } else if (current.value?.status === 'failed') {
-        stopPolling()
         hasArmedPayment.value = false
         paymentState.value = 'failed'
         error.value = 'Le paiement a échoué. Veuillez réessayer.'
       }
     } catch (err) {
       // P11 — manual clicks surface the error so the user gets feedback;
-      // polling keeps the error swallowed and retries on the next tick.
+      // non-manual calls (visibility reconciler) keep the error swallowed.
       if (options.manual) {
         error.value = getApiErrorMessage(err)
       }
@@ -179,7 +133,7 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
   }
 
   async function initiatePayment(plan: FaceSubscriptionPlan): Promise<boolean> {
-    if (isInitiating.value || isPolling.value || isVerifying.value || isCancelling.value) {
+    if (isInitiating.value || isVerifying.value || isCancelling.value) {
       return false
     }
 
@@ -194,37 +148,27 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
     try {
       const response = await faceApi.initiateSubscriptionPayment(plan)
 
-      const checkoutWindow = window.open(
-        response.data.checkout_url,
-        '_blank',
-        'noopener,noreferrer',
-      )
-
-      if (!checkoutWindow) {
-        error.value =
-          'La fenêtre de paiement a été bloquée. Autorisez les popups puis réessayez.'
-        paymentState.value = 'failed'
-        return false
-      }
-
       // Arm the payment attempt — see hasArmedPayment doc above.
       hasArmedPayment.value = true
 
+      // 'waiting' = redirecting. The page is left: the return is verified on
+      // /face/billing?payment_return=subscription (usePaymentReturn).
       paymentState.value = 'waiting'
-
-      // P3 — start polling even if the post-initiate refresh fails; the polling
-      // cycle itself will refresh on its first tick, so a transient backend hiccup
-      // doesn't strand the user on a Fedapay tab without any confirmation loop.
-      try {
-        await refreshStatus()
-      } catch {
-        // Swallow — the polling cycle will refresh.
-      }
-      startPolling()
+      saveSubscriptionPaymentSnapshot({ tier: snapshot.tier, expires_at: snapshot.expiresAt })
+      redirectToCheckout(response.data.checkout_url)
       return true
     } catch (err) {
       error.value = getApiErrorMessage(err)
       paymentState.value = 'failed'
+      // 409 PENDING_PAYMENT_EXISTS: our status is stale (e.g. page restored from the
+      // bfcache) — refresh it so the resume / cancel banner appears.
+      if (getApiErrorCode(err) === 'PENDING_PAYMENT_EXISTS') {
+        try {
+          await refreshStatus()
+        } catch {
+          // Swallow — the user can manually verify / refresh.
+        }
+      }
       return false
     } finally {
       isInitiating.value = false
@@ -232,7 +176,7 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
   }
 
   async function resumePayment(): Promise<boolean> {
-    if (isInitiating.value || isPolling.value || isVerifying.value || isCancelling.value) {
+    if (isInitiating.value || isVerifying.value || isCancelling.value) {
       return false
     }
     isInitiating.value = true
@@ -259,21 +203,10 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
         paymentState.value = 'failed'
         return false
       }
-      const checkoutWindow = window.open(checkoutUrl, '_blank', 'noopener,noreferrer')
-      if (!checkoutWindow) {
-        error.value =
-          'La fenêtre de paiement a été bloquée. Autorisez les popups puis réessayez.'
-        paymentState.value = 'failed'
-        return false
-      }
       hasArmedPayment.value = true
       paymentState.value = 'waiting'
-      try {
-        await refreshStatus()
-      } catch {
-        // P3 tolerance — polling will refresh.
-      }
-      startPolling()
+      saveSubscriptionPaymentSnapshot({ tier: snapshot.tier, expires_at: snapshot.expiresAt })
+      redirectToCheckout(checkoutUrl)
       return true
     } catch (err) {
       error.value = getApiErrorMessage(err)
@@ -293,20 +226,16 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
   }
 
   async function cancelPending(): Promise<boolean> {
-    // FP-2.15.1 L2 — isPolling is intentionally omitted from the bail-out guard
-    // so a Face can cancel directly from the 'waiting' banner without first
-    // sitting through the 120 s polling timeout. The mutually-exclusive guards
-    // (isInitiating / isVerifying / isCancelling) still serialize against the
-    // 3 other mutators.
+    // The mutually-exclusive guards (isInitiating / isVerifying / isCancelling)
+    // serialize against the 3 other mutators.
     if (isInitiating.value || isVerifying.value || isCancelling.value) {
       return false
     }
     isCancelling.value = true
     error.value = null
-    // Abort polling and unmount the waiting banner BEFORE the backend round-trip
-    // so the user sees immediate feedback. If the backend call fails, the user
-    // lands on the pending banner with the inline error and can retry.
-    stopPolling()
+    // Unmount the waiting banner BEFORE the backend round-trip so the user sees
+    // immediate feedback. If the backend call fails, the user lands on the
+    // pending banner with the inline error and can retry.
     if (paymentState.value === 'waiting') {
       paymentState.value = 'idle'
     }
@@ -325,7 +254,6 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
   }
 
   function reset(): void {
-    stopPolling()
     isInitiating.value = false
     isVerifying.value = false
     isCancelling.value = false
@@ -340,36 +268,41 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
   }
 
   // FP-2.15.1 — when the user switches back to the WEACT tab after paying on Fedapay
-  // (typically past the 120 s polling timeout), reconcile the deferred webhook without
+  // (e.g. browser Back from the checkout), reconcile the deferred webhook without
   // requiring a manual "Vérifier" click. The hasArmedPayment gate prevents a normal
   // active subscriber from getting a false-positive on a simple tab visit.
   function onVisibilityChange(): void {
     if (document.visibilityState !== 'visible') return
     if (!hasPendingPayment.value) return
-    if (
-      isInitiating.value ||
-      isPolling.value ||
-      isVerifying.value ||
-      isCancelling.value
-    ) {
+    if (isInitiating.value || isVerifying.value || isCancelling.value) {
       return
     }
     if (!hasArmedPayment.value) return
     void verifyPayment({ manual: false })
   }
 
+  // Back from FedaPay (bfcache): only the frozen « redirecting » state is reset;
+  // a pending row stays handled by the pending banner / visibility reconciler.
+  useCheckoutRedirect(() => {
+    if (paymentState.value === 'waiting') paymentState.value = 'idle'
+    isInitiating.value = false
+    // The status may be stale (a pending row was created before leaving): refresh so
+    // plan buttons / the resume-cancel banner reflect the server.
+    void refreshStatus().catch(() => {
+      // Swallow — the visibility reconciler / manual verify will retry.
+    })
+  })
+
   onMounted(() => {
     document.addEventListener('visibilitychange', onVisibilityChange)
   })
 
   onUnmounted(() => {
-    stopPolling()
     document.removeEventListener('visibilitychange', onVisibilityChange)
   })
 
   return {
     isInitiating,
-    isPolling,
     isVerifying,
     isCancelling,
     paymentState,
@@ -378,7 +311,6 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
     resumePayment,
     verifyPayment,
     cancelPending,
-    stopPolling,
     dismissPaymentError,
     reset,
   }

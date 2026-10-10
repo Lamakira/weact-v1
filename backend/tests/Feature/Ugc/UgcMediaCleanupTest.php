@@ -74,7 +74,7 @@ class UgcMediaCleanupTest extends TestCase
             'userable_id' => $this->face->id,
         ]);
 
-        $this->adminToken = Admin::factory()->create()->createToken('admin-token')->plainTextToken;
+        $this->adminToken = Admin::factory()->create()->createToken('admin-token', ['2fa'])->plainTextToken;
     }
 
     // =========================================================================

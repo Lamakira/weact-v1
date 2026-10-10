@@ -2,28 +2,65 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { Notification } from '@/features/notification/types'
 import { notificationApi } from '@/features/notification/services/notificationApi'
-import { echo } from '@/plugins/echo'
 import { useAuthStore } from '@/stores/auth'
 import { getAuthToken } from '@/services/apiClient'
 import { getXsrfTokenFromCookie } from '@/utils/csrf'
 
+type UserChannelListener = (payload: never) => void
+
 interface EchoChannel {
   listen: (event: string, callback: (payload: Notification) => void) => EchoChannel
+  stopListening?: (event: string, callback?: UserChannelListener) => EchoChannel
   error?: (callback: () => void) => EchoChannel
   subscribed?: (callback: () => void) => EchoChannel
 }
 
 interface EchoConnection {
+  state?: string
   bind: (event: 'connected', callback: () => void) => void
   unbind: (event: 'connected', callback: () => void) => void
 }
 
+type EchoInstance = (typeof import('@/plugins/echo'))['echo']
+
+// Echo (pusher-js + laravel-echo) est chargé à la demande : jamais pour un visiteur anonyme.
+let echoInstance: EchoInstance | null = null
+
+async function getEcho(): Promise<EchoInstance> {
+  if (!echoInstance) {
+    echoInstance = (await import('@/plugins/echo')).echo
+  }
+  return echoInstance
+}
+
+const FOCUS_REFETCH_MIN_INTERVAL_MS = 30_000
+
 let focusHandler: (() => void) | null = null
 let reconnectHandler: (() => void) | null = null
 let safetyPollIntervalId: ReturnType<typeof setInterval> | null = null
+let lastFocusRefetchAt = 0
+// Incrémenté à chaque (re)subscribe / unsubscribe / reset : invalide les appels asynchrones périmés
+let subscribeGeneration = 0
+// Registre d'écouteurs sur le canal privé de l'utilisateur. Le store POSSÈDE ce canal
+// (abonnement, `leave` sur erreur, ré-abonnement) : les autres fonctionnalités (liste des
+// conversations) s'y inscrivent ici au lieu de garder une référence qui deviendrait morte
+// après un `leave`. Les écouteurs sont ré-attachés à chaque (ré)abonnement.
+const userChannelListeners = new Map<string, Set<UserChannelListener>>()
+let currentUserChannel: EchoChannel | null = null
+
+function bindUserChannelListener(
+  channel: EchoChannel,
+  event: string,
+  callback: UserChannelListener,
+): void {
+  ;(channel.listen as (event: string, callback: UserChannelListener) => EchoChannel)(event, callback)
+}
+
+// Le chargement du client temps réel a échoué : on retentera au prochain focus
+let realtimeLoadFailed = false
 
 function getEchoConnection(): EchoConnection | null {
-  const connection = echo.connector?.pusher?.connection
+  const connection = echoInstance?.connector?.pusher?.connection
   if (
     !connection
     || typeof connection.bind !== 'function'
@@ -133,6 +170,14 @@ export const useNotificationStore = defineStore('notification', () => {
     if (typeof window === 'undefined' || focusHandler) return
 
     focusHandler = () => {
+      const now = Date.now()
+      if (now - lastFocusRefetchAt < FOCUS_REFETCH_MIN_INTERVAL_MS) return
+      lastFocusRefetchAt = now
+
+      if (realtimeLoadFailed && !isSubscribed.value && !isSubscribing.value) {
+        void subscribe()
+      }
+
       void fetchUnreadCount()
 
       if (hasFetchedItems.value) {
@@ -148,13 +193,23 @@ export const useNotificationStore = defineStore('notification', () => {
 
     window.removeEventListener('focus', focusHandler)
     focusHandler = null
+    lastFocusRefetchAt = 0
   }
 
   function startReconnectListener(): void {
     const connection = getEchoConnection()
     if (!connection || reconnectHandler) return
 
+    // Pusher émet `connected` aussi à la PREMIÈRE connexion : le compteur vient
+    // d'être chargé au démarrage, seul un vrai retour de connexion doit recharger.
+    let skipInitialConnect = connection.state !== 'connected'
+
     reconnectHandler = () => {
+      if (skipInitialConnect) {
+        skipInitialConnect = false
+        return
+      }
+
       void fetchUnreadCount()
 
       if (hasFetchedItems.value) {
@@ -191,16 +246,34 @@ export const useNotificationStore = defineStore('notification', () => {
     safetyPollIntervalId = null
   }
 
-  function subscribe(): void {
+  async function subscribe(): Promise<void> {
     if (isSubscribed.value || isSubscribing.value) return
 
     const authStore = useAuthStore()
     const userId = authStore.user?.id
     if (!userId) return
 
+    const generation = ++subscribeGeneration
     isSubscribing.value = true
     startFocusListener()
     startSafetyPoll()
+
+    let echo: EchoInstance
+    try {
+      echo = await getEcho()
+    } catch (error) {
+      if (generation !== subscribeGeneration) return
+      // Chunk périmé / réseau coupé : le compteur reste alimenté par le focus et le poll
+      // de sécurité, et l'abonnement temps réel est retenté au prochain focus.
+      isSubscribing.value = false
+      realtimeLoadFailed = true
+      console.error('[NotificationStore] Failed to load realtime client:', error)
+      return
+    }
+    realtimeLoadFailed = false
+
+    // unsubscribe() / $reset() / nouveau subscribe() pendant le chargement du module : abandon
+    if (generation !== subscribeGeneration) return
 
     // Refresh Echo auth headers from current token/cookie
     const token = getAuthToken()
@@ -230,9 +303,17 @@ export const useNotificationStore = defineStore('notification', () => {
         }
       })
 
+      // Ré-attache les écouteurs enregistrés par d'autres fonctionnalités
+      for (const [event, callbacks] of userChannelListeners) {
+        for (const callback of callbacks) bindUserChannelListener(channel, event, callback)
+      }
+      currentUserChannel = channel
+
       startReconnectListener()
 
       channel.error?.(() => {
+        if (generation !== subscribeGeneration) return
+        currentUserChannel = null
         isSubscribing.value = false
         isSubscribed.value = false
         stopFocusListener()
@@ -248,6 +329,7 @@ export const useNotificationStore = defineStore('notification', () => {
 
       if (typeof channel.subscribed === 'function') {
         channel.subscribed(() => {
+          if (generation !== subscribeGeneration) return
           isSubscribing.value = false
           isSubscribed.value = true
         })
@@ -256,6 +338,7 @@ export const useNotificationStore = defineStore('notification', () => {
         isSubscribed.value = true
       }
     } catch (error) {
+      currentUserChannel = null
       isSubscribing.value = false
       isSubscribed.value = false
       stopFocusListener()
@@ -272,14 +355,34 @@ export const useNotificationStore = defineStore('notification', () => {
 
     const authStore = useAuthStore()
     const userId = authStore.user?.id
-    if (userId) {
-      echo.leave(`App.Models.User.${userId}`)
+    if (userId && echoInstance) {
+      echoInstance.leave(`App.Models.User.${userId}`)
     }
 
     $reset()
   }
 
+  /**
+   * S'inscrit à un événement du canal privé de l'utilisateur (attaché tout de suite si le
+   * canal est actif, sinon à l'abonnement suivant). Retourne la fonction de désinscription.
+   */
+  function onUserChannelEvent(event: string, callback: UserChannelListener): () => void {
+    const callbacks = userChannelListeners.get(event) ?? new Set<UserChannelListener>()
+    callbacks.add(callback)
+    userChannelListeners.set(event, callbacks)
+    if (currentUserChannel) bindUserChannelListener(currentUserChannel, event, callback)
+    return () => offUserChannelEvent(event, callback)
+  }
+
+  function offUserChannelEvent(event: string, callback: UserChannelListener): void {
+    userChannelListeners.get(event)?.delete(callback)
+    currentUserChannel?.stopListening?.(event, callback)
+  }
+
   function $reset(): void {
+    currentUserChannel = null
+    subscribeGeneration++
+    realtimeLoadFailed = false
     unreadCount.value = 0
     items.value = []
     isLoading.value = false
@@ -303,6 +406,8 @@ export const useNotificationStore = defineStore('notification', () => {
     markAllAsRead,
     subscribe,
     unsubscribe,
+    onUserChannelEvent,
+    offUserChannelEvent,
     $reset,
   }
 })

@@ -136,6 +136,43 @@ class BookingPaymentTest extends TestCase
         ]);
     }
 
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function terminalProviderStatuses(): array
+    {
+        return [
+            'declined' => ['declined'],
+            'canceled' => ['canceled'],
+            'refunded' => ['refunded'],
+            'expired' => ['expired'],
+        ];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('terminalProviderStatuses')]
+    public function test_retry_never_reuses_a_terminal_transaction_and_creates_a_fresh_checkout(string $providerStatus): void
+    {
+        $this->acceptedBooking->update(['fedapay_transaction_id' => 4242]);
+
+        $dead = \Mockery::mock(\FedaPay\Transaction::class);
+        $dead->status = $providerStatus;
+        $dead->shouldNotReceive('generateToken');
+
+        $this->mock(FedapayService::class, function ($mock) use ($dead): void {
+            $mock->shouldReceive('retrieveTransaction')->once()->with(4242)->andReturn($dead);
+            $mock->shouldReceive('initiatePayment')
+                ->once()
+                ->andReturn(['fedapay_transaction_id' => 4243, 'checkout_url' => 'https://checkout.fedapay.com/fresh']);
+        });
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/bookings/{$this->acceptedBooking->uuid}/pay")
+            ->assertOk()
+            ->assertJsonPath('checkout_url', 'https://checkout.fedapay.com/fresh');
+
+        $this->assertSame(4243, (int) $this->acceptedBooking->fresh()->fedapay_transaction_id);
+    }
+
     public function test_face_cannot_initiate_payment(): void
     {
         $response = $this->actingAs($this->faceUser)

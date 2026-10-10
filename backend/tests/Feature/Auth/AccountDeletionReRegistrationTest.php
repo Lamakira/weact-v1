@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use App\Services\Auth\GoogleOAuthService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -17,14 +18,9 @@ class AccountDeletionReRegistrationTest extends TestCase
         $firstRegistration = $this->postJson('/api/v1/auth/register/face', [
             'nom' => 'Doe',
             'prenom' => 'John',
-            'username' => 'johnfirst',
             'email' => 'john@example.com',
-            'password' => 'Password123',
-            'password_confirmation' => 'Password123',
-            'sexe' => 'homme',
             'date_naissance' => '1995-06-15',
-            'nationalite' => 'Béninoise',
-            'pays' => 'Bénin',
+            'password' => 'Password123',
             'accept_cgu' => true,
         ]);
 
@@ -47,14 +43,9 @@ class AccountDeletionReRegistrationTest extends TestCase
         $secondRegistration = $this->postJson('/api/v1/auth/register/face', [
             'nom' => 'Martin',
             'prenom' => 'Alice',
-            'username' => 'alicemartin',
             'email' => 'john@example.com',
-            'password' => 'Password123',
-            'password_confirmation' => 'Password123',
-            'sexe' => 'femme',
             'date_naissance' => '1998-04-10',
-            'nationalite' => 'Béninoise',
-            'pays' => 'Bénin',
+            'password' => 'Password123',
             'accept_cgu' => true,
         ]);
 
@@ -62,7 +53,7 @@ class AccountDeletionReRegistrationTest extends TestCase
             ->assertJsonPath('data.user.email', 'john@example.com')
             ->assertJsonPath('data.user.userable.nom', 'Martin')
             ->assertJsonPath('data.user.userable.prenom', 'Alice')
-            ->assertJsonPath('data.user.userable.username', 'alicemartin');
+            ->assertJsonPath('data.user.userable.username', 'alicem');
 
         $secondToken = $secondRegistration->json('data.token');
         $newUserId = (int) $secondRegistration->json('data.user.id');
@@ -88,6 +79,71 @@ class AccountDeletionReRegistrationTest extends TestCase
         $basicInfoResponse->assertOk()
             ->assertJsonPath('data.nom', 'Martin')
             ->assertJsonPath('data.prenom', 'Alice')
-            ->assertJsonPath('data.username', 'alicemartin');
+            ->assertJsonPath('data.username', 'alicem');
+    }
+
+    /**
+     * Deletion rewrites the email, so the email-matching branch correctly misses a
+     * deleted row. But google_id is matched FIRST: without unlinking it on
+     * deletion, signing back in with the same Google account would land straight
+     * on the anonymized, deactivated row.
+     */
+    public function test_deletion_unlinks_the_google_identity_so_re_registration_starts_fresh(): void
+    {
+        config(['services.google.enabled' => true]);
+
+        $oauth = app(GoogleOAuthService::class);
+
+        $first = $this->postJson('/api/v1/auth/google/complete-registration', [
+            'pending_token' => $oauth->issuePendingToken([
+                'google_id' => 'google-sub-1',
+                'email' => 'jean@gmail.com',
+                'intent' => 'face',
+                'prenom' => 'Jean',
+                'nom' => 'Dupont',
+            ]),
+            'role' => 'face',
+            'nom' => 'Dupont',
+            'prenom' => 'Jean',
+            'date_naissance' => '1995-06-15',
+            'accept_cgu' => true,
+        ]);
+
+        $first->assertCreated();
+        $firstUserId = (int) $first->json('data.user.id');
+        $firstToken = $first->json('data.token');
+
+        // An OAuth-only account has no password: erasure is confirmed with a fresh
+        // Google re-authentication ticket instead.
+        $this->withHeader('Authorization', 'Bearer '.$firstToken)
+            ->deleteJson('/api/v1/user/account', [
+                'reauth_token' => $oauth->issueReauthToken($firstUserId),
+            ])
+            ->assertOk();
+
+        $deleted = User::findOrFail($firstUserId);
+        $this->assertNull($deleted->google_id);
+        $this->assertNull($deleted->google_linked_at);
+        $this->assertFalse($deleted->is_active);
+
+        // Same Google identity, brand-new account.
+        $second = $this->postJson('/api/v1/auth/google/complete-registration', [
+            'pending_token' => $oauth->issuePendingToken([
+                'google_id' => 'google-sub-1',
+                'email' => 'jean@gmail.com',
+                'intent' => 'face',
+                'prenom' => 'Jean',
+                'nom' => 'Dupont',
+            ]),
+            'role' => 'face',
+            'nom' => 'Dupont',
+            'prenom' => 'Jean',
+            'date_naissance' => '1995-06-15',
+            'accept_cgu' => true,
+        ]);
+
+        $second->assertCreated();
+        $this->assertNotSame($firstUserId, (int) $second->json('data.user.id'));
+        $this->assertSame('google-sub-1', User::findOrFail((int) $second->json('data.user.id'))->google_id);
     }
 }

@@ -144,6 +144,10 @@ function handleProducerClick(event: MouseEvent | KeyboardEvent): void {
           :src="producerAvatarUrl"
           :alt="producerName"
           class="h-full w-full object-cover"
+          width="32"
+          height="32"
+          decoding="async"
+          loading="lazy"
         />
         <div
           v-else

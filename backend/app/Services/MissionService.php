@@ -8,6 +8,7 @@ use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\CompensationType;
 use App\Enums\EscrowStatus;
+use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Models\Candidature;
@@ -19,6 +20,7 @@ use App\Services\Ugc\UgcCommissionService;
 use App\Services\Ugc\UgcMediaCleanupService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class MissionService
 {
@@ -187,14 +189,44 @@ class MissionService
      */
     public function deleteMission(Mission $mission): void
     {
-        $this->cancelActiveCandidatesOnDelete($mission);
-        // Médias UGC : fichiers + rows AVANT le hard-delete — les tables enfants
-        // morph (product_photos, shipments, deliverables) n'ont pas de FK cascade.
-        // Couvre les product_photos de la mission ET, pour chaque candidature, son
-        // shipment (+ photos de réception) et ses livrables (le trou historique de
-        // detachAll, qui n'atteignait que les product_photos de la mission).
-        $this->ugcMediaCleanupService->purgeForMission($mission);
-        $mission->delete();
+        /** @var \Closure|null $deleteMediaFiles */
+        $deleteMediaFiles = null;
+
+        DB::transaction(function () use ($mission, &$deleteMediaFiles): void {
+            // Lock the mission row and re-check under lock: a concurrent complete / attendance
+            // validation must never race a delete of a mission holding cash escrow.
+            /** @var Mission $locked */
+            $locked = Mission::query()->lockForUpdate()->findOrFail($mission->id);
+
+            if (in_array($locked->status, [
+                MissionStatus::PendingAttendanceValidation,
+                MissionStatus::PendingPayment,
+                MissionStatus::Closed,
+                MissionStatus::Completed,
+            ], true)
+                || $locked->hasCashEscrow()
+                || $locked->payment()->whereIn('status', [MissionPaymentStatus::Pending->value, MissionPaymentStatus::Paid->value])->exists()) {
+                throw ValidationException::withMessages([
+                    'mission' => ['Une mission dont le paiement a été effectué ne peut pas être supprimée.'],
+                ]);
+            }
+
+            $this->cancelActiveCandidatesOnDelete($mission);
+            // Médias UGC : rows AVANT le hard-delete — les tables enfants morph (product_photos,
+            // shipments, deliverables) n'ont pas de FK cascade. Couvre les product_photos de la
+            // mission ET, pour chaque candidature, son shipment (+ photos de réception) et ses
+            // livrables. Les FICHIERS ne sont supprimés qu'après le commit : un rollback / retry
+            // de la transaction ne doit jamais perdre de média.
+            $deleteMediaFiles = $this->ugcMediaCleanupService->purgeForMissionDeferringFiles($mission);
+
+            // Une row de paiement `failed` sans escrow n'est pas bloquante : on la retire avec la mission.
+            $locked->payment()->where('status', MissionPaymentStatus::Failed->value)->delete();
+            $mission->delete();
+        }, 3);
+
+        if ($deleteMediaFiles !== null) {
+            $deleteMediaFiles();
+        }
     }
 
     /**
@@ -269,9 +301,25 @@ class MissionService
      */
     public function closeMission(Mission $mission): Mission
     {
-        $mission->update([
-            'status' => MissionStatus::Closed,
-        ]);
+        DB::transaction(function () use ($mission): void {
+            // Sous verrou : un close ne doit jamais convertir une mission en attente de validation
+            // des présences (ou portant un escrow cash) en Closed — cela contournerait la fenêtre
+            // de contestation 72 h au moment du complete.
+            /** @var Mission $locked */
+            $locked = Mission::query()->lockForUpdate()->findOrFail($mission->id);
+
+            if (in_array($locked->status, [MissionStatus::PendingAttendanceValidation, MissionStatus::PendingPayment], true)
+                || $locked->hasCashEscrow()
+                || $locked->payment()->where('status', MissionPaymentStatus::Pending->value)->exists()) {
+                throw ValidationException::withMessages([
+                    'status' => ['Cette mission ne peut pas être clôturée manuellement : des présences ou un paiement sont en cours.'],
+                ]);
+            }
+
+            $locked->update([
+                'status' => MissionStatus::Closed,
+            ]);
+        }, 3);
 
         /** @var Mission $freshMission */
         $freshMission = $mission->fresh();
@@ -348,6 +396,23 @@ class MissionService
     public function completeMission(Mission $mission): Mission
     {
         return DB::transaction(function () use ($mission): Mission {
+            // Serialise with a concurrent delete / attendance action and re-read the state
+            // under lock: the same entry can never be paid twice through different keys.
+            /** @var Mission $mission */
+            $mission = Mission::query()->lockForUpdate()->findOrFail($mission->id);
+
+            if (! in_array($mission->status, [MissionStatus::Closed, MissionStatus::PendingAttendanceValidation], true)) {
+                throw ValidationException::withMessages([
+                    'status' => ['Cette mission ne peut pas être terminée dans son état actuel.'],
+                ]);
+            }
+
+            if ($mission->hasOpenAttendanceDispute()) {
+                throw ValidationException::withMessages([
+                    'status' => ['Une absence est encore dans sa fenêtre de contestation de 72 h ou fait l\'objet d\'un litige : la mission ne peut pas être terminée pour le moment.'],
+                ]);
+            }
+
             if (! $this->missionPaymentService->hasPaidPayment($mission)) {
                 throw new \RuntimeException('Mission completion requires a confirmed payment.');
             }
@@ -381,7 +446,7 @@ class MissionService
             $this->notifyProducerOnCompletion($freshMission);
 
             return $freshMission;
-        });
+        }, 3);
     }
 
     public function notifyProducerOnCompletion(Mission $mission): void

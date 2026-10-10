@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Models\Face;
+use App\Support\UploadedMedia;
+use App\Support\VideoMetadataStripper;
 use FFMpeg\Coordinate\TimeCode;
 use FFMpeg\FFMpeg;
 use FFMpeg\FFProbe;
@@ -45,35 +47,59 @@ class PresentationVideoService
      */
     public function uploadPresentationVideo(Face $face, UploadedFile $video): array
     {
-        return DB::transaction(function () use ($face, $video) {
-            // Delete old video if exists
-            $this->deletePresentationVideo($face);
+        // Extension validée AVANT toute suppression : un fichier rejeté ne doit pas coûter
+        // sa vidéo actuelle à l'utilisateur.
+        $extension = UploadedMedia::videoExtension($video, 'video');
 
-            // Generate unique filename with UUID
-            $extension = $video->getClientOriginalExtension() ?: 'mp4';
-            $filename = Str::uuid()->toString().'.'.$extension;
-            $thumbnailFilename = Str::uuid()->toString().'.jpg';
+        $filename = Str::uuid()->toString().'.'.$extension;
+        $thumbnailFilename = Str::uuid()->toString().'.jpg';
+        $disk = Storage::disk('public');
+        $oldPaths = [];
 
-            // Store video using the public disk
-            Storage::disk('public')->putFileAs(self::STORAGE_PATH, $video, $filename);
+        // Nouveau fichier + miniature d'abord. Sur échec (écriture, ffmpeg, DB), on retire ce qui
+        // vient d'être écrit et l'ancienne vidéo reste intacte (fichiers ET référence).
+        try {
+            if ($disk->putFileAs(self::STORAGE_PATH, $video, $filename) === false) {
+                throw new \RuntimeException("Failed to store presentation video [{$filename}].");
+            }
 
-            // Generate and save thumbnail from the first frame
             $this->generateThumbnail(
-                Storage::disk('public')->path(self::STORAGE_PATH.'/'.$filename),
+                $disk->path(self::STORAGE_PATH.'/'.$filename),
                 $thumbnailFilename
             );
 
-            // Update Face model
+            $face->refresh();
+            $oldPaths = array_filter([
+                $face->presentation_video ? self::STORAGE_PATH.'/'.$face->presentation_video : null,
+                $face->presentation_video_thumbnail ? self::THUMBNAIL_PATH.'/'.$face->presentation_video_thumbnail : null,
+            ]);
+
+            // Une seule mise à jour vers les nouveaux noms.
             $face->update([
                 'presentation_video' => $filename,
                 'presentation_video_thumbnail' => $thumbnailFilename,
             ]);
+        } catch (\Throwable $e) {
+            $disk->delete(self::STORAGE_PATH.'/'.$filename);
+            $disk->delete(self::THUMBNAIL_PATH.'/'.$thumbnailFilename);
 
-            return [
-                'video' => $filename,
-                'thumbnail' => $thumbnailFilename,
-            ];
-        });
+            throw $e;
+        }
+
+        // Les anciens fichiers ne sont supprimés qu'APRÈS le succès de l'écriture DB.
+        $disk->delete(array_values($oldPaths));
+
+        $result = [
+            'video' => $filename,
+            'thumbnail' => $thumbnailFilename,
+        ];
+
+        // Remux sans ré-encodage (métadonnées conteneur, GPS…) APRÈS le commit : jamais
+        // dans la transaction. Un échec n'invalide pas l'upload (warning loggé,
+        // rattrapé par media:strip-metadata).
+        VideoMetadataStripper::stripOrLog(Storage::disk('public')->path(self::STORAGE_PATH.'/'.$result['video']));
+
+        return $result;
     }
 
     /**

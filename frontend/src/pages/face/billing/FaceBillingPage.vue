@@ -17,14 +17,17 @@
  *  - faceBillingApi.getHistory → GET /face/subscriptions/history (historique)
  */
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { CreditCard, Calendar, Check, Receipt, ChevronDown, AlertTriangle, Loader2 } from 'lucide-vue-next'
+import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui'
 import WBadge from '@/components/ui/WBadge.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { faceBillingApi, type FaceBillingHistoryItem } from '@/features/face/services/faceBillingApi'
 import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'
 import { useSubscriptionPayment } from '@/features/face/composables/useSubscriptionPayment'
 import { useToast } from '@/composables/useToast'
+import { usePaymentReturn } from '@/composables/usePaymentReturn'
+import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
 
 // =============================================================
@@ -47,13 +50,13 @@ const TIER_META: Record<DisplayTier, { name: string; price: number; badge: 'elit
 // =============================================================
 // Composables (shared sources of truth)
 // =============================================================
+const route = useRoute()
 const router = useRouter()
 const toast = useToast()
 
 const { current, cta, fetchStatus, refreshStatus } = useSubscriptionStatus()
 const {
   isInitiating,
-  isPolling,
   isVerifying,
   isCancelling,
   paymentState,
@@ -88,14 +91,35 @@ async function load(force = false): Promise<void> {
   }
 }
 
-onMounted(() => {
-  void load()
+// Return from the same-tab FedaPay checkout (?payment_return=subscription): the
+// composable runs verify-payment then refreshes the status; here we only refresh
+// the history. Retry → back to the plans (a failed row cannot be resumed).
+const paymentReturn = usePaymentReturn({
+  kinds: ['subscription'],
+  onConfirmed: async () => {
+    await loadHistory()
+  },
+  onRetry: () => {
+    router.push({ name: 'pricing' })
+  },
+})
+
+// ONE banner / ONE toast: while the return flow is active (verifying, or showing its
+// failed / timeout banner) the pending resume-verify-cancel banner, the failed
+// banner and the reconciler's confirmation toast stay silent.
+const returnActive = computed(
+  () => paymentReturn.state.value !== 'idle' || route.query.payment_return !== undefined,
+)
+
+onMounted(async () => {
+  await load()
+  if (route.query.payment_return !== undefined) void paymentReturn.start()
 })
 
 // A confirmed payment mints a new active row + flips the old pending one — refresh
 // the history list so it reflects the new state without a manual reload.
 watch(paymentState, (state) => {
-  if (state === 'confirmed') {
+  if (state === 'confirmed' && !returnActive.value) {
     toast.success('Paiement confirmé — ton abonnement est actif.')
     void loadHistory().catch(() => {
       // Non-blocking — the status card already reflects the activation.
@@ -398,6 +422,11 @@ function toggleHistory(id: string): void {
       <!-- SECTION 0 — Pending payment (resume / verify / cancel) -->
       <!-- Banner cascade: waiting > failed > pending.            -->
       <!-- ===================================================== -->
+      <PaymentReturnBanner
+        :state="paymentReturn.state.value"
+        @retry="paymentReturn.retry"
+        @dismiss="paymentReturn.dismiss"
+      />
       <div
         v-if="paymentState === 'waiting'"
         class="rounded-2xl border border-blue-200 bg-blue-50 p-4 sm:p-5 text-sm text-blue-800"
@@ -406,8 +435,7 @@ function toggleHistory(id: string): void {
         <div class="flex items-start gap-2">
           <Loader2 class="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin" />
           <span>
-            Finalise le paiement dans l'onglet Fedapay. La confirmation s'affichera ici
-            automatiquement.
+            Redirection vers FedaPay…
           </span>
         </div>
         <div class="mt-3">
@@ -424,7 +452,7 @@ function toggleHistory(id: string): void {
       </div>
 
       <div
-        v-else-if="paymentState === 'failed' && paymentError"
+        v-else-if="paymentState === 'failed' && paymentError && !returnActive"
         class="flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 sm:p-5 text-sm text-red-700"
         data-testid="billing-banner-failed"
       >
@@ -440,7 +468,7 @@ function toggleHistory(id: string): void {
       </div>
 
       <div
-        v-else-if="hasPendingPayment"
+        v-else-if="hasPendingPayment && !returnActive"
         class="rounded-2xl border border-blue-200 bg-blue-50 p-4 sm:p-5 text-sm text-blue-800"
         data-testid="billing-banner-pending"
       >
@@ -454,7 +482,7 @@ function toggleHistory(id: string): void {
           <button
             type="button"
             class="text-sm font-semibold px-4 py-2 rounded-md bg-[#198496] text-white hover:bg-[#146c7a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            :disabled="isInitiating || isPolling || isVerifying || isCancelling"
+            :disabled="isInitiating || isVerifying || isCancelling"
             data-testid="billing-banner-resume"
             @click="onResumeClick"
           >
@@ -463,7 +491,7 @@ function toggleHistory(id: string): void {
           <button
             type="button"
             class="text-sm font-semibold px-4 py-2 rounded-md border border-[#198496] text-[#198496] hover:bg-[#198496]/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            :disabled="isInitiating || isPolling || isVerifying || isCancelling"
+            :disabled="isInitiating || isVerifying || isCancelling"
             data-testid="billing-banner-verify"
             @click="verifyPayment({ manual: true })"
           >
@@ -472,7 +500,7 @@ function toggleHistory(id: string): void {
           <button
             type="button"
             class="text-sm font-semibold px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            :disabled="isInitiating || isPolling || isVerifying || isCancelling"
+            :disabled="isInitiating || isVerifying || isCancelling"
             data-testid="billing-banner-cancel"
             @click="openCancelConfirm"
           >
@@ -612,16 +640,16 @@ function toggleHistory(id: string): void {
         </div>
 
         <div v-else class="flex flex-col gap-2.5">
-          <div
+          <CollapsibleRoot
             v-for="item in historyRows"
             :key="item.id"
+            :open="openId === item.id"
             class="border border-gray-200 rounded-xl overflow-hidden transition-all"
             :data-testid="`history-row-${item.id}`"
+            @update:open="toggleHistory(item.id)"
           >
-            <button
-              @click="toggleHistory(item.id)"
+            <CollapsibleTrigger
               class="w-full flex items-center gap-4 px-4 sm:px-5 py-4 hover:bg-gray-50/60 transition-colors text-left"
-              :aria-expanded="openId === item.id"
             >
               <div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-500 shrink-0">
                 <Receipt :size="18" />
@@ -644,9 +672,10 @@ function toggleHistory(id: string): void {
                 <span class="hidden sm:inline">Voir détails</span>
                 <ChevronDown :size="16" :style="{ transform: openId === item.id ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }" />
               </span>
-            </button>
+            </CollapsibleTrigger>
 
-            <div v-if="openId === item.id" class="px-4 sm:px-5 pb-5 pt-1 border-t border-gray-100 bg-gray-50/30">
+            <CollapsibleContent class="collapsible-smooth">
+             <div class="px-4 sm:px-5 pb-5 pt-1 border-t border-gray-100 bg-gray-50/30">
               <dl class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-3 mt-4">
                 <div class="flex items-center justify-between sm:block">
                   <dt class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Plan</dt>
@@ -673,8 +702,9 @@ function toggleHistory(id: string): void {
                   <dd class="text-xs font-mono font-medium text-gray-900 sm:mt-0.5">{{ item.ref }}</dd>
                 </div>
               </dl>
-            </div>
-          </div>
+             </div>
+            </CollapsibleContent>
+          </CollapsibleRoot>
         </div>
       </section>
     </div>

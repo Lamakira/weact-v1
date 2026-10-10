@@ -57,6 +57,8 @@ import {
 } from '@/components/ugc'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
+import { usePaymentReturn } from '@/composables/usePaymentReturn'
+import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
 import { useUgcShipment } from '@/composables/useUgcShipment'
 import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
 
@@ -75,13 +77,16 @@ const {
   isConfirming,
   isCancelling,
   isReportingNoShow,
+  isContesting,
   error: actionError,
   errorCode: actionErrorCode,
+  errorStatus: actionErrorStatus,
   accept,
   refuse,
   confirm,
   cancel,
   reportNoShow,
+  contest,
   clearError,
 } = useBookingActions()
 
@@ -170,6 +175,11 @@ const showReasonField = ref(false)
 const showCancellationDialog = ref(false)
 // No-show dialog state
 const showNoShowDialog = ref(false)
+// Contest dialog state (Face — fenêtre de contestation 72 h)
+const showContestDialog = ref(false)
+const contestMessage = ref('')
+const CONTEST_MIN_LENGTH = 10
+const CONTEST_MAX_LENGTH = 1000
 const nowTimestamp = ref(Date.now())
 const hasExpiryRealtimeListener = ref(false)
 let countdownTicker: ReturnType<typeof setInterval> | null = null
@@ -221,23 +231,122 @@ const faceName = computed(() => {
 
 const ratedName = computed(() => (isFace.value ? producerName.value : faceName.value))
 
+// Délai d'annulation de la Face (fourni par le backend) : sans échéance connue, on laisse le backend trancher.
+const faceCancelDeadline = computed<Date | null>(() => {
+  const raw = booking.value?.face_cancellation_deadline
+  return raw ? new Date(raw) : null
+})
+
+const isFaceCancelWindowOpen = computed(
+  () => faceCancelDeadline.value === null || nowTimestamp.value < faceCancelDeadline.value.getTime(),
+)
+
+const formattedFaceCancelDeadline = computed(() =>
+  faceCancelDeadline.value
+    ? new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }).format(
+        faceCancelDeadline.value,
+      )
+    : '',
+)
+
+// La Face voit le délai (avant) ou l'explication (après) tant que le statut reste annulable.
+const showFaceCancelInfo = computed(
+  () => !!booking.value && isFace.value && faceCancelDeadline.value !== null
+    && CANCELLABLE_BY_FACE_STATUSES.includes(booking.value.status),
+)
+
 const canCancelBooking = computed(() => {
   if (!booking.value) return false
 
   if (isFace.value) {
-    return CANCELLABLE_BY_FACE_STATUSES.includes(booking.value.status)
+    return CANCELLABLE_BY_FACE_STATUSES.includes(booking.value.status) && isFaceCancelWindowOpen.value
   }
 
   return CANCELLABLE_BY_PRODUCER_STATUSES.includes(booking.value.status)
 })
 
-// No-show report visibility (Producer only, paid, past date_debut)
+// Pas d'heure de tournage : les règles « jour J » se calculent en jours UTC (fuseau de l'application).
+const DAY_MS = 24 * 60 * 60 * 1000
+
+function startOfUtcDay(isoDate: string): number {
+  const date = new Date(isoDate)
+  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())
+}
+
+// No-show report visibility (Producer only, paid or confirmed by Face, from the day AFTER the shoot day)
 const canReportNoShow = computed(() => {
   if (!booking.value) return false
   if (isFace.value) return false
-  if (booking.value.status !== BookingStatus.PAID) return false
+  if (booking.value.type_contenu === 'UGC') return false
+  if (booking.value.status !== BookingStatus.PAID && booking.value.status !== BookingStatus.CONFIRMED_BY_FACE) return false
   if (!booking.value.date_debut) return false
-  return new Date(booking.value.date_debut).getTime() < nowTimestamp.value
+  return nowTimestamp.value >= startOfUtcDay(booking.value.date_debut) + DAY_MS
+})
+
+// Producer cancelling a paid booking from the shoot day: funds held 72 h instead of an immediate refund.
+const isLateProducerCancel = computed(() => {
+  if (!booking.value || isFace.value) return false
+  if (booking.value.status !== BookingStatus.PAID || !booking.value.date_debut) return false
+  return nowTimestamp.value >= startOfUtcDay(booking.value.date_debut)
+})
+
+// Règlement en attente : absence signalée / annulation tardive, fenêtre de 72 h non tranchée.
+const isPendingSettlement = computed(
+  () =>
+    !!booking.value
+    && (booking.value.status === BookingStatus.NO_SHOW || booking.value.status === BookingStatus.CANCELLED_BY_PRODUCER)
+    && !!booking.value.settlement_due_at
+    && !booking.value.dispute_resolved_at,
+)
+
+const isDisputed = computed(() => isPendingSettlement.value && !!booking.value?.disputed_at)
+
+const settlementDueLabel = computed(() => {
+  const due = booking.value?.settlement_due_at
+  if (!due) return ''
+  return new Intl.DateTimeFormat('fr-FR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(due))
+})
+
+// Délai écoulé, non contesté : le règlement automatique part au prochain passage du job horaire.
+const isWindowOver = computed(
+  () =>
+    isPendingSettlement.value
+    && !booking.value?.disputed_at
+    && new Date(booking.value?.settlement_due_at ?? 0).getTime() <= nowTimestamp.value,
+)
+
+const canContest = computed(
+  () =>
+    isFace.value
+    && isPendingSettlement.value
+    && !booking.value?.disputed_at
+    && new Date(booking.value?.settlement_due_at ?? 0).getTime() > nowTimestamp.value,
+)
+
+const disputeOutcomeLabel = computed<string | null>(() => {
+  const current = booking.value
+  if (!current?.dispute_resolved_at || !current.dispute_outcome) return null
+
+  const contested = !!current.disputed_at
+  // Deuxième personne pour le lecteur ; sans contestation, aucun administrateur n'est intervenu.
+  if (current.dispute_outcome === 'favor_face') {
+    return isFace.value
+      ? 'L\'administrateur a tranché en votre faveur : le paiement vous est versé.'
+      : 'L\'administrateur a tranché en faveur de la Face : le paiement lui est versé.'
+  }
+  if (isFace.value) {
+    return contested
+      ? 'L\'administrateur a tranché en faveur du Producteur.'
+      : 'Délai de contestation écoulé : le Producteur a été remboursé.'
+  }
+  return contested
+    ? 'L\'administrateur a tranché en votre faveur : vous avez été remboursé.'
+    : 'Aucune contestation : vous avez été remboursé.'
+})
+
+const canSubmitContest = computed(() => {
+  const length = contestMessage.value.trim().length
+  return length >= CONTEST_MIN_LENGTH && length <= CONTEST_MAX_LENGTH && !isContesting.value
 })
 
 // Confirm button visibility and label (role-aware)
@@ -392,7 +501,11 @@ async function handleCancel(payload: BookingCancellationPayload): Promise<void> 
   if (result) {
     booking.value = result
     showCancellationDialog.value = false
-    toast.success('Booking annulé')
+    toast.success(
+      result.settlement_due_at
+        ? 'Booking annulé. Les fonds restent en séquestre 72 h : la Face peut contester, sinon vous serez remboursé.'
+        : 'Booking annulé',
+    )
   } else {
     toast.error(actionError.value || 'Erreur lors de l\'annulation')
   }
@@ -406,9 +519,43 @@ async function handleReportNoShow(): Promise<void> {
   if (result) {
     booking.value = result
     showNoShowDialog.value = false
-    toast.success('Absence signalée. Le montant a été crédité dans votre portefeuille.')
+    toast.success('Absence signalée. Les fonds restent en séquestre 72 h : sans contestation de la Face, vous serez remboursé.')
   } else {
     toast.error(actionError.value || 'Erreur lors du signalement')
+  }
+}
+
+function openContestDialog(): void {
+  contestMessage.value = ''
+  showContestDialog.value = true
+}
+
+function closeContestDialog(): void {
+  if (isContesting.value) return
+  showContestDialog.value = false
+  contestMessage.value = ''
+}
+
+async function handleContest(): Promise<void> {
+  if (!booking.value || !canSubmitContest.value) return
+  clearError()
+
+  const result = await contest(booking.value.id, contestMessage.value.trim())
+  if (result) {
+    booking.value = result
+    showContestDialog.value = false
+    contestMessage.value = ''
+    toast.success('Contestation envoyée. Un administrateur va trancher.')
+    return
+  }
+
+  toast.error(actionError.value || 'Erreur lors de la contestation')
+
+  // 403/422 : la fenêtre s'est refermée ou le booking a changé — on recharge l'état réel.
+  if (actionErrorStatus.value === 403 || actionErrorStatus.value === 422) {
+    showContestDialog.value = false
+    contestMessage.value = ''
+    if (bookingId.value) await fetchBooking(bookingId.value)
   }
 }
 
@@ -420,13 +567,6 @@ function handleRatingSubmitted(rating: BookingRating): void {
   toast.success('Évaluation envoyée avec succès')
 }
 
-async function handlePaymentSuccess(): Promise<void> {
-  showPaymentOverlay.value = false
-  if (bookingId.value) {
-    await fetchBooking(bookingId.value)
-    toast.success('Paiement confirmé !')
-  }
-}
 
 async function handleConfirmShipment(payload: ConfirmShipmentPayload): Promise<void> {
   if (!booking.value) return
@@ -499,14 +639,6 @@ async function handleUploadDeliverable(file: File): Promise<void> {
   toast.error(deliverableError.value || "Erreur lors de l'envoi de la vidéo Unboxing")
 }
 
-async function handleUgcCommissionSettled(): Promise<void> {
-  showUgcPaymentOverlay.value = false
-  if (bookingId.value) {
-    await fetchBooking(bookingId.value)
-    toast.success('Commission payée. La Face va recevoir votre demande.')
-  }
-}
-
 interface EchoChannel {
   listen: (event: string, callback: () => void) => EchoChannel
   stopListening: (event: string) => EchoChannel
@@ -560,14 +692,38 @@ watch(
   },
 )
 
+// Return from the same-tab FedaPay checkout (?payment_return=booking|booking_commission).
+const paymentReturn = usePaymentReturn({
+  kinds: ['booking', 'booking_commission'],
+  ids: () => ({ bookingId: bookingId.value }),
+  onConfirmed: async () => {
+    if (bookingId.value) await fetchBooking(bookingId.value)
+  },
+  onRetry: (kind) => {
+    if (kind === 'booking_commission') showUgcPaymentOverlay.value = true
+    else showPaymentOverlay.value = true
+  },
+})
+
 onMounted(async () => {
   if (bookingId.value) {
     await fetchBooking(bookingId.value)
   }
 
-  // Auto-open the commission tunnel when arriving from UGC booking creation (?pay=1).
-  if (route.query.pay === '1' && canPayUgcCommission.value) {
+  // A ?payment_return takes over: verify the payment, never also auto-open the tunnel.
+  const isPaymentReturn = route.query.payment_return !== undefined
+  if (isPaymentReturn) {
+    await paymentReturn.start()
+  } else if (route.query.pay === '1' && canPayUgcCommission.value) {
+    // Auto-open the commission tunnel when arriving from UGC booking creation (?pay=1).
     showUgcPaymentOverlay.value = true
+  }
+
+  // Consume ?pay (opened or not): a full-reload Back to this URL must not replay the tunnel.
+  if (route.query.pay !== undefined) {
+    const query = { ...route.query }
+    delete query.pay
+    void router.replace({ query })
   }
 
   countdownTicker = setInterval(() => {
@@ -623,6 +779,12 @@ onUnmounted(() => {
 
     <!-- Booking detail content -->
     <template v-else-if="booking">
+      <PaymentReturnBanner
+        :state="paymentReturn.state.value"
+        @retry="paymentReturn.retry"
+        @dismiss="paymentReturn.dismiss"
+      />
+
       <!-- Header: Status badge + title -->
       <div class="flex items-center gap-3 mb-6">
         <BookingStatusBadge :status="booking.status" />
@@ -659,7 +821,12 @@ onUnmounted(() => {
         <div v-if="!isUgc" class="lg:col-span-1">
           <div class="bg-white rounded-xl border border-gray-200 p-5">
             <h2 class="text-sm font-semibold text-gray-700 mb-4">Progression</h2>
-            <BookingTimeline :status="booking.status" :cancellation-reason="booking.cancellation_reason" />
+            <BookingTimeline
+              :status="booking.status"
+              :cancellation-reason="booking.cancellation_reason"
+              :accepted-at="booking.accepted_at"
+              :was-paid="booking.was_paid"
+            />
           </div>
         </div>
 
@@ -829,6 +996,45 @@ onUnmounted(() => {
             </p>
           </div>
 
+          <!-- Règlement en attente (fenêtre de contestation 72 h) -->
+          <div
+            v-if="isPendingSettlement"
+            class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+            data-testid="settlement-banner"
+          >
+            <p v-if="isDisputed" data-testid="settlement-disputed">
+              Contestation en cours : un administrateur va trancher.
+            </p>
+            <p v-else-if="isWindowOver" data-testid="settlement-over">
+              Délai terminé : règlement en cours.
+            </p>
+            <template v-else-if="isFace">
+              <p data-testid="settlement-face">
+                Vous pouvez contester jusqu'au {{ settlementDueLabel }}.
+                Sans contestation de votre part, le Producteur sera remboursé le {{ settlementDueLabel }}.
+              </p>
+              <button
+                v-if="canContest"
+                class="mt-3 inline-flex items-center justify-center gap-2 rounded-lg border border-amber-400 bg-white px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+                data-testid="contest-btn"
+                @click="openContestDialog"
+              >
+                <AlertTriangle class="w-4 h-4" />
+                Contester
+              </button>
+            </template>
+            <p v-else data-testid="settlement-producer">
+              Remboursement prévu le {{ settlementDueLabel }} si la Face ne conteste pas.
+            </p>
+          </div>
+          <p
+            v-else-if="disputeOutcomeLabel"
+            class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700"
+            data-testid="dispute-outcome"
+          >
+            {{ disputeOutcomeLabel }}
+          </p>
+
           <div
             v-if="shouldShowPaymentDeadline"
             class="rounded-xl border px-4 py-3 text-sm"
@@ -861,12 +1067,27 @@ onUnmounted(() => {
           <div v-if="canCancelBooking" class="flex gap-3">
             <button
               class="flex-1 flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+              data-testid="face-cancel-btn"
               @click="showCancellationDialog = true"
             >
               <XCircle class="w-4 h-4" />
               Annuler le booking
             </button>
           </div>
+          <p
+            v-if="showFaceCancelInfo && isFaceCancelWindowOpen"
+            class="text-sm text-gray-500"
+            data-testid="face-cancel-deadline"
+          >
+            Annulation possible jusqu'au {{ formattedFaceCancelDeadline }}
+          </p>
+          <p
+            v-else-if="showFaceCancelInfo"
+            class="text-sm text-amber-600"
+            data-testid="face-cancel-closed"
+          >
+            Annulation impossible à moins de 24 h du jour du tournage.
+          </p>
 
           <!-- No-show report (Producer only) -->
           <div v-if="canReportNoShow" class="flex gap-3">
@@ -980,7 +1201,6 @@ onUnmounted(() => {
       v-if="booking"
       v-model="showPaymentOverlay"
       :booking="booking"
-      @payment-success="handlePaymentSuccess"
     />
 
     <!-- UGC engagement modal (Face accept — 2.4) -->
@@ -1001,8 +1221,6 @@ onUnmounted(() => {
       kind="booking"
       :owner-id="booking.id"
       :amount="booking.montant_total_producteur ?? 0"
-      :reference="booking.id"
-      @settled="handleUgcCommissionSettled"
     />
 
     <CancellationDialog
@@ -1011,6 +1229,7 @@ onUnmounted(() => {
       :is-open="showCancellationDialog"
       :is-cancelling="isCancelling"
       :is-face="isFace"
+      :is-late-cancel="isLateProducerCancel"
       @confirm="handleCancel"
       @cancel="showCancellationDialog = false"
     />
@@ -1046,7 +1265,8 @@ onUnmounted(() => {
         <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-2">Signaler une absence</h3>
           <p class="text-sm text-gray-500 mb-4">
-            Cette action est irréversible. Le montant total sera crédité dans votre portefeuille et une pénalité sera appliquée à la Face.
+            Les fonds restent en séquestre pendant 72 h. La Face peut contester ce signalement ; un administrateur tranche alors.
+            Sans contestation, le montant total est crédité automatiquement dans votre portefeuille et une pénalité est appliquée à la Face.
           </p>
           <div class="flex gap-3 justify-end">
             <button
@@ -1064,6 +1284,56 @@ onUnmounted(() => {
             >
               <Loader2 v-if="isReportingNoShow" class="w-4 h-4 animate-spin inline mr-1" />
               Confirmer le signalement
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- Contest dialog (Face) -->
+    <Teleport to="body">
+      <div
+        v-if="showContestDialog"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        data-testid="contest-dialog"
+        @click.self="closeContestDialog"
+      >
+        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+          <h3 class="text-lg font-semibold text-gray-900 mb-2">Contester</h3>
+          <p class="text-sm text-gray-500 mb-4">
+            Expliquez pourquoi vous contestez. Les fonds restent bloqués et un administrateur tranchera.
+          </p>
+          <label for="contest-message" class="block text-sm font-medium text-gray-700 mb-1">
+            Votre message
+          </label>
+          <textarea
+            id="contest-message"
+            v-model="contestMessage"
+            rows="4"
+            :maxlength="CONTEST_MAX_LENGTH"
+            data-testid="contest-message"
+            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-weact focus:ring-2 focus:ring-weact/20 outline-none"
+            placeholder="Décrivez ce qui s'est passé..."
+          />
+          <p class="mt-1 mb-4 text-xs text-gray-400">
+            {{ contestMessage.trim().length }}/{{ CONTEST_MAX_LENGTH }} (minimum {{ CONTEST_MIN_LENGTH }} caractères)
+          </p>
+          <div class="flex gap-3 justify-end">
+            <button
+              class="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
+              :disabled="isContesting"
+              @click="closeContestDialog"
+            >
+              Annuler
+            </button>
+            <button
+              class="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-weact hover:bg-weact/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="!canSubmitContest"
+              data-testid="confirm-contest-btn"
+              @click="handleContest"
+            >
+              <Loader2 v-if="isContesting" class="w-4 h-4 animate-spin inline mr-1" />
+              Envoyer la contestation
             </button>
           </div>
         </div>

@@ -25,7 +25,7 @@ class AdminWithdrawalRequestTest extends TestCase
 
     private function withAdminApiToken(Admin $admin): static
     {
-        return $this->withToken($admin->createToken('admin-token')->plainTextToken);
+        return $this->withToken($admin->createToken('admin-token', ['2fa'])->plainTextToken);
     }
 
     protected function setUp(): void
@@ -47,7 +47,7 @@ class AdminWithdrawalRequestTest extends TestCase
 
     public function test_admin_can_list_withdrawal_requests(): void
     {
-        WithdrawalRequest::factory()->create([
+        $pending = WithdrawalRequest::factory()->create([
             'user_id' => $this->faceUser->id,
             'status' => 'pending',
         ]);
@@ -57,6 +57,7 @@ class AdminWithdrawalRequestTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $pending->uuid)
             ->assertJsonPath('data.0.user_email', $this->faceUser->email)
             ->assertJsonPath('data.0.user_name', (string) $this->faceUser->userable?->display_name)
             ->assertJsonPath('data.0.status', 'pending');
@@ -238,7 +239,7 @@ class AdminWithdrawalRequestTest extends TestCase
             ])
             ->assertOk();
 
-        Mail::assertSent(WithdrawalApprovedMail::class, function (WithdrawalApprovedMail $mail): bool {
+        Mail::assertQueued(WithdrawalApprovedMail::class, function (WithdrawalApprovedMail $mail): bool {
             return str_contains($mail->render(), 'Bonjour Kofi Mensah');
         });
     }
@@ -270,7 +271,7 @@ class AdminWithdrawalRequestTest extends TestCase
             ])
             ->assertOk();
 
-        Mail::assertSent(WithdrawalRejectedMail::class, function (WithdrawalRejectedMail $mail): bool {
+        Mail::assertQueued(WithdrawalRejectedMail::class, function (WithdrawalRejectedMail $mail): bool {
             return str_contains($mail->render(), 'Bonjour Kofi Mensah');
         });
     }

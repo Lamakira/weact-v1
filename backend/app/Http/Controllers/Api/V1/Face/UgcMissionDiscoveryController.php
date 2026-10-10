@@ -39,7 +39,7 @@ class UgcMissionDiscoveryController extends Controller
             // Disque public côté mission : aucune URL signée, rien à protéger ici.
             ->with('productPhotos')
             // Le teaser n'expose jamais le producer — eager-load réservé à la branche éligible
-            ->when($canAccessUgc, fn ($query) => $query->with('producer'))
+            ->when($canAccessUgc, fn ($query) => $query->with(['producer' => fn ($q) => $q->withRatingAggregates()])->withPaidPaymentFlag()->withCount('candidatures'))
             ->orderBy('created_at', 'desc')
             ->paginate(12);
 

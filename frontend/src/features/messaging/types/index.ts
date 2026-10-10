@@ -1,6 +1,7 @@
 /**
  * Messaging feature types
  */
+import type { CandidatureStatusType } from '@/features/candidature/types'
 
 // Message data from API
 export interface Message {
@@ -25,12 +26,58 @@ export interface OtherParticipant {
   type: 'face' | 'producer'
 }
 
+// Étapes Demandé -> Accepté -> Payé -> Réalisé (dérivées du statut de candidature côté serveur)
+export type ContextStepKey = 'requested' | 'accepted' | 'paid' | 'done'
+
+export interface ContextStep {
+  key: ContextStepKey
+  label: string
+  state: 'done' | 'current' | 'todo'
+}
+
+// Version compacte du contexte (liste des conversations)
+export interface ConversationContextSummary {
+  type: 'mission' | 'ugc'
+  type_label: string
+  title: string
+  candidature_status: CandidatureStatusType
+  // null quand la candidature est close (refusée / annulée)
+  step: { key: ContextStepKey; label: string } | null
+  date_tournage: string | null
+}
+
+// Montants visibles par la Face : ce qu'elle reçoit (net), jamais les frais Producteur
+export interface FaceContextAmounts {
+  face_receives: number | null
+  product_value: number | null
+}
+
+// Montants visibles par le Producteur : cachet + frais de service + total
+export interface ProducerContextAmounts {
+  cachet: number | null
+  service_fee: number | null
+  total: number | null
+  product_value: number | null
+}
+
+// Contexte complet (détail de conversation)
+export interface ConversationContext extends ConversationContextSummary {
+  candidature_status_label: string
+  closed: boolean
+  steps: ContextStep[]
+  lieu: string | null
+  mission_id: string
+  candidature_id: string
+  amounts: FaceContextAmounts | ProducerContextAmounts
+}
+
 // Conversation data from API
 export interface Conversation {
   id: string
   candidature_id: string
   mission_title: string
   other_participant: OtherParticipant
+  context: ConversationContext | null
   messages: Message[]
   unread_count: number
 }
@@ -38,6 +85,7 @@ export interface Conversation {
 // API response for single conversation
 export interface ConversationResponse {
   data: Conversation
+  meta?: { unread_conversations_count?: number }
 }
 
 // API response for single message
@@ -75,9 +123,12 @@ export interface ConversationListItem {
   candidature_id: string
   mission_title: string
   other_participant: OtherParticipant
+  context: ConversationContextSummary | null
   latest_message: LatestMessagePreview | null
   unread_count: number
   updated_at: string
+  /** Conversations non lues du destinataire, après cette mise à jour (badge « Messages ») */
+  unread_conversations_count?: number
 }
 
 // Pagination metadata
@@ -86,10 +137,56 @@ export interface PaginationMeta {
   last_page: number
   per_page: number
   total: number
+  /** Conversations avec au moins un message non lu (valeur serveur, toutes pages) */
+  unread_conversations_count?: number
 }
 
 // API response for conversations list
 export interface ConversationsListResponse {
   data: ConversationListItem[]
   meta: PaginationMeta
+}
+
+// ==========================================================================
+// Temps réel (Reverb) — payloads diffusés par le backend
+// ==========================================================================
+
+// `.message.sent` sur private-conversation.{uuid} (is_own_message absent : calculé côté client)
+export interface MessageBroadcast {
+  id: number
+  conversation_id: string
+  content: string
+  sender_id: number
+  sender_type: string
+  sender_name: string
+  read_at: string | null
+  created_at: string
+}
+
+// `.messages.read` sur private-conversation.{uuid}
+export interface MessagesReadBroadcast {
+  conversation_id: string
+  reader_role: 'face' | 'producer'
+  reader_id: number
+  read_at: string
+  last_read_message_id: number
+}
+
+// `.conversation.updated` sur private-App.Models.User.{id} (unread_count propre au destinataire)
+export interface ConversationUpdatedBroadcast {
+  conversation_id: string
+  latest_message: {
+    id: number
+    content: string
+    sender_id: number
+    sender_name: string
+    created_at: string
+  }
+  unread_count: number
+  updated_at: string
+}
+
+// Réponse de POST /conversations/{id}/read
+export interface MarkReadResponse {
+  data: { marked: number; unread_conversations_count?: number }
 }

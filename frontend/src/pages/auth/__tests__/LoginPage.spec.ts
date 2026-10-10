@@ -24,11 +24,31 @@ vi.mock('@/composables/useToast', () => ({
   useToast: () => mockToast,
 }))
 
+// The page probes /auth/registration-status on mount to decide whether the Google
+// button is shown.
+const mockGetRegistrationStatus = vi.fn()
+vi.mock('@/features/auth/services/authApi', () => ({
+  authApi: {
+    getRegistrationStatus: () => mockGetRegistrationStatus(),
+  },
+  getApiErrorMessage: vi.fn(() => 'Une erreur est survenue'),
+}))
+
+vi.mock('@/features/auth/components/GoogleSignInButton.vue', () => ({
+  default: {
+    props: ['intent', 'disabled', 'label'],
+    template: '<button data-testid="google-sign-in-button" :data-intent="intent" />',
+  },
+}))
+
 describe('LoginPage', () => {
   let router: ReturnType<typeof createRouter>
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetRegistrationStatus.mockResolvedValue({
+      data: { enabled: true, google_enabled: false },
+    })
 
     router = createRouter({
       history: createMemoryHistory(),
@@ -167,6 +187,37 @@ describe('LoginPage', () => {
       const registerProducerLink = wrapper.find('a[href*="/register/producer"]')
       expect(registerProducerLink.exists()).toBe(true)
       expect(registerProducerLink.attributes('href')).toBe('/register/producer')
+    })
+  })
+
+  describe('Google Sign-In', () => {
+    it('shows the button with the login intent when the backend advertises it', async () => {
+      mockGetRegistrationStatus.mockResolvedValue({
+        data: { enabled: true, google_enabled: true },
+      })
+
+      const wrapper = await mountComponent()
+      await flushPromises()
+
+      const button = wrapper.find('[data-testid="google-sign-in-button"]')
+      expect(button.exists()).toBe(true)
+      expect(button.attributes('data-intent')).toBe('login')
+    })
+
+    it('hides the button when the flag is off', async () => {
+      const wrapper = await mountComponent()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(false)
+    })
+
+    it('hides the button when the probe fails — never surface a button that would 403', async () => {
+      mockGetRegistrationStatus.mockRejectedValue(new Error('Network error'))
+
+      const wrapper = await mountComponent()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="google-sign-in-button"]').exists()).toBe(false)
     })
   })
 })

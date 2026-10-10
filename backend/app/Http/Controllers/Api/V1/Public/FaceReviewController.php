@@ -21,13 +21,17 @@ class FaceReviewController extends Controller
      */
     public function index(Request $request, Face $face): AnonymousResourceCollection
     {
+        // Same visibility rule as the profile endpoint: a deactivated account's
+        // reviews are no longer public.
+        abort_unless((bool) data_get($face->loadMissing('user'), 'user.is_active'), 404);
+
         $perPage = 10;
         $page = $request->integer('page', 1);
 
         $candidatureRatings = $face->ratingsReceived()->with('rater.userable')->get();
         $bookingRatings = $face->bookingRatingsReceived()->with('rater.userable')->get();
 
-        $all = $candidatureRatings->merge($bookingRatings)
+        $all = $candidatureRatings->toBase()->concat($bookingRatings)
             ->sortByDesc('created_at')
             ->values();
 

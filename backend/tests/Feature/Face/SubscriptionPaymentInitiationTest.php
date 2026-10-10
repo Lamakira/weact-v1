@@ -273,6 +273,41 @@ class SubscriptionPaymentInitiationTest extends TestCase
         $this->assertSame('fedapay-approved-ref', $pending->metadata['fedapay_reference']);
     }
 
+    public function test_verify_payment_marks_an_expired_fedapay_transaction_as_failed(): void
+    {
+        $pending = FaceSubscription::factory()->create([
+            'face_id' => $this->face->id,
+            'plan' => FaceSubscriptionPlan::Pro,
+            'status' => FaceSubscriptionStatus::PendingPayment,
+            'provider_reference' => '123457',
+            'paid_amount' => null,
+            'currency' => 'XOF',
+            'starts_at' => null,
+            'expires_at' => null,
+            'metadata' => ['quoted_amount' => 50000, 'quoted_currency' => 'XOF'],
+        ]);
+
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('retrieveTransaction')
+                ->once()
+                ->with(123457)
+                ->andReturn(new Transaction([
+                    'id' => 123457,
+                    'status' => 'expired',
+                    'reference' => 'ref-expired',
+                    'amount' => 50000,
+                    'currency' => ['iso' => 'XOF'],
+                ]));
+        });
+
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/face/subscription/verify-payment')
+            ->assertOk()
+            ->assertJsonPath('data.status', 'failed');
+
+        $this->assertSame(FaceSubscriptionStatus::Failed, $pending->fresh()->status);
+    }
+
     public function test_verify_payment_keeps_pending_when_fedapay_transaction_is_not_approved_yet(): void
     {
         $pending = FaceSubscription::factory()->create([

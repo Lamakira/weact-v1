@@ -6,6 +6,7 @@ namespace App\Http\Requests\Face;
 
 use App\Models\Face;
 use App\Services\FaceEntitlementService;
+use App\Support\UploadedMedia;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\File;
 
@@ -34,7 +35,8 @@ class AddAlbumPhotoRequest extends FormRequest
                 'required',
                 File::image()
                     ->types(['jpg', 'jpeg', 'png'])
-                    ->max(8 * 1024), // 8MB in KB
+                    ->max(8 * 1024)
+                    ->rules([UploadedMedia::maxDimensions()]), // 8MB in KB
             ],
         ];
     }

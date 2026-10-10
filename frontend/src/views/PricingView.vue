@@ -286,7 +286,6 @@ const {
 
 const {
   isInitiating,
-  isPolling,
   isVerifying,
   isCancelling,
   paymentState,
@@ -350,7 +349,7 @@ function isCurrentTier(handoffKey: HandoffTierKey): boolean {
 
 function ctaEnabledFor(handoffKey: HandoffTierKey): boolean {
   if (!isEmailVerified.value) return false
-  if (isLoading.value || isInitiating.value || isPolling.value || isVerifying.value) return false
+  if (isLoading.value || isInitiating.value || isVerifying.value) return false
   if (hasPendingPayment.value) return false
   const relation = relationFor(handoffKey)
   if (relation === 'current') return cta.value.renew_available
@@ -487,7 +486,7 @@ watchEffect(() => {
     deepLinkConsumed.value = true
     return
   }
-  if (isInitiating.value || isPolling.value || isVerifying.value) {
+  if (isInitiating.value || isVerifying.value) {
     deepLinkConsumed.value = true
     return
   }
@@ -521,9 +520,8 @@ watchEffect(() => {
       </div>
 
       <!-- Banner cascade: waiting > failed > pending (mutually exclusive).
-           FP-2.15.1 L2 — waiting banner exposes the cancel button so a Face
-           closing the Fedapay tab without paying can abort immediately instead
-           of waiting for the 120 s polling timeout. -->
+           The waiting banner is shown while the browser is being redirected to
+           the FedaPay checkout (same tab). -->
       <div
         v-if="paymentState === 'waiting'"
         class="mb-3 rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800"
@@ -532,8 +530,7 @@ watchEffect(() => {
         <div class="flex items-start gap-2">
           <Loader2 class="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin" />
           <span>
-            Finalisez le paiement dans l'onglet Fedapay. La confirmation s'affichera ici
-            automatiquement.
+            Redirection vers FedaPay…
           </span>
         </div>
         <div class="mt-3">
@@ -579,7 +576,7 @@ watchEffect(() => {
           <button
             type="button"
             class="text-sm font-semibold px-4 py-2 rounded-md bg-[#198496] text-white hover:bg-[#146c7a] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            :disabled="isInitiating || isPolling || isVerifying || isCancelling"
+            :disabled="isInitiating || isVerifying || isCancelling"
             data-testid="pricing-banner-resume"
             @click="onResumeClick"
           >
@@ -588,7 +585,7 @@ watchEffect(() => {
           <button
             type="button"
             class="text-sm font-semibold px-4 py-2 rounded-md border border-[#198496] text-[#198496] hover:bg-[#198496]/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            :disabled="isInitiating || isPolling || isVerifying || isCancelling"
+            :disabled="isInitiating || isVerifying || isCancelling"
             data-testid="pricing-banner-verify"
             @click="verifyPayment({ manual: true })"
           >
@@ -597,7 +594,7 @@ watchEffect(() => {
           <button
             type="button"
             class="text-sm font-semibold px-4 py-2 rounded-md text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            :disabled="isInitiating || isPolling || isVerifying || isCancelling"
+            :disabled="isInitiating || isVerifying || isCancelling"
             data-testid="pricing-banner-cancel"
             @click="openCancelConfirm"
           >

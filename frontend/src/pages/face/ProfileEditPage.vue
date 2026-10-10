@@ -378,6 +378,18 @@ function isActiveSection(familyId: FamilyId, sectionId: string): boolean {
   return activeFamily.value === familyId && activeSection.value === sectionId
 }
 
+// Les formulaires mot de passe / email ne sont montés qu'à la première ouverture de la
+// section « Sécurité » (puis gardés montés) : sinon le gestionnaire de mots de passe du
+// navigateur les détecte dès l'arrivée sur la page, même masqués par v-show.
+const securityVisited = ref(false)
+watch(
+  [activeFamily, activeSection],
+  () => {
+    if (isActiveSection('compte', 'securite')) securityVisited.value = true
+  },
+  { immediate: true },
+)
+
 // Tab state is reflected in the URL (?tab=&section=) so reloads, shareable links and
 // the browser back button all work. Clicks update state directly AND push the URL;
 // the watcher syncs state back from the URL on external changes (back button / deep
@@ -425,6 +437,9 @@ const COMPLETION_TO_TAB: Record<string, { family: FamilyId; section: string }> =
   categories: { family: 'carriere', section: 'categorie' },
   tarifs: { family: 'carriere', section: 'tarif' },
   whatsapp_number: { family: 'profil', section: 'identite' },
+  // No longer asked at signup — the completion meter is what brings it in.
+  sexe: { family: 'profil', section: 'identite' },
+  nationalite: { family: 'profil', section: 'identite' },
 }
 const incompleteSectionKeys = computed(() => {
   const set = new Set<string>()
@@ -515,7 +530,7 @@ async function handleUpload(file: File): Promise<void> {
 
   if (result.success && result.message) {
     toast.success(result.message)
-    await fetchCompletion() // Refresh completion after profile photo upload
+    await fetchCompletion({ force: true }) // Refresh completion after profile photo upload
   }
 }
 
@@ -527,7 +542,7 @@ async function handleDelete(): Promise<void> {
 
   if (result.success && result.message) {
     toast.success(result.message)
-    await fetchCompletion() // Refresh completion after profile photo delete
+    await fetchCompletion({ force: true }) // Refresh completion after profile photo delete
   }
 }
 
@@ -576,7 +591,7 @@ async function handleVideoUpload(file: File): Promise<void> {
 
   if (result.success && result.message) {
     toast.success(result.message)
-    await fetchCompletion() // Refresh completion after presentation video upload
+    await fetchCompletion({ force: true }) // Refresh completion after presentation video upload
   }
 }
 
@@ -588,7 +603,7 @@ async function handleVideoDelete(): Promise<void> {
 
   if (result.success) {
     toast.success(result.message || 'Vidéo supprimée avec succès')
-    await fetchCompletion() // Refresh completion after presentation video delete
+    await fetchCompletion({ force: true }) // Refresh completion after presentation video delete
   }
 }
 
@@ -606,7 +621,7 @@ async function handleAddFaceVideo(
       toast.success(result.message)
     }
     if (type === 'acting') {
-      await fetchCompletion() // acting_video is a completion criterion
+      await fetchCompletion({ force: true }) // acting_video is a completion criterion
     }
   }
 }
@@ -625,7 +640,7 @@ async function handleDeleteFaceVideo(videoId: string): Promise<void> {
       toast.success(result.message)
     }
     if (wasActing) {
-      await fetchCompletion()
+      await fetchCompletion({ force: true })
     }
   }
 }
@@ -649,7 +664,7 @@ async function handleBioLocationSave(data: {
 
   if (result.success) {
     toast.success(result.message || 'Profil mis à jour avec succès')
-    await fetchCompletion() // Refresh completion after bio/location save
+    await fetchCompletion({ force: true }) // Refresh completion after bio/location save
   }
 }
 
@@ -661,7 +676,7 @@ async function handleLanguesSave(langues: string[] | null): Promise<void> {
 
   if (result.success) {
     toast.success(result.message || 'Langues mises à jour avec succès')
-    await fetchCompletion()
+    await fetchCompletion({ force: true })
   }
 }
 
@@ -678,6 +693,8 @@ async function handlePersonalInfoSave(data: {
 
   if (result.success) {
     toast.success(result.message || 'Informations personnelles mises à jour avec succès')
+    // sexe, nationalité and whatsapp are completion criteria
+    await fetchCompletion({ force: true })
   }
 }
 
@@ -706,7 +723,7 @@ async function handleCategoryNicheSave(data: {
 
   if (result.success) {
     toast.success(result.message || 'Profil mis à jour avec succès')
-    await fetchCompletion() // Refresh completion after category/niche save
+    await fetchCompletion({ force: true }) // Refresh completion after category/niche save
   }
 }
 
@@ -756,7 +773,7 @@ async function handleTarifsSave(data: TarifsFormData): Promise<void> {
 
   if (result.success) {
     toast.success(result.message || 'Tarifs mis à jour avec succès')
-    await fetchCompletion() // Refresh completion after tarifs save
+    await fetchCompletion({ force: true }) // Refresh completion after tarifs save
   }
 }
 
@@ -1213,10 +1230,12 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
               <!-- COMPTE -->
               <div v-show="isActiveSection('compte', 'securite')" class="p-6 md:p-7 space-y-4" data-testid="panel-securite">
-                <EmailChangeForm />
-                <div class="border-t border-gray-100 pt-4">
-                  <PasswordChangeForm />
-                </div>
+                <template v-if="securityVisited">
+                  <EmailChangeForm />
+                  <div class="border-t border-gray-100 pt-4">
+                    <PasswordChangeForm />
+                  </div>
+                </template>
               </div>
 
               <div v-show="isActiveSection('compte', 'donnees')" class="p-6 md:p-7" data-testid="panel-donnees">

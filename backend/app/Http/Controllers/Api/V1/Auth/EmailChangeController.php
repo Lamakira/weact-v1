@@ -11,6 +11,7 @@ use App\Notifications\EmailChangeRequestedNotification;
 use App\Notifications\VerifyEmailChangeNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -28,11 +29,31 @@ class EmailChangeController extends Controller
         $user->update(['pending_email' => $newEmail]);
 
         // Send verification to NEW email (not the user's current email)
-        Notification::route('mail', $newEmail)
-            ->notify(new VerifyEmailChangeNotification($newEmail, $user));
+        // After the response, never queued: the signed link must not be written to `jobs`.
+        // A mail failure is logged there; it must neither reach terminate() nor change the response.
+        dispatch(function () use ($user, $newEmail): void {
+            try {
+                Notification::route('mail', $newEmail)
+                    ->notify(new VerifyEmailChangeNotification($newEmail, $user));
+            } catch (\Throwable $e) {
+                Log::warning('auth.email_change_verification_failed', [
+                    'user_id' => $user->id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        })->afterResponse();
 
-        // Send informational notification to old email
-        $user->notify(new EmailChangeRequestedNotification($newEmail));
+        // Informational notice to the old address (no token, no link): same pattern.
+        dispatch(function () use ($user, $newEmail): void {
+            try {
+                $user->notify(new EmailChangeRequestedNotification($newEmail));
+            } catch (\Throwable $e) {
+                Log::warning('auth.email_change_notice_failed', [
+                    'user_id' => $user->id,
+                    'message' => $e->getMessage(),
+                ]);
+            }
+        })->afterResponse();
 
         return response()->json([
             'data' => ['pending_email' => $newEmail],
@@ -46,15 +67,18 @@ class EmailChangeController extends Controller
      */
     public function confirmChange(Request $request, int $id, string $hash): JsonResponse
     {
+        // Signature FIRST, then user lookup + hash: unknown user, wrong hash,
+        // forged or expired signature all yield ONE generic error (no oracle on
+        // user ids / pending emails). Past this gate the caller holds a link we
+        // signed, so the state-specific answers below leak nothing.
+        if (! $request->hasValidSignature()) {
+            return $this->invalidLinkResponse();
+        }
+
         $user = User::find($id);
 
         if (! $user) {
-            return response()->json([
-                'error' => [
-                    'code' => 'USER_NOT_FOUND',
-                    'message' => 'Utilisateur non trouvé.',
-                ],
-            ], Response::HTTP_NOT_FOUND);
+            return $this->invalidLinkResponse();
         }
 
         if (! $user->pending_email) {
@@ -66,24 +90,8 @@ class EmailChangeController extends Controller
             ], Response::HTTP_BAD_REQUEST);
         }
 
-        // Verify the hash matches the pending email
         if (! hash_equals(sha1($user->pending_email), $hash)) {
-            return response()->json([
-                'error' => [
-                    'code' => 'INVALID_CONFIRMATION_LINK',
-                    'message' => 'Lien de confirmation invalide.',
-                ],
-            ], Response::HTTP_FORBIDDEN);
-        }
-
-        // Check if the link has expired (signature validation)
-        if (! $request->hasValidSignature()) {
-            return response()->json([
-                'error' => [
-                    'code' => 'CONFIRMATION_LINK_EXPIRED',
-                    'message' => 'Le lien de confirmation a expiré. Veuillez faire une nouvelle demande.',
-                ],
-            ], Response::HTTP_FORBIDDEN);
+            return $this->invalidLinkResponse();
         }
 
         // Check if the new email is still available
@@ -111,6 +119,16 @@ class EmailChangeController extends Controller
             'meta' => [],
             'message' => 'Votre adresse email a été mise à jour avec succès.',
         ]);
+    }
+
+    private function invalidLinkResponse(): JsonResponse
+    {
+        return response()->json([
+            'error' => [
+                'code' => 'INVALID_CONFIRMATION_LINK',
+                'message' => 'Lien de confirmation invalide ou expiré. Veuillez refaire une demande de changement d\'email.',
+            ],
+        ], Response::HTTP_FORBIDDEN);
     }
 
     /**

@@ -23,7 +23,7 @@ class FaceController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Face::with(['user', 'activeSubscription'])->orderBy('created_at', 'desc');
+        $query = Face::with(['user', 'activeSubscription'])->withRatingAggregates()->withActingVideoFlag()->orderBy('created_at', 'desc');
 
         // Search by nom, prenom, username, or user email
         if ($request->filled('search') && is_string($request->query('search'))) {
@@ -110,6 +110,7 @@ class FaceController extends Controller
         // Revoke all tokens when deactivating
         if (! $newStatus) {
             $user->tokens()->delete();
+            $user->pushSubscriptions()->delete();
         }
 
         return response()->json([
@@ -164,6 +165,7 @@ class FaceController extends Controller
 
             // Delete associated user first
             $face->user?->tokens()->delete();
+            $face->user?->pushSubscriptions()->delete();
             $face->user?->delete();
             $face->delete();
         });

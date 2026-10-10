@@ -128,9 +128,16 @@ const router = createRouter({
       path: '/pricing',
       name: 'pricing',
       component: () => import('../views/PricingView.vue'),
-      // ownSubscriptionSurface: the page runs its own useSubscriptionPayment
-      // polling/controls — the shared payment banners must not mount here.
+      // ownSubscriptionSurface: the page carries its own resume/cancel controls
+      // (same-tab checkout, no polling) — the shared payment banners must not mount here.
       meta: { title: 'Tarifs - WEACT', ownSubscriptionSurface: true },
+    },
+    // Neutral FedaPay browser-return landing (backend fallback when no payment matched).
+    {
+      path: '/paiement/retour',
+      name: 'payment-return',
+      component: () => import('../views/PaymentReturnView.vue'),
+      meta: { title: 'Retour de paiement - WEACT', requiresAuth: true },
     },
     // Auth routes (guest only)
     {
@@ -161,6 +168,22 @@ const router = createRouter({
       path: '/reset-password/:token',
       name: 'reset-password',
       component: () => import('../pages/auth/ResetPasswordPage.vue'),
+      meta: { guest: true },
+    },
+    {
+      // Landing point of the Google round-trip. Deliberately NOT meta.guest: the
+      // backend bounces here with a one-shot code, and a guest guard would send an
+      // already-authenticated user to their dashboard before the code is spent.
+      path: '/auth/google/callback',
+      name: 'google-callback',
+      component: () => import('../pages/auth/GoogleCallbackPage.vue'),
+    },
+    {
+      // Finalisation of a Google account that does not exist yet. meta.guest is
+      // safe: no token has been stored at that point, so the guest guard is inert.
+      path: '/auth/finaliser',
+      name: 'google-complete-registration',
+      component: () => import('../pages/auth/GoogleCompleteRegistrationPage.vue'),
       meta: { guest: true },
     },
     {
@@ -241,7 +264,7 @@ const router = createRouter({
         {
           path: 'conversations/:conversationId',
           name: 'face-conversation',
-          component: () => import('../features/messaging/components/ConversationView.vue'),
+          component: () => import('../pages/face/messaging/FaceConversationsPage.vue'),
         },
         {
           path: 'bookings',
@@ -367,7 +390,7 @@ const router = createRouter({
         {
           path: 'conversations/:conversationId',
           name: 'producer-conversation',
-          component: () => import('../features/messaging/components/ProducerConversationView.vue'),
+          component: () => import('../pages/producer/messaging/ProducerConversationsPage.vue'),
         },
         {
           path: 'wallet',
@@ -524,6 +547,12 @@ const router = createRouter({
           meta: { title: 'Litiges présence - WEACT' },
         },
         {
+          path: 'booking-disputes',
+          name: 'admin-booking-disputes',
+          component: () => import('../pages/admin/AdminBookingDisputesPage.vue'),
+          meta: { title: 'Litiges réservations - WEACT' },
+        },
+        {
           path: 'ugc/suspensions',
           name: 'admin-ugc-suspensions',
           component: () => import('../pages/admin/AdminUgcSuspensionsPage.vue'),
@@ -553,7 +582,21 @@ const router = createRouter({
           component: () => import('../pages/admin/AdminArticleEditPage.vue'),
           meta: { title: 'Modifier un article - WEACT' },
         },
+        {
+          path: 'security',
+          name: 'admin-security',
+          component: () => import('../pages/admin/AdminSecurityPage.vue'),
+          meta: { title: 'Sécurité du compte - WEACT' },
+        },
       ],
+    },
+    // Mandatory TOTP enrolment (admin auth required, outside AdminLayout: shown
+    // while the admin has no confirmed 2FA and every other admin route is 403)
+    {
+      path: '/admin/two-factor/setup',
+      name: 'admin-two-factor-setup',
+      component: () => import('../pages/admin/AdminTwoFactorSetupPage.vue'),
+      meta: { requiresAdminAuth: true, title: 'Double authentification - WEACT' },
     },
     // Public routes (no auth required)
     {
@@ -660,6 +703,8 @@ router.beforeEach((to, _from, next) => {
         'admin-articles-list',
         'admin-articles-create',
         'admin-articles-edit',
+        'admin-security',
+        'admin-two-factor-setup',
       ]
       if (!allowedEditorRoutes.includes(to.name as string)) {
         return next({ name: 'admin-articles-list' })

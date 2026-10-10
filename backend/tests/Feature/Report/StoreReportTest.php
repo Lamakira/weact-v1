@@ -21,7 +21,7 @@ class StoreReportTest extends TestCase
 
         $payload = [
             'reportable_type' => 'mission',
-            'reportable_id' => $mission->id,
+            'reportable_id' => $mission->uuid,
             'reason' => 'autre',
         ];
 
@@ -61,7 +61,7 @@ class StoreReportTest extends TestCase
 
         $payload = [
             'reportable_type' => 'mission',
-            'reportable_id' => $mission->id,
+            'reportable_id' => $mission->uuid,
             'reason' => 'autre',
         ];
 

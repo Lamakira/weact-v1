@@ -25,7 +25,7 @@ class ProducerController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $query = Producer::with('user')->withCount('missions')->orderBy('created_at', 'desc');
+        $query = Producer::with('user')->withCount('missions')->withRatingAggregates()->orderBy('created_at', 'desc');
 
         // Search by first_name, last_name, agency_name, or user email
         if ($request->filled('search') && is_string($request->query('search'))) {
@@ -108,6 +108,7 @@ class ProducerController extends Controller
         // Revoke all tokens when deactivating
         if (! $newStatus) {
             $user->tokens()->delete();
+            $user->pushSubscriptions()->delete();
         }
 
         return response()->json([
@@ -182,6 +183,7 @@ class ProducerController extends Controller
 
             if ($user !== null) {
                 $user->tokens()->delete();
+                $user->pushSubscriptions()->delete();
                 $user->delete();
             }
 

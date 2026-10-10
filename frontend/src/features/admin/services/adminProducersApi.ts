@@ -19,6 +19,9 @@ export interface AdminProducerData {
   last_name: string | null
   display_name: string
   bio: string | null
+  /** Admin-only (never exposed to Faces or the public). */
+  whatsapp_number?: string | null
+  has_whatsapp?: boolean
   profile_photo_url: string | null
   thumbnail_url: string | null
   agency_logo_url: string | null

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { User } from '@/features/auth/types'
+import { clearAuthScopedSessionStorage } from '@/lib/authScopedSessionStorage'
 import { resetAllSharedCachedResources } from '@/lib/createSharedCachedResource'
 import apiClient, { getAuthToken, setAuthToken, removeAuthToken } from '@/services/apiClient'
 
@@ -51,6 +52,11 @@ export const useAuthStore = defineStore('auth', () => {
   const isProducer = computed(() => userType.value === 'Producer')
   const isEmailVerified = computed(() => user.value?.email_verified ?? false)
   const emailVerifiedAt = computed(() => user.value?.email_verified_at ?? null)
+  // Defaults to TRUE on purpose. `auth_user` is restored from localStorage and only
+  // re-fetched by refreshUser(), so every session already open on deploy day
+  // hydrates a User with no `has_password` key. Defaulting to false there would
+  // hide the password form from users who do have a password.
+  const hasPassword = computed(() => user.value?.has_password ?? true)
 
   // Actions
   function setUser(newUser: User) {
@@ -63,6 +69,9 @@ export const useAuthStore = defineStore('auth', () => {
     const previousId = user.value?.id
     if (previousId != null && previousId !== newUser.id) {
       resetAllSharedCachedResources()
+      // Same for per-account session state (Google re-auth ticket, pending
+      // registration…): a ticket minted for account A must never reach B.
+      clearAuthScopedSessionStorage()
     }
     user.value = newUser
     setStoredUser(newUser)
@@ -88,6 +97,14 @@ export const useAuthStore = defineStore('auth', () => {
     // account's data — e.g. the site-wide payment banner would show (and try
     // to reconcile) someone else's pending payment.
     resetAllSharedCachedResources()
+    // Per-account sessionStorage state (`weact.auth.*`) dies with the session.
+    clearAuthScopedSessionStorage()
+    // Sessions that collapse without useAuth.logout (401 anywhere, account deletion)
+    // must not leave this browser subscribed to the previous account's web push.
+    // Best effort, async, never blocking nor throwing (browser-side only: the token is gone).
+    void import('@/features/notification/push/webPush')
+      .then((m) => m.unsubscribeBrowserOnly())
+      .catch(() => undefined)
   }
 
   /**
@@ -124,6 +141,7 @@ export const useAuthStore = defineStore('auth', () => {
     isProducer,
     isEmailVerified,
     emailVerifiedAt,
+    hasPassword,
     // Actions
     setUser,
     setToken,

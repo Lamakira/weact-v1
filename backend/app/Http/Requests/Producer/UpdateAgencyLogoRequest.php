@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Producer;
 
 use App\Models\Producer;
+use App\Support\UploadedMedia;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UpdateAgencyLogoRequest extends FormRequest
@@ -32,7 +33,7 @@ class UpdateAgencyLogoRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'logo' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:2048'],
+            'logo' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:2048', UploadedMedia::maxDimensions()],
         ];
     }
 
