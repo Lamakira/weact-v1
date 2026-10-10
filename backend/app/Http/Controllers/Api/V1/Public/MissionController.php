@@ -72,11 +72,13 @@ class MissionController extends Controller
      *
      * No authentication required - this is a PUBLIC endpoint.
      * Only returns missions with status = published.
-     * Non-published missions (draft/closed/completed) return 404.
+     * Non-published missions (draft/closed/completed) return 404, as do expired
+     * ones (candidature deadline or shooting date passed, business timezone).
      */
     public function show(string $slug): JsonResponse
     {
         $mission = $this->publishedWithProducer()
+            ->notExpired()
             ->where('slug', $slug)
             ->first();
 

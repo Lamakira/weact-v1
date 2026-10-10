@@ -1796,7 +1796,7 @@ class MissionPaymentService
             && ! $lockedMission->hasCashEscrow()
             && $lockedMission->engagedCandidaturesCount() < $lockedMission->nombre_faces_voulu
             && $lockedMission->date_limite_candidature !== null
-            && $lockedMission->date_limite_candidature->toDateString() >= now()->toDateString()) {
+            && $lockedMission->date_limite_candidature->toDateString() >= Mission::businessToday()) {
             $lockedMission->update(['status' => MissionStatus::Published]);
         }
     }

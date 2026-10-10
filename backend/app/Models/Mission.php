@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 /**
@@ -280,13 +281,14 @@ class Mission extends Model
      * whose candidature deadline is passed OR whose shooting date is passed.
      *
      * The candidature-deadline part mirrors isAcceptingCandidatures() (>= today,
-     * so a mission closing today is still listed) ; the shooting-date part hides
+     * so a mission closing today is still listed ; « today » = date métier, fuseau
+     * `app.business_timezone`, pas UTC) ; the shooting-date part hides
      * missions whose shoot has already happened. `date_tournage` is nullable
      * (UGC dotations have none) — a null shooting date never expires here.
      */
     public function scopeNotExpired(Builder $query): Builder
     {
-        $today = now()->toDateString();
+        $today = self::businessToday();
 
         return $query
             ->whereDate('date_limite_candidature', '>=', $today)
@@ -305,12 +307,22 @@ class Mission extends Model
     }
 
     /**
-     * Scope a query to only include missions accepting candidatures.
+     * Scope a query to only include missions accepting candidatures
+     * (deadline inclusive, jour calculé dans le fuseau métier `app.business_timezone`).
      */
     public function scopeAcceptingCandidatures(Builder $query): Builder
     {
         return $query->where('status', MissionStatus::Published)
-            ->where('date_limite_candidature', '>=', now()->toDateString());
+            ->where('date_limite_candidature', '>=', self::businessToday());
+    }
+
+    /**
+     * Date du jour (Y-m-d) dans le fuseau métier (Bénin), pas en UTC : la date
+     * limite est un jour calendaire béninois.
+     */
+    public static function businessToday(): string
+    {
+        return Carbon::now((string) config('app.business_timezone'))->toDateString();
     }
 
     /**
@@ -326,12 +338,14 @@ class Mission extends Model
     }
 
     /**
-     * Check if the mission is currently accepting candidatures.
+     * Check if the mission is currently accepting candidatures
+     * (deadline inclusive, jour calculé dans le fuseau métier `app.business_timezone`).
      */
     public function isAcceptingCandidatures(): bool
     {
         return $this->status === MissionStatus::Published
-            && $this->date_limite_candidature >= now()->toDateString();
+            && $this->date_limite_candidature !== null
+            && $this->date_limite_candidature->toDateString() >= self::businessToday();
     }
 
     /**
