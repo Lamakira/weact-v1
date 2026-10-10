@@ -251,6 +251,9 @@ class UserDataController extends Controller
 
             // Revoke all tokens
             $user->tokens()->delete();
+
+            // A deleted account must stop receiving web push on its devices.
+            $user->pushSubscriptions()->delete();
         });
 
         $cleanupFailures = [];
