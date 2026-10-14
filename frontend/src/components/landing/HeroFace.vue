@@ -5,6 +5,12 @@ import { ArrowRight } from 'lucide-vue-next'
 import heroLandscape from '@/assets/images/hero-section/full-shot-woman-posing-chair.webp'
 import LargeScreenImage from '@/components/auth/LargeScreenImage.vue'
 import heroPortrait from '@/assets/images/hero-section/photo-1.webp'
+import heroPortrait960 from '@/assets/images/hero-section/photo-1-960.webp'
+import heroPortrait1242 from '@/assets/images/hero-section/photo-1-1242.webp'
+
+// Photo portrait affichée en object-cover : sur téléphone (DPR 2 à 3), la boîte de
+// 320 px demande 640 à 960 px de large ; une seule version 640 px y était agrandie (floue).
+const heroPortraitSrcset = `${heroPortrait} 640w, ${heroPortrait960} 960w, ${heroPortrait1242} 1242w`
 
 // --- Hero Text Cycling Animation ---
 const words = ['film', 'série télévisée', 'vidéo publicitaire', 'clip musical']
@@ -27,7 +33,7 @@ onUnmounted(() => {
 
 <template>
   <section class="relative min-h-[calc(100vh-120px)] flex items-start overflow-hidden bg-gray-50/70 pt-4 sm:pt-[5vh] lg:pt-[10vh]">
-    <div class="max-w-7xl mx-auto w-full">
+    <div class="max-w-7xl mx-auto w-full md:px-4">
       <div class="grid md:grid-cols-2 lg:grid-cols-[1fr_1fr] gap-4 md:gap-8 lg:gap-10 items-center">
         <!-- Left: Text Content -->
         <div class="text-center md:text-left px-4 sm:px-6 md:px-0">
@@ -74,6 +80,8 @@ onUnmounted(() => {
           <div class="lg:hidden flex justify-center px-4 sm:px-6 md:px-0 mt-4 md:mt-0">
             <img
               :src="heroPortrait"
+              :srcset="heroPortraitSrcset"
+              sizes="(min-width: 768px) 50vw, 320px"
               alt="Femme souriante en studio"
               width="640"
               height="1046"
@@ -83,19 +91,24 @@ onUnmounted(() => {
               decoding="async"
             />
           </div>
-          <!-- Desktop: Both images -->
-          <div class="hidden lg:grid grid-cols-[1fr_auto] gap-4 items-center">
-            <LargeScreenImage
-              :src="heroLandscape"
-              alt="Femme posant sur une chaise"
-              class="w-full rounded-2xl object-cover"
-            />
+          <!-- Desktop « Scène » : la silhouette détourée passe devant la photo studio et sort du cadre -->
+          <div class="hidden lg:block relative h-[28rem] xl:h-[34rem]">
+            <div class="absolute right-0 top-[12%] h-[70%] w-[78%] overflow-hidden rounded-3xl">
+              <LargeScreenImage
+                :src="heroLandscape"
+                alt="Femme posant sur une chaise"
+                class="h-full w-full object-cover object-[60%_50%]"
+              />
+            </div>
+            <!-- Hauteur 28/34rem, ratio 640/1046 : ~274 à 333 px de large à l'écran. -->
             <img
               :src="heroPortrait"
+              :srcset="heroPortraitSrcset"
+              sizes="(min-width: 1280px) 333px, 274px"
               alt="Femme souriante en studio"
               width="640"
               height="1046"
-              class="w-52 h-[32rem] object-cover object-top rounded-2xl"
+              class="absolute bottom-0 left-0 h-full w-auto drop-shadow-[0_18px_24px_rgba(10,10,10,0.18)]"
               loading="eager"
               decoding="async"
             />

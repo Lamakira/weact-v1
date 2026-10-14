@@ -4,6 +4,11 @@
  * En dessous, le navigateur retient le pixel transparent de repli : l'illustration
  * (plusieurs centaines de Ko) n'est jamais téléchargée sur mobile, contrairement
  * à une <img> simplement masquée par `display: none`.
+ *
+ * `<picture class="contents">` fait de ses enfants les éléments du parent : sans
+ * `hidden`, la `<source>` occuperait une cellule quand le parent est une grille
+ * (hero de l'accueil : la 2ᵉ photo passait sur une ligne invisible). Masquer la
+ * source n'influe pas sur le choix de l'image par le navigateur.
  */
 defineOptions({ inheritAttrs: false })
 
@@ -18,7 +23,7 @@ const TRANSPARENT_PIXEL
 
 <template>
   <picture class="contents">
-    <source media="(min-width: 1024px)" :srcset="src" />
+    <source class="hidden" media="(min-width: 1024px)" :srcset="src" />
     <img
       :src="TRANSPARENT_PIXEL"
       :alt="alt"
