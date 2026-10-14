@@ -33,7 +33,7 @@ onUnmounted(() => {
 
 <template>
   <section class="relative min-h-[calc(100vh-120px)] flex items-start overflow-hidden bg-gray-50/70 pt-4 sm:pt-[5vh] lg:pt-[10vh]">
-    <div class="max-w-7xl mx-auto w-full">
+    <div class="max-w-7xl mx-auto w-full md:px-4">
       <div class="grid md:grid-cols-2 lg:grid-cols-[1fr_1fr] gap-4 md:gap-8 lg:gap-10 items-center">
         <!-- Left: Text Content -->
         <div class="text-center md:text-left px-4 sm:px-6 md:px-0">
@@ -91,22 +91,24 @@ onUnmounted(() => {
               decoding="async"
             />
           </div>
-          <!-- Desktop: Both images -->
-          <div class="hidden lg:grid grid-cols-[1fr_auto] gap-4 items-center">
-            <LargeScreenImage
-              :src="heroLandscape"
-              alt="Femme posant sur une chaise"
-              class="w-full rounded-2xl object-cover"
-            />
-            <!-- Boîte 208 × 512 px en object-cover : l'image s'affiche sur ~314 px de large. -->
+          <!-- Desktop « Scène » : la silhouette détourée passe devant la photo studio et sort du cadre -->
+          <div class="hidden lg:block relative h-[28rem] xl:h-[34rem]">
+            <div class="absolute right-0 top-[12%] h-[70%] w-[78%] overflow-hidden rounded-3xl">
+              <LargeScreenImage
+                :src="heroLandscape"
+                alt="Femme posant sur une chaise"
+                class="h-full w-full object-cover object-[60%_50%]"
+              />
+            </div>
+            <!-- Hauteur 28/34rem, ratio 640/1046 : ~274 à 333 px de large à l'écran. -->
             <img
               :src="heroPortrait"
               :srcset="heroPortraitSrcset"
-              sizes="314px"
+              sizes="(min-width: 1280px) 333px, 274px"
               alt="Femme souriante en studio"
               width="640"
               height="1046"
-              class="w-52 h-[32rem] object-cover object-top rounded-2xl"
+              class="absolute bottom-0 left-0 h-full w-auto drop-shadow-[0_18px_24px_rgba(10,10,10,0.18)]"
               loading="eager"
               decoding="async"
             />
