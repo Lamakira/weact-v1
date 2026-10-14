@@ -15,4 +15,21 @@ describe('HeroFace - image LCP', () => {
     expect(img.attributes('height')).toBe('1046')
     expect(img.attributes('loading')).toBe('eager')
   })
+
+  it('propose des versions 960 et 1242 px pour les écrans haute densité', () => {
+    const wrapper = mount(HeroFace, {
+      global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
+    })
+
+    const portraits = wrapper.findAll('[data-testid="hero-images"] img[alt="Femme souriante en studio"]')
+    expect(portraits).toHaveLength(2)
+
+    for (const img of portraits) {
+      const srcset = img.attributes('srcset') ?? ''
+      expect(srcset).toContain('640w')
+      expect(srcset).toContain('960w')
+      expect(srcset).toContain('1242w')
+      expect(img.attributes('sizes')).toBeTruthy()
+    }
+  })
 })
