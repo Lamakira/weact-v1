@@ -20,4 +20,13 @@ describe('LargeScreenImage', () => {
     expect(img.classes()).toContain('object-cover')
     expect(wrapper.find('picture').classes()).not.toContain('object-cover')
   })
+
+  it('masque la source : avec `display: contents`, elle prendrait une cellule d\'une grille parente', () => {
+    const wrapper = mount(LargeScreenImage, {
+      props: { src: '/img/illustration.webp', alt: 'Illustration' },
+    })
+
+    expect(wrapper.find('picture').classes()).toContain('contents')
+    expect(wrapper.find('picture > source').classes()).toContain('hidden')
+  })
 })
