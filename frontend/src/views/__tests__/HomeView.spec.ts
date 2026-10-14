@@ -281,6 +281,14 @@ describe('HomeView', () => {
       expect(card1.text()).toContain('Cotonou')
     })
 
+    it('les cartes occupent toute la zone de contenu du carrousel (centrage, même avec une seule mission)', () => {
+      // Une largeur en % (ex. w-[65%]) se calcule sur la zone déjà réduite par le padding
+      // du carrousel : la carte se retrouvait décalée à gauche.
+      const card1 = wrapper.find('[data-testid="mission-card-1"]')
+      expect(card1.classes()).toContain('w-full')
+      expect(card1.classes().some((c) => /^(md:)?w-\[\d+%\]$/.test(c))).toBe(false)
+    })
+
     it('mission cards are links to mission detail', () => {
       const card1 = wrapper.find('[data-testid="mission-card-1"]')
       expect(card1.attributes('href')).toBe('/missions/film-casting')

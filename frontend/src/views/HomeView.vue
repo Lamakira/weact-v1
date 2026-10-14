@@ -112,12 +112,18 @@ watch(missions, (list) => {
 
 function handleMissionScroll(): void {
   if (!missionCarouselRef.value) return
-  const scrollLeft = missionCarouselRef.value.scrollLeft
-  const firstCard = missionCarouselRef.value.querySelector('[data-mission-card]') as HTMLElement | null
-  if (!firstCard) return
-  const cardWidth = firstCard.offsetWidth + 16 // card width + gap
-  const newIndex = Math.round(scrollLeft / cardWidth)
-  missionCarouselIndex.value = Math.min(Math.max(newIndex, 0), missions.value.length - 1)
+  // Carte active = celle dont le centre est le plus proche du centre du carrousel
+  const container = missionCarouselRef.value
+  const center = container.scrollLeft + container.offsetWidth / 2
+  const cards = Array.from(container.querySelectorAll<HTMLElement>('[data-mission-card]'))
+  if (cards.length === 0) return
+  let nearest = 0
+  cards.forEach((card, index) => {
+    const distance = Math.abs(card.offsetLeft + card.offsetWidth / 2 - center)
+    const best = Math.abs(cards[nearest]!.offsetLeft + cards[nearest]!.offsetWidth / 2 - center)
+    if (distance < best) nearest = index
+  })
+  missionCarouselIndex.value = nearest
 }
 
 function formatBudget(budget: number): string {
@@ -517,7 +523,7 @@ function formatDate(date: string): string {
                 :key="mission.id"
                 :to="{ name: 'public-mission-detail', params: { slug: mission.slug } }"
                 data-mission-card
-                class="group flex-shrink-0 w-[80%] md:w-[65%] snap-center bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-[#198496]/30 hover:shadow-lg transition-all duration-300"
+                class="group flex-shrink-0 w-full snap-center bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-[#198496]/30 hover:shadow-lg transition-all duration-300"
                 :data-testid="`mission-card-${mission.id}`"
               >
               <div class="flex flex-col md:flex-row">
@@ -787,6 +793,9 @@ function formatDate(date: string): string {
 }
 
 /* Carousel horizontal padding so first/last card can be centered */
+/* Carte = largeur de la zone de contenu (w-full) et marges égales de chaque côté :
+   la carte active est centrée quel que soit le nombre de missions, même une seule.
+   (Avant : w-[65%] se calculait sur la zone déjà réduite par le padding, carte décalée à gauche.) */
 .mission-carousel-padding {
   padding-left: 10%;
   padding-right: 10%;
@@ -796,6 +805,13 @@ function formatDate(date: string): string {
   .mission-carousel-padding {
     padding-left: 17.5%;
     padding-right: 17.5%;
+  }
+}
+
+@media (min-width: 1024px) {
+  .mission-carousel-padding {
+    padding-left: 25%;
+    padding-right: 25%;
   }
 }
 
