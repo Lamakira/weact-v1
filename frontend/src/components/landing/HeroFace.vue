@@ -5,6 +5,12 @@ import { ArrowRight } from 'lucide-vue-next'
 import heroLandscape from '@/assets/images/hero-section/full-shot-woman-posing-chair.webp'
 import LargeScreenImage from '@/components/auth/LargeScreenImage.vue'
 import heroPortrait from '@/assets/images/hero-section/photo-1.webp'
+import heroPortrait960 from '@/assets/images/hero-section/photo-1-960.webp'
+import heroPortrait1242 from '@/assets/images/hero-section/photo-1-1242.webp'
+
+// Photo portrait affichée en object-cover : sur téléphone (DPR 2 à 3), la boîte de
+// 320 px demande 640 à 960 px de large ; une seule version 640 px y était agrandie (floue).
+const heroPortraitSrcset = `${heroPortrait} 640w, ${heroPortrait960} 960w, ${heroPortrait1242} 1242w`
 
 // --- Hero Text Cycling Animation ---
 const words = ['film', 'série télévisée', 'vidéo publicitaire', 'clip musical']
@@ -74,6 +80,8 @@ onUnmounted(() => {
           <div class="lg:hidden flex justify-center px-4 sm:px-6 md:px-0 mt-4 md:mt-0">
             <img
               :src="heroPortrait"
+              :srcset="heroPortraitSrcset"
+              sizes="(min-width: 768px) 50vw, 320px"
               alt="Femme souriante en studio"
               width="640"
               height="1046"
@@ -90,8 +98,11 @@ onUnmounted(() => {
               alt="Femme posant sur une chaise"
               class="w-full rounded-2xl object-cover"
             />
+            <!-- Boîte 208 × 512 px en object-cover : l'image s'affiche sur ~314 px de large. -->
             <img
               :src="heroPortrait"
+              :srcset="heroPortraitSrcset"
+              sizes="314px"
               alt="Femme souriante en studio"
               width="640"
               height="1046"
