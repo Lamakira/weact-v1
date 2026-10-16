@@ -13,6 +13,7 @@ use App\Http\Middleware\EnsureUserIsFace;
 use App\Http\Middleware\EnsureUserIsFaceOrProducer;
 use App\Http\Middleware\EnsureUserIsProducer;
 use App\Http\Middleware\SetLocale;
+use App\Http\Middleware\ThrottleRequestsWithBypass;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
@@ -72,6 +73,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'face_or_producer' => EnsureUserIsFaceOrProducer::class,
             'producer' => EnsureUserIsProducer::class,
             'verified' => EnsureEmailIsVerified::class,
+            // `throttle` + exemption d'IP de test de charge (THROTTLE_BYPASS_IPS, vide par défaut)
+            'throttle' => ThrottleRequestsWithBypass::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
