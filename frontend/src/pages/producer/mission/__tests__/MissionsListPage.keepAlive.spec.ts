@@ -66,6 +66,7 @@ const ugcPendingMission: Mission = {
   status_label: 'En attente de paiement',
   is_accepting_candidatures: false,
   has_paid_payment: false,
+  type_mission: 'ugc',
   commission_ugc: 2500,
 }
 

@@ -651,7 +651,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       wrapper.unmount()
     })
 
-    it('a live trackable payment never offers the resume button', async () => {
+    it('a live trackable payment offers « Reprendre le paiement » right away and keeps the confirmation wording', async () => {
       vi.mocked(missionApi.getMission).mockResolvedValue({ data: makePendingPaymentMission(), message: 'ok' })
       vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
         data: { has_payment: true, is_trackable: true, status: 'pending', mission_status: 'pending_payment' },
@@ -659,7 +659,52 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       const wrapper = mount(ProducerMissionCandidaturesPage)
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="mission-payment-resume-btn"]').exists()).toBe(false)
+      expect(wrapper.get('[data-testid="mission-payment-resume-btn"]').text()).toBe('Reprendre le paiement')
+      expect(wrapper.get('[data-testid="mission-payment-pending-banner"]').text()).toContain('Paiement en attente de confirmation...')
+      expect(startPollingSpy).toHaveBeenCalled()
+      wrapper.unmount()
+    })
+
+    it('trackable pending: after one minute the banner invites to resume, polling is kept', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.mocked(missionApi.getMission).mockResolvedValue({ data: makePendingPaymentMission(), message: 'ok' })
+        vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+          data: { has_payment: true, is_trackable: true, status: 'pending', mission_status: 'pending_payment' },
+        })
+        const wrapper = mount(ProducerMissionCandidaturesPage)
+        await flushPromises()
+        await vi.advanceTimersByTimeAsync(59000)
+        expect(wrapper.get('[data-testid="mission-payment-pending-banner"]').text()).toContain('en attente de confirmation')
+
+        await vi.advanceTimersByTimeAsync(2000)
+        expect(wrapper.get('[data-testid="mission-payment-pending-banner"]').text()).toContain(
+          'Paiement non finalisé ? Reprenez-le ci-dessous.',
+        )
+        expect(stopPollingSpy).not.toHaveBeenCalled()
+        wrapper.unmount()
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
+    it('« Reprendre le paiement » posts NO candidature ids and redirects to the regenerated checkout', async () => {
+      vi.mocked(missionApi.getMission).mockResolvedValue({ data: makePendingPaymentMission(), message: 'ok' })
+      vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+        data: { has_payment: true, is_trackable: true, status: 'pending', mission_status: 'pending_payment' },
+      })
+      vi.mocked(missionApi.confirmSelection).mockResolvedValue({
+        data: { checkout_url: 'https://checkout.fedapay.test/regenerated' },
+        message: 'ok',
+      } as never)
+      const wrapper = mount(ProducerMissionCandidaturesPage)
+      await flushPromises()
+
+      await wrapper.get('[data-testid="mission-payment-resume-btn"]').trigger('click')
+      await flushPromises()
+
+      expect(missionApi.confirmSelection).toHaveBeenCalledWith('mission-uuid-under-test', [])
+      expect(redirectSpy).toHaveBeenCalledWith('https://checkout.fedapay.test/regenerated')
       wrapper.unmount()
     })
   })

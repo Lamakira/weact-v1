@@ -38,9 +38,37 @@ const isResumingPayment = ref(false)
 const paymentResumable = computed(
   () => paymentInitializationFailed.value && resumablePaymentRow.value,
 )
+// Checkout opened but not finished (abandoned tab, closed popup): the FedaPay transaction stays
+// `pending` forever. While it is trackable we keep polling (a payment completed in another tab
+// still flips the page) AND offer « Reprendre le paiement » (the server regenerates the checkout
+// of the SAME transaction → no double charge). After PENDING_STALL_MS without confirmation the
+// banner stops promising an imminent confirmation and points to the button instead.
+const PENDING_STALL_MS = 60_000
+const trackablePending = ref(false)
+const pendingStalled = ref(false)
+let pendingStallTimer: ReturnType<typeof setTimeout> | null = null
 const paymentStatusUnavailable = ref(false)
 let isPageActive = true
 let paymentStateRequestId = 0
+
+function clearTrackablePending(): void {
+  trackablePending.value = false
+  pendingStalled.value = false
+  if (pendingStallTimer !== null) {
+    clearTimeout(pendingStallTimer)
+    pendingStallTimer = null
+  }
+}
+
+function markTrackablePending(): void {
+  trackablePending.value = true
+  if (pendingStallTimer === null && !pendingStalled.value) {
+    pendingStallTimer = setTimeout(() => {
+      pendingStallTimer = null
+      pendingStalled.value = true
+    }, PENDING_STALL_MS)
+  }
+}
 
 /**
  * Computed: Mission ID from route params
@@ -115,6 +143,7 @@ async function evaluatePendingPaymentState(): Promise<void> {
     if (data.status === 'paid') {
       paymentSuccessBanner.value = true
       paymentInitializationFailed.value = false
+      clearTrackablePending()
       stopPolling()
 
       if (mission.value.status === 'pending_payment' || data.mission_status !== mission.value.status) {
@@ -126,6 +155,7 @@ async function evaluatePendingPaymentState(): Promise<void> {
 
     if (data.mission_status !== mission.value.status) {
       paymentInitializationFailed.value = false
+      clearTrackablePending()
       stopPolling()
       await fetchMission()
       return
@@ -136,6 +166,7 @@ async function evaluatePendingPaymentState(): Promise<void> {
     if (data.is_trackable) {
       paymentInitializationFailed.value = false
       paymentStatusUnavailable.value = false
+      markTrackablePending()
       startPolling(missionId.value, async () => {
         if (!isPageActive) return
         paymentSuccessBanner.value = true
@@ -152,6 +183,7 @@ async function evaluatePendingPaymentState(): Promise<void> {
       resumablePaymentRow.value =
         data.has_payment === true && data.status === 'pending' && data.mission_status === 'pending_payment'
       paymentStatusUnavailable.value = false
+      clearTrackablePending()
       stopPolling()
     }
   } catch (err: unknown) {
@@ -160,6 +192,7 @@ async function evaluatePendingPaymentState(): Promise<void> {
     console.error('Failed to fetch payment status:', err)
     paymentInitializationFailed.value = false
     paymentStatusUnavailable.value = true
+    clearTrackablePending()
     stopPolling()
   }
 }
@@ -190,6 +223,7 @@ async function fetchMission(): Promise<void> {
     } else {
       paymentInitializationFailed.value = false
       paymentStatusUnavailable.value = false
+      clearTrackablePending()
       stopPolling()
     }
   } catch (err: unknown) {
@@ -199,6 +233,7 @@ async function fetchMission(): Promise<void> {
     error.value = 'Impossible de charger les informations de la mission'
     paymentInitializationFailed.value = false
     paymentStatusUnavailable.value = false
+    clearTrackablePending()
     stopPolling()
   } finally {
     if (isPageActive) {
@@ -267,6 +302,7 @@ onMounted(() => {
 onUnmounted(() => {
   isPageActive = false
   paymentStateRequestId += 1
+  clearTrackablePending()
   stopPolling()
 })
 </script>
@@ -377,11 +413,17 @@ onUnmounted(() => {
             class="mt-3 flex items-center gap-2 rounded-lg bg-orange-50 px-4 py-2.5 text-sm text-orange-800 dark:bg-orange-900/20 dark:text-orange-400"
           >
             <Loader2 class="h-4 w-4 shrink-0 animate-spin" />
-            Paiement en attente de confirmation...
+            {{ pendingStalled
+              ? 'Paiement non finalisé ? Reprenez-le ci-dessous.'
+              : 'Paiement en attente de confirmation...' }}
           </div>
-          <!-- Resume the payment with the same selection (shown whichever banner is up). -->
+          <!--
+            Resume the payment with the same selection (shown whichever banner is up):
+            « Relancer » = dead transaction, « Reprendre » = live pending transaction whose
+            checkout the producer abandoned (polling keeps running underneath).
+          -->
           <button
-            v-if="mission.status === 'pending_payment' && paymentResumable"
+            v-if="mission.status === 'pending_payment' && (paymentResumable || (trackablePending && paymentReturn.state.value === 'idle'))"
             type="button"
             data-testid="mission-payment-resume-btn"
             class="mt-3 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-60"
@@ -389,7 +431,7 @@ onUnmounted(() => {
             @click="handleResumePayment"
           >
             <Loader2 v-if="isResumingPayment" class="h-4 w-4 animate-spin" />
-            Relancer le paiement
+            {{ paymentResumable ? 'Relancer le paiement' : 'Reprendre le paiement' }}
           </button>
         </template>
       </div>

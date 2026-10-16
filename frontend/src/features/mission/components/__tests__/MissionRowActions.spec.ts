@@ -47,12 +47,12 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-const ugcPendingPayment = { status: 'pending_payment', commission_ugc: 2500 } as const
+const ugcPendingPayment = { status: 'pending_payment', type_mission: 'ugc', commission_ugc: 2500 } as const
 
 describe('MissionRowActions — action principale', () => {
   it.each([
     ['published', { status: 'published' }, 'Candidatures · 3', 'action-candidatures'],
-    ['closed (non payée)', { status: 'closed' }, 'Terminer', 'action-complete'],
+    ['closed (non payée)', { status: 'closed' }, 'Candidatures · 3', 'action-candidatures'],
     ['pending_payment UGC', ugcPendingPayment, 'Régler la commission', 'pay-commission-button'],
     ['pending_attendance_validation payée', { status: 'pending_attendance_validation', has_paid_payment: true }, 'Valider les présences', 'action-attendance'],
     ['closed payée', { status: 'closed', has_paid_payment: true }, 'Valider les présences', 'action-attendance'],
@@ -73,7 +73,7 @@ describe('MissionRowActions — action principale', () => {
     const pay = mountActions(makeMission(ugcPendingPayment))
     expect(pay.find('[data-primary-action]').classes()).toContain('bg-weact-600')
     pay.unmount()
-    const done = mountActions(makeMission({ status: 'closed' }))
+    const done = mountActions(makeMission({ status: 'closed', can_complete: true }))
     expect(done.find('[data-primary-action]').classes()).not.toContain('bg-weact-600')
   })
 
@@ -91,8 +91,10 @@ describe('MissionRowActions — menu « Plus d’actions »', () => {
   it.each([
     ['published', { status: 'published' }, ['Modifier', 'Clôturer', 'Supprimer']],
     ['draft', { status: 'draft' }, ['Modifier', 'Supprimer']],
-    ['closed (non payée)', { status: 'closed' }, ['Candidatures · 3', 'Réouvrir']],
-    ['closed payée', { status: 'closed', has_paid_payment: true }, ['Candidatures · 3', 'Terminer']],
+    ['closed (non payée)', { status: 'closed' }, ['Réouvrir']],
+    ['closed payée', { status: 'closed', has_paid_payment: true, can_complete: true }, ['Candidatures · 3', 'Terminer']],
+    ['closed payée non terminable', { status: 'closed', has_paid_payment: true, can_complete: false }, ['Candidatures · 3']],
+    ['publiée UGC hybride', { status: 'published', type_mission: 'ugc', commission_ugc: null }, ['Clôturer', 'Supprimer']],
     ['pending_attendance_validation', { status: 'pending_attendance_validation', has_paid_payment: true }, ['Candidatures · 3']],
     ['pending_payment UGC', ugcPendingPayment, ['Candidatures · 3']],
     ['completed', { status: 'completed' }, null],
@@ -155,7 +157,7 @@ describe('MissionRowActions — menu « Plus d’actions »', () => {
     wrapper = null
     document.body.innerHTML = ''
 
-    const paid = mountActions(makeMission({ status: 'closed', has_paid_payment: true }))
+    const paid = mountActions(makeMission({ status: 'closed', has_paid_payment: true, can_complete: true }))
     await openMenu(paid)
     ;(document.body.querySelector('[data-testid="action-complete"]') as HTMLElement).click()
     await flushPromises()

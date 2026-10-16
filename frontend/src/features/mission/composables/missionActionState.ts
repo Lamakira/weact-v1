@@ -14,14 +14,17 @@ export interface MissionActionState {
 /**
  * Which actions a producer can take on a mission (same rules as MissionCard).
  *
- * - A UGC mission always carries a `commission_ugc` (null for standard missions).
+ * - UGC is detected from `type_mission === 'ugc'` (a hybrid UGC mission has no `commission_ugc`).
+ * - « Terminer » is only offered when the server says it would accept it (`can_complete`,
+ *   same rules as CompleteMissionRequest).
  * - UGC missions are never editable (backend `UpdateMissionRequest` rejects type_mission='ugc').
  * - A STANDARD mission also sits in `pending_payment` during its escrow checkout, so the
  *   commission CTA must be guarded on `isUgc` (otherwise it 403s server-side).
  * - Without a verified email only delete stays available.
  */
 export function getMissionActionState(mission: Mission, emailVerified: boolean): MissionActionState {
-  const isUgc = mission.commission_ugc !== null && mission.commission_ugc !== undefined
+  // 'ugc' est hors de l'union TS `MissionTypeType` : comparaison volontairement en string.
+  const isUgc = (mission.type_mission as string) === 'ugc'
 
   return {
     isUgc,
@@ -30,7 +33,7 @@ export function getMissionActionState(mission: Mission, emailVerified: boolean):
     canDelete: ['draft', 'published'].includes(mission.status),
     canClose: emailVerified && mission.status === 'published',
     canReopen: emailVerified && mission.status === 'closed' && !mission.has_paid_payment,
-    canComplete: emailVerified && mission.status === 'closed',
+    canComplete: emailVerified && mission.can_complete === true,
     canValidateAttendance:
       emailVerified &&
       mission.has_paid_payment &&

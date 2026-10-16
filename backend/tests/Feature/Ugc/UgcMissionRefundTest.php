@@ -242,7 +242,7 @@ class UgcMissionRefundTest extends TestCase
     {
         // Borne jour-inclusif : miroir exact de Mission::isAcceptingCandidatures().
         $mission = $this->makeExpiredPaidUgcMission(transactionId: 911);
-        $mission->update(['date_limite_candidature' => now()->toDateString()]);
+        $mission->update(['date_limite_candidature' => Mission::businessToday()]); // date métier (Bénin)
 
         $this->artisan('ugc:expire-unaccepted-deals')->assertSuccessful();
 
