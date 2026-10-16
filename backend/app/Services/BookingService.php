@@ -274,6 +274,10 @@ class BookingService
                         $booking->date_fin->copy()->endOfDay(),
                         $booking->id,
                     )
+                    // Lecture verrouillante : lit le dernier état validé (pas l'instantané
+                    // REPEATABLE READ de la transaction), donc voit l'accept concurrent qui
+                    // vient d'être validé pendant qu'on attendait le verrou de la Face.
+                    ->lockForUpdate()
                     ->exists();
 
                 if ($overlaps) {
