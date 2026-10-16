@@ -10,6 +10,7 @@ use App\Http\Requests\Admin\UpdateAdminFaceRequest;
 use App\Http\Resources\FaceResource;
 use App\Models\Face;
 use App\Services\Ugc\UgcMediaCleanupService;
+use App\Support\AccountDeletionGuard;
 use App\Support\LockedEscrowGuard;
 use App\Support\Sql;
 use Illuminate\Http\JsonResponse;
@@ -136,6 +137,19 @@ class FaceController extends Controller
                     'message' => 'Impossible de supprimer ce profil : des fonds sont encore bloqués en séquestre. Dénouez le(s) deal(s) concerné(s) avant suppression.',
                 ],
             ], 422);
+        }
+
+        // Même garde que la suppression self-service (source unique) : solde,
+        // retrait en cours, séquestre/paiement en vol, commission UGC non clôturée.
+        $user = $face->user;
+        $blockers = $user !== null ? AccountDeletionGuard::blockers($user) : [];
+        if ($blockers !== []) {
+            return response()->json([
+                'error' => [
+                    'code' => 'ACCOUNT_DELETION_BLOCKED',
+                    'message' => implode(' ', $blockers),
+                ],
+            ], 409);
         }
 
         // Check for active candidatures

@@ -36,7 +36,7 @@ class ListFacesRequest extends FormRequest
     {
         return [
             'page' => ['sometimes', 'integer', 'min:1'],
-            'per_page' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:30'],
             'categorie' => ['sometimes', 'nullable', Rule::enum(FaceCategory::class)],
             'niche' => ['sometimes', 'nullable', Rule::enum(FaceNiche::class)],
             'ville' => ['sometimes', 'nullable', 'string', Rule::in(BeninCities::values())],

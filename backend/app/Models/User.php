@@ -21,6 +21,8 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
  * @property int $id
  * @property string $email
  * @property string|null $password
+ * @property int $balance
+ * @property string|null $consent_ip
  * @property string|null $google_id
  * @property \Illuminate\Support\Carbon|null $google_linked_at
  * @property bool $is_active

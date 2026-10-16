@@ -272,7 +272,7 @@ class GoogleOAuthCallbackTest extends TestCase
         Notification::assertSentToTimes($user, GoogleAccountLinkedNotification::class, 1);
     }
 
-    public function test_linking_a_verified_account_sends_no_notification(): void
+    public function test_linking_a_verified_account_notifies_its_owner_without_the_takeover_wording(): void
     {
         $user = $this->makeFaceUser('jean@gmail.com');
         $user->forceFill(['email_verified_at' => now()])->save();
@@ -280,7 +280,31 @@ class GoogleOAuthCallbackTest extends TestCase
         $this->fakeGoogleUser();
         $this->loginThroughGoogle();
 
-        Notification::assertNotSentTo($user, GoogleAccountLinkedNotification::class);
+        Notification::assertSentToTimes($user, GoogleAccountLinkedNotification::class, 1);
+        Notification::assertSentTo(
+            $user,
+            GoogleAccountLinkedNotification::class,
+            fn (GoogleAccountLinkedNotification $n) => $n->accountSecured === false
+        );
+
+        $mail = (new GoogleAccountLinkedNotification(accountSecured: false))->toMail($user);
+        $body = implode(' ', array_map('strval', $mail->introLines));
+        $this->assertStringContainsString('jean@gmail.com', $body);
+        $this->assertStringContainsString('ne sont pas modifiés', $body);
+        $this->assertStringNotContainsString('ancien mot de passe a été supprimé', $body);
+        $this->assertStringContainsString('contact@weact.bj', $body);
+    }
+
+    public function test_a_later_login_through_the_linked_identity_does_not_notify_again(): void
+    {
+        $user = $this->makeFaceUser('jean@gmail.com');
+        $user->forceFill(['email_verified_at' => now()])->save();
+
+        $this->fakeGoogleUser();
+        $this->loginThroughGoogle();
+        $this->loginThroughGoogle();
+
+        Notification::assertSentToTimes($user, GoogleAccountLinkedNotification::class, 1);
     }
 
     public function test_the_linked_account_mail_explains_what_happened(): void
