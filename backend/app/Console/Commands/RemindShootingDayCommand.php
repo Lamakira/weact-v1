@@ -118,7 +118,7 @@ class RemindShootingDayCommand extends Command
                         'message' => "Rappel : votre tournage pour la mission \"{$mission->titre}\" a lieu demain.",
                         'mission_id' => $mission->id,
                         'candidature_id' => $candidature->id,
-                        'url' => "/face/candidatures/{$candidature->uuid}",
+                        'url' => "/face/missions/{$mission->uuid}", // /face/candidatures/{uuid} n'existe pas côté SPA
                     ],
                 ]);
             } catch (\Throwable $e) {

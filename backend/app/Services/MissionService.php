@@ -354,7 +354,7 @@ class MissionService
                         'message' => "La mission « {$mission->titre} » a été clôturée par le Producteur.",
                         'mission_id' => $mission->id,
                         'candidature_id' => $candidature->id,
-                        'url' => "/face/candidatures/{$candidature->uuid}",
+                        'url' => "/face/missions/{$mission->uuid}", // /face/candidatures/{uuid} n'existe pas côté SPA
                     ],
                 ]);
             } catch (\Throwable $e) {
