@@ -26,18 +26,35 @@ use Symfony\Component\HttpFoundation\Response;
  *    (session / CSRF cookies are added by outer middleware, on hits too).
  *  - NO invalidation: TTL-based staleness (default 60 s) is accepted by the PO —
  *    a profile edit, a mission closing or a moderation shows up within a minute.
+ *  - Query params outside the route's allowlist (middleware parameters), or array-valued,
+ *    are never cached: the request passes through with `X-Public-Cache: BYPASS`.
+ *    Detail routes take no param (empty allowlist).
  *  - `cache.public_response_ttl <= 0` disables the middleware (pass-through).
  *
  * Only attach it to routes whose output does NOT depend on the viewer.
  */
 class CachePublicResponse
 {
-    public function handle(Request $request, Closure $next): Response
+    /**
+     * @param  string  ...$allowedParams  Query params this route understands (middleware
+     *                                    parameters: `public.cache:page,per_page,...`),
+     *                                    derived from the route's FormRequest rules.
+     */
+    public function handle(Request $request, Closure $next, string ...$allowedParams): Response
     {
         $ttl = (int) config('cache.public_response_ttl', 0);
 
         if ($ttl <= 0 || ! $request->isMethodCacheable()) {
             return $next($request);
+        }
+
+        // Any unknown (or array-valued) param would mint a cache entry for a response
+        // that does not depend on it: unbounded files on disk. Serve it uncached.
+        if (! $this->queryIsAllowed($request, $allowedParams)) {
+            $response = $next($request);
+            $response->headers->set('X-Public-Cache', 'BYPASS');
+
+            return $response;
         }
 
         $store = Cache::store(config('cache.public_response_store'));
@@ -65,6 +82,20 @@ class CachePublicResponse
         $response->headers->set('X-Public-Cache', 'MISS');
 
         return $response;
+    }
+
+    /**
+     * @param  list<string>  $allowedParams
+     */
+    private function queryIsAllowed(Request $request, array $allowedParams): bool
+    {
+        foreach ($request->query() as $name => $value) {
+            if (! in_array((string) $name, $allowedParams, true) || is_array($value)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function cacheKey(Request $request): string

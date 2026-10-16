@@ -95,6 +95,48 @@ class PublicResponseCacheTest extends TestCase
         $this->getJson('/api/v1/public/faces?per_page=5&page=1')->assertHeader('X-Public-Cache', 'HIT');
     }
 
+    public function test_unknown_query_param_bypasses_the_cache_and_writes_nothing(): void
+    {
+        $first = $this->getJson('/api/v1/public/faces?utm_source=a');
+        $second = $this->getJson('/api/v1/public/faces?utm_source=a');
+
+        $first->assertOk()->assertHeader('X-Public-Cache', 'BYPASS');
+        // Never stored: a repeat is still a BYPASS, not a HIT.
+        $second->assertOk()->assertHeader('X-Public-Cache', 'BYPASS');
+        // ...and the param-less URL has no entry either (nothing was written under any key).
+        $this->getJson('/api/v1/public/faces')->assertHeader('X-Public-Cache', 'MISS');
+    }
+
+    public function test_unknown_param_next_to_known_ones_bypasses_on_every_listing_route(): void
+    {
+        foreach (['faces', 'missions', 'articles'] as $route) {
+            $this->getJson("/api/v1/public/{$route}?page=1&foo=bar")->assertHeader('X-Public-Cache', 'BYPASS');
+        }
+    }
+
+    public function test_array_valued_param_bypasses_the_cache(): void
+    {
+        $this->getJson('/api/v1/public/faces?page[]=1&page[]=2')->assertHeader('X-Public-Cache', 'BYPASS');
+    }
+
+    public function test_detail_and_options_routes_take_no_query_param(): void
+    {
+        $this->getJson('/api/v1/public/faces/options?x=1')->assertHeader('X-Public-Cache', 'BYPASS');
+        $this->getJson('/api/v1/public/faces/inconnu-xyz?x=1')->assertHeader('X-Public-Cache', 'BYPASS');
+        $this->getJson('/api/v1/public/faces/options')->assertHeader('X-Public-Cache', 'MISS');
+        $this->getJson('/api/v1/public/faces/options')->assertHeader('X-Public-Cache', 'HIT');
+    }
+
+    public function test_every_param_of_each_listing_request_stays_cacheable(): void
+    {
+        $this->getJson('/api/v1/public/faces?page=1&per_page=8&categorie=acteur&niche=mode&ville=Cotonou&search=ab&generation=1')
+            ->assertHeader('X-Public-Cache', 'MISS');
+        $this->getJson('/api/v1/public/missions?page=1&per_page=8&type_mission=standard&lieu=Cotonou&budget_min=1&budget_max=9')
+            ->assertHeader('X-Public-Cache', 'MISS');
+        $this->getJson('/api/v1/public/articles?page=1&per_page=8&category=conseils')
+            ->assertHeader('X-Public-Cache', 'MISS');
+    }
+
     public function test_not_found_is_never_cached(): void
     {
         $this->getJson('/api/v1/public/faces/inconnu-xyz')
