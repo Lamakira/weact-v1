@@ -33,6 +33,7 @@ const ugcPendingMission = {
   id: 'ugc-mission-1',
   titre: 'Appel UGC',
   status: 'pending_payment',
+  type_mission: 'ugc',
   commission_ugc: 2500,
 } as unknown as Mission
 

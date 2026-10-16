@@ -114,6 +114,8 @@ export interface Mission {
   status_label: string
   is_accepting_candidatures: boolean
   has_paid_payment: boolean
+  // Propriétaire seulement : miroir serveur des règles de POST /complete.
+  can_complete?: boolean
   candidatures_count?: number
   // Photos produit UGC (spec photos produit, `whenLoaded`) — clé OMISE sur les
   // listes, chargée sur les détails. URLs publiques directes (disque public).

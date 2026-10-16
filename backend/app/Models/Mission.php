@@ -418,6 +418,69 @@ class Mission extends Model
     }
 
     /**
+     * First rule that prevents the Producer from completing this mission, as
+     * [error key, message], or null when none applies. Single source of truth shared by
+     * CompleteMissionRequest (422) and MissionResource::can_complete (UI button).
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    public function completionBlocker(): ?array
+    {
+        $onlyClosed = 'Seules les missions clôturées peuvent être marquées comme terminées';
+
+        if ($this->status === MissionStatus::Draft || $this->status === MissionStatus::Published) {
+            return ['status', $onlyClosed];
+        }
+
+        if ($this->status === MissionStatus::PendingPayment) {
+            return ['status', 'Le paiement doit être confirmé avant de terminer la mission'];
+        }
+
+        if ($this->status === MissionStatus::Completed) {
+            return ['status', 'Cette mission est déjà terminée'];
+        }
+
+        // The 72h dispute window (or an open dispute) must be settled first — through the
+        // crons / admin resolution — before the Producer can force the completion.
+        if ($this->hasOpenAttendanceDispute()) {
+            return ['status', 'Une absence est encore dans sa fenêtre de contestation de 72 h ou fait l\'objet d\'un litige : la mission ne peut pas être terminée pour le moment.'];
+        }
+
+        /** @var MissionPayment|null $payment */
+        $payment = $this->payment;
+
+        if (! $payment || $payment->status !== MissionPaymentStatus::Paid) {
+            return ['status', 'Le paiement doit être confirmé avant de terminer la mission'];
+        }
+
+        $selectedCandidatureIds = $payment->entries()->pluck('candidature_id');
+
+        if ($selectedCandidatureIds->isEmpty()) {
+            return ['candidatures', 'Cette mission n\'a aucune candidature sélectionnée'];
+        }
+
+        $hasUnconfirmedSelectedFaces = Candidature::whereIn('id', $selectedCandidatureIds)
+            ->where('status', CandidatureStatus::Accepted)
+            ->exists();
+
+        if ($hasUnconfirmedSelectedFaces) {
+            return ['candidatures', 'Toutes les faces sélectionnées doivent confirmer leur participation avant de terminer la mission'];
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether MissionService::completeMission would accept this mission right now
+     * (its status gate + every CompleteMissionRequest rule).
+     */
+    public function canBeCompleted(): bool
+    {
+        return in_array($this->status, [MissionStatus::Closed, MissionStatus::PendingAttendanceValidation], true)
+            && $this->completionBlocker() === null;
+    }
+
+    /**
      * Count the candidatures that engage a slot of this mission's capacity (ugc-9-1, D-9.1.f).
      *
      * Engaged = accepted | confirmed | in_progress | completed — the same set

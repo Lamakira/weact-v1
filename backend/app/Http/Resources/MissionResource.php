@@ -60,6 +60,8 @@ class MissionResource extends JsonResource
             'has_paid_payment' => array_key_exists('has_paid_payment', $this->resource->getAttributes())
                 ? (bool) $this->resource->getAttribute('has_paid_payment')
                 : \App\Models\MissionPayment::where('mission_id', $this->id)->where('status', 'paid')->exists(),
+            // Owner-only: mirrors the exact rules of POST /producer/missions/{mission}/complete.
+            'can_complete' => $this->when(! $requesterIsFace, fn () => $this->resource->canBeCompleted()),
             'candidatures_count' => $this->candidatures_count ?? ($this->whenLoaded('candidatures') ? $this->candidatures->count() : 0),
             'producer' => new ProducerResource($this->whenLoaded('producer')),
             'created_at' => $this->created_at?->toIso8601String(),

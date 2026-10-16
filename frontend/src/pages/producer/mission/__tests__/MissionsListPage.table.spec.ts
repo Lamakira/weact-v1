@@ -82,10 +82,11 @@ function makeMission(id: string, overrides: Partial<Mission> = {}): Mission {
 }
 
 const published = makeMission('pub')
-const closedPaid = makeMission('clo', { status: 'closed', status_label: 'Clôturée', has_paid_payment: true })
+const closedPaid = makeMission('clo', { status: 'closed', status_label: 'Clôturée', has_paid_payment: true, can_complete: true })
 const ugcPending = makeMission('ugc', {
   status: 'pending_payment',
   status_label: 'En attente de paiement',
+  type_mission: 'ugc',
   commission_ugc: 2500,
   date_tournage: null as unknown as string,
 })
