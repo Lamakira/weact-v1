@@ -130,11 +130,8 @@ class PublicFacesListTest extends TestCase
         $this->assertEquals(30, $response->json('meta.per_page'));
         $this->assertCount(30, $response->json('data'));
 
-        // Request 50 items (should cap at 30)
-        $response = $this->getJson('/api/v1/public/faces?per_page=50');
-
-        $response->assertOk();
-        $this->assertEquals(30, $response->json('meta.per_page'));
+        // Request 50 items (exceeds max 30, returns 422: bounds the public cache keys)
+        $this->getJson('/api/v1/public/faces?per_page=50')->assertUnprocessable();
     }
 
     public function test_supports_page_parameter_for_pagination(): void

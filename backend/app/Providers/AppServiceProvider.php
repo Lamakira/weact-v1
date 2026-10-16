@@ -3,8 +3,10 @@
 namespace App\Providers;
 
 use App\Logging\CriticalLogAlerter;
+use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\PersonalAccessToken;
+use App\Observers\MissionObserver;
 use App\Observers\NotificationObserver;
 use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -43,6 +45,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Broadcast NotificationCreated event whenever a notification is persisted
         Notification::observe(NotificationObserver::class);
+
+        // First publication of a mission : published_at + MissionPublished (new-mission push/mail).
+        Mission::observe(MissionObserver::class);
 
         // Alertes e-mail admin sur logs critical/alert/emergency (no-op si ADMIN_ALERT_EMAILS vide).
         // Enregistrement explicite : après un déploiement, rafraîchir le cache d'événements (event:cache).

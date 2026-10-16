@@ -20,6 +20,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property \App\Enums\EscrowStatus $escrow_status
  * @property \App\Enums\AttendanceStatus $attendance_status
  * @property \Carbon\Carbon|null $notified_at
+ * @property \Carbon\Carbon|null $locked_at
+ * @property \Carbon\Carbon|null $released_at
+ * @property \Carbon\Carbon|null $refunded_at
  * @property-read \App\Models\MissionPayment|null $missionPayment
  * @property-read \App\Models\Candidature|null $candidature
  * @property-read \App\Models\Face|null $face

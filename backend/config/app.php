@@ -54,6 +54,18 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Trusted Proxies
+    |--------------------------------------------------------------------------
+    |
+    | IP/CIDR (séparés par des virgules) ou `*` des reverse proxys dont les
+    | en-têtes X-Forwarded-* sont crus. Vide = aucun (prod actuelle).
+    |
+    */
+
+    'trusted_proxies' => env('TRUSTED_PROXIES'),
+
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:5173'),
 
     'withdrawal_mode' => env('WITHDRAWAL_MODE', 'manual'),

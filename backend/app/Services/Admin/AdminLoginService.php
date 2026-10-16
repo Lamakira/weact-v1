@@ -70,7 +70,7 @@ class AdminLoginService
         return [
             'status' => 'ok',
             'admin' => $admin,
-            'token' => $admin->createToken('admin-token', [Admin::ABILITY_ENROLMENT])->plainTextToken,
+            'token' => $admin->createToken('admin-token', [Admin::ABILITY_ENROLMENT], now()->addHours(Admin::TOKEN_TTL_HOURS))->plainTextToken,
         ];
     }
 
@@ -118,7 +118,7 @@ class AdminLoginService
         return [
             'status' => 'ok',
             'admin' => $admin,
-            'token' => $admin->createToken('admin-token', [Admin::ABILITY_TWO_FACTOR])->plainTextToken,
+            'token' => $admin->createToken('admin-token', [Admin::ABILITY_TWO_FACTOR], now()->addHours(Admin::TOKEN_TTL_HOURS))->plainTextToken,
         ];
     }
 

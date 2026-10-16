@@ -24,7 +24,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
     // Public Faces list (paginated)
     Route::get('/faces', [FaceController::class, 'index'])
-        ->middleware('public.cache');
+        ->middleware('public.cache:page,per_page,categorie,niche,ville,search,generation');
 
     // Public Faces filter options (categories, niches, cities)
     Route::get('/faces/options', [FaceController::class, 'filterOptions'])
@@ -46,7 +46,7 @@ Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
 
     // Public Articles list (paginated)
     Route::get('/articles', [ArticleController::class, 'index'])
-        ->middleware('public.cache');
+        ->middleware('public.cache:page,per_page,category');
 
     // Public Article detail
     Route::get('/articles/{slug}', [ArticleController::class, 'show'])
@@ -54,7 +54,7 @@ Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
 
     // Public Missions list (paginated)
     Route::get('/missions', [MissionController::class, 'index'])
-        ->middleware('public.cache');
+        ->middleware('public.cache:page,per_page,type_mission,lieu,budget_min,budget_max');
 
     // Public Mission detail
     Route::get('/missions/{slug}', [MissionController::class, 'show'])

@@ -168,16 +168,19 @@ class GoogleAccountLinker
 
         if ($secured) {
             Log::info('auth.google.linked_unverified_account_secured', ['user_id' => $user->id]);
+        }
 
-            // After commit, and never fatal: the owner is informed, the login proceeds.
-            try {
-                $user->notify(new GoogleAccountLinkedNotification);
-            } catch (\Throwable $e) {
-                Log::warning('auth.google.linked_notification_failed', [
-                    'user_id' => $user->id,
-                    'message' => $e->getMessage(),
-                ]);
-            }
+        // Every NEW link is announced (not only the takeover of an unverified
+        // account): a verified owner must learn that a Google identity was attached
+        // to their account. Later logins through that identity never reach link().
+        // After commit, and never fatal: the owner is informed, the login proceeds.
+        try {
+            $user->notify(new GoogleAccountLinkedNotification(accountSecured: $secured));
+        } catch (\Throwable $e) {
+            Log::warning('auth.google.linked_notification_failed', [
+                'user_id' => $user->id,
+                'message' => $e->getMessage(),
+            ]);
         }
 
         Log::info('auth.google.linked', ['user_id' => $user->id]);

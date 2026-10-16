@@ -49,6 +49,7 @@ use Illuminate\Support\Str;
  * @property int|null $commission_ugc
  * @property int|null $fedapay_transaction_id
  * @property string|null $payment_initiation_key
+ * @property \Carbon\CarbonInterface|null $published_at First publication (set once by MissionObserver; drives new-mission notifications)
  * @property \Carbon\CarbonInterface|null $commission_paid_at
  * @property \Carbon\CarbonInterface|null $commission_refund_requested_at
  * @property \Carbon\CarbonInterface|null $commission_refunded_at
@@ -183,6 +184,7 @@ class Mission extends Model
             'montant_remuneration' => 'integer',
             'commission_ugc' => 'integer',
             'fedapay_transaction_id' => 'integer',
+            'published_at' => 'datetime',
             'commission_paid_at' => 'datetime',
             'commission_refund_requested_at' => 'datetime',
             'commission_refunded_at' => 'datetime',

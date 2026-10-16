@@ -43,6 +43,9 @@ class Admin extends Authenticatable implements CanResetPasswordContract
      */
     public const ABILITY_ENROLMENT = 'enrol';
 
+    /** Durée de vie (heures) de tout token Admin, bien plus courte que les 30 jours des tokens User. */
+    public const TOKEN_TTL_HOURS = 12;
+
     /**
      * The attributes that are mass assignable.
      *
