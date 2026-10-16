@@ -11,6 +11,7 @@ use App\Console\Commands\ExpireUnpaidBookingsCommand;
 use App\Console\Commands\ExpireUnreconfirmedUgcCandidaturesCommand;
 use App\Console\Commands\FailStalePendingFaceSubscriptionsCommand;
 use App\Console\Commands\ProcessUgcDeadlinesCommand;
+use App\Console\Commands\PrunePublicResponseCacheCommand;
 use App\Console\Commands\PurgeExpiredCacheCommand;
 use App\Console\Commands\PurgeExpiredMediaCommand;
 use App\Console\Commands\RebuildFaceListingRanksCommand;
@@ -66,6 +67,11 @@ app(Schedule::class)->command(PurgeExpiredCacheCommand::class)
     ->timezone('UTC')
     ->withoutOverlapping()
     ->onOneServer();
+
+// Le cache de réponses publiques (store file) ne supprime jamais ses fichiers expirés : la clé inclut la query string.
+app(Schedule::class)->command(PrunePublicResponseCacheCommand::class)
+    ->everyTenMinutes()
+    ->withoutOverlapping();
 
 // Rotation du listing public : reconstruit chaque nuit le classement matérialisé
 // (quotas de palier via WRR lissé + équité LRU page 1) en une génération

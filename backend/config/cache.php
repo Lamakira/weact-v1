@@ -53,6 +53,13 @@ return [
             'lock_path' => storage_path('framework/cache/data'),
         ],
 
+        // Local disk, no MySQL round-trip (single server): used by the
+        // `public.cache` middleware (App\Http\Middleware\CachePublicResponse).
+        'public_file' => [
+            'driver' => 'file',
+            'path' => storage_path('framework/cache/public-responses'),
+        ],
+
         'memcached' => [
             'driver' => 'memcached',
             'persistent_id' => env('MEMCACHED_PERSISTENT_ID'),
@@ -113,5 +120,19 @@ return [
     */
 
     'prefix' => env('CACHE_PREFIX', Str::slug((string) env('APP_NAME', 'laravel')).'-cache-'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Public Response Cache
+    |--------------------------------------------------------------------------
+    |
+    | TTL (seconds) and store of the `public.cache` middleware. A TTL <= 0
+    | disables it. No invalidation: staleness is bounded by the TTL.
+    |
+    */
+
+    'public_response_ttl' => (int) env('PUBLIC_RESPONSE_CACHE_TTL', 60),
+
+    'public_response_store' => env('PUBLIC_RESPONSE_CACHE_STORE', 'public_file'),
 
 ];
