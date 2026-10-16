@@ -270,6 +270,27 @@ class Booking extends Model
     }
 
     /**
+     * Bookings actifs d'une Face dont la plage chevauche [$start, $end] (bornes incluses).
+     * Source unique de la règle de non-chevauchement (création ET acceptation).
+     * `$faceUserId` = users.id de la Face (bookings.face_id), pas faces.id.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Booking>  $query
+     */
+    public function scopeOverlappingActiveForFace($query, int $faceUserId, CarbonInterface $start, CarbonInterface $end, ?int $exceptBookingId = null): void
+    {
+        $query->where('face_id', $faceUserId)
+            ->whereIn('status', [
+                BookingStatus::Accepted->value,
+                BookingStatus::Paid->value,
+                BookingStatus::ConfirmedByFace->value,
+                BookingStatus::ConfirmedByProducer->value,
+            ])
+            ->where('date_debut', '<=', $end)
+            ->where('date_fin', '>=', $start)
+            ->when($exceptBookingId !== null, fn ($q) => $q->where('id', '!=', $exceptBookingId));
+    }
+
+    /**
      * Même règle que isPendingSettlement(), côté requête.
      *
      * @param  \Illuminate\Database\Eloquent\Builder<Booking>  $query

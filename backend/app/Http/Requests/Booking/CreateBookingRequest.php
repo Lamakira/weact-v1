@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Booking;
 
-use App\Enums\BookingStatus;
 use App\Enums\CompensationType;
 use App\Models\Booking;
 use App\Models\Face;
@@ -183,17 +182,7 @@ class CreateBookingRequest extends FormRequest
             }
 
             $overlapExists = Booking::query()
-                ->where('face_id', $faceId)
-                ->whereIn('status', [
-                    BookingStatus::Accepted->value,
-                    BookingStatus::Paid->value,
-                    BookingStatus::ConfirmedByFace->value,
-                    BookingStatus::ConfirmedByProducer->value,
-                ])
-                ->where(function ($query) use ($start, $end): void {
-                    $query->where('date_debut', '<=', $end)
-                        ->where('date_fin', '>=', $start);
-                })
+                ->overlappingActiveForFace($faceId, $start, $end)
                 ->exists();
 
             if ($overlapExists) {
