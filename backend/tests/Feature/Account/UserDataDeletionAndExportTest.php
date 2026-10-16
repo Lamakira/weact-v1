@@ -376,6 +376,152 @@ class UserDataDeletionAndExportTest extends TestCase
         }
     }
 
+    public function test_deletion_is_blocked_by_a_paid_ugc_commission_on_a_published_mission(): void
+    {
+        $producerUser = $this->producerUser();
+        $mission = Mission::factory()->published()->create([
+            'producer_id' => $producerUser->userable_id,
+            'type_mission' => 'ugc',
+            'commission_paid_at' => now(),
+        ]);
+
+        $this->assertBlocked($producerUser, 'commission UGC');
+
+        // Refunded, or mission terminal: no longer blocking.
+        $mission->update(['commission_refunded_at' => now()]);
+        $this->deleteAccount($producerUser)->assertOk();
+    }
+
+    public function test_deletion_is_blocked_by_a_ugc_booking_in_commission_paid(): void
+    {
+        $producerUser = $this->producerUser();
+        $booking = Booking::factory()->create([
+            'producer_id' => $producerUser->id,
+            'status' => 'commission_paid',
+            'commission_paid_at' => now(),
+        ]);
+
+        $this->assertBlocked($producerUser, 'commission UGC');
+
+        $booking->update(['status' => 'expired', 'commission_refunded_at' => now()]);
+        $this->deleteAccount($producerUser)->assertOk();
+    }
+
+    public function test_deletion_is_blocked_by_pending_candidature_escrow_with_a_fedapay_transaction(): void
+    {
+        $faceUser = $this->faceUser();
+        $entry = $this->lockedCandidatureEscrow(Producer::factory()->create(), (int) $faceUser->userable_id);
+        $entry->update(['escrow_status' => 'pending', 'fedapay_transaction_id' => '998877']);
+
+        $this->assertBlocked($faceUser, 'argent en jeu');
+
+        $entry->update(['fedapay_transaction_id' => null]);
+        $this->deleteAccount($faceUser)->assertOk();
+    }
+
+    public function test_deletion_is_blocked_by_a_booking_whose_fedapay_checkout_started(): void
+    {
+        $producerUser = $this->producerUser();
+        Booking::factory()->create([
+            'producer_id' => $producerUser->id,
+            'status' => 'accepted',
+            'fedapay_transaction_id' => 123456,
+        ]);
+
+        $this->assertBlocked($producerUser, 'argent en jeu');
+    }
+
+    public function test_deletion_is_blocked_by_a_pending_mission_payment_with_a_fedapay_transaction(): void
+    {
+        $producerUser = $this->producerUser();
+        $producer = $producerUser->userable;
+        $this->assertInstanceOf(Producer::class, $producer);
+
+        MissionPayment::create([
+            'mission_id' => Mission::factory()->published()->create(['producer_id' => $producer->id])->id,
+            'producer_id' => $producer->id,
+            'nombre_faces_retenues' => 1,
+            'budget_par_face' => 100000,
+            'montant_sous_total' => 100000,
+            'commission_producteur' => 10000,
+            'montant_total_producteur' => 110000,
+            'commission_faces_total' => 10000,
+            'montant_total_faces' => 90000,
+            'fedapay_transaction_id' => '555444',
+            'status' => 'pending',
+        ]);
+
+        $this->assertBlocked($producerUser, 'argent en jeu');
+    }
+
+    public function test_deletion_is_blocked_by_a_pending_wallet_debit(): void
+    {
+        $user = $this->faceUser();
+        WalletTransaction::factory()->debit()->create(['user_id' => $user->id, 'status' => 'pending']);
+
+        $this->assertBlocked($user, 'demande de retrait');
+    }
+
+    public function test_deletion_masks_the_phone_in_withdrawal_wallet_descriptions(): void
+    {
+        $user = $this->faceUser();
+        $tx = WalletTransaction::factory()->debit()->create([
+            'user_id' => $user->id,
+            'status' => 'completed',
+            'amount' => 5000,
+            'description' => 'Retrait vers mtn — 97123456',
+        ]);
+
+        $this->deleteAccount($user)->assertOk();
+
+        $tx = $tx->fresh();
+        $this->assertNotNull($tx);
+        $this->assertStringNotContainsString('97123456', (string) $tx->description);
+        $this->assertSame(5000, $tx->amount);
+    }
+
+    public function test_deleting_a_face_clears_its_candidature_motivation_messages(): void
+    {
+        $user = $this->faceUser();
+        $candidature = Candidature::factory()->create([
+            'face_id' => $user->userable_id,
+            'message_motivation' => 'Mon texte perso',
+        ]);
+
+        $this->deleteAccount($user)->assertOk();
+
+        $this->assertNull($candidature->fresh()?->message_motivation);
+    }
+
+    public function test_deleting_a_producer_closes_its_open_missions_without_money(): void
+    {
+        $producerUser = $this->producerUser();
+        $published = Mission::factory()->published()->create(['producer_id' => $producerUser->userable_id]);
+        $draft = Mission::factory()->draft()->create(['producer_id' => $producerUser->userable_id]);
+        $completed = Mission::factory()->completed()->create(['producer_id' => $producerUser->userable_id]);
+
+        $this->deleteAccount($producerUser)->assertOk();
+
+        $this->assertSame('closed', $published->fresh()?->status->value);
+        $this->assertSame('closed', $draft->fresh()?->status->value);
+        $this->assertSame('completed', $completed->fresh()?->status->value);
+    }
+
+    public function test_export_for_a_face_lists_mission_earnings_ratings_and_booking_uuid(): void
+    {
+        $faceUser = $this->faceUser();
+        $this->lockedCandidatureEscrow(Producer::factory()->create(), (int) $faceUser->userable_id);
+        $booking = Booking::factory()->create(['face_id' => $faceUser->id, 'status' => 'completed']);
+
+        $response = $this->actingAs($faceUser)->getJson('/api/v1/user/data-export')->assertOk();
+
+        $this->assertSame(90000, $response->json('data.mission_earnings.0.montant_face_recoit'));
+        $this->assertSame('locked', $response->json('data.mission_earnings.0.escrow_status'));
+        $this->assertSame($booking->uuid, $response->json('data.bookings.0.uuid'));
+        $this->assertArrayHasKey('ratings_received', $response->json('data'));
+        $this->assertArrayHasKey('message_motivation', $response->json('data.candidatures.0'));
+    }
+
     // -------------------------------------------------------------- fixtures
 
     /**

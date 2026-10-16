@@ -556,6 +556,41 @@ class AdminFaceCrudTest extends TestCase
         ]);
     }
 
+    public function test_delete_blocked_by_wallet_balance_returns_the_shared_409(): void
+    {
+        $face = Face::factory()->create();
+        $user = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+        $user->forceFill(['balance' => 5000])->save();
+
+        $this->withToken($this->adminToken)
+            ->deleteJson("/api/v1/admin/faces/{$face->uuid}")
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'ACCOUNT_DELETION_BLOCKED');
+
+        $this->assertDatabaseHas('faces', ['id' => $face->id]);
+        $this->assertDatabaseHas('users', ['id' => $user->id]);
+    }
+
+    public function test_delete_blocked_by_pending_withdrawal_returns_the_shared_409(): void
+    {
+        $face = Face::factory()->create();
+        $user = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => $face->id,
+        ]);
+        \App\Models\WithdrawalRequest::factory()->create(['user_id' => $user->id, 'status' => 'pending']);
+
+        $this->withToken($this->adminToken)
+            ->deleteJson("/api/v1/admin/faces/{$face->uuid}")
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'ACCOUNT_DELETION_BLOCKED');
+
+        $this->assertDatabaseHas('faces', ['id' => $face->id]);
+    }
+
     public function test_delete_blocked_by_locked_booking_escrow(): void
     {
         $face = Face::factory()->create();

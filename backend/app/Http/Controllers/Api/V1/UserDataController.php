@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Enums\EscrowStatus;
+use App\Enums\MissionStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\BookingMessage;
@@ -27,10 +27,12 @@ use App\Models\WithdrawalRequest;
 use App\Services\AgencyLogoService;
 use App\Services\Auth\GoogleOAuthService;
 use App\Services\FaceVideoService;
+use App\Services\MissionService;
 use App\Services\PhotoAlbumService;
 use App\Services\PresentationVideoService;
 use App\Services\ProducerProfilePhotoService;
 use App\Services\ProfilePhotoService;
+use App\Support\AccountDeletionGuard;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,6 +41,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class UserDataController extends Controller
 {
@@ -47,6 +50,10 @@ class UserDataController extends Controller
 
     /**
      * Export all personal data for the authenticated user (Art. 438 - Portabilite).
+     *
+     * Messages: the counterpart's message content in the user's own shared threads is
+     * included by design (portability of the conversation), with NO counterpart
+     * identity (no name, email or phone), only `from_me` and the booking/conversation uuid.
      */
     public function export(Request $request): JsonResponse
     {
@@ -126,6 +133,16 @@ class UserDataController extends Controller
                 'date_fin' => $exp->date_fin?->toDateString(),
             ])->toArray();
 
+            /** @var EloquentCollection<int, MissionPaymentCandidature> $earnings */
+            $earnings = MissionPaymentCandidature::query()->where('face_id', $face->id)->orderBy('id')->get();
+            $data['mission_earnings'] = $earnings->map(fn (MissionPaymentCandidature $e) => [
+                'montant_face_recoit' => $e->montant_face_recoit,
+                'escrow_status' => $e->escrow_status->value,
+                'locked_at' => $e->locked_at?->toIso8601String(),
+                'released_at' => $e->released_at?->toIso8601String(),
+                'refunded_at' => $e->refunded_at?->toIso8601String(),
+            ])->all();
+
             // Candidatures
             /** @var EloquentCollection<int, Candidature> $candidatures */
             $candidatures = $face->candidatures()
@@ -133,6 +150,7 @@ class UserDataController extends Controller
                 ->get();
             $data['candidatures'] = $candidatures->map(fn (Candidature $c) => [
                 'mission' => $c->mission?->titre,
+                'message_motivation' => $c->message_motivation,
                 'status' => $c->status,
                 'created_at' => $c->created_at?->toIso8601String(),
             ])->toArray();
@@ -179,6 +197,7 @@ class UserDataController extends Controller
         /** @var EloquentCollection<int, Booking> $bookings */
         $bookings = $bookingsRelation->get();
         $data['bookings'] = $bookings->map(fn (Booking $b) => [
+            'uuid' => $b->uuid,
             'status' => $b->status,
             'amount' => $user->userable_type === Face::class ? $b->montant_face_recoit : $b->montant_total_producteur,
             'created_at' => $b->created_at?->toIso8601String(),
@@ -193,49 +212,57 @@ class UserDataController extends Controller
             'created_at' => $r->created_at?->toIso8601String(),
         ])->toArray();
 
+        // Ratings received (Face / Producer profile).
+        if ($user->userable instanceof Face || $user->userable instanceof Producer) {
+            /** @var EloquentCollection<int, Rating> $ratingsReceived */
+            $ratingsReceived = $user->userable->ratingsReceived()->get();
+            $data['ratings_received'] = $ratingsReceived->map(fn (Rating $r) => [
+                'score' => $r->score,
+                'comment' => $r->comment,
+                'created_at' => $r->created_at?->toIso8601String(),
+            ])->all();
+        }
+
         // Messages: only those of bookings / candidatures the user is a party to.
         // The counterpart is never identified (no name, email or phone).
-        /** @var EloquentCollection<int, BookingMessage> $bookingMessages */
-        $bookingMessages = BookingMessage::query()
+        // Streamed by id chunks (lazyById): no unbounded hydrated collection.
+        $data['booking_messages'] = BookingMessage::query()
             ->whereHas('booking', fn ($q) => $q->where('face_id', $user->id)->orWhere('producer_id', $user->id))
             ->with('booking:id,uuid')
-            ->orderBy('id')
-            ->get();
-        $data['booking_messages'] = $bookingMessages->map(fn (BookingMessage $m) => [
-            'booking' => $m->booking?->uuid,
-            'from_me' => $m->sender_id === $user->id,
-            'content' => $m->content,
-            'created_at' => $m->created_at->toIso8601String(),
-        ])->all();
+            ->lazyById(500)
+            ->map(fn (BookingMessage $m) => [
+                'booking' => $m->booking?->uuid,
+                'from_me' => $m->sender_id === $user->id,
+                'content' => $m->content,
+                'created_at' => $m->created_at->toIso8601String(),
+            ])->all();
 
-        /** @var EloquentCollection<int, Message> $conversationMessages */
-        $conversationMessages = Message::query()
+        $data['conversation_messages'] = Message::query()
             ->whereHas('conversation.candidature', fn ($q) => $this->scopeCandidaturesOfUser($q, $user))
             ->with('conversation:id,uuid')
-            ->orderBy('id')
-            ->get();
-        $data['conversation_messages'] = $conversationMessages->map(fn (Message $m) => [
-            'conversation' => $m->conversation?->uuid,
-            'from_me' => $m->sender_id === $user->id && $m->sender_type === User::class,
-            'content' => $m->content,
-            'created_at' => $m->created_at->toIso8601String(),
-        ])->all();
+            ->lazyById(500)
+            ->map(fn (Message $m) => [
+                'conversation' => $m->conversation?->uuid,
+                'from_me' => $m->sender_id === $user->id && $m->sender_type === User::class,
+                'content' => $m->content,
+                'created_at' => $m->created_at->toIso8601String(),
+            ])->all();
 
-        /** @var EloquentCollection<int, WalletTransaction> $walletTransactions */
-        $walletTransactions = $user->walletTransactions()->orderBy('id')->get();
-        $data['wallet_transactions'] = $walletTransactions->map(fn (WalletTransaction $t) => [
-            'type' => $t->type,
-            'amount' => $t->amount,
-            'reference' => $t->reference,
-            'description' => $t->description,
-            'status' => $t->status,
-            'created_at' => $t->created_at->toIso8601String(),
-        ])->all();
+        $data['wallet_transactions'] = WalletTransaction::query()
+            ->where('user_id', $user->id)
+            ->lazyById(500)
+            ->map(fn (WalletTransaction $t) => [
+                'type' => $t->type,
+                'amount' => $t->amount,
+                'reference' => $t->reference,
+                'description' => $t->description,
+                'status' => $t->status,
+                'created_at' => $t->created_at->toIso8601String(),
+            ])->all();
 
         $data['withdrawal_requests'] = WithdrawalRequest::query()
             ->where('user_id', $user->id)
-            ->orderBy('id')
-            ->get()
+            ->lazyById(500)
             ->map(fn (WithdrawalRequest $w) => [
                 'amount' => $w->amount,
                 'payment_mode' => $w->payment_mode,
@@ -248,8 +275,7 @@ class UserDataController extends Controller
 
         $data['notifications'] = Notification::query()
             ->where('user_id', $user->id)
-            ->orderBy('id')
-            ->get()
+            ->lazyById(500)
             ->map(fn (Notification $n) => [
                 'type' => $n->type,
                 'data' => $n->data,
@@ -266,14 +292,19 @@ class UserDataController extends Controller
     /**
      * Delete (anonymize) the authenticated user's account (Art. 443 - Droit a l'oubli).
      *
-     * Refused (409) while money is still in play (wallet balance, pending withdrawal,
-     * locked escrow, booking awaiting settlement or dispute).
+     * Refused (409) while money is still in play (see AccountDeletionGuard: wallet
+     * balance, pending withdrawal/debit, locked or in-flight escrow and payments,
+     * booking awaiting settlement or dispute, paid UGC commission not closed). The
+     * guard is checked early (reauth ticket ordering) and again under the user row lock.
      *
      * Personal data is erased or neutralized (profile, contact details, consent IP,
      * authored messages replaced by a placeholder, withdrawal phone numbers masked).
      * Financial records (wallet_transactions, withdrawal_requests rows, payments,
      * escrow, bookings amounts, subscriptions) are deliberately KEPT intact for
      * legal/accounting retention; they no longer point at any readable identity.
+     * FinancialEvent rows (immutable audit trail by design, with the payout phone in
+     * their metadata) are kept as accounting retention and are NOT masked.
+     * Open Producer missions (published/draft, no money engaged) are closed.
      */
     public function destroy(Request $request): JsonResponse
     {
@@ -282,7 +313,7 @@ class UserDataController extends Controller
         // Money guard, BEFORE any credential check or ticket consumption: anonymizing
         // an account that still holds or is owed money would strand funds the
         // platform must be able to attribute and pay out.
-        $blockers = $this->deletionBlockers($user);
+        $blockers = AccountDeletionGuard::blockers($user);
         if ($blockers !== []) {
             return response()->json([
                 'error' => [
@@ -337,7 +368,16 @@ class UserDataController extends Controller
 
         // Anonymize DB first (atomic), then delete media files after success.
         // This avoids partial-failure data loss: if DB fails, media is untouched.
-        DB::transaction(function () use ($user): void {
+        $lateBlockers = DB::transaction(function () use ($user): array {
+            // Authoritative money guard, under the user row lock (the early check above
+            // only orders the reauth ticket): a credit or payment landing between the
+            // two checks must not be anonymized away.
+            $locked = User::query()->whereKey($user->id)->lockForUpdate()->firstOrFail();
+            $lateBlockers = AccountDeletionGuard::blockers($locked);
+            if ($lateBlockers !== []) {
+                return $lateBlockers;
+            }
+
             if ($user->userable_type === Face::class && $user->userable) {
                 /** @var Face $face */
                 $face = $user->userable;
@@ -363,6 +403,9 @@ class UserDataController extends Controller
                 ]);
 
                 $face->experiences()->delete();
+
+                // Free-text motivation written by the Face on each candidature.
+                Candidature::query()->where('face_id', $face->id)->update(['message_motivation' => null]);
             }
 
             if ($user->userable_type === Producer::class && $user->userable) {
@@ -379,6 +422,24 @@ class UserDataController extends Controller
                 // The model's `updating` hook regenerates the slug from the (now
                 // anonymized) name: overwrite it afterwards with a neutral one.
                 Producer::query()->whereKey($producer->id)->update(['slug' => 'deleted-'.$producer->id]);
+
+                // Open missions of a deleted Producer must stop collecting candidatures.
+                // The guard above already refused every case where money is engaged.
+                $missionService = app(MissionService::class);
+                foreach ($producer->missions()->whereIn('status', [MissionStatus::Published->value, MissionStatus::Draft->value])->get() as $mission) {
+                    /** @var Mission $mission */
+                    if ($mission->status === MissionStatus::Draft) {
+                        $mission->update(['status' => MissionStatus::Closed]);
+
+                        continue;
+                    }
+
+                    try {
+                        $missionService->closeMission($mission);
+                    } catch (ValidationException) {
+                        // Attendance / payment in flight: not a case of "no money engaged".
+                    }
+                }
             }
 
             // Messages authored by the user. Rows are kept so the counterpart's
@@ -396,6 +457,13 @@ class UserDataController extends Controller
             WithdrawalRequest::query()
                 ->where('user_id', $user->id)
                 ->update(['phone_number' => '[supprimé]', 'phone_country' => '--']);
+
+            // The payout phone is also embedded in the wallet movement label
+            // (« Retrait vers {mode} — {phone} »): neutralize it, keep amounts/dates/types.
+            WalletTransaction::query()
+                ->where('user_id', $user->id)
+                ->where('description', 'like', 'Retrait%')
+                ->update(['description' => 'Retrait — numéro supprimé']);
 
             // Anonymize the user record
             $user->update([
@@ -418,7 +486,18 @@ class UserDataController extends Controller
 
             // A deleted account must stop receiving web push on its devices.
             $user->pushSubscriptions()->delete();
+
+            return [];
         });
+
+        if ($lateBlockers !== []) {
+            return response()->json([
+                'error' => [
+                    'code' => 'ACCOUNT_DELETION_BLOCKED',
+                    'message' => implode(' ', $lateBlockers),
+                ],
+            ], 409);
+        }
 
         $cleanupFailures = [];
 
@@ -495,60 +574,6 @@ class UserDataController extends Controller
                 ? null
                 : 'Votre compte a bien été supprimé, mais certains fichiers médias n\'ont pas pu être nettoyés immédiatement. Notre équipe a été notifiée.',
         ]);
-    }
-
-    /**
-     * Reasons (French sentences) why the account cannot be deleted right now.
-     *
-     * @return list<string>
-     */
-    private function deletionBlockers(User $user): array
-    {
-        $blockers = [];
-
-        $balance = (int) $user->balance;
-        if ($balance > 0) {
-            $blockers[] = 'Votre portefeuille contient encore '.number_format($balance, 0, ',', ' ').' FCFA : retirez-les avant de supprimer votre compte.';
-        }
-
-        $hasPendingWithdrawal = WithdrawalRequest::query()
-            ->where('user_id', $user->id)
-            ->where('status', 'pending')
-            ->exists();
-        if ($hasPendingWithdrawal) {
-            $blockers[] = 'Une demande de retrait est en cours de traitement : attendez son traitement avant de supprimer votre compte.';
-        }
-
-        // Bookings.face_id / producer_id are users.id. Unsettled money = escrow still
-        // locked, an absence/late-cancellation awaiting settlement, or an open dispute.
-        $hasUnsettledBooking = Booking::query()
-            ->where(fn ($q) => $q->where('face_id', $user->id)->orWhere('producer_id', $user->id))
-            ->where(function ($q): void {
-                $q->whereHas('escrowTransaction', fn ($e) => $e->where('status', EscrowStatus::Locked->value))
-                    ->orWhere(fn ($b) => $b->pendingSettlement())
-                    ->orWhere(fn ($b) => $b->whereNotNull('disputed_at')->whereNull('dispute_resolved_at'));
-            })
-            ->exists();
-
-        // Mission / hybrid UGC candidature escrow (face_id = faces.id, producer_id = producers.id).
-        $hasLockedCandidatureEscrow = false;
-        if ($user->userable_type === Face::class && $user->userable_id !== null) {
-            $hasLockedCandidatureEscrow = MissionPaymentCandidature::query()
-                ->where('face_id', $user->userable_id)
-                ->where('escrow_status', EscrowStatus::Locked->value)
-                ->exists();
-        } elseif ($user->userable_type === Producer::class && $user->userable_id !== null) {
-            $hasLockedCandidatureEscrow = MissionPaymentCandidature::query()
-                ->where('escrow_status', EscrowStatus::Locked->value)
-                ->whereHas('missionPayment', fn ($q) => $q->where('producer_id', $user->userable_id))
-                ->exists();
-        }
-
-        if ($hasUnsettledBooking || $hasLockedCandidatureEscrow) {
-            $blockers[] = 'Un booking ou une mission est en cours avec de l\'argent en jeu : terminez-le ou contactez le support.';
-        }
-
-        return $blockers;
     }
 
     /**

@@ -417,6 +417,41 @@ class AdminProducerCrudTest extends TestCase
         ]);
     }
 
+    public function test_delete_blocked_by_wallet_balance_returns_the_shared_409(): void
+    {
+        $producer = Producer::factory()->create();
+        $user = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+        $user->forceFill(['balance' => 5000])->save();
+
+        $this->withToken($this->adminToken)
+            ->deleteJson("/api/v1/admin/producers/{$producer->uuid}")
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'ACCOUNT_DELETION_BLOCKED');
+
+        $this->assertDatabaseHas('producers', ['id' => $producer->id]);
+        $this->assertDatabaseHas('users', ['id' => $user->id]);
+    }
+
+    public function test_delete_blocked_by_pending_withdrawal_returns_the_shared_409(): void
+    {
+        $producer = Producer::factory()->create();
+        $user = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+        \App\Models\WithdrawalRequest::factory()->create(['user_id' => $user->id, 'status' => 'pending']);
+
+        $this->withToken($this->adminToken)
+            ->deleteJson("/api/v1/admin/producers/{$producer->uuid}")
+            ->assertStatus(409)
+            ->assertJsonPath('error.code', 'ACCOUNT_DELETION_BLOCKED');
+
+        $this->assertDatabaseHas('producers', ['id' => $producer->id]);
+    }
+
     public function test_delete_allowed_when_booking_escrow_released(): void
     {
         // Escrow Released (déjà dénoué) : la garde ne remonte que du Locked, la

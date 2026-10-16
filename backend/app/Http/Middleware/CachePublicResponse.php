@@ -50,6 +50,8 @@ class CachePublicResponse
 
         // Any unknown (or array-valued) param would mint a cache entry for a response
         // that does not depend on it: unbounded files on disk. Serve it uncached.
+        // The allowlist bounds the parameter NAMES only; values stay bounded by the
+        // FormRequest validation (e.g. per_page max), the throttle and the 10-min prune.
         if (! $this->queryIsAllowed($request, $allowedParams)) {
             $response = $next($request);
             $response->headers->set('X-Public-Cache', 'BYPASS');
