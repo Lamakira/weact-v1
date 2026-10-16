@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\AttendanceStatus;
 use App\Enums\BookingStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\DeliverableKind;
 use App\Enums\DeliverableValidationStatus;
+use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
 use App\Enums\UgcTunnelStatus;
 use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Face;
+use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\Shipment;
 use App\Models\User;
@@ -58,6 +61,7 @@ class FaceDashboardTodoService
     {
         return collect([
             ...$this->bookingEntries($user),
+            ...$this->missionAbsenceEntries($face),
             ...$this->ugcTunnelEntries($user, $face),
             ...$this->staleCandidatureEntries($face),
             ...$this->profileEntries($face),
@@ -132,6 +136,53 @@ class FaceDashboardTodoService
         }
 
         return $entries;
+    }
+
+    /**
+     * Absences déclarées par un Producteur sur une mission (escrow Locked, fenêtre de
+     * contestation 72 h après notified_at encore ouverte) : à contester depuis la
+     * page mission. Même traitement urgent que l'absence booking (`no_show_contest`).
+     *
+     * @return list<array{rank: int, at: int, item: array<string, mixed>}>
+     */
+    private function missionAbsenceEntries(Face $face): array
+    {
+        $cutoff = now()->subHours(MissionPaymentCandidature::DISPUTE_WINDOW_HOURS);
+
+        $entries = MissionPaymentCandidature::query()
+            ->where('face_id', $face->id)
+            ->where('escrow_status', EscrowStatus::Locked->value)
+            ->where('attendance_status', AttendanceStatus::Absent->value)
+            ->whereNotNull('notified_at')
+            ->where('notified_at', '>', $cutoff)
+            ->with('missionPayment.mission.producer')
+            ->get();
+
+        $items = [];
+
+        foreach ($entries as $entry) {
+            $mission = $entry->missionPayment?->mission;
+            $deadline = $entry->contestDeadline();
+
+            if ($mission === null || $deadline === null) {
+                continue;
+            }
+
+            $items[] = [
+                'rank' => self::RANK_URGENT,
+                'at' => $deadline->getTimestamp(),
+                'item' => [
+                    'type' => 'mission_absence_contest',
+                    'title' => 'Absence signalée par '.$this->producerName($mission->producer),
+                    'meta' => $mission->titre,
+                    'urgent_meta' => 'Contester avant le '.Booking::formatForBusiness($deadline, 'd/m \à H:i'),
+                    'action_label' => 'Contester',
+                    'url' => "/face/missions/{$mission->uuid}",
+                ],
+            ];
+        }
+
+        return $items;
     }
 
     /**

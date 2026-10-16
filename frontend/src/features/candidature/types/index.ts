@@ -122,11 +122,34 @@ export interface ProducerSummary {
   profile_photo_thumbnail_url: string | null
 }
 
+/**
+ * Statut effectif d'affichage Face : le statut stocké, ou `mission_closed` quand la
+ * candidature est `pending` mais que sa mission n'est plus publiée (statut stocké
+ * inchangé côté backend : une réouverture reste possible).
+ */
+export type CandidatureDisplayStatus = CandidatureStatusType | 'mission_closed'
+
+/**
+ * Absence déclarée par le Producteur sur une mission, contestable par la Face
+ * pendant 72 h (backend : `deadline` = notified_at + 72 h). Clé absente/null hors
+ * absence contestable ou déjà contestée.
+ */
+export interface AttendanceDispute {
+  state: 'contestable' | 'contested'
+  deadline: string | null
+  can_contest: boolean
+}
+
 // Face candidature for list view (includes mission and producer summary)
 export interface FaceCandidature {
   id: string
   status: CandidatureStatusType
   status_label: string
+  /** Statut effectif d'affichage (optionnel : évite de casser les fixtures existantes). */
+  display_status?: CandidatureDisplayStatus
+  display_status_label?: string
+  /** Absence mission contestable (72 h) — null/absent sinon. */
+  attendance_dispute?: AttendanceDispute | null
   message_motivation: string | null
   created_at: string
   mission: MissionSummary

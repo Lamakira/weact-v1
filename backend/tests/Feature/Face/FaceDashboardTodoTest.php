@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Face;
 
+use App\Enums\AttendanceStatus;
 use App\Enums\BookingStatus;
 use App\Enums\DeliverableKind;
 use App\Enums\DeliverableValidationStatus;
+use App\Enums\EscrowStatus;
+use App\Enums\MissionPaymentStatus;
 use App\Enums\UgcTunnelStatus;
 use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\FaceVideo;
 use App\Models\Mission;
+use App\Models\MissionPayment;
+use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -562,6 +567,90 @@ class FaceDashboardTodoTest extends TestCase
 
         $this->assertSame([], $this->ofType($this->todo(), 'booking_proposal'));
         $this->assertSame([], $this->ofType($this->todo(), 'pending_candidatures'));
+    }
+
+    // ---------------------------------------------------------------
+    // Absence mission contestable (MissionPaymentCandidature, fenêtre 72 h)
+    // ---------------------------------------------------------------
+
+    private function missionAbsenceEntry(AttendanceStatus $attendance, Carbon $notifiedAt, ?Face $face = null): MissionPaymentCandidature
+    {
+        $face ??= $this->face;
+        $mission = Mission::factory()->closed()->create([
+            'producer_id' => $this->producer->id,
+            'titre' => 'Pub Absence',
+        ]);
+        $payment = MissionPayment::create([
+            'mission_id' => $mission->id,
+            'producer_id' => $this->producer->id,
+            'nombre_faces_retenues' => 1,
+            'budget_par_face' => 100000,
+            'montant_sous_total' => 100000,
+            'commission_producteur' => 10000,
+            'montant_total_producteur' => 110000,
+            'commission_faces_total' => 10000,
+            'montant_total_faces' => 90000,
+            'status' => MissionPaymentStatus::Paid,
+            'paid_at' => now(),
+        ]);
+        $candidature = Candidature::factory()->confirmed()->create([
+            'face_id' => $face->id,
+            'mission_id' => $mission->id,
+        ]);
+
+        return MissionPaymentCandidature::create([
+            'mission_payment_id' => $payment->id,
+            'candidature_id' => $candidature->id,
+            'face_id' => $face->id,
+            'montant_face_recoit' => 90000,
+            'escrow_status' => EscrowStatus::Locked,
+            'locked_at' => now(),
+            'attendance_status' => $attendance,
+            'notified_at' => $notifiedAt,
+        ]);
+    }
+
+    public function test_mission_absence_with_open_contest_window_is_urgent_and_links_to_the_mission(): void
+    {
+        $entry = $this->missionAbsenceEntry(AttendanceStatus::Absent, Carbon::now()->subHours(10));
+
+        $items = $this->ofType($this->todo(), 'mission_absence_contest');
+
+        $this->assertCount(1, $items);
+        $this->assertSame(
+            '/face/missions/'.$entry->missionPayment->mission->uuid,
+            $items[0]['url'],
+        );
+        $this->assertSame('Contester', $items[0]['action_label']);
+        $this->assertStringContainsString('Pub Absence', (string) $items[0]['title'].' '.(string) $items[0]['meta']);
+        $this->assertStringStartsWith('Contester avant le ', (string) $items[0]['urgent_meta']);
+        // Toujours en tête de file (rang urgent), même avec > 48 h de fenêtre restante.
+        $this->assertSame('mission_absence_contest', $this->todo()[0]['type']);
+    }
+
+    public function test_mission_absence_item_disappears_after_contest(): void
+    {
+        $entry = $this->missionAbsenceEntry(AttendanceStatus::Absent, Carbon::now()->subHours(10));
+        $this->assertCount(1, $this->ofType($this->todo(), 'mission_absence_contest'));
+
+        $entry->update(['attendance_status' => AttendanceStatus::Disputed]);
+
+        $this->assertSame([], $this->ofType($this->todo(), 'mission_absence_contest'));
+    }
+
+    public function test_mission_absence_item_disappears_after_the_72h_deadline(): void
+    {
+        $this->missionAbsenceEntry(AttendanceStatus::Absent, Carbon::now()->subHours(73));
+
+        $this->assertSame([], $this->ofType($this->todo(), 'mission_absence_contest'));
+    }
+
+    public function test_mission_absence_of_another_face_is_not_listed(): void
+    {
+        $other = Face::factory()->create();
+        $this->missionAbsenceEntry(AttendanceStatus::Absent, Carbon::now()->subHours(5), $other);
+
+        $this->assertSame([], $this->ofType($this->todo(), 'mission_absence_contest'));
     }
 
     public function test_query_count_is_constant_with_more_items(): void

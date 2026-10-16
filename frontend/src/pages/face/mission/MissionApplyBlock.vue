@@ -24,6 +24,7 @@ import {
   XCircle,
 } from 'lucide-vue-next'
 import { UgcFaceTrackingCard } from '@/components/ugc'
+import MissionAbsenceContestBlock from '@/features/candidature/components/MissionAbsenceContestBlock.vue'
 import type { Shipment, UgcUploadProgress } from '@/components/ugc'
 import type { Mission, MissionCandidature } from '@/features/mission/types'
 
@@ -60,6 +61,7 @@ defineEmits<{
   'view-pricing': []
   'confirm-receipt': []
   upload: [file: File]
+  contested: []
 }>()
 </script>
 
@@ -90,6 +92,15 @@ defineEmits<{
         </p>
       </div>
       <div
+        v-else-if="candidature?.display_status === 'mission_closed'"
+        class="flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-6 min-[376px]:px-8 py-3 text-gray-600"
+        data-testid="candidature-mission-closed"
+      >
+        <XCircle class="h-5 w-5" />
+        <span class="text-xs min-[376px]:text-sm font-medium">Candidature envoyée</span>
+        <span class="text-xs opacity-75">({{ candidature?.display_status_label ?? 'Mission clôturée' }})</span>
+      </div>
+      <div
         v-else
         class="flex items-center justify-center gap-2 rounded-lg border px-6 min-[376px]:px-8 py-3"
         :class="canCancelCandidature
@@ -105,6 +116,13 @@ defineEmits<{
         </span>
         <span class="text-xs opacity-75">({{ candidature?.status_label }})</span>
       </div>
+      <!-- Absence déclarée par le Producteur : contestation 72 h -->
+      <MissionAbsenceContestBlock
+        v-if="candidature?.attendance_dispute"
+        :dispute="candidature.attendance_dispute"
+        :mission-id="mission.id"
+        @contested="$emit('contested')"
+      />
       <button
         v-if="canReconfirmUgc"
         type="button"

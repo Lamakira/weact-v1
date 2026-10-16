@@ -57,6 +57,7 @@ class CandidatureController extends Controller
                 'conversation',
                 'shipment.receptionPhotos',
                 'deliverables',
+                'paymentEntry',
             ])
             ->latest();
 

@@ -5,6 +5,7 @@ import { Calendar, MapPin, Wallet, User, Check, Loader2, MessageCircle, XCircle 
 import type { FaceCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
 import { StatusPill, tunnelStatusToPillKind } from '@/components/ugc'
+import MissionAbsenceContestBlock from './MissionAbsenceContestBlock.vue'
 
 /**
  * Props
@@ -19,6 +20,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   confirm: [candidatureId: string]
   cancel: [candidatureId: string]
+  contested: []
 }>()
 
 /**
@@ -35,7 +37,11 @@ const canConfirm = computed(() => props.candidature.status === 'accepted')
 /**
  * Computed: Show cancel button for pending candidatures
  */
-const canCancel = computed(() => props.candidature.status === 'pending')
+const displayStatus = computed(() => props.candidature.display_status ?? props.candidature.status)
+const displayStatusLabel = computed(() => props.candidature.display_status_label ?? props.candidature.status_label)
+
+// « Mission clôturée » : pending côté base, mais plus rien à annuler ni à attendre.
+const canCancel = computed(() => displayStatus.value === 'pending')
 
 /**
  * Computed: Show chat button when candidature allows chat and has conversation
@@ -126,7 +132,9 @@ const formattedCreatedAt = computed(() => {
  * Computed: Status badge class
  */
 const statusBadgeClass = computed(() => {
-  const color = CandidatureStatusColor[props.candidature.status]
+  const color = displayStatus.value === 'mission_closed'
+    ? 'gray'
+    : CandidatureStatusColor[props.candidature.status]
   const colorClasses: Record<string, string> = {
     yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
     blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
@@ -180,7 +188,7 @@ const formattedReconfirmDeadline = computed(() => {
         class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
         :class="statusBadgeClass"
       >
-        {{ candidature.status_label }}
+        {{ displayStatusLabel }}
       </span>
       <span class="text-xs text-muted-foreground">
         Postulé le {{ formattedCreatedAt }}
@@ -249,6 +257,19 @@ const formattedReconfirmDeadline = computed(() => {
         {{ candidature.shipment.tunnel_status_label }}
       </StatusPill>
       <span>{{ candidature.shipment.transporteur }} · {{ candidature.shipment.numero_suivi }}</span>
+    </div>
+
+    <!-- Absence déclarée par le Producteur : contestation 72 h (le clic ne navigue pas) -->
+    <div
+      v-if="candidature.attendance_dispute"
+      class="mt-3 border-t border-border pt-3"
+      @click.stop.prevent
+    >
+      <MissionAbsenceContestBlock
+        :dispute="candidature.attendance_dispute"
+        :mission-id="candidature.mission.id"
+        @contested="emit('contested')"
+      />
     </div>
 
     <!-- Actions Section -->

@@ -47,7 +47,7 @@
     </table>
 
     <p style="margin: 0 0 16px; color: #374151; font-size: 14px; line-height: 1.6;">
-        <strong>Pour contester</strong> cette absence, ouvrez la mission depuis votre espace WEACT et utilisez l'action de contestation, ou contactez notre support avant la fin du délai.
+        <strong>Pour contester</strong> cette absence, ouvrez la mission depuis votre espace WEACT et utilisez le bouton «&nbsp;Contester&nbsp;», ou contactez notre support avant la fin du délai.
     </p>
 
     <p style="margin: 0; color: #6b7280; font-size: 13px; line-height: 1.5;">

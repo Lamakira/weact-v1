@@ -205,4 +205,17 @@ export const candidatureApi = {
     )
     return response.data
   },
+
+  /**
+   * Contest an absence declared by the Producer on a mission (Face only).
+   * Window: 72 h after the absence was notified; the endpoint body is empty.
+   * @param missionId The mission UUID
+   * @returns Success message
+   */
+  async contestMissionAbsence(missionId: string): Promise<{ message: string }> {
+    const response = await apiClient.post<{ message: string }>(
+      `/face/missions/${missionId}/dispute-attendance`,
+    )
+    return response.data
+  },
 }

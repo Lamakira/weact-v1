@@ -23,6 +23,12 @@
         </tr>
     </table>
 
+    @if($formattedReconfirmDeadline !== null)
+        <p style="margin: 0 0 16px; padding: 12px 16px; background-color: #fef3c7; border-radius: 6px; color: #92400e; font-size: 13px; line-height: 1.5;">
+            ⏰ Vous avez jusqu'au <strong>{{ $formattedReconfirmDeadline }}</strong> pour reconfirmer, sinon la place sera libérée.
+        </p>
+    @endif
+
     <p style="margin: 0; padding: 12px 16px; background-color: #ecfeff; border-radius: 6px; color: #155e75; font-size: 13px; line-height: 1.5;">
         ✅ Une fois votre participation confirmée, le producteur prépare l'expédition du produit.
     </p>

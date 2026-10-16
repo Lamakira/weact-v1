@@ -45,7 +45,7 @@
         </tr>
     </table>
 
-    <p style="margin: 0; padding: 12px 16px; background-color: #fef3c7; border-radius: 6px; color: #92400e; font-size: 13px; line-height: 1.5;">
-        ⏰ Sans confirmation de votre part, la place pourrait être proposée à une autre Face. Confirmez dès que possible depuis votre espace.
+    <p style="margin: 0; padding: 12px 16px; background-color: #ecfeff; border-radius: 6px; color: #155e75; font-size: 13px; line-height: 1.5;">
+        Confirmez votre participation pour sécuriser votre place.
     </p>
 @endsection
