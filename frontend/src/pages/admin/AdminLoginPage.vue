@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { Mail, Lock, Shield, KeyRound } from 'lucide-vue-next'
 import { useAdminAuth } from '@/features/admin/composables/useAdminAuth'
 import { useAdminAuthStore } from '@/stores/adminAuth'
+import { safeRedirect } from '@/lib/safeRedirect'
 import { FloatingField } from '@/components/ui/form'
 import logoNoir from '@/assets/images/logonoir.png'
 
@@ -70,7 +71,9 @@ function redirectAfterLogin(): void {
     router.push({ name: 'admin-two-factor-setup' })
     return
   }
-  const redirectPath = route.query.redirect as string
+  const requested = safeRedirect(route.query.redirect)
+  // Le redirect doit rester dans l'espace admin : `/admin` ou `/admin/...` (pas `/administrator`).
+  const redirectPath = requested !== null && /^\/admin(?:[/?#]|$)/.test(requested) ? requested : null
   const defaultRoute = adminAuthStore.isEditor ? 'admin-articles-list' : 'admin-dashboard'
   if (redirectPath) {
     router.push(redirectPath)

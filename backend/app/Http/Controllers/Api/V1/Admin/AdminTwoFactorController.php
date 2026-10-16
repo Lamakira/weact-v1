@@ -101,7 +101,7 @@ class AdminTwoFactorController extends Controller
         // one used here) is revoked; a fresh token carrying the `2fa` ability is
         // returned. A token stolen before enrolment therefore gains nothing.
         $admin->tokens()->delete();
-        $token = $admin->createToken('admin-token', [Admin::ABILITY_TWO_FACTOR])->plainTextToken;
+        $token = $admin->createToken('admin-token', [Admin::ABILITY_TWO_FACTOR], now()->addHours(Admin::TOKEN_TTL_HOURS))->plainTextToken;
 
         // Response first, notification LAST and non-throwing: a mail/queue failure must
         // never make the client lose the new token and the one-time recovery codes.
