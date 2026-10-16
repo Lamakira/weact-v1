@@ -143,7 +143,8 @@ class FaceDashboardAvailableMissionsCountTest extends TestCase
             ->for($this->producer)
             ->create([
                 'status' => MissionStatus::Published,
-                'date_limite_candidature' => Carbon::today(),
+                // « Aujourd'hui » = date métier (Bénin), comme Mission::notExpired()
+                'date_limite_candidature' => Mission::businessToday(),
             ]);
 
         $response = $this->actingAs($this->faceUser)
