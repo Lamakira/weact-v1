@@ -15,12 +15,14 @@ use App\Http\Middleware\EnsureUserIsFaceOrProducer;
 use App\Http\Middleware\EnsureUserIsProducer;
 use App\Http\Middleware\SetLocale;
 use App\Http\Middleware\ThrottleRequestsWithBypass;
+use App\Http\Middleware\TrustConfiguredProxies;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
+use Illuminate\Http\Middleware\TrustProxies;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -45,14 +47,9 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Trust reverse proxies (ngrok in dev, Nginx/LB in prod)
         // Dev:  TRUSTED_PROXIES=*  in .env
-        // Prod: TRUSTED_PROXIES=10.0.0.0/8 (internal LB subnet)
-        $middleware->trustProxies(
-            at: env('TRUSTED_PROXIES', null),
-            headers: \Illuminate\Http\Request::HEADER_X_FORWARDED_FOR
-                | \Illuminate\Http\Request::HEADER_X_FORWARDED_HOST
-                | \Illuminate\Http\Request::HEADER_X_FORWARDED_PORT
-                | \Illuminate\Http\Request::HEADER_X_FORWARDED_PROTO,
-        );
+        // Prod: vide (aucun proxy devant PHP) ou TRUSTED_PROXIES=10.0.0.0/8 (sous-réseau du LB interne)
+        // La valeur est lue à chaque requête via config('app.trusted_proxies') (cf. TrustConfiguredProxies).
+        $middleware->replace(TrustProxies::class, TrustConfiguredProxies::class);
 
         // Enable Sanctum SPA stateful authentication
         // This applies EnsureFrontendRequestsAreStateful middleware to API routes
