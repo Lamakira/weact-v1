@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Auth;
 
+use App\Http\Middleware\ThrottleRequestsWithBypass;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Routing\Middleware\ThrottleRequests;
 use Tests\TestCase;
 
 class GoogleOAuthRedirectTest extends TestCase
@@ -140,7 +140,7 @@ class GoogleOAuthRedirectTest extends TestCase
 
         // Unnamed throttles share one counter per IP: this test makes more calls than
         // the strictest limit allows and is about the flag, not the limiter.
-        $this->withoutMiddleware(ThrottleRequests::class);
+        $this->withoutMiddleware(ThrottleRequestsWithBypass::class);
 
         $this->getJson('/api/v1/auth/google/redirect?intent=face&nonce='.self::NONCE)
             ->assertStatus(403)
