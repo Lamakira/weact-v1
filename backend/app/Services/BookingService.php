@@ -274,10 +274,13 @@ class BookingService
                         $booking->date_fin->copy()->endOfDay(),
                         $booking->id,
                     )
-                    // Lecture verrouillante : lit le dernier état validé (pas l'instantané
-                    // REPEATABLE READ de la transaction), donc voit l'accept concurrent qui
-                    // vient d'être validé pendant qu'on attendait le verrou de la Face.
-                    ->lockForUpdate()
+                    // Lecture NON verrouillante, volontairement : sous REPEATABLE READ l'instantané
+                    // naît à la première lecture simple de la transaction. Invariant : AUCUNE lecture
+                    // simple avant le verrou de la Face ci-dessus (seulement des lockForUpdate), donc
+                    // cette lecture voit l'accept concurrent validé pendant l'attente du verrou.
+                    // Ne pas la rendre verrouillante : elle prendrait les verrous des autres bookings
+                    // de la Face après celui de la Face, à l'inverse des flux de paiement
+                    // (booking -> Face via WalletService::credit) => interblocage.
                     ->exists();
 
                 if ($overlaps) {
