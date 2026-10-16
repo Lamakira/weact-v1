@@ -12,7 +12,8 @@ const h = vi.hoisted(() => ({
 }))
 
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: h.push }),
+  useRouter: () => ({ push: h.push, replace: h.push }),
+  isNavigationFailure: () => false,
   RouterLink: { template: '<a><slot /></a>', props: ['to'] },
 }))
 
