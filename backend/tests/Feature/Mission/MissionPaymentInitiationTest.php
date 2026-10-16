@@ -250,6 +250,10 @@ class MissionPaymentInitiationTest extends TestCase
             ->assertJsonPath('data.payment_id', $payment->id)
             ->assertJsonPath('data.checkout_url', 'https://checkout.fedapay.com/reused-token')
             ->assertJsonPath('data.status', 'pending');
+
+        // Abandoned checkout resume (« Reprendre le paiement ») : même transaction, aucune nouvelle row → pas de double débit.
+        $this->assertSame(1, MissionPayment::query()->count());
+        $this->assertSame('123456', (string) $payment->fresh()->fedapay_transaction_id);
     }
 
     public function test_second_confirmation_request_reuses_same_mission_payment_without_duplicate_mutation(): void
