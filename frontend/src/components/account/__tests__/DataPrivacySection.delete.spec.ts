@@ -134,6 +134,24 @@ describe('DataPrivacySection — après suppression du compte', () => {
     expect(h.toastSuccess).not.toHaveBeenCalled()
   })
 
+  it('shows the 409 ACCOUNT_DELETION_BLOCKED message and keeps the account and the dialog', async () => {
+    const message =
+      'Votre portefeuille contient encore 12 500 FCFA : retirez-les avant de supprimer votre compte.'
+    h.del.mockRejectedValue({
+      isAxiosError: true,
+      response: { status: 409, data: { error: { code: 'ACCOUNT_DELETION_BLOCKED', message } } },
+    })
+    const { wrapper } = await mountOnProfile()
+
+    await wrapper.find(DIALOG).trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain(message)
+    expect(wrapper.find(DIALOG).exists()).toBe(true)
+    expect(h.clearAuth).not.toHaveBeenCalled()
+    expect(h.toastSuccess).not.toHaveBeenCalled()
+  })
+
   it('ignores a second confirmation while a deletion is already in flight', async () => {
     let resolveDelete: (v: unknown) => void = () => {}
     h.del.mockReturnValue(new Promise((resolve) => (resolveDelete = resolve)))

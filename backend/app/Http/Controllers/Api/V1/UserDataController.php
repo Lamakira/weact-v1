@@ -4,16 +4,26 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\EscrowStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\BookingMessage;
 use App\Models\Candidature;
 use App\Models\Experience;
 use App\Models\Face;
 use App\Models\FacePhoto;
+use App\Models\FaceSubscription;
 use App\Models\FaceVideo;
+use App\Models\Message;
 use App\Models\Mission;
+use App\Models\MissionPayment;
+use App\Models\MissionPaymentCandidature;
+use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\Rating;
+use App\Models\User;
+use App\Models\WalletTransaction;
+use App\Models\WithdrawalRequest;
 use App\Services\AgencyLogoService;
 use App\Services\Auth\GoogleOAuthService;
 use App\Services\FaceVideoService;
@@ -32,6 +42,9 @@ use Illuminate\Support\Str;
 
 class UserDataController extends Controller
 {
+    /** Replacement text for every message the deleted user authored. */
+    private const DELETED_MESSAGE_PLACEHOLDER = '[message supprimé]';
+
     /**
      * Export all personal data for the authenticated user (Art. 438 - Portabilite).
      */
@@ -49,6 +62,8 @@ class UserDataController extends Controller
                 'email_verified_at' => $user->email_verified_at?->toIso8601String(),
                 'consent_given_at' => $user->consent_given_at?->toIso8601String(),
                 'consent_version' => $user->consent_version,
+                'consent_ip' => $user->consent_ip,
+                'balance' => (int) $user->balance,
                 'has_password' => $user->password !== null,
                 'google_linked' => $user->google_id !== null,
                 'google_linked_at' => $user->google_linked_at?->toIso8601String(),
@@ -78,7 +93,28 @@ class UserDataController extends Controller
                 'tarif_horaire' => $face->tarif_horaire,
                 'tarif_journalier' => $face->tarif_journalier,
                 'is_available' => $face->is_available,
+                'profile_photo_url' => $face->profile_photo_url,
+                'presentation_video_url' => $face->presentation_video_url,
             ];
+
+            $data['media'] = [
+                'photos' => $face->photos()->get()->map(fn (FacePhoto $p) => $p->photo_url)->filter()->values()->all(),
+                'videos' => $face->videos()->get()->map(fn (FaceVideo $v) => $v->video_url)->filter()->values()->all(),
+            ];
+
+            /** @var EloquentCollection<int, FaceSubscription> $subscriptions */
+            $subscriptions = $face->subscriptions()->get();
+            $data['subscriptions'] = $subscriptions->map(fn (FaceSubscription $sub) => [
+                'plan' => $sub->plan->value,
+                'status' => $sub->status->value,
+                'starts_at' => $sub->starts_at?->toIso8601String(),
+                'expires_at' => $sub->expires_at?->toIso8601String(),
+                'cancelled_at' => $sub->cancelled_at?->toIso8601String(),
+                'paid_amount' => $sub->paid_amount,
+                'paid_at' => $sub->paid_at?->toIso8601String(),
+                'currency' => $sub->currency,
+                'created_at' => $sub->created_at?->toIso8601String(),
+            ])->all();
 
             // Experiences
             /** @var EloquentCollection<int, Experience> $experiences */
@@ -113,7 +149,17 @@ class UserDataController extends Controller
                 'last_name' => $producer->last_name,
                 'bio' => $producer->bio,
                 'whatsapp_number' => $producer->whatsapp_number,
+                'profile_photo_url' => $producer->profile_photo_url,
+                'agency_logo_url' => $producer->agency_logo_url,
             ];
+
+            /** @var EloquentCollection<int, MissionPayment> $missionPayments */
+            $missionPayments = MissionPayment::query()->where('producer_id', $producer->id)->get();
+            $data['mission_payments'] = $missionPayments->map(fn (MissionPayment $mp) => [
+                'montant_total_producteur' => $mp->montant_total_producteur,
+                'status' => $mp->status->value,
+                'paid_at' => $mp->paid_at?->toIso8601String(),
+            ])->all();
 
             // Missions
             /** @var EloquentCollection<int, Mission> $missions */
@@ -147,6 +193,70 @@ class UserDataController extends Controller
             'created_at' => $r->created_at?->toIso8601String(),
         ])->toArray();
 
+        // Messages: only those of bookings / candidatures the user is a party to.
+        // The counterpart is never identified (no name, email or phone).
+        /** @var EloquentCollection<int, BookingMessage> $bookingMessages */
+        $bookingMessages = BookingMessage::query()
+            ->whereHas('booking', fn ($q) => $q->where('face_id', $user->id)->orWhere('producer_id', $user->id))
+            ->with('booking:id,uuid')
+            ->orderBy('id')
+            ->get();
+        $data['booking_messages'] = $bookingMessages->map(fn (BookingMessage $m) => [
+            'booking' => $m->booking?->uuid,
+            'from_me' => $m->sender_id === $user->id,
+            'content' => $m->content,
+            'created_at' => $m->created_at->toIso8601String(),
+        ])->all();
+
+        /** @var EloquentCollection<int, Message> $conversationMessages */
+        $conversationMessages = Message::query()
+            ->whereHas('conversation.candidature', fn ($q) => $this->scopeCandidaturesOfUser($q, $user))
+            ->with('conversation:id,uuid')
+            ->orderBy('id')
+            ->get();
+        $data['conversation_messages'] = $conversationMessages->map(fn (Message $m) => [
+            'conversation' => $m->conversation?->uuid,
+            'from_me' => $m->sender_id === $user->id && $m->sender_type === User::class,
+            'content' => $m->content,
+            'created_at' => $m->created_at->toIso8601String(),
+        ])->all();
+
+        /** @var EloquentCollection<int, WalletTransaction> $walletTransactions */
+        $walletTransactions = $user->walletTransactions()->orderBy('id')->get();
+        $data['wallet_transactions'] = $walletTransactions->map(fn (WalletTransaction $t) => [
+            'type' => $t->type,
+            'amount' => $t->amount,
+            'reference' => $t->reference,
+            'description' => $t->description,
+            'status' => $t->status,
+            'created_at' => $t->created_at->toIso8601String(),
+        ])->all();
+
+        $data['withdrawal_requests'] = WithdrawalRequest::query()
+            ->where('user_id', $user->id)
+            ->orderBy('id')
+            ->get()
+            ->map(fn (WithdrawalRequest $w) => [
+                'amount' => $w->amount,
+                'payment_mode' => $w->payment_mode,
+                'phone_number' => $w->phone_number,
+                'phone_country' => $w->phone_country,
+                'status' => $w->status,
+                'created_at' => $w->created_at?->toIso8601String(),
+                'processed_at' => $w->processed_at?->toIso8601String(),
+            ])->all();
+
+        $data['notifications'] = Notification::query()
+            ->where('user_id', $user->id)
+            ->orderBy('id')
+            ->get()
+            ->map(fn (Notification $n) => [
+                'type' => $n->type,
+                'data' => $n->data,
+                'read_at' => $n->read_at?->toIso8601String(),
+                'created_at' => $n->created_at?->toIso8601String(),
+            ])->all();
+
         return response()->json([
             'data' => $data,
             'message' => 'Export de vos données personnelles',
@@ -155,10 +265,32 @@ class UserDataController extends Controller
 
     /**
      * Delete (anonymize) the authenticated user's account (Art. 443 - Droit a l'oubli).
+     *
+     * Refused (409) while money is still in play (wallet balance, pending withdrawal,
+     * locked escrow, booking awaiting settlement or dispute).
+     *
+     * Personal data is erased or neutralized (profile, contact details, consent IP,
+     * authored messages replaced by a placeholder, withdrawal phone numbers masked).
+     * Financial records (wallet_transactions, withdrawal_requests rows, payments,
+     * escrow, bookings amounts, subscriptions) are deliberately KEPT intact for
+     * legal/accounting retention; they no longer point at any readable identity.
      */
     public function destroy(Request $request): JsonResponse
     {
         $user = $request->user();
+
+        // Money guard, BEFORE any credential check or ticket consumption: anonymizing
+        // an account that still holds or is owed money would strand funds the
+        // platform must be able to attribute and pay out.
+        $blockers = $this->deletionBlockers($user);
+        if ($blockers !== []) {
+            return response()->json([
+                'error' => [
+                    'code' => 'ACCOUNT_DELETION_BLOCKED',
+                    'message' => implode(' ', $blockers),
+                ],
+            ], 409);
+        }
 
         // Erasure (Art. 443) is confirmed either with the password, or — for an
         // account created through Google, which has none — with a fresh
@@ -216,6 +348,17 @@ class UserDataController extends Controller
                     'bio' => null,
                     'whatsapp_number' => null,
                     'ville' => null,
+                    'sexe' => null,
+                    'date_naissance' => null,
+                    'nationalite' => null,
+                    'pays' => null,
+                    'taille' => null,
+                    'poids' => null,
+                    'langues' => null,
+                    'categories' => [],
+                    'niches' => [],
+                    'tarif_horaire' => null,
+                    'tarif_journalier' => null,
                     'is_available' => false,
                 ]);
 
@@ -232,13 +375,34 @@ class UserDataController extends Controller
                     'bio' => null,
                     'whatsapp_number' => null,
                 ]);
+
+                // The model's `updating` hook regenerates the slug from the (now
+                // anonymized) name: overwrite it afterwards with a neutral one.
+                Producer::query()->whereKey($producer->id)->update(['slug' => 'deleted-'.$producer->id]);
             }
+
+            // Messages authored by the user. Rows are kept so the counterpart's
+            // thread stays coherent; only the content is replaced.
+            BookingMessage::query()
+                ->where('sender_id', $user->id)
+                ->update(['content' => self::DELETED_MESSAGE_PLACEHOLDER]);
+            Message::query()
+                ->where('sender_id', $user->id)
+                ->where('sender_type', User::class)
+                ->update(['content' => self::DELETED_MESSAGE_PLACEHOLDER]);
+
+            // Withdrawal rows stay (accounting); the payout phone number is masked.
+            // Both columns are NOT NULL, hence neutral values rather than null.
+            WithdrawalRequest::query()
+                ->where('user_id', $user->id)
+                ->update(['phone_number' => '[supprimé]', 'phone_country' => '--']);
 
             // Anonymize the user record
             $user->update([
                 'email' => 'deleted_'.$user->id.'@anonymized.weact.bj',
                 'password' => Hash::make(Str::random(40)),
                 'pending_email' => null,
+                'consent_ip' => null,
                 'is_active' => false,
             ]);
 
@@ -331,5 +495,76 @@ class UserDataController extends Controller
                 ? null
                 : 'Votre compte a bien été supprimé, mais certains fichiers médias n\'ont pas pu être nettoyés immédiatement. Notre équipe a été notifiée.',
         ]);
+    }
+
+    /**
+     * Reasons (French sentences) why the account cannot be deleted right now.
+     *
+     * @return list<string>
+     */
+    private function deletionBlockers(User $user): array
+    {
+        $blockers = [];
+
+        $balance = (int) $user->balance;
+        if ($balance > 0) {
+            $blockers[] = 'Votre portefeuille contient encore '.number_format($balance, 0, ',', ' ').' FCFA : retirez-les avant de supprimer votre compte.';
+        }
+
+        $hasPendingWithdrawal = WithdrawalRequest::query()
+            ->where('user_id', $user->id)
+            ->where('status', 'pending')
+            ->exists();
+        if ($hasPendingWithdrawal) {
+            $blockers[] = 'Une demande de retrait est en cours de traitement : attendez son traitement avant de supprimer votre compte.';
+        }
+
+        // Bookings.face_id / producer_id are users.id. Unsettled money = escrow still
+        // locked, an absence/late-cancellation awaiting settlement, or an open dispute.
+        $hasUnsettledBooking = Booking::query()
+            ->where(fn ($q) => $q->where('face_id', $user->id)->orWhere('producer_id', $user->id))
+            ->where(function ($q): void {
+                $q->whereHas('escrowTransaction', fn ($e) => $e->where('status', EscrowStatus::Locked->value))
+                    ->orWhere(fn ($b) => $b->pendingSettlement())
+                    ->orWhere(fn ($b) => $b->whereNotNull('disputed_at')->whereNull('dispute_resolved_at'));
+            })
+            ->exists();
+
+        // Mission / hybrid UGC candidature escrow (face_id = faces.id, producer_id = producers.id).
+        $hasLockedCandidatureEscrow = false;
+        if ($user->userable_type === Face::class && $user->userable_id !== null) {
+            $hasLockedCandidatureEscrow = MissionPaymentCandidature::query()
+                ->where('face_id', $user->userable_id)
+                ->where('escrow_status', EscrowStatus::Locked->value)
+                ->exists();
+        } elseif ($user->userable_type === Producer::class && $user->userable_id !== null) {
+            $hasLockedCandidatureEscrow = MissionPaymentCandidature::query()
+                ->where('escrow_status', EscrowStatus::Locked->value)
+                ->whereHas('missionPayment', fn ($q) => $q->where('producer_id', $user->userable_id))
+                ->exists();
+        }
+
+        if ($hasUnsettledBooking || $hasLockedCandidatureEscrow) {
+            $blockers[] = 'Un booking ou une mission est en cours avec de l\'argent en jeu : terminez-le ou contactez le support.';
+        }
+
+        return $blockers;
+    }
+
+    /**
+     * Restrict a Candidature query to those the user is a party to
+     * (Face: candidatures.face_id = faces.id; Producer: owner of the mission).
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<\Illuminate\Database\Eloquent\Model>  $query
+     */
+    private function scopeCandidaturesOfUser($query, User $user): void
+    {
+        if ($user->userable_type === Face::class) {
+            $query->where('face_id', $user->userable_id);
+        } elseif ($user->userable_type === Producer::class) {
+            $query->whereHas('mission', fn ($q) => $q->where('producer_id', $user->userable_id));
+        } else {
+            $query->whereRaw('1 = 0');
+        }
     }
 }
