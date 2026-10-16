@@ -23,16 +23,20 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
     // Public Faces list (paginated)
-    Route::get('/faces', [FaceController::class, 'index']);
+    Route::get('/faces', [FaceController::class, 'index'])
+        ->middleware('public.cache');
 
     // Public Faces filter options (categories, niches, cities)
-    Route::get('/faces/options', [FaceController::class, 'filterOptions']);
+    Route::get('/faces/options', [FaceController::class, 'filterOptions'])
+        ->middleware('public.cache');
 
     // Public Face profile (limited info)
-    Route::get('/faces/{username}', [FaceController::class, 'show']);
+    Route::get('/faces/{username}', [FaceController::class, 'show'])
+        ->middleware('public.cache');
 
     // Producer public profile
-    Route::get('/producers/{producer:slug}', [ProducerController::class, 'show']);
+    Route::get('/producers/{producer:slug}', [ProducerController::class, 'show'])
+        ->middleware('public.cache');
 
     // Producer reviews list
     Route::get('/producers/{producer:slug}/reviews', [ProducerReviewController::class, 'index']);
@@ -41,16 +45,20 @@ Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
     Route::get('/faces/{face:username}/reviews', [FaceReviewController::class, 'index']);
 
     // Public Articles list (paginated)
-    Route::get('/articles', [ArticleController::class, 'index']);
+    Route::get('/articles', [ArticleController::class, 'index'])
+        ->middleware('public.cache');
 
     // Public Article detail
-    Route::get('/articles/{slug}', [ArticleController::class, 'show']);
+    Route::get('/articles/{slug}', [ArticleController::class, 'show'])
+        ->middleware('public.cache');
 
     // Public Missions list (paginated)
-    Route::get('/missions', [MissionController::class, 'index']);
+    Route::get('/missions', [MissionController::class, 'index'])
+        ->middleware('public.cache');
 
     // Public Mission detail
-    Route::get('/missions/{slug}', [MissionController::class, 'show']);
+    Route::get('/missions/{slug}', [MissionController::class, 'show'])
+        ->middleware('public.cache');
 
     // Contact form
     Route::post('/contact', [ContactController::class, 'store'])

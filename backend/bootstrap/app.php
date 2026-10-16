@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Middleware\CachePublicResponse;
 use App\Http\Middleware\EnsureAdminRole;
 use App\Http\Middleware\EnsureAdminTwoFactorEnrolled;
 use App\Http\Middleware\EnsureApiBearerToken;
@@ -67,6 +68,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.role' => EnsureAdminRole::class,
             'admin.2fa' => EnsureAdminTwoFactorEnrolled::class,
             'api.token' => EnsureApiBearerToken::class,
+            'public.cache' => CachePublicResponse::class,
             'superadmin' => EnsureSuperAdmin::class,
             'face' => EnsureUserIsFace::class,
             'google.enabled' => EnsureGoogleOAuthEnabled::class,
