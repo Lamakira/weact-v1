@@ -4,7 +4,7 @@
  * Provides: data export (portability) and account deletion (right to be forgotten)
  */
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { isNavigationFailure, useRouter } from 'vue-router'
 import { Download, Trash2, AlertTriangle, Loader2, Eye, X } from 'lucide-vue-next'
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
 import { formatApiError } from '@/services/errorFormatter'
@@ -84,7 +84,24 @@ function closeDeleteDialog() {
   reauthToken.value = null
 }
 
+// Leaves the page for good once the session is gone. The leave guard of the page
+// we are on (or any aborted navigation) must never keep a deleted user here.
+async function goHomeLoggedOut() {
+  try {
+    const failure = await router.replace({ name: 'home' })
+    if (isNavigationFailure(failure)) window.location.assign('/')
+  } catch {
+    window.location.assign('/')
+  }
+}
+
+function isUnauthenticated(err: unknown): boolean {
+  return (err as { response?: { status?: number } })?.response?.status === 401
+}
+
 async function handleDelete() {
+  if (isDeleting.value) return
+
   if (reauthToken.value === null && !deletePassword.value) {
     deleteError.value = 'Veuillez entrer votre mot de passe.'
     return
@@ -102,13 +119,23 @@ async function handleDelete() {
           : { password: deletePassword.value },
     })
 
+    closeDeleteDialog()
     authStore.clearAuth()
-    router.push({ name: 'home' })
+    await goHomeLoggedOut()
     toast.success(response.data.message || 'Votre compte a été supprimé. Vos données ont été anonymisées.')
     if (response.data.warning) {
       toast.warning(response.data.warning, { duration: 7000 })
     }
   } catch (err) {
+    // Session already gone (account deleted in another tab, token expired): the
+    // account may no longer exist, so log out rather than show a raw 401.
+    if (isUnauthenticated(err)) {
+      closeDeleteDialog()
+      authStore.clearAuth()
+      await goHomeLoggedOut()
+      toast.info('Votre session a expiré. Reconnectez-vous si votre compte existe encore.')
+      return
+    }
     deleteError.value = formatApiError(err, 'Erreur lors de la suppression. Vérifiez votre mot de passe.')
     // A spent or expired ticket must not be retried: send the user back through
     // the Google confirmation.

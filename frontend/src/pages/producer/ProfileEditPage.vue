@@ -231,7 +231,9 @@ const leaveModalOpen = ref(false)
 let resolveLeave: ((allowed: boolean) => void) | null = null
 
 onBeforeRouteLeave(() => {
-  if (!isDirty.value) return true
+  // Session gone (account deleted, 401…): nothing left to save, and the logout
+  // redirect must never wait on a confirmation the user cannot act on.
+  if (!authStore.isAuthenticated || !isDirty.value) return true
 
   leaveModalOpen.value = true
   return new Promise<boolean>((resolve) => {
@@ -247,7 +249,7 @@ function answerLeave(allowed: boolean): void {
 
 // Closing / reloading the tab with unsaved changes.
 function handleBeforeUnload(event: BeforeUnloadEvent): void {
-  if (!isDirty.value) return
+  if (!authStore.isAuthenticated || !isDirty.value) return
   event.preventDefault()
   event.returnValue = ''
 }

@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
   leaveGuard: null as null | (() => unknown),
+  isAuthenticated: true,
   toastSuccess: vi.fn(),
   fetchProfile: vi.fn().mockResolvedValue(undefined),
   fetchBio: vi.fn().mockResolvedValue(undefined),
@@ -99,6 +100,9 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
     user: { id: 7, email: 'prod@example.com', userable: { slug: 'studio-awale' } },
     hasPassword: true,
+    get isAuthenticated() {
+      return h.isAuthenticated
+    },
   }),
 }))
 
@@ -157,6 +161,7 @@ describe('Producer ProfileEditPage — Régie settings page', () => {
     vi.clearAllMocks()
     h.query = {}
     h.leaveGuard = null
+    h.isAuthenticated = true
     h.refs.isLoading.value = false
     h.refs.isBioLoading.value = false
     h.refs.basicLoading.value = false
@@ -608,6 +613,21 @@ describe('Producer ProfileEditPage — Régie settings page', () => {
       await wrapper.find('[data-testid="leave-cancel"]').trigger('click')
       expect(await result).toBe(false)
       expect(wrapper.find('[data-testid="leave-modal"]').exists()).toBe(false)
+    })
+
+    it('never blocks the navigation once the session is gone (account deleted), even with unsaved changes', async () => {
+      const wrapper = mountPage()
+      await flushPromises()
+      await wrapper.find('[data-testid="bio-textarea"]').setValue('Modif')
+
+      h.isAuthenticated = false
+
+      expect(h.leaveGuard!()).toBe(true)
+      expect(wrapper.find('[data-testid="leave-modal"]').exists()).toBe(false)
+
+      const unload = new Event('beforeunload', { cancelable: true })
+      window.dispatchEvent(unload)
+      expect(unload.defaultPrevented).toBe(false)
     })
 
     it('lets the navigation through once the user confirms', async () => {
