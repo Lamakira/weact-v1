@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Concerns\HasRouteUuid;
+use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
+use App\Enums\EscrowStatus;
+use App\Enums\MissionStatus;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -129,6 +133,81 @@ class Candidature extends Model
     public function deliverables(): MorphMany
     {
         return $this->morphMany(Deliverable::class, 'owner')->orderBy('chrono_started_at');
+    }
+
+    /** Valeur d'affichage Face d'une candidature `pending` dont la mission n'accepte plus de candidatures. */
+    public const DISPLAY_STATUS_MISSION_CLOSED = 'mission_closed';
+
+    /**
+     * Statut EFFECTIF à afficher à la Face (le statut stocké n'est jamais modifié :
+     * une réouverture de la mission doit rester possible). Une candidature `pending`
+     * dont la mission n'est plus publiée (clôturée, en validation de présences,
+     * terminée) est « mission_closed ». Le dépassement de date_limite_candidature
+     * n'y suffit PAS : le Producteur peut encore accepter après cette date.
+     */
+    public function displayStatus(): string
+    {
+        if ($this->status === CandidatureStatus::Pending && $this->mission->status !== MissionStatus::Published) {
+            return self::DISPLAY_STATUS_MISSION_CLOSED;
+        }
+
+        return $this->status->value;
+    }
+
+    public function displayStatusLabel(): string
+    {
+        return $this->displayStatus() === self::DISPLAY_STATUS_MISSION_CLOSED
+            ? 'Mission clôturée'
+            : $this->status->label();
+    }
+
+    /**
+     * Date limite de reconfirmation d'une candidature UGC acceptée
+     * (accepted_at + ugc.reconfirm_window_hours) — source unique de la règle,
+     * ancre du cron ugc:expire-unreconfirmed-candidatures. Null sinon.
+     */
+    public function reconfirmDeadline(): ?CarbonInterface
+    {
+        if ($this->status !== CandidatureStatus::Accepted || $this->accepted_at === null) {
+            return null;
+        }
+
+        return $this->accepted_at->copy()->addHours((int) config('ugc.reconfirm_window_hours', 48));
+    }
+
+    /**
+     * Absence mission contestable par la Face, depuis l'entrée d'escrow préchargée
+     * (`paymentEntry`). Null hors fenêtre / hors absence.
+     *
+     * @return array{state: string, deadline: string|null, can_contest: bool}|null
+     */
+    public function attendanceDispute(): ?array
+    {
+        $entry = $this->paymentEntry;
+
+        if ($entry === null || $entry->escrow_status !== EscrowStatus::Locked) {
+            return null;
+        }
+
+        $deadline = $entry->contestDeadline();
+
+        if ($entry->attendance_status === AttendanceStatus::Disputed) {
+            return [
+                'state' => 'contested',
+                'deadline' => $deadline?->toIso8601String(),
+                'can_contest' => false,
+            ];
+        }
+
+        if ($entry->attendance_status === AttendanceStatus::Absent && $deadline?->isFuture()) {
+            return [
+                'state' => 'contestable',
+                'deadline' => $deadline->toIso8601String(),
+                'can_contest' => true,
+            ];
+        }
+
+        return null;
     }
 
     /**

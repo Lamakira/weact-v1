@@ -66,6 +66,23 @@ final class FaceSelectedMailTest extends TestCase
     }
 
     #[Test]
+    public function test_does_not_threaten_to_give_the_place_to_another_face(): void
+    {
+        $mission = Mission::factory()->create(['titre' => 'X']);
+        $face = Face::factory()->create(['prenom' => 'Amina']);
+
+        $rendered = (new FaceSelectedMail(
+            face: $face,
+            mission: $mission,
+            producerName: 'Y',
+            amount: 1,
+        ))->render();
+
+        $this->assertStringNotContainsString('autre Face', $rendered);
+        $this->assertStringContainsString('Confirmez votre participation pour sécuriser votre place.', $rendered);
+    }
+
+    #[Test]
     public function test_falls_back_to_display_name_when_prenom_is_empty(): void
     {
         $mission = Mission::factory()->create(['titre' => 'X']);
