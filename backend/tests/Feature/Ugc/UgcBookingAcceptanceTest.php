@@ -196,6 +196,22 @@ class UgcBookingAcceptanceTest extends TestCase
         Event::assertDispatched(BookingRefused::class, fn (BookingRefused $event): bool => $event->booking->id === $booking->id);
     }
 
+    public function test_ugc_booking_without_dates_is_not_blocked_by_overlap_check_on_accept(): void
+    {
+        $this->subscribeFace();
+        Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'date_debut' => now()->subDay(),
+            'date_fin' => now()->addDays(30),
+        ]);
+        $booking = $this->makeUgcBooking(BookingStatus::CommissionPaid);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/accept")
+            ->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::Accepted->value);
+    }
+
     // ===================================================================
     // Gate éligibilité FR5 — accept gated, refuse non gated (AC2)
     // ===================================================================

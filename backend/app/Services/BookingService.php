@@ -260,6 +260,36 @@ class BookingService
                 ]);
             }
 
+            // Anti double-booking : les demandes Pending peuvent se chevaucher (la Face choisit),
+            // mais une seule peut être acceptée par plage. On sérialise les accepts d'une même
+            // Face en verrouillant sa ligne users (ordre : booking puis user, comme WalletService
+            // appelé depuis les flux déjà sous lock booking). Bookings UGC sans dates : ignorés.
+            if ($booking->date_debut !== null && $booking->date_fin !== null) {
+                User::query()->whereKey($booking->face_id)->lockForUpdate()->first();
+
+                $overlaps = Booking::query()
+                    ->overlappingActiveForFace(
+                        (int) $booking->face_id,
+                        $booking->date_debut->copy()->startOfDay(),
+                        $booking->date_fin->copy()->endOfDay(),
+                        $booking->id,
+                    )
+                    // Lecture NON verrouillante, volontairement : sous REPEATABLE READ l'instantané
+                    // naît à la première lecture simple de la transaction. Invariant : AUCUNE lecture
+                    // simple avant le verrou de la Face ci-dessus (seulement des lockForUpdate), donc
+                    // cette lecture voit l'accept concurrent validé pendant l'attente du verrou.
+                    // Ne pas la rendre verrouillante : elle prendrait les verrous des autres bookings
+                    // de la Face après celui de la Face, à l'inverse des flux de paiement
+                    // (booking -> Face via WalletService::credit) => interblocage.
+                    ->exists();
+
+                if ($overlaps) {
+                    throw ValidationException::withMessages([
+                        'date_debut' => ['Vous avez déjà un booking accepté sur ces dates.'],
+                    ]);
+                }
+            }
+
             $booking->update([
                 'status' => BookingStatus::Accepted,
                 'accepted_at' => now(),

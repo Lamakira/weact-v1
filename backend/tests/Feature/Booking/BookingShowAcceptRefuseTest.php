@@ -11,6 +11,7 @@ use App\Models\Booking;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use Tests\TestCase;
@@ -187,6 +188,74 @@ class BookingShowAcceptRefuseTest extends TestCase
         Event::assertDispatched(BookingAccepted::class, function (BookingAccepted $event) {
             return $event->booking->id === $this->booking->id;
         });
+    }
+
+    // === ACCEPT OVERLAP TESTS ===
+
+    /**
+     * Crée un second booking Pending pour la même Face (autre Producteur) sur une plage donnée.
+     */
+    private function makePendingOnRange(CarbonInterface $start, CarbonInterface $end): Booking
+    {
+        return Booking::factory()->pending()->create([
+            'face_id' => $this->faceUser->id,
+            'date_debut' => $start,
+            'date_fin' => $end,
+        ]);
+    }
+
+    public function test_face_cannot_accept_second_booking_overlapping_an_accepted_one(): void
+    {
+        $start = now()->addDays(10)->startOfDay();
+        $this->booking->update(['status' => BookingStatus::Accepted, 'date_debut' => $start, 'date_fin' => $start->copy()->addDays(2)]);
+        $other = $this->makePendingOnRange($start->copy()->addDay(), $start->copy()->addDays(3));
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$other->uuid}/accept")
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['date_debut']);
+
+        $this->assertDatabaseHas('bookings', ['id' => $other->id, 'status' => BookingStatus::Pending->value]);
+    }
+
+    public function test_face_can_accept_booking_on_non_overlapping_dates(): void
+    {
+        $start = now()->addDays(10)->startOfDay();
+        $this->booking->update(['status' => BookingStatus::Accepted, 'date_debut' => $start, 'date_fin' => $start->copy()->addDays(2)]);
+        $other = $this->makePendingOnRange($start->copy()->addDays(5), $start->copy()->addDays(6));
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$other->uuid}/accept")
+            ->assertOk();
+
+        $this->assertDatabaseHas('bookings', ['id' => $other->id, 'status' => BookingStatus::Accepted->value]);
+    }
+
+    public function test_face_can_accept_overlapping_booking_when_previous_one_was_cancelled(): void
+    {
+        $start = now()->addDays(10)->startOfDay();
+        $end = $start->copy()->addDays(2);
+        $this->booking->update(['status' => BookingStatus::CancelledByProducer, 'date_debut' => $start, 'date_fin' => $end]);
+        Booking::factory()->refused()->create(['face_id' => $this->faceUser->id, 'date_debut' => $start, 'date_fin' => $end]);
+        Booking::factory()->create(['face_id' => $this->faceUser->id, 'status' => BookingStatus::Expired, 'date_debut' => $start, 'date_fin' => $end]);
+        $other = $this->makePendingOnRange($start->copy()->addDay(), $start->copy()->addDays(3));
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$other->uuid}/accept")
+            ->assertOk();
+    }
+
+    public function test_overlap_boundary_same_day_counts_as_overlap(): void
+    {
+        $start = now()->addDays(10)->startOfDay();
+        $this->booking->update(['status' => BookingStatus::Paid, 'date_debut' => $start, 'date_fin' => $start->copy()->addDays(2)]);
+        // B commence le jour où A se termine (plage inclusive).
+        $other = $this->makePendingOnRange($start->copy()->addDays(2), $start->copy()->addDays(4));
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$other->uuid}/accept")
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['date_debut']);
     }
 
     // === REFUSE TESTS ===
