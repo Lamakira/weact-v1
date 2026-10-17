@@ -28,7 +28,9 @@ class NotifyProducerOnBookingRefused
                 'user_id' => $booking->producer_id,
                 'type' => 'booking_refused',
                 'data' => [
-                    'message' => "{$faceName} a refusé votre booking",
+                    'message' => $event->automatic
+                        ? "{$faceName} n'est plus disponible sur ces dates : votre demande a été refusée automatiquement."
+                        : "{$faceName} a refusé votre booking",
                     'booking_id' => $booking->id,
                     'url' => "/producer/bookings/{$booking->uuid}",
                 ],

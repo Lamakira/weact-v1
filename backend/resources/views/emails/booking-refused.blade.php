@@ -4,10 +4,14 @@
 
 @section('content')
     <h2 style="margin: 0 0 16px; color: #111827; font-size: 20px; font-weight: 700; line-height: 1.3;">
-        Booking refusé
+        {{ $automatic ? "Demande non aboutie" : 'Booking refusé' }}
     </h2>
     <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        {{ $faceName }} a refusé votre booking. Vous pouvez le proposer à une autre Face.
+        @if ($automatic)
+            {{ $faceName }} a accepté une autre demande sur ces dates et n'est donc plus disponible. Votre demande a été refusée automatiquement : vous pouvez la proposer à une autre Face.
+        @else
+            {{ $faceName }} a refusé votre booking. Vous pouvez le proposer à une autre Face.
+        @endif
     </p>
 
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb; border-radius: 6px; margin: 0 0 24px;">
