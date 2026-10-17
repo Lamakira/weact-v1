@@ -97,7 +97,7 @@ class MissionController extends Controller
      * Display the specified mission.
      * For producer routes, only the owner can view their mission details.
      */
-    public function show(Request $request, Mission $mission): JsonResponse
+    public function show(Request $request, Mission $mission, FreedPlaceService $freedPlaces): JsonResponse
     {
         $user = $request->user();
 
@@ -113,9 +113,7 @@ class MissionController extends Controller
         // Lot B4 : places libérées (détail seulement : pas de requête par ligne sur les listes).
         $freedCount = FreedPlaceService::pendingFreedEntries($mission)->count();
         $mission->setAttribute('freed_places_count', $freedCount);
-        $mission->setAttribute('can_replace_freed_place', $freedCount > 0
-            && $mission->status === MissionStatus::Closed
-            && ($mission->shootingDayStartsAt() === null || now()->lt($mission->shootingDayStartsAt())));
+        $mission->setAttribute('can_replace_freed_place', $freedPlaces->canReplaceNow($mission, $freedCount));
 
         return response()->json([
             'data' => new MissionResource($mission->load(['producer', 'productPhotos'])),

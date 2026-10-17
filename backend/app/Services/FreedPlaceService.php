@@ -59,6 +59,34 @@ class FreedPlaceService
     }
 
     /**
+     * Une place libérée peut-elle encore être pourvue maintenant (mission standard clôturée, assez tôt avant le tournage) ?
+     */
+    public function canReplaceNow(Mission $mission, int $freedCount): bool
+    {
+        return $freedCount > 0
+            && $mission->type_mission !== MissionType::Ugc
+            && $mission->status === MissionStatus::Closed
+            && ! MissionPaymentService::isTooLateToReplace($mission->shootingDayStartsAt());
+    }
+
+    /**
+     * Ids des candidatures que replace() accepterait aujourd'hui (même prédicat : isEligibleReplacement),
+     * vide s'il n'y a aucune place libérée pourvoyable.
+     *
+     * @return list<int>
+     */
+    public function replaceableCandidatureIds(Mission $mission): array
+    {
+        if (! $this->canReplaceNow($mission, self::pendingFreedEntries($mission)->count())) {
+            return [];
+        }
+
+        return $this->missionPaymentService->replacementCandidates($mission)
+            ->map(fn (Candidature $candidature): int => (int) $candidature->id)
+            ->all();
+    }
+
+    /**
      * @throws ValidationException
      */
     public function replace(Mission $mission, string $candidatureUuid): Candidature

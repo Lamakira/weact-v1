@@ -22,6 +22,7 @@ use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Services\FaceEntitlementService;
+use App\Services\FreedPlaceService;
 use App\Services\MissionPaymentService;
 use App\Services\Ugc\UgcCommissionPaymentService;
 use Illuminate\Http\JsonResponse;
@@ -45,7 +46,7 @@ class CandidatureController extends Controller
      * Only the mission owner (Producer) can access this endpoint.
      * Supports optional status filter via query parameter.
      */
-    public function index(IndexMissionCandidaturesRequest $request, Mission $mission): AnonymousResourceCollection
+    public function index(IndexMissionCandidaturesRequest $request, Mission $mission, FreedPlaceService $freedPlaces): AnonymousResourceCollection
     {
         $user = $request->user();
         $producer = $user->userable;
@@ -66,6 +67,12 @@ class CandidatureController extends Controller
         }
 
         $candidatures = $query->paginate(15);
+
+        // Lot B4 : seules les candidatures que le serveur accepterait pour reprendre une place libérée.
+        $replaceableIds = $freedPlaces->replaceableCandidatureIds($mission);
+        $candidatures->getCollection()->each(
+            fn (Candidature $candidature) => $candidature->setAttribute('can_replace_freed_place', in_array($candidature->id, $replaceableIds, true)),
+        );
 
         return ProducerCandidatureResource::collection($candidatures);
     }

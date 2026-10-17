@@ -319,6 +319,11 @@ class FreedPlaceReplacementTest extends TestCase
 
         $this->assertSame(CandidatureStatus::Rejected, $rejected[0]->fresh()->status);
         $this->assertFalse(app(\App\Services\MissionPaymentService::class)->canFreedPlaceBeReplaced($mission->fresh()));
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$mission->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.freed_places_count', 1)
+            ->assertJsonPath('data.can_replace_freed_place', false);
     }
 
     public function test_an_original_face_whose_floor_deadline_follows_the_shooting_start_is_expired_and_refunded_once(): void
@@ -460,6 +465,36 @@ class FreedPlaceReplacementTest extends TestCase
             ->assertJsonPath('data.freed_places_count', 1)
             ->assertJsonPath('data.can_replace_freed_place', true)
             ->assertJsonPath('data.freed_places_refund_at', '2026-10-29T23:00:00+00:00');
+    }
+
+    public function test_only_eligible_rejected_candidatures_are_flagged_as_able_to_take_the_freed_place(): void
+    {
+        [$mission, , $faces, $rejected] = $this->paidMission(rejected: 1);
+        $selected = $faces[0]['candidature']->uuid;
+        $free = $this->candidatureFor($mission, CandidatureStatus::Rejected, 'free');
+        $inactive = $this->candidatureFor($mission, CandidatureStatus::Rejected);
+        User::query()->where('userable_type', Face::class)->where('userable_id', $inactive->face_id)->update(['is_active' => false]);
+        $pending = $this->candidatureFor($mission, CandidatureStatus::Pending);
+
+        $flags = fn (): array => collect($this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$mission->uuid}/candidatures")
+            ->assertOk()
+            ->json('data'))
+            ->mapWithKeys(fn (array $row): array => [$row['id'] => $row['can_replace_freed_place']])
+            ->all();
+
+        // Aucune place libérée : personne ne peut la reprendre.
+        $this->assertEquals(
+            [$rejected[0]->uuid => false, $free->uuid => false, $inactive->uuid => false, $pending->uuid => false, $selected => false],
+            $flags(),
+        );
+
+        $this->artisan('missions:expire-unconfirmed-faces');
+
+        $this->assertEquals(
+            [$rejected[0]->uuid => true, $free->uuid => false, $inactive->uuid => false, $pending->uuid => false, $selected => false],
+            $flags(),
+        );
     }
 
     public function test_admin_revenue_follows_the_commission_of_the_replacement(): void
