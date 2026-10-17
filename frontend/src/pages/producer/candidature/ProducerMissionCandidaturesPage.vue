@@ -10,6 +10,8 @@ import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
 import { missionApi } from '@/features/mission/services/missionApi'
 import { useMissionPayment } from '@/features/mission/composables'
 import { useToast } from '@/composables/useToast'
+import { formatApiError } from '@/services/errorFormatter'
+import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { isUgcMission } from '@/features/mission/types'
 import type { Mission } from '@/features/mission/types'
 
@@ -48,8 +50,23 @@ const trackablePending = ref(false)
 const pendingStalled = ref(false)
 let pendingStallTimer: ReturnType<typeof setTimeout> | null = null
 const paymentStatusUnavailable = ref(false)
+// Lot B1 — échéance (ISO 8601) de paiement de la sélection, renvoyée par payment-status.
+const paymentExpiresAt = ref<string | null>(null)
+const isCancelSelectionDialogOpen = ref(false)
+const isCancellingSelection = ref(false)
 let isPageActive = true
 let paymentStateRequestId = 0
+
+/** « jeudi 17 octobre à 14h30 » (fuseau du navigateur). */
+const paymentDeadlineLabel = computed(() => {
+  if (!paymentExpiresAt.value) return null
+  const date = new Date(paymentExpiresAt.value)
+  if (Number.isNaN(date.getTime())) return null
+  const day = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).format(date)
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${day} à ${hours}h${minutes}`
+})
 
 function clearTrackablePending(): void {
   trackablePending.value = false
@@ -139,6 +156,7 @@ async function evaluatePendingPaymentState(): Promise<void> {
 
     const data = response.data
     paymentStatusUnavailable.value = false
+    paymentExpiresAt.value = data.expires_at ?? null
 
     if (data.status === 'paid') {
       paymentSuccessBanner.value = true
@@ -223,6 +241,7 @@ async function fetchMission(): Promise<void> {
     } else {
       paymentInitializationFailed.value = false
       paymentStatusUnavailable.value = false
+      paymentExpiresAt.value = null
       clearTrackablePending()
       stopPolling()
     }
@@ -276,6 +295,29 @@ async function handleResumePayment(): Promise<void> {
   } finally {
     isResumingPayment.value = false
   }
+}
+
+/**
+ * « Modifier la sélection » : annule le paiement en attente (le serveur vérifie FedaPay avant),
+ * la mission repasse en published et le Producteur peut choisir d'autres Faces.
+ */
+async function handleCancelSelection(): Promise<void> {
+  if (isCancellingSelection.value || !missionId.value) return
+
+  isCancellingSelection.value = true
+  try {
+    const response = await missionApi.cancelSelection(missionId.value)
+    isCancelSelectionDialogOpen.value = false
+    toast.success(response.message)
+  } catch (err: unknown) {
+    console.error('Failed to cancel mission selection:', err)
+    isCancelSelectionDialogOpen.value = false
+    toast.error(formatApiError(err, 'La sélection n\'a pas pu être annulée. Veuillez réessayer.'))
+  } finally {
+    isCancellingSelection.value = false
+  }
+  // Succès comme erreur (ex. paiement confirmé entre-temps) : on relit l'état réel de la page.
+  await fetchMission()
 }
 
 /**
@@ -433,6 +475,25 @@ onUnmounted(() => {
             <Loader2 v-if="isResumingPayment" class="h-4 w-4 animate-spin" />
             {{ paymentResumable ? 'Relancer le paiement' : 'Reprendre le paiement' }}
           </button>
+          <!-- Lot B1 — change de sélection : annule le paiement en attente. -->
+          <button
+            v-if="mission.status === 'pending_payment'"
+            type="button"
+            data-testid="mission-payment-cancel-selection-btn"
+            class="mt-3 ml-0 inline-flex items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-60 sm:ml-2"
+            :disabled="isCancellingSelection"
+            @click="isCancelSelectionDialogOpen = true"
+          >
+            <Loader2 v-if="isCancellingSelection" class="h-4 w-4 animate-spin" />
+            Modifier la sélection
+          </button>
+          <p
+            v-if="mission.status === 'pending_payment' && paymentDeadlineLabel"
+            data-testid="mission-payment-deadline"
+            class="mt-3 text-sm text-muted-foreground"
+          >
+            À payer avant le {{ paymentDeadlineLabel }}. Sans paiement, la sélection sera annulée.
+          </p>
         </template>
       </div>
     </header>
@@ -456,5 +517,17 @@ onUnmounted(() => {
         @selection-failed="handleSelectionFailed"
       />
     </main>
+
+    <ConfirmModal
+      :is-open="isCancelSelectionDialogOpen"
+      title="Annuler le paiement en cours ?"
+      message="La sélection actuelle sera annulée et vous pourrez choisir d'autres Faces. Si un paiement aboutit malgré tout, son montant sera crédité sur votre wallet WeAct."
+      confirm-text="Annuler le paiement"
+      cancel-text="Retour"
+      variant="warning"
+      :confirm-disabled="isCancellingSelection"
+      @confirm="handleCancelSelection"
+      @cancel="isCancelSelectionDialogOpen = false"
+    />
   </div>
 </template>

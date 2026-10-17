@@ -89,6 +89,8 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
     // Mission payment routes
     Route::post('/missions/{mission}/confirm-selection', [MissionPaymentController::class, 'confirmAndPay'])
         ->middleware('throttle:10,1');
+    Route::post('/missions/{mission}/cancel-selection', [MissionPaymentController::class, 'cancelSelection'])
+        ->middleware('throttle:10,1');
     Route::get('/missions/{mission}/payment-status', [MissionPaymentController::class, 'paymentStatus'])
         ->middleware('throttle:polling');
 

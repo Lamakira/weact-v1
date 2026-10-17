@@ -17,6 +17,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null $fedapay_transaction_id
  * @property \App\Enums\MissionPaymentStatus $status
  * @property \Carbon\CarbonInterface|null $paid_at
+ * @property \Carbon\CarbonInterface|null $reminder_sent_at
+ * @property \Carbon\CarbonInterface|null $created_at
+ * @property \Carbon\CarbonInterface|null $updated_at
  * @property-read \App\Models\Mission|null $mission
  * @property-read \App\Models\Producer|null $producer
  */
@@ -36,6 +39,7 @@ class MissionPayment extends Model
         'fedapay_ref',
         'status',
         'paid_at',
+        'reminder_sent_at',
     ];
 
     /**
@@ -72,6 +76,7 @@ class MissionPayment extends Model
         return [
             'status' => MissionPaymentStatus::class,
             'paid_at' => 'datetime',
+            'reminder_sent_at' => 'datetime',
             'nombre_faces_retenues' => 'integer',
             'budget_par_face' => 'integer',
             'montant_sous_total' => 'integer',

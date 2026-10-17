@@ -362,7 +362,7 @@ class MissionPaymentInitiationTest extends TestCase
         $response->assertStatus(422)
             ->assertJsonPath(
                 'errors.candidature_ids.0',
-                'Ce paiement est déjà initié. Pour changer la sélection, annulez d\'abord le paiement en cours.'
+                'Ce paiement est déjà initié. Pour changer la sélection, utilisez « Modifier la sélection » pour annuler le paiement en cours.'
             );
     }
 
