@@ -23,6 +23,8 @@ export interface AdminDispute {
   montant_face_recoit: number
   attendance_status: string
   escrow_status: string
+  // Explication de la Face ; null = contestation antérieure à l'ajout du message
+  dispute_message: string | null
   notified_at: string | null
   disputed_at: string | null
 }

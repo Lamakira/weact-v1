@@ -25,6 +25,8 @@ class FaceDisputeAttendanceEndpointTest extends TestCase
 {
     use RefreshDatabase;
 
+    private const MESSAGE = 'Je me trouvais sur place à l\'heure prévue.';
+
     private Producer $producer;
 
     private User $producerUser;
@@ -113,6 +115,7 @@ class FaceDisputeAttendanceEndpointTest extends TestCase
 
         $response = $this->actingAs($faces[0]['faceUser'])->postJson(
             "/api/v1/face/missions/{$mission->uuid}/dispute-attendance",
+            ['message' => self::MESSAGE],
         );
 
         $response->assertOk()
@@ -145,6 +148,7 @@ class FaceDisputeAttendanceEndpointTest extends TestCase
 
         $this->actingAs($faces[0]['faceUser'])->postJson(
             "/api/v1/face/missions/{$mission->uuid}/dispute-attendance",
+            ['message' => self::MESSAGE],
         )
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'VALIDATION_ERROR')
@@ -164,6 +168,7 @@ class FaceDisputeAttendanceEndpointTest extends TestCase
 
         $this->actingAs($strangerUser)->postJson(
             "/api/v1/face/missions/{$mission->uuid}/dispute-attendance",
+            ['message' => self::MESSAGE],
         )
             ->assertStatus(422)
             ->assertJsonPath('error.details.attendance.0', 'Aucune absence à contester sur cette mission.');
@@ -175,6 +180,7 @@ class FaceDisputeAttendanceEndpointTest extends TestCase
 
         $this->actingAs($faces[0]['faceUser'])->postJson(
             "/api/v1/face/missions/{$mission->uuid}/dispute-attendance",
+            ['message' => self::MESSAGE],
         )
             ->assertStatus(422)
             ->assertJsonPath('error.details.attendance.0', 'Aucune absence à contester sur cette mission.');
@@ -191,6 +197,7 @@ class FaceDisputeAttendanceEndpointTest extends TestCase
 
         $this->actingAs($faces[0]['faceUser'])->postJson(
             "/api/v1/face/missions/{$mission->uuid}/dispute-attendance",
+            ['message' => self::MESSAGE],
         )
             ->assertStatus(422)
             ->assertJsonPath('error.details.attendance.0', 'Aucune absence à contester sur cette mission.');
@@ -206,6 +213,7 @@ class FaceDisputeAttendanceEndpointTest extends TestCase
 
         $this->actingAs($faces[0]['faceUser'])->postJson(
             "/api/v1/face/missions/{$mission->uuid}/dispute-attendance",
+            ['message' => self::MESSAGE],
         )
             ->assertStatus(422)
             ->assertJsonPath('error.details.attendance.0', 'Aucune absence à contester sur cette mission.');
@@ -217,6 +225,7 @@ class FaceDisputeAttendanceEndpointTest extends TestCase
 
         $this->actingAs($this->producerUser)->postJson(
             "/api/v1/face/missions/{$mission->uuid}/dispute-attendance",
+            ['message' => self::MESSAGE],
         )
             ->assertStatus(403)
             ->assertJsonPath('error.code', 'FORBIDDEN');
@@ -226,7 +235,7 @@ class FaceDisputeAttendanceEndpointTest extends TestCase
     {
         [$mission] = $this->createPaidMissionWithFaces(1);
 
-        $this->postJson("/api/v1/face/missions/{$mission->uuid}/dispute-attendance")
+        $this->postJson("/api/v1/face/missions/{$mission->uuid}/dispute-attendance", ['message' => self::MESSAGE])
             ->assertStatus(401)
             ->assertJsonPath('error.code', 'UNAUTHENTICATED');
     }
@@ -241,6 +250,7 @@ class FaceDisputeAttendanceEndpointTest extends TestCase
 
         $this->actingAs($faceUser)->postJson(
             '/api/v1/face/missions/00000000-0000-0000-0000-000000000000/dispute-attendance',
+            ['message' => self::MESSAGE],
         )
             ->assertStatus(404)
             ->assertJsonPath('error.code', 'NOT_FOUND');
@@ -254,10 +264,62 @@ class FaceDisputeAttendanceEndpointTest extends TestCase
 
         $this->actingAs($faces[0]['faceUser'])->postJson(
             "/api/v1/face/missions/{$mission->uuid}/dispute-attendance",
+            ['message' => self::MESSAGE],
         )
             ->assertStatus(422)
             ->assertJsonPath('error.details.attendance.0', 'Aucune absence à contester sur cette mission.');
 
         $this->assertSame(AttendanceStatus::Absent, $faces[1]['entry']->fresh()->attendance_status);
+    }
+
+    public function test_dispute_requires_message(): void
+    {
+        [$mission, $faces] = $this->createPaidMissionWithFaces(1);
+        $mission->update(['status' => MissionStatus::PendingAttendanceValidation]);
+        $this->setEntryAbsent($faces[0]['entry'], now()->subHours(1));
+        $url = "/api/v1/face/missions/{$mission->uuid}/dispute-attendance";
+
+        $this->actingAs($faces[0]['faceUser'])->postJson($url)
+            ->assertStatus(422)
+            ->assertJsonPath('error.details.message.0', 'Expliquez en quelques mots pourquoi vous contestez (10 caractères minimum).');
+
+        $this->assertSame(AttendanceStatus::Absent, $faces[0]['entry']->fresh()->attendance_status);
+    }
+
+    public function test_dispute_rejects_too_short_or_too_long_message(): void
+    {
+        [$mission, $faces] = $this->createPaidMissionWithFaces(1);
+        $mission->update(['status' => MissionStatus::PendingAttendanceValidation]);
+        $this->setEntryAbsent($faces[0]['entry'], now()->subHours(1));
+        $url = "/api/v1/face/missions/{$mission->uuid}/dispute-attendance";
+
+        $this->actingAs($faces[0]['faceUser'])->postJson($url, ['message' => 'court'])
+            ->assertStatus(422)
+            ->assertJsonPath('error.details.message.0', 'Expliquez en quelques mots pourquoi vous contestez (10 caractères minimum).');
+        $this->actingAs($faces[0]['faceUser'])->postJson($url, ['message' => str_repeat('a', 1001)])
+            ->assertStatus(422)
+            ->assertJsonPath('error.details.message.0', 'Votre message ne peut pas dépasser 1000 caractères.');
+
+        $this->assertSame(AttendanceStatus::Absent, $faces[0]['entry']->fresh()->attendance_status);
+    }
+
+    public function test_dispute_stores_message_stripped_of_tags(): void
+    {
+        [$mission, $faces] = $this->createPaidMissionWithFaces(1);
+        $mission->update(['status' => MissionStatus::PendingAttendanceValidation]);
+        $this->setEntryAbsent($faces[0]['entry'], now()->subHours(1));
+
+        $response = $this->actingAs($faces[0]['faceUser'])->postJson(
+            "/api/v1/face/missions/{$mission->uuid}/dispute-attendance",
+            ['message' => "  <script>alert(1)</script>J'étais là à 14h.\nPreuve en pièce jointe.  "],
+        )->assertOk();
+
+        $this->assertSame(
+            "alert(1)J'étais là à 14h.\nPreuve en pièce jointe.",
+            $faces[0]['entry']->fresh()->attendance_dispute_message,
+        );
+        // Le message n'est jamais renvoyé côté Face/Producteur (miroir du flux booking).
+        $this->assertArrayNotHasKey('dispute_message', $response->json('data.entry'));
+        $this->assertArrayNotHasKey('attendance_dispute_message', $response->json('data.entry'));
     }
 }

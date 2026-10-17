@@ -321,7 +321,7 @@ class MissionAttendanceService
         }, 3);
     }
 
-    public function disputeAttendance(MissionPaymentCandidature $entry, User $actor): MissionPaymentCandidature
+    public function disputeAttendance(MissionPaymentCandidature $entry, User $actor, ?string $message = null): MissionPaymentCandidature
     {
         if (! $this->isFaceEntryOwner($actor, $entry)) {
             throw ValidationException::withMessages([
@@ -329,7 +329,7 @@ class MissionAttendanceService
             ]);
         }
 
-        return DB::transaction(function () use ($entry, $actor): MissionPaymentCandidature {
+        return DB::transaction(function () use ($entry, $actor, $message): MissionPaymentCandidature {
             /** @var MissionPaymentCandidature $lockedEntry */
             $lockedEntry = MissionPaymentCandidature::lockForUpdate()->findOrFail($entry->id);
 
@@ -348,7 +348,10 @@ class MissionAttendanceService
                 ]);
             }
 
-            $lockedEntry->update(['attendance_status' => AttendanceStatus::Disputed]);
+            $lockedEntry->update([
+                'attendance_status' => AttendanceStatus::Disputed,
+                'attendance_dispute_message' => $message !== null ? trim(strip_tags($message)) : null,
+            ]);
             $lockedEntry->loadMissing('missionPayment');
 
             Log::info('MissionAttendanceService::disputeAttendance — entry disputed by Face', [

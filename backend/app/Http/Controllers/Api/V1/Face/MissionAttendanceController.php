@@ -6,13 +6,13 @@ namespace App\Http\Controllers\Api\V1\Face;
 
 use App\Enums\AttendanceStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Face\DisputeAttendanceRequest;
 use App\Http\Resources\MissionAttendanceEntryResource;
 use App\Models\Mission;
 use App\Models\MissionPaymentCandidature;
 use App\Models\User;
 use App\Services\MissionAttendanceService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 
 class MissionAttendanceController extends Controller
@@ -21,7 +21,7 @@ class MissionAttendanceController extends Controller
         private readonly MissionAttendanceService $attendanceService,
     ) {}
 
-    public function dispute(Request $request, Mission $mission): JsonResponse
+    public function dispute(DisputeAttendanceRequest $request, Mission $mission): JsonResponse
     {
         $user = $request->user();
         if (! $user instanceof User) {
@@ -53,7 +53,7 @@ class MissionAttendanceController extends Controller
         }
 
         $entry->loadMissing('face');
-        $freshEntry = $this->attendanceService->disputeAttendance($entry, $user);
+        $freshEntry = $this->attendanceService->disputeAttendance($entry, $user, $request->validated('message'));
         $freshEntry->loadMissing('face');
 
         $mission->refresh();

@@ -57,6 +57,7 @@ function makeDispute(overrides: Partial<AdminDispute> = {}): AdminDispute {
     montant_face_recoit: 90000,
     attendance_status: 'disputed',
     escrow_status: 'locked',
+    dispute_message: null,
     notified_at: '2026-04-29T08:00:00.000Z',
     disputed_at: '2026-04-29T10:00:00.000Z',
     ...overrides,
@@ -117,6 +118,25 @@ describe('AdminAttendanceDisputesPage', () => {
     expect(rows.length).toBe(2)
     expect(wrapper.text()).toContain('Studio Lumière')
     expect(wrapper.text()).toContain('Amina K.')
+  })
+
+  it('displays_face_dispute_message_multiline_escaped_or_legacy_placeholder', async () => {
+    disputesRef.value = [
+      makeDispute({ id: 1, dispute_message: "J'étais là.\n<b>Preuve</b> jointe." }),
+      makeDispute({ id: 2, dispute_message: null }),
+    ]
+    const wrapper = mount(AdminAttendanceDisputesPage)
+    wrappers.push(wrapper)
+    await flushPromises()
+
+    const message = wrapper.find('[data-testid="dispute-message"]')
+    expect(message.text()).toContain("J'étais là.")
+    expect(message.classes()).toContain('whitespace-pre-line')
+    // Texte échappé : aucune balise <b> réellement rendue.
+    expect(message.find('b').exists()).toBe(false)
+    expect(message.text()).toContain('<b>Preuve</b> jointe.')
+    expect(wrapper.find('[data-testid="dispute-message-empty"]').text())
+      .toBe('(aucun message — contestation antérieure)')
   })
 
   it('clicking_refresh_calls_fetchDisputes_again', async () => {
