@@ -77,7 +77,8 @@ class FreedPlaceService
      */
     public function replaceableCandidatureIds(Mission $mission): array
     {
-        if (! $this->canReplaceNow($mission, self::pendingFreedEntries($mission)->count())) {
+        // Garde sans requête d'abord (liste des candidatures : pas de coût sur une mission non clôturée).
+        if (! $this->canReplaceNow($mission, 1) || ! self::pendingFreedEntries($mission)->exists()) {
             return [];
         }
 
