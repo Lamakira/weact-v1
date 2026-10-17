@@ -1313,12 +1313,12 @@ class BookingService
     }
 
     /**
-     * Expire an unaccepted pending booking after the shooting date has passed.
+     * Expire an unanswered pending cash booking once the Face response deadline has passed
+     * (lot B10 : création + 72 h, ou début du jour de tournage s'il arrive plus tôt).
      */
     public function expireUnaccepted(Booking $booking): void
     {
         $expired = false;
-        $cutoff = now();
 
         DB::transaction(function () use ($booking, &$expired): void {
             $booking = Booking::query()->lockForUpdate()->find($booking->id);
@@ -1331,9 +1331,11 @@ class BookingService
                 return;
             }
 
-            // A null date_debut (UGC dotation — no shoot date) must never be expired by this
-            // shoot-date path; treat null as "future" so the booking is left untouched.
-            if ($booking->date_debut?->isFuture() ?? true) {
+            // Dotation UGC : pas d'échéance de réponse ici (fenêtre de commission dédiée,
+            // expireUnpaidUgc) — null = jamais expirée par ce chemin.
+            $deadline = $booking->faceResponseDeadline();
+
+            if ($deadline === null || now()->lt($deadline)) {
                 return;
             }
 
@@ -1354,6 +1356,51 @@ class BookingService
                 ]);
             }
         }
+    }
+
+    /**
+     * Expire une demande UGC dont la commission n'a pas été réglée 48 h après sa création
+     * (lot B10). Aucun argent n'est engagé à ce stade ; un paiement approuvé plus tard est
+     * crédité au wallet du Producteur (UgcCommissionPaymentService::markBookingCommissionPaid).
+     *
+     * @return bool true si la demande vient d'expirer
+     */
+    public function expireUnpaidUgc(Booking $booking): bool
+    {
+        $expired = DB::transaction(function () use ($booking): bool {
+            /** @var Booking|null $locked */
+            $locked = Booking::query()->lockForUpdate()->find($booking->id);
+
+            if ($locked === null
+                || $locked->type_contenu !== 'UGC'
+                || $locked->status !== BookingStatus::Pending
+                || $locked->commission_paid_at !== null) {
+                return false;
+            }
+
+            $deadline = $locked->ugcCommissionPaymentDeadline();
+
+            if ($deadline === null || now()->lt($deadline)) {
+                return false;
+            }
+
+            $locked->update(['status' => BookingStatus::Expired]);
+
+            return true;
+        });
+
+        if ($expired) {
+            try {
+                BookingExpired::dispatch($booking->fresh());
+            } catch (\Throwable $e) {
+                Log::warning('BookingExpired broadcast failed', [
+                    'booking_id' => $booking->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $expired;
     }
 
     /**

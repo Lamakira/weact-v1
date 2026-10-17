@@ -12,6 +12,7 @@ use App\Enums\FinancialEventType;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Events\BookingCommissionPaid;
+use App\Events\UgcCommissionRefunded;
 use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Face;
@@ -70,6 +71,7 @@ class UgcCommissionPaymentService
         private readonly FedapayService $fedapayService,
         private readonly \App\Services\EscrowService $escrowService,
         private readonly FaceEntitlementService $faceEntitlementService,
+        private readonly UgcRefundService $ugcRefundService,
     ) {}
 
     // -------------------------------------------------------------------------
@@ -160,12 +162,44 @@ class UgcCommissionPaymentService
      */
     public function markBookingCommissionPaid(Booking $booking, string $fedapayRef): Booking
     {
-        return DB::transaction(function () use ($booking, $fedapayRef) {
+        $lateSettled = null;
+
+        $result = DB::transaction(function () use ($booking, $fedapayRef, &$lateSettled) {
             /** @var Booking $booking */
             $booking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
 
             if ($booking->status === BookingStatus::CommissionPaid) {
                 return $booking; // idempotent
+            }
+
+            // Lot B10 : demande expirée faute de commission à 48 h alors qu'un paiement était
+            // en vol. L'encaissement est enregistré puis crédité au wallet du Producteur
+            // (jamais d'escrow : le deal est mort). Idempotent : un second webhook trouve
+            // commission_paid_at posé et retombe dans le log ci-dessous sans re-créditer.
+            if ($booking->status === BookingStatus::Expired
+                && $booking->type_contenu === 'UGC'
+                && $booking->commission_paid_at === null
+                && $booking->commission_refunded_at === null
+                && ! $this->hasExistingFinancialEvent($booking->id, FinancialEventType::PaymentConfirmed)) {
+                $booking->update(['commission_paid_at' => now()]);
+                $fresh = $booking->fresh();
+
+                $this->recordFinancialEvent(
+                    FinancialEventType::PaymentConfirmed,
+                    $fresh,
+                    (int) $fresh->montant_total_producteur,
+                    ['fedapay_ref' => $fedapayRef, 'status' => 'confirmed', 'metadata' => ['kind' => 'ugc_commission', 'late_after_expiry' => true]],
+                );
+
+                $lateSettled = $this->ugcRefundService->settleLatePaymentOnExpiredBooking($fresh);
+
+                Log::warning('UGC: commission réglée après expiration de la demande — créditée au wallet du Producteur', [
+                    'booking_id' => $fresh->id,
+                    'fedapay_ref' => $fedapayRef,
+                    'amount' => (int) $fresh->montant_total_producteur,
+                ]);
+
+                return $lateSettled ?? $fresh;
             }
 
             if ($booking->status !== BookingStatus::Pending) {
@@ -206,6 +240,20 @@ class UgcCommissionPaymentService
 
             return $fresh;
         });
+
+        // Après commit : e-mail « wallet crédité » au Producteur (SendWalletCreditedEmailOnUgcRefunded).
+        if ($lateSettled !== null) {
+            try {
+                UgcCommissionRefunded::dispatch($lateSettled);
+            } catch (\Throwable $e) {
+                Log::warning('UgcCommissionRefunded dispatch failed after late commission payment', [
+                    'booking_id' => $lateSettled->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $result;
     }
 
     /**

@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -26,6 +27,7 @@ use Illuminate\Support\Facades\Auth;
  * @property \App\Enums\BookingStatus $status
  * @property \Carbon\CarbonInterface|null $accepted_at
  * @property \Carbon\CarbonInterface|null $payment_reminder_sent_at
+ * @property \Carbon\CarbonInterface|null $response_reminder_sent_at
  * @property \Carbon\CarbonInterface|null $date_debut
  * @property \Carbon\CarbonInterface|null $date_fin
  * @property int $face_id
@@ -75,6 +77,15 @@ class Booking extends Model
     use HasFactory;
     use HasRouteUuid;
 
+    /** Délai de réponse de la Face à une demande cash, compté depuis sa création (lot B10). */
+    public const FACE_RESPONSE_WINDOW_HOURS = 72;
+
+    /** La Face est relancée une fois quand il reste au plus ce délai pour répondre. */
+    public const FACE_RESPONSE_REMINDER_BEFORE_HOURS = 24;
+
+    /** Délai de règlement de la commission d'une demande UGC, compté depuis sa création (lot B10). */
+    public const UGC_COMMISSION_PAYMENT_WINDOW_HOURS = 48;
+
     /**
      * The model's default values for attributes.
      *
@@ -95,6 +106,7 @@ class Booking extends Model
         'status',
         'accepted_at',
         'payment_reminder_sent_at',
+        'response_reminder_sent_at',
         'date_debut',
         'date_fin',
         'duree_heures',
@@ -173,6 +185,7 @@ class Booking extends Model
             'status' => BookingStatus::class,
             'accepted_at' => 'datetime',
             'payment_reminder_sent_at' => 'datetime',
+            'response_reminder_sent_at' => 'datetime',
             'date_debut' => 'datetime',
             'date_fin' => 'datetime',
             'duree_heures' => 'integer',
@@ -376,6 +389,60 @@ class Booking extends Model
     public function escrowTransaction(): HasOne
     {
         return $this->hasOne(EscrowTransaction::class);
+    }
+
+    /**
+     * Échéance de réponse de la Face à une demande cash (lot B10) : création + 72 h, ou début
+     * du jour de tournage (fuseau métier) s'il arrive plus tôt. Null pour une dotation UGC
+     * (la Face ne peut répondre qu'après le règlement de la commission, fenêtre UGC dédiée).
+     */
+    public function faceResponseDeadline(): ?CarbonInterface
+    {
+        if ($this->type_contenu === 'UGC' || $this->created_at === null) {
+            return null;
+        }
+
+        $deadline = $this->created_at->copy()->utc()->addHours(self::FACE_RESPONSE_WINDOW_HOURS);
+
+        if ($this->date_debut !== null) {
+            $shootingStart = Carbon::parse(
+                $this->date_debut->toDateString(),
+                (string) config('app.business_timezone'),
+            )->startOfDay()->utc();
+
+            if ($shootingStart->lessThan($deadline)) {
+                $deadline = $shootingStart;
+            }
+        }
+
+        return $deadline;
+    }
+
+    /**
+     * Échéance de réponse au format affiché (« 23/10 à 13:00 », fuseau métier), null sans échéance.
+     */
+    public function faceResponseDeadlineLabel(): ?string
+    {
+        $deadline = $this->faceResponseDeadline();
+
+        if ($deadline === null) {
+            return null;
+        }
+
+        return self::formatForBusiness($deadline, 'd/m').' à '.self::formatForBusiness($deadline, 'H:i');
+    }
+
+    /**
+     * Échéance de règlement de la commission d'une demande UGC (lot B10) : création + 48 h.
+     * Null hors UGC.
+     */
+    public function ugcCommissionPaymentDeadline(): ?CarbonInterface
+    {
+        if ($this->type_contenu !== 'UGC' || $this->created_at === null) {
+            return null;
+        }
+
+        return $this->created_at->copy()->utc()->addHours(self::UGC_COMMISSION_PAYMENT_WINDOW_HOURS);
     }
 
     /**
