@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Admin;
 
 use App\Enums\BookingStatus;
+use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Http\Controllers\Controller;
@@ -53,6 +54,17 @@ class AdminFinanceController extends Controller
 
         $missionCommissions = (int) MissionPayment::where('status', MissionPaymentStatus::Paid)
             ->selectRaw('SUM(commission_producteur + commission_faces_total) as total')
+            ->value('total');
+
+        // Lot B3 (D1) : une place expirée est remboursée au Producteur sur budget_par_face, commission
+        // Face comprise — cette commission n'est pas un revenu WeAct.
+        $missionCommissions -= (int) MissionPaymentCandidature::query()
+            ->join('mission_payments', 'mission_payments.id', '=', 'mission_payment_candidatures.mission_payment_id')
+            ->join('candidatures', 'candidatures.id', '=', 'mission_payment_candidatures.candidature_id')
+            ->where('mission_payments.status', MissionPaymentStatus::Paid->value)
+            ->where('mission_payment_candidatures.escrow_status', EscrowStatus::Refunded->value)
+            ->where('candidatures.status', CandidatureStatus::Expired->value)
+            ->selectRaw('SUM(mission_payments.budget_par_face - mission_payment_candidatures.montant_face_recoit) as total')
             ->value('total');
 
         $totalPlatformRevenue = $bookingCommissions + $missionCommissions;

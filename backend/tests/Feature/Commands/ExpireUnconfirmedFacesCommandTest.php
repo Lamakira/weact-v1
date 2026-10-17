@@ -276,4 +276,33 @@ class ExpireUnconfirmedFacesCommandTest extends TestCase
         $this->assertSame(EscrowStatus::Locked, $faces[0]['entry']->fresh()->escrow_status);
         $this->assertSame(0, $this->producerUser->fresh()->balance);
     }
+
+    public function test_admin_platform_revenue_excludes_the_face_commission_refunded_with_an_expired_place(): void
+    {
+        // D1 : la place expirée est remboursée sur budget_par_face (net Face + commission Face) ;
+        // seule la commission Producteur reste un revenu WeAct pour cette place.
+        [, , $faces] = $this->paidSelection(2, 49);
+        $faces[1]['candidature']->update(['status' => CandidatureStatus::Confirmed]);
+
+        $this->artisan('missions:expire-unconfirmed-faces')->assertSuccessful();
+        $this->assertSame(CandidatureStatus::Expired, $faces[0]['candidature']->fresh()->status);
+
+        $fedapay = \Mockery::mock(\App\Services\FedapayService::class);
+        $fedapay->shouldReceive('getBalanceSummary')->andReturn([
+            'available' => true,
+            'total_amount' => 0,
+            'refreshed_at' => now()->toIso8601String(),
+            'error' => null,
+        ]);
+        $this->app->instance(\App\Services\FedapayService::class, $fedapay);
+        $admin = \App\Models\Admin::factory()->create();
+
+        // Encaissé 220 000 ; rendu 100 000 au Producteur ; 90 000 en escrow pour la Face confirmée :
+        // reste 30 000 de commissions (2 × 10 000 Producteur + 10 000 Face confirmée).
+        $this->withToken($admin->createToken('admin-token', ['2fa'])->plainTextToken)
+            ->getJson('/api/v1/admin/finance/overview')
+            ->assertOk()
+            ->assertJsonPath('data.platform.from_missions', 30000)
+            ->assertJsonPath('data.faces.escrow_mission', 90000);
+    }
 }
