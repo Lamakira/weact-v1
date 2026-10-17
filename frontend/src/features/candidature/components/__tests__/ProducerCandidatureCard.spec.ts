@@ -386,7 +386,7 @@ describe('ProducerCandidatureCard', () => {
     }
 
     it('propose la place libérée à une candidature non retenue', async () => {
-      const wrapper = mountCard({ ...pendingCandidature, status: 'rejected', status_label: 'Refusée' }, true)
+      const wrapper = mountCard({ ...pendingCandidature, status: 'rejected', status_label: 'Refusée', can_replace_freed_place: true }, true)
 
       const button = wrapper.find('[data-testid="offer-freed-place-btn"]')
       expect(button.exists()).toBe(true)
@@ -394,6 +394,13 @@ describe('ProducerCandidatureCard', () => {
 
       await button.trigger('click')
       expect(wrapper.emitted('offer-freed-place')?.[0]).toEqual([pendingCandidature.id])
+    })
+
+    it('ne propose rien sur une candidature non retenue inéligible (abonnement, compte inactif)', () => {
+      expect(
+        mountCard({ ...pendingCandidature, status: 'rejected', status_label: 'Refusée', can_replace_freed_place: false }, true)
+          .find('[data-testid="offer-freed-place-btn"]').exists(),
+      ).toBe(false)
     })
 
     it('ne propose rien sans place libérée ni sur une candidature en attente', () => {

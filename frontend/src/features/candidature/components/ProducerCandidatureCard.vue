@@ -459,7 +459,7 @@ const categoryLabel = computed(() => {
 
       <!-- Chat + Confirm-shipment + Release buttons (accepted/confirmed/in_progress/completed) -->
       <!-- Lot B4 : proposer une place libérée à une candidature non retenue -->
-      <div v-else-if="canOfferFreedPlace && candidature.status === 'rejected' && !selectionMode" class="flex gap-2">
+      <div v-else-if="canOfferFreedPlace && candidature.can_replace_freed_place === true && candidature.status === 'rejected' && !selectionMode" class="flex gap-2">
         <button
           type="button"
           data-testid="offer-freed-place-btn"

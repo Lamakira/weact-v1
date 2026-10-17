@@ -231,6 +231,8 @@ export interface ProducerCandidature {
   message_motivation: string | null
   /** Échéance de confirmation de la Face (ISO 8601, lot B3) tant que la candidature est `accepted` ; null sinon. */
   confirmation_deadline?: string | null
+  /** Lot B4 : cette candidature non retenue peut reprendre une place libérée (éligibilité calculée côté serveur). */
+  can_replace_freed_place?: boolean
   created_at: string
   conversation_id: string | null
   face: FaceSummary
