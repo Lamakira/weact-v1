@@ -192,6 +192,21 @@ class ExpireUnconfirmedFacesCommandTest extends TestCase
         $this->assertSame(EscrowStatus::Locked, $faces[0]['entry']->fresh()->escrow_status);
     }
 
+    public function test_face_already_marked_absent_is_not_expired_nor_refunded_twice(): void
+    {
+        // L'absence (72 h de contestation puis remboursement de la part nette) prime : le sweep
+        // ne doit ni passer la candidature en expired ni rembourser la place une seconde fois.
+        [$mission, , $faces] = $this->paidSelection(1, 49);
+        $faces[0]['entry']->update(['attendance_status' => AttendanceStatus::Absent]);
+        $mission->update(['status' => MissionStatus::PendingAttendanceValidation]);
+
+        $this->artisan('missions:expire-unconfirmed-faces')->assertSuccessful();
+
+        $this->assertSame(CandidatureStatus::Accepted, $faces[0]['candidature']->fresh()->status);
+        $this->assertSame(EscrowStatus::Locked, $faces[0]['entry']->fresh()->escrow_status);
+        $this->assertSame(0, (int) $this->producerUser->fresh()->balance);
+    }
+
     public function test_second_run_is_idempotent_and_does_not_credit_twice(): void
     {
         [, , $faces] = $this->paidSelection(1, 49);

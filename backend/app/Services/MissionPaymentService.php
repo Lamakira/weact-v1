@@ -1058,6 +1058,11 @@ class MissionPaymentService
             if ($payment === null || $mission === null || $locked === null || $entry === null
                 || $payment->status !== MissionPaymentStatus::Paid
                 || $mission->type_mission === MissionType::Ugc
+                // Avant toute action de présence : une absence déclarée suit sa propre règle
+                // (contestation 72 h puis remboursement de la part nette), jamais les deux.
+                || $mission->status !== MissionStatus::Closed
+                // getAttribute : la colonne est nullable en base (lignes historiques) malgré le PHPDoc.
+                || ! in_array($entry->getAttribute('attendance_status'), [null, AttendanceStatus::Pending], true)
                 || $locked->status !== CandidatureStatus::Accepted
                 || $entry->escrow_status !== EscrowStatus::Locked) {
                 return null;

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
+use App\Enums\MissionStatus;
 use App\Models\Candidature;
 use App\Services\MissionPaymentService;
 use Illuminate\Console\Command;
@@ -33,7 +35,12 @@ class ExpireUnconfirmedFacesCommand extends Command
         $candidatures = Candidature::query()
             ->where('status', CandidatureStatus::Accepted->value)
             ->whereNotNull('accepted_at') // sans ancrage : ignorées (le backfill de migration couvre l'existant)
-            ->whereHas('paymentEntry', fn ($query) => $query->whereNotNull('mission_payment_id'))
+            // Avant toute action de présence (re-vérifié sous verrou dans expireUnconfirmedFace).
+            ->whereHas('mission', fn ($query) => $query->where('status', MissionStatus::Closed->value))
+            ->whereHas('paymentEntry', fn ($query) => $query
+                ->whereNotNull('mission_payment_id')
+                ->where(fn ($q) => $q->whereNull('attendance_status')
+                    ->orWhere('attendance_status', AttendanceStatus::Pending->value)))
             ->with('mission')
             ->get()
             ->filter(fn (Candidature $candidature): bool => ($deadline = $candidature->confirmationDeadline()) !== null
