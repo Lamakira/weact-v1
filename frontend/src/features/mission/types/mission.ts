@@ -157,7 +157,7 @@ export interface MissionCandidature {
   face_id: string
   status: string
   status_label: string
-  /** Statut effectif d'affichage (`mission_closed` si pending + mission plus publiée). */
+  /** Statut effectif d'affichage (`mission_closed` si pending + mission plus publiée, `selection_payment_pending` si mission en attente de paiement). */
   display_status?: string
   display_status_label?: string
   /** Absence mission contestable (72 h) — null/absent sinon. */

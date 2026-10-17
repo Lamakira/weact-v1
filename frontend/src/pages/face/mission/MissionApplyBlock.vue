@@ -18,6 +18,7 @@
 import {
   AlertCircle,
   CheckCircle,
+  Clock,
   Loader2,
   Mail,
   ShieldAlert,
@@ -90,6 +91,19 @@ defineEmits<{
         <p class="text-xs min-[376px]:text-sm font-medium">
           Mission acceptée — le producteur va expédier votre produit. Les chronos démarreront à la réception.
         </p>
+      </div>
+      <div
+        v-else-if="candidature?.display_status === 'selection_payment_pending'"
+        class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-6 min-[376px]:px-8 py-3 text-amber-800"
+        data-testid="candidature-selection-payment-pending"
+      >
+        <Clock class="h-5 w-5 shrink-0 mt-0.5" aria-hidden="true" />
+        <div>
+          <p class="text-xs min-[376px]:text-sm font-medium">Sélection en cours de paiement</p>
+          <p class="text-xs min-[376px]:text-sm opacity-90">
+            Le producteur finalise le paiement de sa sélection. Vous serez prévenue par e-mail si votre candidature est retenue.
+          </p>
+        </div>
       </div>
       <div
         v-else-if="candidature?.display_status === 'mission_closed'"

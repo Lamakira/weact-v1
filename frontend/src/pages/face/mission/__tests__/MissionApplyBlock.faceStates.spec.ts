@@ -61,6 +61,25 @@ describe('MissionApplyBlock — états Face (clôture, absence)', () => {
     expect(wrapper.text()).not.toContain('Annuler ma candidature')
   })
 
+  it('shows the dedicated payment-pending block (not « Mission clôturée ») with the cancel button', () => {
+    const wrapper = mountBlock(
+      makeCandidature({
+        display_status: 'selection_payment_pending',
+        display_status_label: 'Sélection en cours de paiement',
+      }),
+      true,
+    )
+
+    const block = wrapper.find('[data-testid="candidature-selection-payment-pending"]')
+    expect(block.exists()).toBe(true)
+    expect(block.text()).toContain('Sélection en cours de paiement')
+    expect(block.text()).toContain('Le producteur finalise le paiement de sa sélection.')
+    expect(block.text()).toContain('Vous serez prévenue par e-mail si votre candidature est retenue.')
+    expect(wrapper.find('[data-testid="candidature-mission-closed"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Mission clôturée')
+    expect(wrapper.text()).toContain('Annuler ma candidature')
+  })
+
   it('keeps the regular « Candidature envoyée » banner when the mission is still open', () => {
     const wrapper = mountBlock(makeCandidature({ display_status: 'pending' }), true)
 

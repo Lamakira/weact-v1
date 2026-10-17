@@ -124,10 +124,14 @@ export interface ProducerSummary {
 
 /**
  * Statut effectif d'affichage Face : le statut stocké, ou `mission_closed` quand la
- * candidature est `pending` mais que sa mission n'est plus publiée (statut stocké
- * inchangé côté backend : une réouverture reste possible).
+ * candidature est `pending` mais que sa mission n'est plus publiée, ou
+ * `selection_payment_pending` quand la mission attend le paiement de la sélection
+ * (statut stocké inchangé côté backend : une réouverture reste possible).
  */
-export type CandidatureDisplayStatus = CandidatureStatusType | 'mission_closed'
+export type CandidatureDisplayStatus =
+  | CandidatureStatusType
+  | 'mission_closed'
+  | 'selection_payment_pending'
 
 /**
  * Absence déclarée par le Producteur sur une mission, contestable par la Face
