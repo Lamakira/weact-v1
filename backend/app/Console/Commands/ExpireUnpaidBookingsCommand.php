@@ -32,7 +32,7 @@ class ExpireUnpaidBookingsCommand extends Command
      */
     public function handle(): int
     {
-        $cutoff = now()->subHours(24);
+        $cutoff = now()->subHours(Booking::PAYMENT_WINDOW_HOURS);
 
         // Warn about accepted bookings with no accepted_at timestamp (pre-migration data).
         // SQL NULL comparisons are false, so these are excluded from the expiry query.

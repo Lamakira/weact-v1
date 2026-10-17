@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Enums\BookingStatus;
+use App\Mail\BookingPaymentReminderMail;
 use App\Models\Booking;
 use App\Models\Notification;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class RemindBookingPaymentCommand extends Command
 {
@@ -47,7 +49,7 @@ class RemindBookingPaymentCommand extends Command
 
         foreach ($bookings as $booking) {
             try {
-                $booking->loadMissing('face.userable');
+                $booking->loadMissing(['face.userable', 'producer']);
 
                 $faceName = data_get($booking, 'face.userable.display_name');
                 $hoursLeft = (int) max(0, 24 - now()->diffInHours($booking->accepted_at));
@@ -63,6 +65,19 @@ class RemindBookingPaymentCommand extends Command
                 ]);
 
                 $booking->update(['payment_reminder_sent_at' => now()]);
+
+                // Lot B11 : la relance part aussi par e-mail (non-fatal : l'in-app est déjà posée).
+                try {
+                    $producerEmail = trim((string) $booking->producer?->email);
+                    if ($producerEmail !== '') {
+                        Mail::to($producerEmail)->queue(new BookingPaymentReminderMail($booking));
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('Booking payment reminder email failed', [
+                        'booking_id' => $booking->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
 
                 $this->info("Reminder sent for booking #{$booking->id}");
                 $sent++;

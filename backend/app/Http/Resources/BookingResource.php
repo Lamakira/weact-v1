@@ -60,6 +60,10 @@ class BookingResource extends JsonResource
             'fedapay_transaction_id' => $user && $user->id === $this->producer_id ? $this->fedapay_transaction_id : null,
             'payment_mode' => $this->payment_mode,
             'accepted_at' => $this->accepted_at?->toISOString(),
+            // Lot B11 : échéance de paiement (accepted_at + 24 h) tant que le booking attend son paiement.
+            'payment_deadline' => $this->status === BookingStatus::Accepted
+                ? $this->paymentDeadline()?->toIso8601String()
+                : null,
             // Présent uniquement quand le contrôleur a fait loadExists('escrowTransaction') (show).
             'was_paid' => $this->when(
                 array_key_exists('escrow_transaction_exists', $this->resource->getAttributes()),
