@@ -81,6 +81,57 @@ describe('CandidatureCard', () => {
     expect(link.props('to')).toEqual({ name: 'face-mission-detail', params: { id: 'mission-uuid-1' } })
   })
 
+  describe('display status « Mission clôturée »', () => {
+    it('shows the effective label in neutral grey and hides the cancel button', () => {
+      const wrapper = mountCard(
+        makeCandidature({
+          status: 'pending',
+          status_label: 'En attente',
+          display_status: 'mission_closed',
+          display_status_label: 'Mission clôturée',
+        }),
+      )
+
+      expect(wrapper.text()).toContain('Mission clôturée')
+      expect(wrapper.text()).not.toContain('En attente')
+      expect(wrapper.text()).not.toContain('Annuler ma candidature')
+      expect(wrapper.find('span.bg-gray-100').exists()).toBe(true)
+    })
+
+    it('keeps « En attente » and the cancel button for a genuinely pending candidature', () => {
+      const wrapper = mountCard(
+        makeCandidature({
+          status: 'pending',
+          status_label: 'En attente',
+          display_status: 'pending',
+          display_status_label: 'En attente',
+        }),
+      )
+
+      expect(wrapper.text()).toContain('En attente')
+      expect(wrapper.text()).toContain('Annuler ma candidature')
+    })
+  })
+
+  describe('absence contest block', () => {
+    it('renders the contest block when the candidature has an attendance_dispute', () => {
+      const wrapper = mountCard(
+        makeCandidature({
+          attendance_dispute: { state: 'contestable', deadline: '2026-10-12T08:00:00+00:00', can_contest: true },
+        }),
+      )
+
+      expect(wrapper.find('[data-testid="absence-contestable"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="absence-contest-btn"]').exists()).toBe(true)
+    })
+
+    it('omits the contest block without attendance_dispute', () => {
+      const wrapper = mountCard(makeCandidature())
+
+      expect(wrapper.find('[data-testid="absence-contestable"]').exists()).toBe(false)
+    })
+  })
+
   describe('reconfirmation deadline label (9-2)', () => {
     it('renders the deadline label for an accepted candidature with a reconfirm_deadline', () => {
       const wrapper = mountCard(

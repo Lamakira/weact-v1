@@ -369,6 +369,7 @@ watch(
             :candidature="candidature"
             @confirm="handleConfirm"
             @cancel="handleCancelRequest"
+            @contested="refresh"
           />
         </div>
 

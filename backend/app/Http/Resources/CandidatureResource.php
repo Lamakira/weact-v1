@@ -25,6 +25,12 @@ class CandidatureResource extends JsonResource
             'face_id' => $this->face_id,
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
+            'display_status' => $this->displayStatus(),
+            'display_status_label' => $this->displayStatusLabel(),
+            'attendance_dispute' => $this->when(
+                $this->relationLoaded('paymentEntry'),
+                fn () => $this->attendanceDispute(),
+            ),
             'message_motivation' => $this->message_motivation,
             'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
             'deliverables' => DeliverableResource::collection($this->whenLoaded('deliverables')),

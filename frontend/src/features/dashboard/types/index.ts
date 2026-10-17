@@ -116,6 +116,7 @@ export type FaceTodoType =
   | 'booking_proposal'
   | 'ugc_proposal'
   | 'no_show_contest'
+  | 'mission_absence_contest'
   | 'confirm_prestation'
   | 'ugc_deliverable'
   | 'pending_candidatures'

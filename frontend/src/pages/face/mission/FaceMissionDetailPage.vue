@@ -150,7 +150,15 @@ const missionId = computed(() => {
 const hasApplied = computed(() => candidature.value !== null)
 
 // Computed: Can the user cancel? (only pending candidatures)
-const canCancelCandidature = computed(() => candidature.value?.status === 'pending')
+// « Mission clôturée » (display_status) : pending en base mais rien à annuler.
+const canCancelCandidature = computed(
+  () => candidature.value?.status === 'pending' && candidature.value?.display_status !== 'mission_closed',
+)
+
+// Contestation d'absence envoyée : on relit la mission pour récupérer l'état serveur.
+async function handleAbsenceContested(): Promise<void> {
+  if (missionId.value) await fetchMission(missionId.value)
+}
 
 // Computed: Can the user apply? (must have verified email)
 const canApply = computed(() => authStore.isEmailVerified)
@@ -757,6 +765,7 @@ onMounted(() => {
               @view-pricing="goToPricing"
               @confirm-receipt="openReceiptModal"
               @upload="handleUploadDeliverable"
+              @contested="handleAbsenceContested"
             />
           </div>
         </div>
@@ -804,6 +813,7 @@ onMounted(() => {
                 @view-pricing="goToPricing"
                 @confirm-receipt="openReceiptModal"
                 @upload="handleUploadDeliverable"
+                @contested="handleAbsenceContested"
               />
             </div>
 
@@ -862,6 +872,7 @@ onMounted(() => {
           @view-pricing="goToPricing"
           @confirm-receipt="openReceiptModal"
           @upload="handleUploadDeliverable"
+          @contested="handleAbsenceContested"
         />
       </div>
     </div>

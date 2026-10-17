@@ -59,6 +59,7 @@ const ugcMissionFixture: Mission = {
   status: 'pending_payment',
   status_label: 'En attente de paiement',
   has_paid_payment: false,
+  type_mission: 'ugc',
   commission_ugc: 2500,
 }
 

@@ -1134,6 +1134,7 @@ class MissionPaymentService
                     missionTitle: (string) $accepted->mission?->titre,
                     productName: (string) $accepted->mission?->nom_produit,
                     reconfirmUrl: rtrim((string) config('app.frontend_url'), '/').'/face/candidatures',
+                    reconfirmDeadline: $accepted->reconfirmDeadline(),
                 ));
             }
         } catch (\Throwable $e) {

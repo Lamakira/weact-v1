@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Enums\AttendanceStatus;
 use App\Enums\EscrowStatus;
 use App\Exceptions\MoneyColumnImmutableException;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -78,6 +79,18 @@ class MissionPaymentCandidature extends Model
             'released_at' => 'datetime',
             'refunded_at' => 'datetime',
         ];
+    }
+
+    /** Fenêtre de contestation d'une absence par la Face (heures après notified_at). */
+    public const DISPUTE_WINDOW_HOURS = 72;
+
+    /**
+     * Échéance de contestation = notified_at + 72 h (même règle que
+     * Face\MissionAttendanceController et missions:settle-disputed-attendance).
+     */
+    public function contestDeadline(): ?CarbonInterface
+    {
+        return $this->notified_at?->copy()->addHours(self::DISPUTE_WINDOW_HOURS);
     }
 
     /**

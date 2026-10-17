@@ -4,12 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Mission;
 
-use App\Enums\CandidatureStatus;
-use App\Enums\MissionPaymentStatus;
-use App\Enums\MissionStatus;
-use App\Models\Candidature;
 use App\Models\Mission;
-use App\Models\MissionPayment;
 use App\Models\Producer;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -55,89 +50,11 @@ class CompleteMissionRequest extends FormRequest
             /** @var Mission $mission */
             $mission = $this->route('mission');
 
-            // Draft missions cannot be completed
-            if ($mission->status === MissionStatus::Draft) {
-                $validator->errors()->add(
-                    'status',
-                    'Seules les missions clôturées peuvent être marquées comme terminées'
-                );
+            // Single source of truth shared with MissionResource::can_complete.
+            $blocker = $mission->completionBlocker();
 
-                return;
-            }
-
-            // Published missions cannot be completed directly
-            if ($mission->status === MissionStatus::Published) {
-                $validator->errors()->add(
-                    'status',
-                    'Seules les missions clôturées peuvent être marquées comme terminées'
-                );
-
-                return;
-            }
-
-            // Missions pending payment cannot be completed
-            if ($mission->status === MissionStatus::PendingPayment) {
-                $validator->errors()->add(
-                    'status',
-                    'Le paiement doit être confirmé avant de terminer la mission'
-                );
-
-                return;
-            }
-
-            // Already completed missions cannot be completed again
-            if ($mission->status === MissionStatus::Completed) {
-                $validator->errors()->add(
-                    'status',
-                    'Cette mission est déjà terminée'
-                );
-
-                return;
-            }
-
-            // The 72h dispute window (or an open dispute) must be settled first — through the
-            // crons / admin resolution — before the Producer can force the completion.
-            if ($mission->hasOpenAttendanceDispute()) {
-                $validator->errors()->add(
-                    'status',
-                    'Une absence est encore dans sa fenêtre de contestation de 72 h ou fait l\'objet d\'un litige : la mission ne peut pas être terminée pour le moment.'
-                );
-
-                return;
-            }
-
-            /** @var MissionPayment|null $payment */
-            $payment = $mission->payment;
-
-            if (! $payment || $payment->status !== MissionPaymentStatus::Paid) {
-                $validator->errors()->add(
-                    'status',
-                    'Le paiement doit être confirmé avant de terminer la mission'
-                );
-
-                return;
-            }
-
-            $selectedCandidatureIds = $payment->entries()->pluck('candidature_id');
-
-            if ($selectedCandidatureIds->isEmpty()) {
-                $validator->errors()->add(
-                    'candidatures',
-                    'Cette mission n\'a aucune candidature sélectionnée'
-                );
-
-                return;
-            }
-
-            $hasUnconfirmedSelectedFaces = Candidature::whereIn('id', $selectedCandidatureIds)
-                ->where('status', CandidatureStatus::Accepted)
-                ->exists();
-
-            if ($hasUnconfirmedSelectedFaces) {
-                $validator->errors()->add(
-                    'candidatures',
-                    'Toutes les faces sélectionnées doivent confirmer leur participation avant de terminer la mission'
-                );
+            if ($blocker !== null) {
+                $validator->errors()->add($blocker[0], $blocker[1]);
             }
         });
     }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
-use App\Enums\CandidatureStatus;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
@@ -33,6 +32,9 @@ class FaceCandidatureResource extends JsonResource
             'id' => $this->uuid,
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
+            // Statut effectif d'affichage (pending + mission plus publiée => mission_closed).
+            'display_status' => $this->displayStatus(),
+            'display_status_label' => $this->displayStatusLabel(),
             'message_motivation' => $this->message_motivation
                 ? Str::limit($this->message_motivation, 100)
                 : null,
@@ -40,11 +42,12 @@ class FaceCandidatureResource extends JsonResource
             // Date-limite de reconfirmation (9-2, D-9.2.a) : source unique = config
             // ugc.reconfirm_window_hours (jamais dupliquée côté front). Non-null
             // seulement pour une candidature UGC acceptée non encore reconfirmée.
-            'reconfirm_deadline' => $this->status === CandidatureStatus::Accepted && $this->accepted_at !== null
-                ? $this->accepted_at->copy()
-                    ->addHours((int) config('ugc.reconfirm_window_hours', 48))
-                    ->toIso8601String()
-                : null,
+            'reconfirm_deadline' => $this->reconfirmDeadline()?->toIso8601String(),
+            // Absence mission contestable (fenêtre 72 h) — clé omise si paymentEntry non chargée.
+            'attendance_dispute' => $this->when(
+                $this->relationLoaded('paymentEntry'),
+                fn () => $this->attendanceDispute(),
+            ),
             'mission' => $this->whenLoaded('mission', fn () => [
                 'id' => $mission?->uuid,
                 'titre' => $mission?->titre,

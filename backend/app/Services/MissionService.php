@@ -335,12 +335,12 @@ class MissionService
     {
         $pendingCandidatures = $mission->candidatures()
             ->where('status', CandidatureStatus::Pending->value)
-            ->with('face.userable')
+            ->with('face.user')
             ->get();
 
         foreach ($pendingCandidatures as $candidature) {
             /** @var Candidature $candidature */
-            $userId = data_get($candidature, 'face.userable.id');
+            $userId = data_get($candidature, 'face.user.id');
 
             if (! $userId) {
                 continue;
@@ -351,10 +351,10 @@ class MissionService
                     'user_id' => $userId,
                     'type' => 'mission_closed_pending_candidature',
                     'data' => [
-                        'message' => "La mission \"{$mission->titre}\" a été clôturée. Votre candidature n'a pas été retenue.",
+                        'message' => "La mission « {$mission->titre} » a été clôturée par le Producteur.",
                         'mission_id' => $mission->id,
                         'candidature_id' => $candidature->id,
-                        'url' => "/face/candidatures/{$candidature->uuid}",
+                        'url' => "/face/missions/{$mission->uuid}", // /face/candidatures/{uuid} n'existe pas côté SPA
                     ],
                 ]);
             } catch (\Throwable $e) {
@@ -467,7 +467,7 @@ class MissionService
                 'data' => [
                     'message' => "La mission \"{$mission->titre}\" est terminée.",
                     'mission_id' => $mission->id,
-                    'url' => "/producer/missions/{$mission->uuid}",
+                    'url' => "/producer/missions/{$mission->uuid}/candidatures",
                 ],
             ]);
         } catch (\Throwable $e) {

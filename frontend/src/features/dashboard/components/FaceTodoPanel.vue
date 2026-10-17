@@ -44,6 +44,7 @@ const ICONS: Record<FaceTodoType, Component> = {
   booking_proposal: CalendarClock,
   ugc_proposal: Package,
   no_show_contest: ShieldAlert,
+  mission_absence_contest: ShieldAlert,
   confirm_prestation: CheckCircle2,
   ugc_deliverable: Video,
   pending_candidatures: Hourglass,

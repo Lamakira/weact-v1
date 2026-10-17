@@ -49,7 +49,7 @@ class NotifyPartiesOnFaceUgcSuspended
                 ->where('userable_id', $owner->face_id)     // faces.id (piège 2.4)
                 ->value('id');
             $productName = (string) ($mission->nom_produit ?? '');
-            $producerUrl = $mission !== null ? "/producer/missions/{$mission->uuid}" : '/producer/missions';
+            $producerUrl = $mission !== null ? "/producer/missions/{$mission->uuid}/candidatures" : '/producer/missions';
             $faceUrl = $mission !== null ? "/face/missions/{$mission->uuid}" : '/face/missions';
         } else {
             return;
