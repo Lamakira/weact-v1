@@ -97,7 +97,7 @@ class ConversationContextBuilder
             CandidatureStatus::Accepted => $this->hasFundedEscrow($candidature) ? 'paid' : 'accepted',
             CandidatureStatus::Confirmed, CandidatureStatus::InProgress => 'paid',
             CandidatureStatus::Completed => 'done',
-            CandidatureStatus::Rejected, CandidatureStatus::Cancelled => null,
+            CandidatureStatus::Rejected, CandidatureStatus::Cancelled, CandidatureStatus::Expired => null,
         };
     }
 

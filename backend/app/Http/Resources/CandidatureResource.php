@@ -31,6 +31,9 @@ class CandidatureResource extends JsonResource
                 $this->relationLoaded('paymentEntry'),
                 fn () => $this->attendanceDispute(),
             ),
+            // Échéance de confirmation (lot B3) : non-null seulement pour une candidature cash `accepted`
+            // non encore confirmée ; null si la mission n'est pas chargée (pas de lazy-load en liste).
+            'confirmation_deadline' => $this->relationLoaded('mission') ? $this->confirmationDeadline()?->toIso8601String() : null,
             'message_motivation' => $this->message_motivation,
             'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
             'deliverables' => DeliverableResource::collection($this->whenLoaded('deliverables')),

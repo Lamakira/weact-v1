@@ -278,9 +278,34 @@ class CandidatureController extends Controller
             ], 422);
         }
 
-        // Update status to confirmed
-        $candidature->status = CandidatureStatus::Confirmed;
-        $candidature->save();
+        // Update status to confirmed — sous verrou (payment → entries → candidature, même ordre que
+        // l'expiration B3) : une expiration concurrente ne doit pas être écrasée par cette confirmation.
+        $confirmed = DB::transaction(function () use ($candidature, $missionPayment): bool {
+            app(MissionPaymentService::class)->lockCashSelection($missionPayment->id);
+
+            /** @var Candidature $locked */
+            $locked = Candidature::query()->lockForUpdate()->findOrFail($candidature->id);
+
+            if ($locked->status !== CandidatureStatus::Accepted) {
+                return false;
+            }
+
+            $locked->status = CandidatureStatus::Confirmed;
+            $locked->save();
+
+            return true;
+        });
+
+        if (! $confirmed) {
+            return response()->json([
+                'error' => [
+                    'code' => 'INVALID_STATUS',
+                    'message' => 'Seules les candidatures acceptées peuvent être confirmées',
+                ],
+            ], 409);
+        }
+
+        $candidature->refresh();
 
         // Notify the producer that this face confirmed
         $producerUser = User::where('userable_type', Producer::class)
@@ -329,18 +354,7 @@ class CandidatureController extends Controller
         }
 
         // Check if all selected faces have now confirmed → move candidatures to in_progress
-        $missionPayment = $mission->payment;
-        $selectedCandidatureIds = $missionPayment->entries->pluck('candidature_id');
-        $pendingConfirmation = Candidature::whereIn('id', $selectedCandidatureIds)
-            ->where('status', CandidatureStatus::Accepted)
-            ->exists();
-
-        if (! $pendingConfirmation) {
-            // All selected faces confirmed — mark candidatures as in_progress
-            Candidature::whereIn('id', $selectedCandidatureIds)
-                ->where('status', CandidatureStatus::Confirmed)
-                ->update(['status' => CandidatureStatus::InProgress->value]);
-        }
+        app(MissionPaymentService::class)->startConfirmedCandidaturesIfNonePending($missionPayment);
 
         return response()->json([
             'data' => new CandidatureResource($candidature),

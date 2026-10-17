@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X, Loader2, CheckSquare, Square, Truck, Check, UserMinus } from 'lucide-vue-next'
 import type { ProducerCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
+import { formatConfirmationDeadline } from '../utils/formatConfirmationDeadline'
 import WBadge from '@/components/ui/WBadge.vue'
 import { StatusPill, tunnelStatusToPillKind, ProductPhotoGallery } from '@/components/ugc'
 
@@ -194,6 +195,14 @@ function resetReleasing(): void {
  * Expose methods for parent component
  */
 defineExpose({ resetRejecting, resetAccepting, resetReleasing })
+
+/**
+ * Computed: Face confirmation deadline (lot B3) — shown on an accepted, not yet confirmed
+ * candidature. Backend `confirmation_deadline` is null outside that state.
+ */
+const formattedConfirmationDeadline = computed(() =>
+  props.candidature.status === 'accepted' ? formatConfirmationDeadline(props.candidature.confirmation_deadline) : '',
+)
 
 /**
  * Computed: Status badge class
@@ -407,6 +416,15 @@ const categoryLabel = computed(() => {
         </p>
       </div>
     </div>
+
+    <!-- Confirmation deadline (cash accepted, lot B3) -->
+    <p
+      v-if="formattedConfirmationDeadline"
+      data-testid="confirmation-deadline-label"
+      class="mt-3 text-xs text-amber-600 dark:text-amber-400"
+    >
+      Confirmation attendue avant le {{ formattedConfirmationDeadline }}
+    </p>
 
     <!-- Actions -->
     <div class="mt-4 flex items-center justify-between gap-3">

@@ -97,6 +97,16 @@ class CandidatureFactory extends Factory
     }
 
     /**
+     * Indicate that the candidature expired (Face did not confirm in time).
+     */
+    public function expired(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => CandidatureStatus::Expired,
+        ]);
+    }
+
+    /**
      * Indicate that the candidature has a motivation message.
      */
     public function withMotivation(): static

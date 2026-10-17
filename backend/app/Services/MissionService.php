@@ -243,6 +243,7 @@ class MissionService
             ->whereNotIn('status', [
                 CandidatureStatus::Rejected->value,
                 CandidatureStatus::Cancelled->value,
+                CandidatureStatus::Expired->value,
             ])
             ->with(['face', 'paymentEntry'])
             ->get();

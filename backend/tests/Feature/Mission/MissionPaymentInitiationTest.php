@@ -989,6 +989,11 @@ class MissionPaymentInitiationTest extends TestCase
         $this->assertSame(CandidatureStatus::Accepted, $this->selectedSecond->fresh()->status);
         $this->assertSame(CandidatureStatus::Rejected, $this->rejectedCandidate->fresh()->status);
 
+        // Lot B3 : l'ancrage de l'échéance de confirmation est posé au passage Accepted (pas pour la rejetée).
+        $this->assertNotNull($this->selectedFirst->fresh()->accepted_at);
+        $this->assertNotNull($this->selectedSecond->fresh()->accepted_at);
+        $this->assertNull($this->rejectedCandidate->fresh()->accepted_at);
+
         // AC #4: Conversation::firstOrCreate fires for each accepted candidature.
         $this->assertDatabaseHas('conversations', ['candidature_id' => $this->selectedFirst->id]);
         $this->assertDatabaseHas('conversations', ['candidature_id' => $this->selectedSecond->id]);
@@ -1110,6 +1115,12 @@ class MissionPaymentInitiationTest extends TestCase
             FaceSelectedMail::class,
             fn (FaceSelectedMail $m): bool => $m->hasTo($rejectedEmail),
         );
+
+        // Lot B3 : le mail mentionne l'échéance de confirmation (accepted_at + 48 h ou jour de tournage).
+        Mail::assertQueued(FaceSelectedMail::class, function (FaceSelectedMail $m): bool {
+            return $m->confirmationDeadline !== null
+                && str_contains($m->render(), 'Confirmez votre participation avant le');
+        });
 
         // Non-régression FIX-20.1 : statuts + conversations + notifications in-app
         // restent intactes après l'ajout du pipeline email.
