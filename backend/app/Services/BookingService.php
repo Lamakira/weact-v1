@@ -1056,8 +1056,9 @@ class BookingService
         }
 
         $lateCredit = null;
+        $expiredHere = false;
 
-        $result = DB::transaction(function () use ($booking, $fedapayRef, &$lateCredit) {
+        $result = DB::transaction(function () use ($booking, $fedapayRef, &$lateCredit, &$expiredHere) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
             // Idempotent: already paid, skip
@@ -1069,6 +1070,20 @@ class BookingService
             // validé après). L'encaissement est enregistré et intégralement crédité au wallet
             // du Producteur ; le booking reste expiré, aucun escrow. Idempotent par l'événement
             // PaymentConfirmed (un second webhook ne recrédite pas).
+            // Déterministe : une approbation traitée à partir de l'échéance (accepted_at + 24 h)
+            // sur un booking encore Accepted (cron pas passé) l'expire d'abord, comme le cron,
+            // puis suit le même chemin de crédit tardif — que le cron soit passé avant ou non.
+            if ($booking->status === BookingStatus::Accepted
+                && ! $this->hasExistingFinancialEvent($booking->id, FinancialEventType::PaymentConfirmed)) {
+                $deadline = $booking->paymentDeadline();
+
+                if ($deadline !== null && now()->greaterThanOrEqualTo($deadline)) {
+                    $booking->update(['status' => BookingStatus::Expired]);
+                    $booking = $booking->fresh();
+                    $expiredHere = true;
+                }
+            }
+
             if ($booking->status === BookingStatus::Expired) {
                 if ($this->hasExistingFinancialEvent($booking->id, FinancialEventType::PaymentConfirmed)) {
                     return $booking;
@@ -1106,6 +1121,17 @@ class BookingService
 
             return $freshBooking;
         });
+
+        if ($expiredHere) {
+            try {
+                BookingExpired::dispatch($result->fresh());
+            } catch (\Throwable $e) {
+                Log::warning('BookingExpired broadcast failed', [
+                    'booking_id' => $result->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
 
         if ($lateCredit !== null) {
             $this->notifyLatePaymentCredit($result, $lateCredit);
@@ -1217,8 +1243,9 @@ class BookingService
      */
     public function checkAndProcessPayment(Booking $booking): Booking
     {
-        // Already processed — return as-is
-        if (! in_array($booking->status, [BookingStatus::Accepted], true)) {
+        // Already processed — return as-is. Un booking expiré reste réconciliable : un paiement
+        // approuvé tardivement est crédité au wallet (même chemin que le webhook, idempotent).
+        if (! in_array($booking->status, [BookingStatus::Accepted, BookingStatus::Expired], true)) {
             return $booking;
         }
 

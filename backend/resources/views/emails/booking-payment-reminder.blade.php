@@ -16,7 +16,7 @@
     </p>
 
     <p style="margin: 0 0 24px; padding: 12px 16px; background-color: #fffbeb; border-radius: 6px; color: #92400e; font-size: 14px; line-height: 1.5;">
-        Payez avant le {{ $deadlineLabel }} : passé ce délai, le booking est annulé automatiquement.
+        Payez avant le {{ $deadlineLabel }}, sinon la demande expirera.
     </p>
 
     <table width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">

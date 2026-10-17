@@ -1094,11 +1094,11 @@ onUnmounted(() => {
               : 'border-amber-200 bg-amber-50 text-amber-800'"
           >
             <template v-if="isFace">
-              <span v-if="isPaymentOverdue">Délai de paiement dépassé — ce booking sera bientôt annulé</span>
-              <span v-else>Le Producteur doit payer avant le {{ formattedPaymentDeadline }}, sinon le booking sera annulé.</span>
+              <span v-if="isPaymentOverdue">Délai de paiement dépassé — cette demande va bientôt expirer</span>
+              <span v-else>Le Producteur doit payer avant le {{ formattedPaymentDeadline }}, sinon la demande expirera.</span>
             </template>
             <template v-else>
-              <span v-if="isPaymentOverdue">Délai expiré — ce booking sera bientôt annulé</span>
+              <span v-if="isPaymentOverdue">Délai expiré — cette demande va bientôt expirer</span>
               <span v-else>Paiement requis avant le {{ formattedPaymentDeadline }}</span>
             </template>
           </div>

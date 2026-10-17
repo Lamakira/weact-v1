@@ -1485,6 +1485,8 @@ describe('FaceBookingDetailPage — paiement du booking sous 24 h (lot B11)', ()
     const banner = wrapper.find('[data-testid="payment-deadline"]')
     expect(banner.exists()).toBe(true)
     expect(banner.text()).toContain(`Le Producteur doit payer avant le ${formatBookingDeadline(deadline)}`)
+    expect(banner.text()).toContain('sinon la demande expirera')
+    expect(banner.text()).not.toContain('annulé')
     wrapper.unmount()
   })
 

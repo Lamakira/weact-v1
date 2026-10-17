@@ -52,7 +52,7 @@ app(Schedule::class)->command(ExpireUnreconfirmedUgcCandidaturesCommand::class)-
 // Idempotente par shipments.last_notified_threshold ; withoutOverlapping en
 // défense supplémentaire (D-4.5.d).
 app(Schedule::class)->command(ProcessUgcDeadlinesCommand::class)->everyFifteenMinutes()->withoutOverlapping();
-app(Schedule::class)->command(RemindBookingPaymentCommand::class)->hourly();
+app(Schedule::class)->command(RemindBookingPaymentCommand::class)->hourly()->withoutOverlapping();
 app(Schedule::class)->command(ReconcileWalletCommand::class)->daily();
 app(Schedule::class)->command(AutoReleaseMissionFundsCommand::class)->daily();
 app(Schedule::class)->command(AutoValidateMissionAttendanceCommand::class)->hourly();

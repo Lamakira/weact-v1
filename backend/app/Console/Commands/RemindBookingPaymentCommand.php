@@ -48,11 +48,32 @@ class RemindBookingPaymentCommand extends Command
         $failed = 0;
 
         foreach ($bookings as $booking) {
+            $claimedAt = null;
+
             try {
+                // Claim atomique (idempotent si deux exécutions se chevauchent). Query builder
+                // de base : updated_at du booking n'est pas touché. Une seule valeur sert au
+                // claim et à sa libération (deux now() peuvent tomber sur deux secondes).
+                $claimedAt = now()->startOfSecond();
+                $claimed = Booking::query()
+                    ->whereKey($booking->id)
+                    ->where('status', BookingStatus::Accepted->value)
+                    ->whereNull('payment_reminder_sent_at')
+                    ->toBase()
+                    ->update(['payment_reminder_sent_at' => $claimedAt]);
+
+                if ($claimed === 0) {
+                    $claimedAt = null;
+
+                    continue;
+                }
+
                 $booking->loadMissing(['face.userable', 'producer']);
 
                 $faceName = data_get($booking, 'face.userable.display_name');
-                $hoursLeft = (int) max(0, 24 - now()->diffInHours($booking->accepted_at));
+                // Heures restantes jusqu'à l'échéance exacte (accepted_at + 24 h), jamais négatif.
+                $deadline = $booking->paymentDeadline();
+                $hoursLeft = $deadline === null ? 0 : (int) max(0, round(now()->diffInHours($deadline, false)));
 
                 Notification::create([
                     'user_id' => $booking->producer_id,
@@ -63,8 +84,6 @@ class RemindBookingPaymentCommand extends Command
                         'url' => "/producer/bookings/{$booking->uuid}",
                     ],
                 ]);
-
-                $booking->update(['payment_reminder_sent_at' => now()]);
 
                 // Lot B11 : la relance part aussi par e-mail (non-fatal : l'in-app est déjà posée).
                 try {
@@ -82,6 +101,16 @@ class RemindBookingPaymentCommand extends Command
                 $this->info("Reminder sent for booking #{$booking->id}");
                 $sent++;
             } catch (\Throwable $e) {
+                // La notification in-app n'a pas pu être posée : on libère la relance pour
+                // que le prochain passage réessaie.
+                if ($claimedAt !== null) {
+                    Booking::query()
+                        ->whereKey($booking->id)
+                        ->where('payment_reminder_sent_at', $claimedAt)
+                        ->toBase()
+                        ->update(['payment_reminder_sent_at' => null]);
+                }
+
                 Log::warning('Booking payment reminder failed', [
                     'booking_id' => $booking->id,
                     'error' => $e->getMessage(),
