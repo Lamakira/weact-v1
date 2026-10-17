@@ -509,8 +509,9 @@ class CandidatureController extends Controller
 
             // Fail-closed : la candidature figure encore dans une sélection cash en attente de
             // paiement (reset impossible : checkout repris en parallèle, sélection confirmée
-            // entre-temps) → le Producteur paierait une place sans Face.
-            if ($payments->pendingCashPaymentFor($locked) !== null) {
+            // entre-temps) → le Producteur paierait une place sans Face. Lecture verrouillante :
+            // une sélection commitée après la première lecture de cette transaction doit être vue.
+            if ($payments->pendingCashPaymentFor($locked, lockingRead: true) !== null) {
                 return response()->json(ErrorCodes::InvalidStatus->envelope(
                     'Le producteur est en train de payer sa sélection. Réessayez dans une heure.'
                 ), 422);
