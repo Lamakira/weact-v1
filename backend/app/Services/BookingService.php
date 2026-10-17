@@ -255,6 +255,13 @@ class BookingService
                 ? BookingStatus::CommissionPaid
                 : BookingStatus::Pending;
 
+            // Lot B10 : échéance de réponse de la Face (cash), appliquée à l'accept lui-même.
+            if ($booking->status === BookingStatus::Pending && $booking->faceResponseWindowElapsed()) {
+                throw ValidationException::withMessages([
+                    'status' => ['Le délai de réponse est dépassé : cette demande a expiré.'],
+                ]);
+            }
+
             // Re-check sous lock du refund hors-procédure (AC8a/D-2.5.h) : la policy
             // est évaluée AVANT le lock — un webhook transaction.refunded settled
             // entre les deux laisserait accepter un deal remboursé.
