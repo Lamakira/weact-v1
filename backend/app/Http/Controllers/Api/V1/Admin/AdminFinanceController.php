@@ -67,6 +67,16 @@ class AdminFinanceController extends Controller
             ->selectRaw('SUM(mission_payments.budget_par_face - mission_payment_candidatures.montant_face_recoit) as total')
             ->value('total');
 
+        // Lot B4 : une place transférée à une remplaçante garde l'argent de la place ; seule la
+        // commission Face change (palier de la nouvelle Face) : revenu += net ancien − net nouveau.
+        $missionCommissions += (int) MissionPaymentCandidature::query()
+            ->from('mission_payment_candidatures as replacement')
+            ->join('mission_payment_candidatures as replaced', 'replaced.id', '=', 'replacement.replacement_of_entry_id')
+            ->join('mission_payments', 'mission_payments.id', '=', 'replacement.mission_payment_id')
+            ->where('mission_payments.status', MissionPaymentStatus::Paid->value)
+            ->selectRaw('SUM(CAST(replaced.montant_face_recoit AS SIGNED) - CAST(replacement.montant_face_recoit AS SIGNED)) as total')
+            ->value('total');
+
         $totalPlatformRevenue = $bookingCommissions + $missionCommissions;
 
         // ── Volume transacted ────────────────────────────────────────────────

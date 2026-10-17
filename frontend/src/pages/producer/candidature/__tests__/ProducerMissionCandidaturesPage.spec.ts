@@ -781,4 +781,53 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       wrapper.unmount()
     })
   })
+
+})
+
+describe('ProducerMissionCandidaturesPage — place libérée (lot B4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    routeState.query = {}
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+    vi.restoreAllMocks()
+  })
+
+  it('annonce la place libérée et invite à choisir une remplaçante', async () => {
+    vi.mocked(missionApi.getMission).mockResolvedValueOnce({
+      data: makePendingPaymentMission({
+        status: 'closed',
+        status_label: 'Clôturée',
+        freed_places_count: 1,
+        can_replace_freed_place: true,
+        freed_places_refund_at: '2026-10-29T23:00:00+00:00',
+      }),
+      message: 'ok',
+    })
+
+    const wrapper = mount(ProducerMissionCandidaturesPage)
+    await flushPromises()
+    await flushPromises()
+
+    const banner = wrapper.find('[data-testid="mission-freed-place-banner"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain("Une place s'est libérée")
+    expect(banner.text()).toContain('proposez-la à une Face non retenue')
+    expect(banner.text()).toContain('le budget de la place est crédité sur votre wallet')
+  })
+
+  it("n'affiche rien sans place libérée", async () => {
+    vi.mocked(missionApi.getMission).mockResolvedValueOnce({
+      data: makePendingPaymentMission({ status: 'closed', status_label: 'Clôturée', freed_places_count: 0 }),
+      message: 'ok',
+    })
+
+    const wrapper = mount(ProducerMissionCandidaturesPage)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="mission-freed-place-banner"]').exists()).toBe(false)
+  })
 })

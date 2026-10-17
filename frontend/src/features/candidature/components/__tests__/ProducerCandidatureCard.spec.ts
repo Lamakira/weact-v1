@@ -376,4 +376,34 @@ describe('ProducerCandidatureCard', () => {
       expect(wrapper.text()).toContain('Expirée')
     })
   })
+
+  describe('place libérée (lot B4)', () => {
+    function mountCard(candidature: Record<string, unknown>, canOfferFreedPlace: boolean) {
+      return mount(ProducerCandidatureCard, {
+        props: { candidature: candidature as never, canOfferFreedPlace },
+        global: { stubs: { RouterLink: true, Teleport: true } },
+      })
+    }
+
+    it('propose la place libérée à une candidature non retenue', async () => {
+      const wrapper = mountCard({ ...pendingCandidature, status: 'rejected', status_label: 'Refusée' }, true)
+
+      const button = wrapper.find('[data-testid="offer-freed-place-btn"]')
+      expect(button.exists()).toBe(true)
+      expect(button.text()).toContain('Proposer la place libérée')
+
+      await button.trigger('click')
+      expect(wrapper.emitted('offer-freed-place')?.[0]).toEqual([pendingCandidature.id])
+    })
+
+    it('ne propose rien sans place libérée ni sur une candidature en attente', () => {
+      expect(
+        mountCard({ ...pendingCandidature, status: 'rejected', status_label: 'Refusée' }, false)
+          .find('[data-testid="offer-freed-place-btn"]').exists(),
+      ).toBe(false)
+      expect(
+        mountCard(pendingCandidature, true).find('[data-testid="offer-freed-place-btn"]').exists(),
+      ).toBe(false)
+    })
+  })
 })

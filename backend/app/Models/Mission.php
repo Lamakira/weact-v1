@@ -572,6 +572,30 @@ class Mission extends Model
             return ['candidatures', 'Toutes les faces sélectionnées doivent confirmer leur participation avant de terminer la mission'];
         }
 
+        // Lot B4 : une place libérée garde son argent en séquestre jusqu'à une remplaçante
+        // ou son remboursement ; terminer la verserait à tort.
+        $hasPendingFreedPlace = $payment->entries()
+            ->whereNotNull('freed_at')
+            ->where('escrow_status', EscrowStatus::Locked->value)
+            ->exists();
+
+        if ($hasPendingFreedPlace) {
+            return ['candidatures', 'Une place libérée attend une remplaçante ou son remboursement : la mission ne peut pas encore être terminée.'];
+        }
+
+        // Lot B4 : toutes les Faces sélectionnées ont expiré (places remboursées) : rien à terminer.
+        $hasEngagedFace = Candidature::whereIn('id', $selectedCandidatureIds)
+            ->whereIn('status', [
+                CandidatureStatus::Confirmed->value,
+                CandidatureStatus::InProgress->value,
+                CandidatureStatus::Completed->value,
+            ])
+            ->exists();
+
+        if (! $hasEngagedFace) {
+            return ['candidatures', "Aucune Face n'a confirmé sa participation : il n'y a rien à terminer. Les places ont été remboursées sur votre wallet."];
+        }
+
         return null;
     }
 

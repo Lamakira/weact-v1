@@ -8,6 +8,7 @@ use App\Concerns\RecordsFinancialEvent;
 use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
+use App\Enums\FaceSubscriptionTier;
 use App\Enums\FinancialEventType;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
@@ -18,6 +19,7 @@ use App\Mail\FaceConfirmationExpiredMail;
 use App\Mail\FaceSelectedMail;
 use App\Mail\MissionCompletedMail;
 use App\Mail\MissionFaceUnconfirmedMail;
+use App\Mail\MissionPlaceFreedMail;
 use App\Mail\MissionSelectionExpiredMail;
 use App\Models\Booking;
 use App\Models\Candidature;
@@ -804,6 +806,8 @@ class MissionPaymentService
         // completeMission) — une entry déjà réglée par un flux concurrent n'est jamais repayée.
         $entries = $payment->entries()
             ->where('escrow_status', EscrowStatus::Locked)
+            // Lot B4 : une place libérée n'est jamais versée (remplaçante ou remboursement).
+            ->whereNull('freed_at')
             ->with(['face', 'candidature'])
             ->lockForUpdate()
             ->get();
@@ -1070,19 +1074,29 @@ class MissionPaymentService
 
             $refundAmount = (int) $payment->budget_par_face;
 
-            $this->refundToProducer(
-                $entry,
-                $mission,
-                $reason,
-                ['candidature_id' => $locked->id, 'refund_basis' => 'budget_par_face'],
-                walletLabel: "Mission : place non confirmée — {$mission->titre}",
-                amountOverride: $refundAmount,
-            );
+            // Lot B4 (D2) : tant qu'une remplaçante est possible (candidature non retenue éligible,
+            // jour du tournage pas commencé), la place est seulement libérée : l'argent reste en
+            // séquestre sur l'entry, le Producer choisit une remplaçante ou est remboursé au début
+            // du jour de tournage (missions:refund-freed-places). Sinon, remboursement immédiat (D1).
+            $freed = $this->canFreedPlaceBeReplaced($mission);
 
-            // refundToProducer sort sans rien faire si le Producteur est introuvable : on ne libère jamais
-            // la place sans avoir rendu l'argent (rollback, le sweep réessaiera et alertera).
-            if ($entry->fresh()?->escrow_status !== EscrowStatus::Refunded) {
-                throw new \RuntimeException("Impossible de rembourser l'entry {$entry->id} (place non confirmée).");
+            if ($freed) {
+                $entry->update(['freed_at' => now()]);
+            } else {
+                $this->refundToProducer(
+                    $entry,
+                    $mission,
+                    $reason,
+                    ['candidature_id' => $locked->id, 'refund_basis' => 'budget_par_face'],
+                    walletLabel: "Mission : place non confirmée — {$mission->titre}",
+                    amountOverride: $refundAmount,
+                );
+
+                // refundToProducer sort sans rien faire si le Producteur est introuvable : on ne libère jamais
+                // la place sans avoir rendu l'argent (rollback, le sweep réessaiera et alertera).
+                if ($entry->fresh()?->escrow_status !== EscrowStatus::Refunded) {
+                    throw new \RuntimeException("Impossible de rembourser l'entry {$entry->id} (place non confirmée).");
+                }
             }
 
             $locked->update(['status' => CandidatureStatus::Expired]);
@@ -1094,6 +1108,8 @@ class MissionPaymentService
                 'face_id' => (int) $locked->face_id,
                 'candidature_id' => (int) $locked->id,
                 'amount' => $refundAmount,
+                'freed' => $freed,
+                'no_face_left' => ! $freed && ! $this->hasActiveSelectedFace($payment),
             ];
         });
 
@@ -1122,6 +1138,32 @@ class MissionPaymentService
             ],
         );
 
+        if ($face !== null) {
+            $this->queueMailSafely($faceUserId, fn () => new FaceConfirmationExpiredMail($face, $mission), $mission, 'FaceConfirmationExpiredMail');
+        }
+
+        if ($result['freed']) {
+            $refundLabel = $this->formatShootingDayStart($mission);
+
+            $this->notifySafely(
+                userId: $producerUserId,
+                type: 'mission_place_freed',
+                data: [
+                    'message' => "{$faceName} n'a pas confirmé sa participation à « {$mission->titre} » : sa place est libérée. "
+                        ."Choisissez une remplaçante parmi les candidatures non retenues avant le {$refundLabel}, "
+                        ."sans frais supplémentaires ; sinon {$formattedAmount} FCFA seront crédités sur votre wallet.",
+                    'mission_id' => $mission->id,
+                    'candidature_id' => $result['candidature_id'],
+                    'montant' => $result['amount'],
+                    'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                    'reason' => $reason,
+                ],
+            );
+            $this->queueMailSafely($producerUserId, fn () => new MissionPlaceFreedMail($mission, $faceName, $result['amount'], $refundLabel), $mission, 'MissionPlaceFreedMail');
+
+            return true;
+        }
+
         $this->notifySafely(
             userId: $producerUserId,
             type: 'mission_face_confirmation_expired',
@@ -1134,13 +1176,121 @@ class MissionPaymentService
                 'reason' => $reason,
             ],
         );
-
-        if ($face !== null) {
-            $this->queueMailSafely($faceUserId, fn () => new FaceConfirmationExpiredMail($face, $mission), $mission, 'FaceConfirmationExpiredMail');
-        }
         $this->queueMailSafely($producerUserId, fn () => new MissionFaceUnconfirmedMail($mission, $faceName, $result['amount']), $mission, 'MissionFaceUnconfirmedMail');
 
+        if ($result['no_face_left']) {
+            $this->notifyAllPlacesRefunded($mission);
+        }
+
         return true;
+    }
+
+    /**
+     * Lot B4 : une place libérée peut-elle encore être pourvue ? Mission standard, jour du
+     * tournage pas commencé, et au moins une candidature non retenue éligible.
+     */
+    public function canFreedPlaceBeReplaced(Mission $mission): bool
+    {
+        if ($mission->type_mission === MissionType::Ugc) {
+            return false;
+        }
+
+        $shootingStart = $mission->shootingDayStartsAt();
+
+        if ($shootingStart !== null && now()->gte($shootingStart)) {
+            return false;
+        }
+
+        return $this->replacementCandidates($mission)->isNotEmpty();
+    }
+
+    /**
+     * Lot B4 (D2) : candidatures non retenues (rejected) de la mission pouvant reprendre une place
+     * libérée : jamais sélectionnées (aucune entry), Face abonnée (palier non gratuit, règle des
+     * missions standard) et compte actif.
+     *
+     * @return \Illuminate\Support\Collection<int, Candidature>
+     */
+    public function replacementCandidates(Mission $mission): \Illuminate\Support\Collection
+    {
+        return Candidature::query()
+            ->where('mission_id', $mission->id)
+            ->where('status', CandidatureStatus::Rejected->value)
+            ->whereDoesntHave('paymentEntry')
+            ->with('face.activeSubscription')
+            ->get()
+            ->filter(fn (Candidature $candidature): bool => $this->isEligibleReplacement($candidature))
+            ->values();
+    }
+
+    public function isEligibleReplacement(Candidature $candidature): bool
+    {
+        $face = $candidature->face;
+
+        if (! $face instanceof Face) {
+            return false;
+        }
+
+        $faceUserActive = User::query()
+            ->where('userable_type', Face::class)
+            ->where('userable_id', $face->id)
+            ->where('is_active', true)
+            ->exists();
+
+        return $faceUserActive
+            && $this->faceEntitlementService->capabilities($face)->tier !== FaceSubscriptionTier::Free;
+    }
+
+    /**
+     * Lot B4 : la sélection payée a-t-elle encore une Face engagée (acceptée, confirmée, en cours,
+     * terminée) ou une place libérée en attente ? Faux = toutes les places ont été remboursées.
+     */
+    public function hasActiveSelectedFace(MissionPayment $payment): bool
+    {
+        $candidatureIds = $payment->entries()->pluck('candidature_id');
+
+        $hasEngagedFace = Candidature::query()
+            ->whereIn('id', $candidatureIds)
+            ->whereIn('status', [
+                CandidatureStatus::Accepted->value,
+                CandidatureStatus::Confirmed->value,
+                CandidatureStatus::InProgress->value,
+                CandidatureStatus::Completed->value,
+            ])
+            ->exists();
+
+        return $hasEngagedFace || $payment->entries()
+            ->whereNotNull('freed_at')
+            ->where('escrow_status', EscrowStatus::Locked->value)
+            ->exists();
+    }
+
+    /** Lot B4 : toutes les places de la sélection ont été remboursées, prévient le Producer. */
+    public function notifyAllPlacesRefunded(Mission $mission): void
+    {
+        $this->notifySafely(
+            userId: $this->getUserIdForProducer((int) $mission->producer_id),
+            type: 'mission_all_places_refunded',
+            data: [
+                'message' => "Aucune Face sélectionnée n'a confirmé sa participation à « {$mission->titre} » : toutes les places ont été remboursées sur votre wallet (hors frais de service).",
+                'mission_id' => $mission->id,
+                'url' => "/producer/missions/{$mission->uuid}/candidatures",
+            ],
+        );
+    }
+
+    /** Début du jour de tournage affiché (« 30/10 à 00:00 », fuseau métier), « jour du tournage » sans date. */
+    public function formatShootingDayStart(Mission $mission): string
+    {
+        $start = $mission->shootingDayStartsAt();
+
+        if ($start === null) {
+            return 'jour du tournage';
+        }
+
+        $local = $start->copy()->setTimezone((string) config('app.business_timezone'));
+
+        return $local->format('d/m').' à '.$local->format('H:i');
     }
 
     /** Queue un email vers l'utilisateur donné, après commit : un échec est journalisé, jamais propagé. */

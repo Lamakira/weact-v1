@@ -68,6 +68,18 @@ const paymentDeadlineLabel = computed(() => {
   return `${day} à ${hours}h${minutes}`
 })
 
+// Lot B4 : échéance d'une place libérée (début du jour de tournage), même format que l'échéance de paiement.
+const freedPlacesRefundLabel = computed(() => {
+  const raw = mission.value?.freed_places_refund_at
+  if (!raw) return null
+  const date = new Date(raw)
+  if (Number.isNaN(date.getTime())) return null
+  const day = new Intl.DateTimeFormat('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' }).format(date)
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${day} à ${hours}h${minutes}`
+})
+
 function clearTrackablePending(): void {
   trackablePending.value = false
   pendingStalled.value = false
@@ -487,6 +499,23 @@ onUnmounted(() => {
             <Loader2 v-if="isCancellingSelection" class="h-4 w-4 animate-spin" />
             Modifier la sélection
           </button>
+          <!-- Lot B4 : place libérée (Face non confirmée) — remplaçante ou remboursement -->
+          <div
+            v-if="(mission.freed_places_count ?? 0) > 0"
+            data-testid="mission-freed-place-banner"
+            role="status"
+            class="mt-3 flex items-start gap-2 rounded-lg bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
+          >
+            <AlertCircle class="mt-0.5 h-4 w-4 shrink-0" />
+            <span v-if="mission.can_replace_freed_place">
+              {{ mission.freed_places_count === 1 ? 'Une place s\'est libérée' : `${mission.freed_places_count} places se sont libérées` }} :
+              proposez-la à une Face non retenue ci-dessous, sans frais supplémentaires<template v-if="freedPlacesRefundLabel">, avant le {{ freedPlacesRefundLabel }}</template>.
+              Sans remplaçante confirmée à cette date, le budget de la place est crédité sur votre wallet.
+            </span>
+            <span v-else>
+              Place libérée sans remplaçante : son budget va être crédité sur votre wallet.
+            </span>
+          </div>
           <p
             v-if="mission.status === 'pending_payment' && paymentDeadlineLabel"
             data-testid="mission-payment-deadline"
@@ -513,6 +542,8 @@ onUnmounted(() => {
         :ugc-compensation-type="mission.type_compensation"
         :ugc-product-name="mission.nom_produit"
         :mission-montant-remuneration="mission.montant_remuneration"
+        :can-replace-freed-place="mission.can_replace_freed_place === true"
+        @freed-place-replaced="fetchMission"
         @selection-confirmed="handleSelectionConfirmed"
         @selection-failed="handleSelectionFailed"
       />
