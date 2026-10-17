@@ -39,6 +39,9 @@ export interface AttendanceEntry {
   released_at: string | null
   refunded_at: string | null
   notified_at: string | null
+  // Lot B5 : faux pour une Face qui n'a pas confirmé sa participation (raison fournie)
+  can_mark?: boolean
+  blocked_reason?: string | null
 }
 
 export interface AttendanceFormResponse {
@@ -49,6 +52,10 @@ export interface AttendanceFormResponse {
       status: string
       status_label: string
       date_tournage: string | null
+      // Lot B5 : présences ouvertes à partir du jour du tournage (fuseau métier)
+      attendance_opens_at?: string | null
+      can_mark_attendance?: boolean
+      attendance_blocked_reason?: string | null
     }
     payment: { montant_total_producteur: number; nombre_faces_retenues: number }
     entries: AttendanceEntry[]
@@ -69,6 +76,10 @@ export interface ValidateAttendanceResponse {
       status: string
       status_label: string
       date_tournage: string | null
+      // Lot B5 : présences ouvertes à partir du jour du tournage (fuseau métier)
+      attendance_opens_at?: string | null
+      can_mark_attendance?: boolean
+      attendance_blocked_reason?: string | null
     }
     entries: AttendanceEntry[]
   }

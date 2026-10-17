@@ -14,6 +14,7 @@ use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Enums\UgcRefundReason;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -316,6 +317,44 @@ class Mission extends Model
     {
         return $query->where('status', MissionStatus::Published)
             ->where('date_limite_candidature', '>=', self::businessToday());
+    }
+
+    /**
+     * Début du jour de tournage en fuseau métier (exprimé en UTC), null sans date de tournage.
+     */
+    public function shootingDayStartsAt(): ?CarbonInterface
+    {
+        if ($this->date_tournage === null) {
+            return null;
+        }
+
+        return Carbon::parse($this->date_tournage->toDateString(), (string) config('app.business_timezone'))
+            ->startOfDay()
+            ->utc();
+    }
+
+    /**
+     * Lot B5 : les présences se pointent à partir du jour du tournage (fuseau métier).
+     * Sans date de tournage (données anciennes), rien ne permet de bloquer : ouvert.
+     */
+    public function isAttendanceOpen(): bool
+    {
+        $start = $this->shootingDayStartsAt();
+
+        return $start === null || now()->gte($start);
+    }
+
+    /**
+     * Raison affichée quand les présences ne sont pas encore ouvertes, null sinon.
+     */
+    public function attendanceBlockedReason(): ?string
+    {
+        if ($this->isAttendanceOpen()) {
+            return null;
+        }
+
+        return 'Les présences se valident à partir du jour du tournage (le '
+            .$this->date_tournage?->format('d/m/Y').').';
     }
 
     /**

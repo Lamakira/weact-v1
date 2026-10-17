@@ -257,6 +257,9 @@ class ExpireUnconfirmedFacesCommandTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data.entries');
 
+        // Lot B5 : jour du tournage atteint, sinon la garde de date répond avant celle des entries.
+        $mission->update(['date_tournage' => now()->toDateString()]);
+
         $this->actingAs($this->producerUser)
             ->postJson("/api/v1/producer/missions/{$mission->uuid}/validate-attendance", [
                 'entries' => [['entry_id' => $faces[1]['entry']->id, 'status' => 'present']],
