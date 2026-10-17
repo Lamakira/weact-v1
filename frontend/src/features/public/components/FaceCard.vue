@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { User } from 'lucide-vue-next'
-import type { PublicFace } from '../services/publicFacesApi'
+import { publicFaceName, type PublicFace } from '../services/publicFacesApi'
 import WBadge from '@/components/ui/WBadge.vue'
 
 interface Props {
@@ -20,6 +20,9 @@ const availabilityClasses = computed(() => {
     ? 'bg-green-500'
     : 'bg-gray-400'
 })
+
+// Lot B13 : nom complet pour un Producer connecté (fourni par l'API), prénom seul sinon.
+const displayedName = computed(() => publicFaceName(props.face))
 
 const availabilityLabel = computed(() => {
   return props.face.is_available ? 'Disponible' : 'Indisponible'
@@ -121,8 +124,8 @@ const profileUrl = computed(() => {
            collé à la fin du nom (flex-shrink-0). Halo blanc conservé (le badge vert
            passe désormais sur le dégradé sombre du bas plutôt que sur la photo). -->
       <div class="flex items-center gap-1.5">
-        <p class="min-w-0 truncate text-sm sm:text-base font-bold text-white">
-          {{ face.prenom }}
+        <p class="min-w-0 truncate text-sm sm:text-base font-bold text-white" data-testid="face-card-name">
+          {{ displayedName }}
         </p>
         <WBadge
           v-if="face.has_elite_badge"

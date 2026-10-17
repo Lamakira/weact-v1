@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Support\PublicViewer;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -11,7 +12,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Short response cache for the public GET endpoints, whose payload is the SAME
- * for every visitor (no read of the request user, forced `fr` locale).
+ * for every visitor of a given viewer class (forced `fr` locale). Lot B13: the
+ * viewer class (`guest` / `producer`, resolved by `public.viewer` on the routes
+ * that depend on it, `guest` everywhere else) is part of the key, so a Producer
+ * response is never served to a guest.
  *
  * Why: each public request costs 30-60 ms of PHP even with an idle database,
  * so a handful of identical hits saturate the CPU. A hit here skips the
@@ -31,7 +35,8 @@ use Symfony\Component\HttpFoundation\Response;
  *    Detail routes take no param (empty allowlist).
  *  - `cache.public_response_ttl <= 0` disables the middleware (pass-through).
  *
- * Only attach it to routes whose output does NOT depend on the viewer.
+ * Only attach it to routes whose output depends on the viewer through
+ * PublicViewer alone (and then with `public.viewer` placed before it).
  */
 class CachePublicResponse
 {
@@ -105,7 +110,7 @@ class CachePublicResponse
         $query = $request->query();
         $this->ksortRecursive($query);
 
-        return 'public-response:'.sha1($request->path().'?'.json_encode($query));
+        return 'public-response:'.sha1(PublicViewer::classFor($request).'|'.$request->path().'?'.json_encode($query));
     }
 
     /**
