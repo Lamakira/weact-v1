@@ -1,6 +1,7 @@
 import { AxiosError } from 'axios'
 import { publicApiClient } from './apiClient'
 import { getAuthToken } from '@/services/apiClient'
+import { useAuthStore } from '@/stores/auth'
 import type { FacePhoto, FaceExperience } from '@/features/candidature/types'
 
 /**
@@ -11,11 +12,12 @@ import type { FacePhoto, FaceExperience } from '@/features/candidature/types'
  * Value+label pair for categories and niches
  */
 /**
- * Lot B13 : le jeton de session (s'il existe) accompagne la liste et le profil publics ; le
- * backend renvoie alors le nom complet si le visiteur est un Producer connecté, la vue
- * invité sinon (jeton absent, invalide, Face, admin). Aucun en-tête pour un invité.
+ * Lot B13 : le jeton de session accompagne la liste et le profil publics UNIQUEMENT pour un
+ * Producer connecté (seul profil à voir le nom complet). Invité, Face et admin n'envoient
+ * rien : le backend n'a alors aucune recherche de jeton inutile à faire.
  */
 function viewerHeaders(): Record<string, string> | undefined {
+  if (!useAuthStore().isProducer) return undefined
   const token = getAuthToken()
   return token ? { Authorization: `Bearer ${token}` } : undefined
 }
