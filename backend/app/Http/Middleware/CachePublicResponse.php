@@ -65,7 +65,8 @@ class CachePublicResponse
         }
 
         $store = Cache::store(config('cache.public_response_store'));
-        $key = $this->cacheKey($request);
+        $viewerClass = PublicViewer::classFor($request);
+        $key = $this->cacheKey($request, $viewerClass);
 
         $cached = $store->get($key);
 
@@ -81,6 +82,15 @@ class CachePublicResponse
         $response = $next($request);
 
         $contentType = (string) $response->headers->get('Content-Type', '');
+
+        // Fail closed (lot B13) : si la classe du visiteur a changé pendant le pipeline
+        // (`public.viewer` placé APRÈS ce middleware), la clé calculée plus haut ne décrit
+        // pas la réponse (ex. clé « guest » pour un contenu Producer) : on ne stocke rien.
+        if (PublicViewer::classFor($request) !== $viewerClass) {
+            $response->headers->set('X-Public-Cache', 'BYPASS');
+
+            return $response;
+        }
 
         if ($response->getStatusCode() === 200 && str_contains($contentType, 'json')) {
             $store->put($key, [200, (string) $response->getContent(), $contentType], $ttl);
@@ -105,12 +115,12 @@ class CachePublicResponse
         return true;
     }
 
-    private function cacheKey(Request $request): string
+    private function cacheKey(Request $request, string $viewerClass): string
     {
         $query = $request->query();
         $this->ksortRecursive($query);
 
-        return 'public-response:'.sha1(PublicViewer::classFor($request).'|'.$request->path().'?'.json_encode($query));
+        return 'public-response:'.sha1($viewerClass.'|'.$request->path().'?'.json_encode($query));
     }
 
     /**

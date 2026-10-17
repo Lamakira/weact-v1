@@ -8,10 +8,29 @@ use App\Models\Admin;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
+use App\Support\PublicViewer;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
+use Laravel\Sanctum\PersonalAccessToken;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
+
+class SpyPersonalAccessToken extends PersonalAccessToken
+{
+    protected $table = 'personal_access_tokens';
+
+    public static int $lookups = 0;
+
+    public static function findToken($token)
+    {
+        self::$lookups++;
+
+        return parent::findToken($token);
+    }
+}
 
 /**
  * Lot B13 — un Producer connecté (même sans abonnement) voit le nom complet des Faces sur
@@ -212,5 +231,44 @@ class ProducerFullNameVisibilityTest extends TestCase
         $this->listing($this->bearer($this->producerToken()))->assertJsonPath('data.0.nom', 'Kouassi');
 
         $this->assertNoFullName($this->listing($this->bearer('1|forged')));
+    }
+
+    public function test_the_viewer_resolves_tokens_through_the_configured_sanctum_model(): void
+    {
+        $original = Sanctum::$personalAccessTokenModel;
+        $token = $this->producerToken();
+
+        Sanctum::usePersonalAccessTokenModel(SpyPersonalAccessToken::class);
+        SpyPersonalAccessToken::$lookups = 0;
+
+        try {
+            $this->listing($this->bearer($token))->assertJsonPath('data.0.nom', 'Kouassi');
+            $this->assertSame(1, SpyPersonalAccessToken::$lookups);
+        } finally {
+            Sanctum::usePersonalAccessTokenModel($original);
+        }
+    }
+
+    // --- Fail closed si l'ordre des middlewares est inversé ---
+
+    public function test_reversed_middleware_order_never_leaks_the_full_name_to_a_guest(): void
+    {
+        // public.cache AVANT public.viewer : la clé est calculée en « guest » avant que le
+        // visiteur soit résolu. Le cache doit refuser de stocker (fail closed).
+        Route::middleware(['api', 'public.cache', 'public.viewer'])
+            ->get('/api/v1/public/test-reversed-order', fn (Request $request) => response()->json([
+                'nom' => PublicViewer::isProducer($request) ? 'Kouassi' : 'K.',
+            ]));
+
+        $producer = $this->getJson('/api/v1/public/test-reversed-order', $this->bearer($this->producerToken()));
+        $producer->assertOk();
+        $this->assertSame('BYPASS', $producer->headers->get('X-Public-Cache'));
+
+        $guestKey = 'public-response:'.sha1(PublicViewer::GUEST.'|api/v1/public/test-reversed-order?[]');
+        $this->assertFalse(Cache::store('array')->has($guestKey), 'Aucune entrée ne doit être stockée sous la clé invité.');
+
+        $guest = $this->getJson('/api/v1/public/test-reversed-order');
+        $guest->assertOk();
+        $this->assertStringNotContainsString('Kouassi', (string) $guest->getContent());
     }
 }

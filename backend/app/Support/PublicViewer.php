@@ -8,6 +8,7 @@ use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Laravel\Sanctum\PersonalAccessToken;
+use Laravel\Sanctum\Sanctum;
 
 /**
  * Classe de visiteur d'un endpoint public (lot B13) : `producer` pour un Producer connecté
@@ -66,7 +67,9 @@ final class PublicViewer
             return null;
         }
 
-        $accessToken = PersonalAccessToken::findToken($plainTextToken);
+        // Modèle de jeton configurable (Sanctum::usePersonalAccessTokenModel), comme le guard Sanctum.
+        $tokenModel = Sanctum::$personalAccessTokenModel;
+        $accessToken = $tokenModel::findToken($plainTextToken);
 
         if ($accessToken === null || self::isExpired($accessToken)) {
             return null;
