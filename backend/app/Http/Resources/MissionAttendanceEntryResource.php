@@ -72,6 +72,7 @@ class MissionAttendanceEntryResource extends JsonResource
             EscrowStatus::Locked => 'Bloqué',
             EscrowStatus::Released => 'Libéré',
             EscrowStatus::Refunded => 'Remboursé',
+            EscrowStatus::Transferred => 'Transféré',
         };
     }
 

@@ -231,6 +231,20 @@ export const missionApi = {
   /**
    * « Modifier la sélection » : annule le paiement en attente et rouvre la sélection.
    */
+  /**
+   * Lot B4 : donne une place libérée (Face sélectionnée non confirmée) à une candidature non
+   * retenue de la mission. Aucun paiement : l'argent de la place est repris.
+   */
+  async replaceFreedPlace(missionId: string, candidatureId: string): Promise<{ message: string }> {
+    await getCsrfCookie()
+
+    const response = await apiClient.post<{ message: string }>(
+      `/producer/missions/${missionId}/freed-places/replace`,
+      { candidature_id: candidatureId },
+    )
+    return response.data
+  },
+
   async cancelSelection(missionId: string): Promise<CancelSelectionResponse> {
     await getCsrfCookie()
 

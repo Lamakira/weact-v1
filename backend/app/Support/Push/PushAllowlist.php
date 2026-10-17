@@ -79,6 +79,10 @@ final class PushAllowlist
         'mission_participation_confirmation_required' => self::MISSION,
         'mission_candidature_slot_released' => self::MISSION,
         'candidature_expired_no_response' => self::MISSION,
+        'mission_place_freed' => self::MISSION,
+        'mission_place_freed_selected' => self::MISSION,
+        'mission_freed_place_refunded' => self::PAYMENT,
+        'mission_all_places_refunded' => self::PAYMENT,
         'mission_candidatures_response_reminder' => self::REMINDER,
         'mission_confirmation_expired' => self::MISSION,
 

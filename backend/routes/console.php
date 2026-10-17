@@ -20,6 +20,7 @@ use App\Console\Commands\PurgeExpiredCacheCommand;
 use App\Console\Commands\PurgeExpiredMediaCommand;
 use App\Console\Commands\RebuildFaceListingRanksCommand;
 use App\Console\Commands\ReconcileWalletCommand;
+use App\Console\Commands\RefundFreedPlacesCommand;
 use App\Console\Commands\RemindBookingPaymentCommand;
 use App\Console\Commands\RemindCandidatureResponseCommand;
 use App\Console\Commands\RemindFaceSubscriptionRenewalsCommand;
@@ -61,6 +62,8 @@ app(Schedule::class)->command(CompleteFinishedUgcMissionsCommand::class)->hourly
 // Lot B6 (D3) : réponse du Producer aux candidatures sous 72 h après leur clôture.
 app(Schedule::class)->command(RemindCandidatureResponseCommand::class)->hourly()->withoutOverlapping();
 app(Schedule::class)->command(ExpireUnansweredCandidaturesCommand::class)->hourly()->withoutOverlapping();
+// Lot B4 (D1) : place libérée sans remplaçante au début du jour de tournage -> remboursée.
+app(Schedule::class)->command(RefundFreedPlacesCommand::class)->hourly()->withoutOverlapping();
 // 4.5 — relance d'escalade des deadlines d'upload Face (~15 min, NFR3/AR3).
 // Idempotente par shipments.last_notified_threshold ; withoutOverlapping en
 // défense supplémentaire (D-4.5.d).

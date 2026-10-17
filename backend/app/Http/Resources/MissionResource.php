@@ -62,6 +62,21 @@ class MissionResource extends JsonResource
                 : \App\Models\MissionPayment::where('mission_id', $this->id)->where('status', 'paid')->exists(),
             // Owner-only: mirrors the exact rules of POST /producer/missions/{mission}/complete.
             'can_complete' => $this->when(! $requesterIsFace, fn () => $this->resource->canBeCompleted()),
+            // Lot B4 : places libérées (détail Producer uniquement, posé par MissionController::show).
+            'freed_places_count' => $this->when(
+                ! $requesterIsFace && array_key_exists('freed_places_count', $this->resource->getAttributes()),
+                fn () => (int) $this->resource->getAttribute('freed_places_count'),
+            ),
+            'can_replace_freed_place' => $this->when(
+                ! $requesterIsFace && array_key_exists('can_replace_freed_place', $this->resource->getAttributes()),
+                fn () => (bool) $this->resource->getAttribute('can_replace_freed_place'),
+            ),
+            'freed_places_refund_at' => $this->when(
+                ! $requesterIsFace && array_key_exists('freed_places_count', $this->resource->getAttributes()),
+                fn () => (int) $this->resource->getAttribute('freed_places_count') > 0
+                    ? $this->resource->shootingDayStartsAt()?->toIso8601String()
+                    : null,
+            ),
             'candidatures_count' => $this->candidatures_count ?? ($this->whenLoaded('candidatures') ? $this->candidatures->count() : 0),
             'producer' => new ProducerResource($this->whenLoaded('producer')),
             'created_at' => $this->created_at?->toIso8601String(),

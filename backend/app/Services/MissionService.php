@@ -440,6 +440,8 @@ class MissionService
             $mission->payment?->entries()
                 ->where('escrow_status', EscrowStatus::Locked)
                 ->where('attendance_status', AttendanceStatus::Pending)
+                // Lot B4 : une place libérée n'est jamais versée.
+                ->whereNull('freed_at')
                 ->update(['attendance_status' => AttendanceStatus::Present]);
 
             // Release funds to selected faces if payment exists

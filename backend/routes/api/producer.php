@@ -102,6 +102,11 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
         ->middleware('throttle:polling')
         ->name('producer.missions.commission-status');
 
+    // Lot B4 : place libérée -> remplaçante parmi les candidatures non retenues
+    Route::post('/missions/{mission}/freed-places/replace', [MissionController::class, 'replaceFreedPlace'])
+        ->middleware('throttle:60,1')
+        ->name('producer.missions.freed-places.replace');
+
     // Candidature routes (nested under missions)
     Route::get('/missions/{mission}/candidatures', [CandidatureController::class, 'index'])
         ->middleware('throttle:ui-read');
