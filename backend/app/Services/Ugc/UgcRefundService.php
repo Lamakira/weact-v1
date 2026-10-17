@@ -93,6 +93,17 @@ class UgcRefundService
     }
 
     /**
+     * Lot B10 : commission UGC encaissée APRÈS l'expiration de la demande (paiement FedaPay en
+     * vol au moment de l'expiration à 48 h). Le montant encaissé est crédité au wallet du
+     * Producteur. Sous le lock booking de l'appelant, dans sa transaction ; l'appelant pose
+     * commission_paid_at et dispatche UgcCommissionRefunded après le commit. NE catch PAS.
+     */
+    public function settleLatePaymentOnExpiredBooking(Booking $locked): ?Booking
+    {
+        return $this->settleLockedBooking($locked, UgcRefundReason::CommissionPaidAfterExpiry);
+    }
+
+    /**
      * Règlement booking SOUS LOCK, DANS la transaction de l'appelant. Retourne le
      * booking réglé (à dispatcher APRÈS le commit) ou null sur garde déterministe
      * (hors-périmètre, déjà réglé, sans encaissement, commission invalide).

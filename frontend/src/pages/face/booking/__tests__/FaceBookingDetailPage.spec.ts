@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import FaceBookingDetailPage from '../FaceBookingDetailPage.vue'
+import { formatBookingDeadline } from '@/features/booking/utils/formatBookingDeadline'
 import { bookingApi } from '@/features/booking/services/bookingApi'
 
 const mockBooking = ref<Record<string, unknown> | null>(null)
@@ -1402,6 +1403,65 @@ describe('FaceBookingDetailPage — délai d\'annulation Face (24 h avant le jou
     )
 
     expect(wrapper.find('[data-testid="face-cancel-closed"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+})
+
+describe('FaceBookingDetailPage — échéances de réponse et de commission (lot B10)', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    mockFetchBooking.mockReset()
+  })
+
+  it('la Face voit « Répondez avant le … » sur une demande en attente', async () => {
+    const deadline = new Date(Date.now() + 2 * 86400000)
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', accepted_at: null, face_response_deadline: deadline.toISOString() }),
+    )
+
+    const banner = wrapper.find('[data-testid="face-response-deadline"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain(`Répondez avant le ${formatBookingDeadline(deadline.toISOString())}`)
+    wrapper.unmount()
+  })
+
+  it('le Producer voit le délai laissé à la Face', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const deadline = new Date(Date.now() + 86400000).toISOString()
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', accepted_at: null, face_response_deadline: deadline }),
+    )
+
+    expect(wrapper.find('[data-testid="face-response-deadline"]').text()).toContain('La Face a jusqu\'au')
+    wrapper.unmount()
+  })
+
+  it('aucune échéance affichée une fois dépassée ou hors attente', async () => {
+    const past = await mountPage(
+      makeBooking({ status: 'pending', accepted_at: null, face_response_deadline: new Date(Date.now() - 60000).toISOString() }),
+    )
+    expect(past.find('[data-testid="face-response-deadline"]').exists()).toBe(false)
+    past.unmount()
+
+    const accepted = await mountPage(
+      makeBooking({ status: 'accepted', face_response_deadline: new Date(Date.now() + 86400000).toISOString() }),
+    )
+    expect(accepted.find('[data-testid="face-response-deadline"]').exists()).toBe(false)
+    accepted.unmount()
+  })
+
+  it('le Producer voit l\'échéance de la commission UGC', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const deadline = new Date(Date.now() + 86400000).toISOString()
+    const wrapper = await mountPage(
+      makeUgcBooking({ status: 'pending', commission_ugc: 2500, ugc_commission_payment_deadline: deadline }),
+    )
+
+    expect(wrapper.find('[data-testid="ugc-commission-deadline"]').text()).toContain('Réglez la commission avant le')
     wrapper.unmount()
   })
 })

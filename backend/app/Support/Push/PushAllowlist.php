@@ -56,6 +56,7 @@ final class PushAllowlist
 
         // Reminders
         'booking_payment_reminder' => self::REMINDER,
+        'booking_response_reminder' => self::REMINDER,
         'booking_completion_reminder' => self::REMINDER,
         'shooting_day_reminder' => self::REMINDER,
         'ugc_deliverable_deadline_approaching' => self::REMINDER,

@@ -72,8 +72,9 @@ class ExpireUnacceptedBookingsCommandTest extends TestCase
         $booking = Booking::factory()->pending()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
-            'date_debut' => now()->addDay(),
-            'date_fin' => now()->addDays(2),
+            // Au moins deux jours : le début du jour de tournage (fuseau métier) précède date_debut.
+            'date_debut' => now()->addDays(2),
+            'date_fin' => now()->addDays(3),
         ]);
 
         $this->artisan('bookings:expire-unaccepted')

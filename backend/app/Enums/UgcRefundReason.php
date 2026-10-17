@@ -9,6 +9,7 @@ enum UgcRefundReason: string
     case Refused = 'refused';
     case AcceptanceWindowExpired = 'acceptance_window_expired';
     case MissionDeadlineExpired = 'mission_deadline_expired';
+    case CommissionPaidAfterExpiry = 'commission_paid_after_expiry';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum UgcRefundReason: string
             self::Refused => 'Deal refusé par la Face',
             self::AcceptanceWindowExpired => "Fenêtre d'acceptation expirée",
             self::MissionDeadlineExpired => 'Mission terminée sans participant',
+            self::CommissionPaidAfterExpiry => "Commission réglée après l'expiration de la demande",
         };
     }
 }
