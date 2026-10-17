@@ -145,6 +145,8 @@ export interface Booking {
   face_response_deadline?: string | null
   // Lot B10 : échéance de règlement de la commission (demande UGC en attente) ; null sinon
   ugc_commission_payment_deadline?: string | null
+  // Lot B11 : échéance de paiement (accepted_at + 24 h) d'un booking cash accepté ; null sinon
+  payment_deadline?: string | null
   date_fin: string | null
   duree_heures: number | null
   type_contenu: string

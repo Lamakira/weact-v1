@@ -1465,3 +1465,54 @@ describe('FaceBookingDetailPage — échéances de réponse et de commission (lo
     wrapper.unmount()
   })
 })
+
+describe('FaceBookingDetailPage — paiement du booking sous 24 h (lot B11)', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    mockFetchBooking.mockReset()
+  })
+
+  it('la Face voit aussi l\'échéance de paiement', async () => {
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    const deadline = new Date(Date.now() + 3 * 3600000).toISOString()
+    const wrapper = await mountPage(
+      makeBooking({ status: 'accepted', payment_deadline: deadline, can_pay: false }),
+    )
+
+    const banner = wrapper.find('[data-testid="payment-deadline"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain(`Le Producteur doit payer avant le ${formatBookingDeadline(deadline)}`)
+    wrapper.unmount()
+  })
+
+  it('le bouton « Payer maintenant » reste visible jusqu\'à l\'échéance exacte puis disparaît', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] })
+    try {
+      vi.setSystemTime(new Date('2026-10-21T11:59:30Z'))
+      const wrapper = await mountPage(
+        makeBooking({
+          status: 'accepted',
+          accepted_at: '2026-10-20T12:00:00Z',
+          payment_deadline: '2026-10-21T12:00:00+00:00',
+          can_pay: true,
+        }),
+      )
+
+      expect(wrapper.text()).toContain('Payer maintenant')
+      expect(wrapper.find('[data-testid="payment-deadline"]').text()).toContain('Paiement requis avant le 21/10 à 13:00')
+
+      await vi.advanceTimersByTimeAsync(29000)
+      expect(wrapper.text()).toContain('Payer maintenant')
+
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(wrapper.text()).not.toContain('Payer maintenant')
+      expect(wrapper.find('[data-testid="payment-deadline"]').text()).toContain('Délai expiré')
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})

@@ -83,6 +83,9 @@ class Booking extends Model
     /** La Face est relancée une fois quand il reste au plus ce délai pour répondre. */
     public const FACE_RESPONSE_REMINDER_BEFORE_HOURS = 24;
 
+    /** Délai de paiement d'un booking cash accepté, compté depuis l'acceptation (lot B11). */
+    public const PAYMENT_WINDOW_HOURS = 24;
+
     /** Délai de règlement de la commission d'une demande UGC, compté depuis sa création (lot B10). */
     public const UGC_COMMISSION_PAYMENT_WINDOW_HOURS = 48;
 
@@ -424,6 +427,44 @@ class Booking extends Model
     public function faceResponseDeadlineLabel(): ?string
     {
         $deadline = $this->faceResponseDeadline();
+
+        if ($deadline === null) {
+            return null;
+        }
+
+        return self::formatForBusiness($deadline, 'd/m').' à '.self::formatForBusiness($deadline, 'H:i');
+    }
+
+    /**
+     * Échéance de paiement d'un booking cash accepté (lot B11) : accepted_at + 24 h, exactement.
+     * Source unique (policy, initiation du paiement, cron d'expiration, API). Null pour l'UGC
+     * (pas de paiement cash après acceptation) ou sans accepted_at.
+     */
+    public function paymentDeadline(): ?CarbonInterface
+    {
+        if ($this->type_contenu === 'UGC' || $this->accepted_at === null) {
+            return null;
+        }
+
+        return $this->accepted_at->copy()->utc()->addHours(self::PAYMENT_WINDOW_HOURS);
+    }
+
+    /**
+     * Fenêtre de paiement encore ouverte : maintenant strictement avant l'échéance.
+     */
+    public function isPaymentWindowOpen(): bool
+    {
+        $deadline = $this->paymentDeadline();
+
+        return $deadline !== null && now()->lt($deadline);
+    }
+
+    /**
+     * Échéance de paiement au format affiché (« 21/10 à 13:00 », fuseau métier).
+     */
+    public function paymentDeadlineLabel(): ?string
+    {
+        $deadline = $this->paymentDeadline();
 
         if ($deadline === null) {
             return null;

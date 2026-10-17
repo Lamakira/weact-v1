@@ -134,7 +134,9 @@ class BookingPolicy
     {
         return $user->id === $booking->producer_id
             && $booking->status === BookingStatus::Accepted
-            && $booking->type_contenu !== 'UGC';
+            && $booking->type_contenu !== 'UGC'
+            // Lot B11 : jusqu'à exactement accepted_at + 24 h, sans attendre le cron d'expiration.
+            && $booking->isPaymentWindowOpen();
     }
 
     /**
