@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Listeners\Ugc;
 
+use App\Enums\UgcRefundReason;
 use App\Events\UgcCommissionRefunded;
 use App\Models\Mission;
 use App\Models\Notification;
@@ -45,7 +46,9 @@ class NotifyProducerOnUgcRefunded
             $amount = number_format($amountInt, 0, ',', ' ');
             $message = $isMission
                 ? "Votre commission UGC de {$amount} FCFA a été créditée sur votre portefeuille WeAct."
-                : "Votre règlement UGC de {$amount} FCFA a été remboursé sur votre portefeuille WeAct.";
+                : ($owner->commission_refund_reason === UgcRefundReason::CommissionPaidAfterExpiry
+                    ? "Commission réglée après l'expiration de votre demande : le montant de {$amount} FCFA a été crédité sur votre wallet WeAct."
+                    : "Votre règlement UGC de {$amount} FCFA a été remboursé sur votre portefeuille WeAct.");
 
             Notification::create([
                 'user_id' => $producerUserId,
