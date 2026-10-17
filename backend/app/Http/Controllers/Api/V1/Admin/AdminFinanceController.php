@@ -44,7 +44,10 @@ class AdminFinanceController extends Controller
 
         // ── Escrow still in flight ───────────────────────────────────────────
         $bookingEscrowLocked = (int) EscrowTransaction::where('status', 'locked')->sum('amount');
-        $missionEscrowLocked = (int) MissionPaymentCandidature::where('escrow_status', EscrowStatus::Locked)->sum('montant_face_recoit');
+        $missionEscrowLocked = (int) MissionPaymentCandidature::where('escrow_status', EscrowStatus::Locked)
+            // Lot B4 : une place libérée (Face expirée) reste l'argent du Producer, pas celui des Faces.
+            ->whereNull('freed_at')
+            ->sum('montant_face_recoit');
         $totalEscrow = $bookingEscrowLocked + $missionEscrowLocked;
 
         // ── Platform revenue (commissions) ───────────────────────────────────

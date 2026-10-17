@@ -29,7 +29,9 @@ final class LockedEscrowGuard
     public static function forFace(Face $face): bool
     {
         $hasLockedCandidatureEscrow = $face->candidatures()
-            ->whereHas('paymentEntry', fn ($q) => $q->where('escrow_status', EscrowStatus::Locked))
+            ->whereHas('paymentEntry', fn ($q) => $q->where('escrow_status', EscrowStatus::Locked)
+                // Lot B4 : une place libérée (Face expirée) garde l'argent du Producer, pas celui de la Face.
+                ->whereNull('freed_at'))
             ->exists();
 
         if ($hasLockedCandidatureEscrow) {

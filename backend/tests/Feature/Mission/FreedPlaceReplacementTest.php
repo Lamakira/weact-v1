@@ -514,6 +514,45 @@ class FreedPlaceReplacementTest extends TestCase
         );
     }
 
+    public function test_a_freed_entry_does_not_block_the_expired_face_from_deleting_her_account_but_still_blocks_the_producer(): void
+    {
+        [, , $faces] = $this->paidMission(selected: 2);
+        $faces[1]['candidature']->update(['status' => CandidatureStatus::Confirmed]);
+        $this->artisan('missions:expire-unconfirmed-faces');
+        $this->assertNotNull($faces[0]['entry']->fresh()->freed_at);
+
+        $expiredFaceUser = User::query()->findOrFail($this->faceUserId($faces[0]['candidature']));
+        $this->assertSame([], \App\Support\AccountDeletionGuard::blockers($expiredFaceUser));
+        $this->assertFalse(\App\Support\LockedEscrowGuard::forFace(Face::query()->findOrFail($faces[0]['candidature']->face_id)));
+
+        // La Face confirmée garde son escrow : toujours bloquée. Le Producer aussi (l'argent de la place est le sien).
+        $this->assertFalse(\App\Support\LockedEscrowGuard::forFace(Face::query()->findOrFail($faces[0]['candidature']->face_id)));
+        $this->assertTrue(\App\Support\LockedEscrowGuard::forFace(Face::query()->findOrFail($faces[1]['candidature']->face_id)));
+        $this->assertNotSame([], \App\Support\AccountDeletionGuard::blockers($this->producerUser));
+    }
+
+    public function test_admin_finance_does_not_count_a_freed_entry_as_face_money(): void
+    {
+        [, , $faces] = $this->paidMission(selected: 2);
+        $faces[1]['candidature']->update(['status' => CandidatureStatus::Confirmed]);
+        $this->artisan('missions:expire-unconfirmed-faces');
+
+        $admin = Admin::factory()->create();
+        $this->mock(FedapayService::class, fn ($mock) => $mock->shouldReceive('getBalanceSummary')->andReturn([
+            'available' => false,
+            'total_amount' => 0,
+            'refreshed_at' => null,
+            'error' => null,
+        ]));
+
+        // Seule la Face confirmée a 90 000 en séquestre ; la place libérée appartient au Producer.
+        $this->withToken($admin->createToken('admin-token', ['2fa'])->plainTextToken)
+            ->getJson('/api/v1/admin/finance/overview')
+            ->assertOk()
+            ->assertJsonPath('data.faces.escrow_mission', 90000)
+            ->assertJsonPath('data.faces.amount', 90000);
+    }
+
     public function test_admin_revenue_follows_the_commission_of_the_replacement(): void
     {
         [$mission] = $this->paidMission(rejected: 0);
