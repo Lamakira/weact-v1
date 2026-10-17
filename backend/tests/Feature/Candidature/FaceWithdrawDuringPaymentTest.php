@@ -97,6 +97,26 @@ class FaceWithdrawDuringPaymentTest extends TestCase
         $this->assertSame(CandidatureStatus::Pending, $faces[0]['candidature']->fresh()->status);
     }
 
+    public function test_selected_face_is_refused_when_the_selection_is_still_pending_after_the_settle_step(): void
+    {
+        // Course : la sélection n'a pas pu être réinitialisée (reprise concurrente du checkout →
+        // transaction différente, settle renvoie NOOP) : la candidature est toujours dans un
+        // paiement en attente, son retrait doit être refusé (fail-closed).
+        [$mission, $payment, $faces] = $this->pendingSelection(2);
+        $this->partialMock(\App\Services\MissionPaymentService::class, function ($mock): void {
+            $mock->shouldReceive('settleOrResetPendingSelection')
+                ->andReturn(\App\Services\MissionPaymentService::SELECTION_NOOP);
+        });
+
+        $this->cancel($faces[0])
+            ->assertStatus(422)
+            ->assertJsonPath('error.message', 'Le producteur est en train de payer sa sélection. Réessayez dans une heure.');
+
+        $this->assertNotNull(MissionPayment::find($payment->id));
+        $this->assertSame(MissionStatus::PendingPayment, $mission->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $faces[0]['candidature']->fresh()->status);
+    }
+
     public function test_selected_face_is_told_the_selection_was_paid(): void
     {
         [, $payment, $faces] = $this->pendingSelection(2);

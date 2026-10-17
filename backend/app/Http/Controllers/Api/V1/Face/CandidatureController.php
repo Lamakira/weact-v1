@@ -489,7 +489,11 @@ class CandidatureController extends Controller
         // Sous verrou : relit la candidature (une approbation concurrente peut l'avoir fait
         // avancer) puis applique les gardes et l'annulation de façon atomique.
         $blocked = DB::transaction(function () use ($candidature, $payments): ?JsonResponse {
-            // Ordre de verrous : mission → candidature (la sélection cash a déjà été réglée hors transaction).
+            // Ordre de verrous (aligné sur markAsPaid) : payment → entries → mission → candidature.
+            $stillPending = $payments->pendingCashPaymentFor($candidature);
+            if ($stillPending !== null) {
+                $payments->lockCashSelection($stillPending->id);
+            }
             Mission::query()->lockForUpdate()->find($candidature->mission_id);
 
             /** @var Candidature $locked */
@@ -501,6 +505,15 @@ class CandidatureController extends Controller
                     ErrorCodes::InvalidStatus->envelope('Seules les candidatures en attente peuvent être annulées.'),
                     400
                 );
+            }
+
+            // Fail-closed : la candidature figure encore dans une sélection cash en attente de
+            // paiement (reset impossible : checkout repris en parallèle, sélection confirmée
+            // entre-temps) → le Producteur paierait une place sans Face.
+            if ($payments->pendingCashPaymentFor($locked) !== null) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope(
+                    'Le producteur est en train de payer sa sélection. Réessayez dans une heure.'
+                ), 422);
             }
 
             // ugc-9-1 (D-9.1.j) : une candidature hybride Pending peut porter une entry escrow
