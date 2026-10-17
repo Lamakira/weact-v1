@@ -55,6 +55,7 @@ class AdminAttendanceDisputeResource extends JsonResource
             'montant_face_recoit' => (int) $this->montant_face_recoit,
             'attendance_status' => $this->attendance_status->value,
             'escrow_status' => $this->escrow_status->value,
+            'dispute_message' => $this->attendance_dispute_message,
             'notified_at' => $this->dateTimeToIso8601($this->notified_at),
             'disputed_at' => $this->dateTimeToIso8601($this->updated_at),
         ];

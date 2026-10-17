@@ -145,6 +145,8 @@ class AdminAttendanceDisputeControllerTest extends TestCase
             'released_at' => now(),
         ]);
 
+        $disputedFaces[0]['entry']->update(['attendance_dispute_message' => "J'étais là.\nVoici ma preuve."]);
+
         $admin = $this->createAdmin();
         $response = $this->actingAsAdmin($admin)->getJson('/api/v1/admin/attendance-disputes');
 
@@ -165,6 +167,12 @@ class AdminAttendanceDisputeControllerTest extends TestCase
         $this->assertSame('locked', $first['escrow_status']);
         $this->assertNotNull($first['notified_at']);
         $this->assertNotNull($first['disputed_at']);
+        $this->assertArrayHasKey('dispute_message', $first);
+
+        // Message de la Face exposé tel quel à l'admin ; null pour une contestation antérieure.
+        $byId = array_column($response->json('data'), null, 'id');
+        $this->assertSame("J'étais là.\nVoici ma preuve.", $byId[$disputedFaces[0]['entry']->id]['dispute_message']);
+        $this->assertNull($byId[$disputedFaces[1]['entry']->id]['dispute_message']);
         $this->assertSame($this->producer->display_name, $first['mission']['producer']['display_name']);
         $this->assertNotEmpty($first['face']['display_name']);
 

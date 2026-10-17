@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property \App\Enums\AttendanceStatus $attendance_status
  * @property \Carbon\Carbon|null $notified_at
  * @property \Carbon\Carbon|null $locked_at
+ * @property string|null $attendance_dispute_message
  * @property \Carbon\Carbon|null $released_at
  * @property \Carbon\Carbon|null $refunded_at
  * @property-read \App\Models\MissionPayment|null $missionPayment
@@ -42,6 +43,7 @@ class MissionPaymentCandidature extends Model
         'released_at',
         'refunded_at',
         'notified_at',
+        'attendance_dispute_message',
     ];
 
     /**

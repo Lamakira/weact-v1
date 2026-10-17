@@ -35,6 +35,7 @@ describe('useAdminAttendanceDisputes', () => {
           montant_face_recoit: 90000,
           attendance_status: 'disputed',
           escrow_status: 'locked',
+          dispute_message: null,
           notified_at: null,
           disputed_at: null,
         },
@@ -68,7 +69,7 @@ describe('useAdminAttendanceDisputes', () => {
 
   it('resolveDispute_success_refetches_list', async () => {
     mockResolveDispute.mockResolvedValue({
-      data: { id: 42, mission: null, face: null, montant_face_recoit: 90000, attendance_status: 'disputed', escrow_status: 'released', notified_at: null, disputed_at: null },
+      data: { id: 42, mission: null, face: null, montant_face_recoit: 90000, attendance_status: 'disputed', escrow_status: 'released', dispute_message: null, notified_at: null, disputed_at: null },
       message: 'Litige résolu avec succès',
     })
     mockGetDisputes.mockResolvedValue({
@@ -108,7 +109,7 @@ describe('useAdminAttendanceDisputes', () => {
 
   it('resolveDispute_success_with_refetch_error_still_returns_success', async () => {
     mockResolveDispute.mockResolvedValue({
-      data: { id: 42, mission: null, face: null, montant_face_recoit: 90000, attendance_status: 'disputed', escrow_status: 'released', notified_at: null, disputed_at: null },
+      data: { id: 42, mission: null, face: null, montant_face_recoit: 90000, attendance_status: 'disputed', escrow_status: 'released', dispute_message: null, notified_at: null, disputed_at: null },
       message: 'Litige résolu avec succès',
     })
     mockGetDisputes.mockRejectedValue({
@@ -125,7 +126,7 @@ describe('useAdminAttendanceDisputes', () => {
 
   it('resolveDispute_detects_refetch_error_even_when_message_repeats', async () => {
     mockResolveDispute.mockResolvedValue({
-      data: { id: 42, mission: null, face: null, montant_face_recoit: 90000, attendance_status: 'disputed', escrow_status: 'released', notified_at: null, disputed_at: null },
+      data: { id: 42, mission: null, face: null, montant_face_recoit: 90000, attendance_status: 'disputed', escrow_status: 'released', dispute_message: null, notified_at: null, disputed_at: null },
       message: 'Litige résolu avec succès',
     })
     mockGetDisputes.mockRejectedValue({
@@ -145,7 +146,7 @@ describe('useAdminAttendanceDisputes', () => {
 
   it('fetchDisputes_clears_stale_resolve_success', async () => {
     mockResolveDispute.mockResolvedValue({
-      data: { id: 42, mission: null, face: null, montant_face_recoit: 90000, attendance_status: 'disputed', escrow_status: 'released', notified_at: null, disputed_at: null },
+      data: { id: 42, mission: null, face: null, montant_face_recoit: 90000, attendance_status: 'disputed', escrow_status: 'released', dispute_message: null, notified_at: null, disputed_at: null },
       message: 'Litige résolu avec succès',
     })
     mockGetDisputes.mockResolvedValue({

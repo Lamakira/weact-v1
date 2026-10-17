@@ -112,7 +112,7 @@ function submitResolve(): void {
             <th class="px-4 py-3">Face</th>
             <th class="px-4 py-3">Montant</th>
             <th class="px-4 py-3">Notifiée le</th>
-            <th class="px-4 py-3">Contestée le</th>
+            <th class="px-4 py-3">Contestation</th>
             <th class="px-4 py-3 text-right">Actions</th>
           </tr>
         </thead>
@@ -148,7 +148,15 @@ function submitResolve(): void {
               {{ formatDate(dispute.notified_at) }}
             </td>
             <td class="px-4 py-3 align-top text-gray-700">
-              {{ formatDate(dispute.disputed_at) }}
+              <div class="text-xs text-gray-500">{{ formatDate(dispute.disputed_at) }}</div>
+              <p
+                v-if="dispute.dispute_message"
+                class="mt-1 max-w-xs whitespace-pre-line"
+                data-testid="dispute-message"
+              >{{ dispute.dispute_message }}</p>
+              <p v-else class="mt-1 max-w-xs text-xs italic text-gray-400" data-testid="dispute-message-empty">
+                (aucun message — contestation antérieure)
+              </p>
             </td>
             <td class="px-4 py-3 align-top">
               <div class="flex flex-wrap items-center justify-end gap-2">
