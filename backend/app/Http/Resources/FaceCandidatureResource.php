@@ -43,6 +43,9 @@ class FaceCandidatureResource extends JsonResource
             // ugc.reconfirm_window_hours (jamais dupliquée côté front). Non-null
             // seulement pour une candidature UGC acceptée non encore reconfirmée.
             'reconfirm_deadline' => $this->reconfirmDeadline()?->toIso8601String(),
+            // Échéance de confirmation (lot B3) : non-null seulement pour une candidature cash `accepted`
+            // non encore confirmée ; null si la mission n'est pas chargée (pas de lazy-load en liste).
+            'confirmation_deadline' => $this->relationLoaded('mission') ? $this->confirmationDeadline()?->toIso8601String() : null,
             // Absence mission contestable (fenêtre 72 h) — clé omise si paymentEntry non chargée.
             'attendance_dispute' => $this->when(
                 $this->relationLoaded('paymentEntry'),

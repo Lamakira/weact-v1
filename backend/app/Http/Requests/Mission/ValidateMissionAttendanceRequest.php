@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Mission;
 
+use App\Enums\CandidatureStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Models\Mission;
@@ -120,6 +121,20 @@ class ValidateMissionAttendanceRequest extends FormRequest
                 $validator->errors()->add(
                     'entries',
                     'Une ou plusieurs entries ne correspondent pas à cette mission.'
+                );
+
+                return;
+            }
+
+            $hasExpiredEntry = MissionPaymentCandidature::query()
+                ->whereIn('id', $payloadEntryIds)
+                ->whereHas('candidature', fn ($query) => $query->where('status', CandidatureStatus::Expired->value))
+                ->exists();
+
+            if ($hasExpiredEntry) {
+                $validator->errors()->add(
+                    'entries',
+                    'Une ou plusieurs entries correspondent à une Face qui n\'a pas confirmé sa participation : sa place a été libérée.'
                 );
             }
         });

@@ -46,6 +46,10 @@
     </table>
 
     <p style="margin: 0; padding: 12px 16px; background-color: #ecfeff; border-radius: 6px; color: #155e75; font-size: 13px; line-height: 1.5;">
-        Confirmez votre participation pour sécuriser votre place.
+        @if ($confirmationDeadline)
+            Confirmez votre participation avant le <strong>{{ $confirmationDeadline }}</strong>&nbsp;: passé ce délai, votre place sera libérée.
+        @else
+            Confirmez votre participation pour sécuriser votre place.
+        @endif
     </p>
 @endsection

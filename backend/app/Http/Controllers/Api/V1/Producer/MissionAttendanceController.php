@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Producer;
 
+use App\Enums\CandidatureStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Http\Controllers\Controller;
@@ -48,7 +49,9 @@ class MissionAttendanceController extends Controller
             ]);
         }
 
+        // Une Face dont la place a expiré (B3) n'est plus à pointer : entry remboursée, exclue de la liste.
         $entries = $payment->entries()
+            ->whereDoesntHave('candidature', fn ($query) => $query->where('status', CandidatureStatus::Expired->value))
             ->with('face')
             ->orderBy('id')
             ->get();

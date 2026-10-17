@@ -13,6 +13,7 @@ export const CandidatureStatus = {
   COMPLETED: 'completed',
   REJECTED: 'rejected',
   CANCELLED: 'cancelled',
+  EXPIRED: 'expired',
 } as const
 
 export type CandidatureStatusType = (typeof CandidatureStatus)[keyof typeof CandidatureStatus]
@@ -26,6 +27,7 @@ export const CandidatureStatusLabel: Record<CandidatureStatusType, string> = {
   [CandidatureStatus.COMPLETED]: 'Terminée',
   [CandidatureStatus.REJECTED]: 'Refusée',
   [CandidatureStatus.CANCELLED]: 'Annulée',
+  [CandidatureStatus.EXPIRED]: 'Expirée',
 }
 
 // Candidature data from API
@@ -36,6 +38,11 @@ export interface Candidature {
   status: CandidatureStatusType
   status_label: string
   message_motivation: string | null
+  /**
+   * Échéance de confirmation (ISO 8601, lot B3) d'une candidature cash `accepted` non encore
+   * confirmée ; null sinon. Optionnel : évite de casser les fixtures existantes.
+   */
+  confirmation_deadline?: string | null
   created_at: string
   updated_at: string
 }
@@ -166,6 +173,8 @@ export interface FaceCandidature {
    * évite de casser les fixtures FaceCandidature existantes.
    */
   reconfirm_deadline?: string | null
+  /** Échéance de confirmation (ISO 8601, lot B3) d'une candidature cash `accepted` ; null sinon. */
+  confirmation_deadline?: string | null
   /** Expédition UGC (whenLoaded — clé OMISE hors deal UGC expédié, 3.3 AC8). */
   shipment?: Shipment
 }
@@ -196,6 +205,7 @@ export const CandidatureStatusColor: Record<CandidatureStatusType, string> = {
   [CandidatureStatus.COMPLETED]: 'emerald',
   [CandidatureStatus.REJECTED]: 'red',
   [CandidatureStatus.CANCELLED]: 'gray',
+  [CandidatureStatus.EXPIRED]: 'gray',
 }
 
 // Face summary for Producer candidature list (nested in ProducerCandidature)
@@ -219,6 +229,8 @@ export interface ProducerCandidature {
   status: CandidatureStatusType
   status_label: string
   message_motivation: string | null
+  /** Échéance de confirmation de la Face (ISO 8601, lot B3) tant que la candidature est `accepted` ; null sinon. */
+  confirmation_deadline?: string | null
   created_at: string
   conversation_id: string | null
   face: FaceSummary
