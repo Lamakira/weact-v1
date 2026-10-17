@@ -58,12 +58,14 @@ class RemindUnpaidMissionSelectionsCommand extends Command
         foreach ($payments as $payment) {
             try {
                 // Claim atomique : reste idempotent en cas de chevauchement d'exécutions. Une seule
-                // valeur (à la seconde) sert au claim ET à sa libération.
+                // valeur (à la seconde) sert au claim ET à sa libération. toBase() : sans toucher
+                // updated_at, ancre de la dernière reprise du checkout (une relance n'en est pas une).
                 $claimedAt = now()->startOfSecond();
                 $claimed = MissionPayment::query()
                     ->whereKey($payment->id)
                     ->where('status', MissionPaymentStatus::Pending->value)
                     ->whereNull('reminder_sent_at')
+                    ->toBase()
                     ->update(['reminder_sent_at' => $claimedAt]);
 
                 if ($claimed === 0) {
@@ -75,6 +77,7 @@ class RemindUnpaidMissionSelectionsCommand extends Command
                     MissionPayment::query()
                         ->whereKey($payment->id)
                         ->where('reminder_sent_at', $claimedAt)
+                        ->toBase()
                         ->update(['reminder_sent_at' => null]);
 
                     Log::warning('Mission selection payment reminder released: Producer could not be notified', [
