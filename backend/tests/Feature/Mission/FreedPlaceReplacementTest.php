@@ -303,6 +303,76 @@ class FreedPlaceReplacementTest extends TestCase
         $this->assertSame(0, (int) $this->producerUser->fresh()->balance);
     }
 
+    // --- 2 bis. Remplacement trop tardif / échéances après le début du tournage ---
+
+    public function test_a_replacement_is_refused_when_the_shooting_day_starts_in_less_than_twelve_hours(): void
+    {
+        [$mission, , , $rejected] = $this->paidMission();
+        $this->artisan('missions:expire-unconfirmed-faces');
+
+        // Début du tournage : 29/10 23:00 UTC. Il reste 10 h.
+        $this->travelTo(Carbon::parse('2026-10-29 13:00:00', 'UTC'));
+        $this->replace($mission, $rejected[0])
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['place'])
+            ->assertJsonPath('errors.place.0', 'Trop tard pour remplacer : le tournage commence dans moins de 12 h. La place sera remboursée.');
+
+        $this->assertSame(CandidatureStatus::Rejected, $rejected[0]->fresh()->status);
+        $this->assertFalse(app(\App\Services\MissionPaymentService::class)->canFreedPlaceBeReplaced($mission->fresh()));
+    }
+
+    public function test_an_original_face_whose_floor_deadline_follows_the_shooting_start_is_expired_and_refunded_once(): void
+    {
+        // Tournage le 20/10 (début 19/10 23:00 UTC) ; sélection acceptée maintenant (12:00) : plancher 12 h = 20/10 00:00.
+        [$mission, , $faces] = $this->paidMission(selected: 2, rejected: 0, acceptedHoursAgo: 0, dateTournage: '2026-10-20');
+        $faces[1]['candidature']->update(['status' => CandidatureStatus::Confirmed]);
+
+        $this->travelTo(Carbon::parse('2026-10-19 23:30:00', 'UTC'));
+        app(MissionAttendanceService::class)->markAttendance($mission, [$faces[1]['entry']->id => 'present'], $this->producerUser);
+        $this->assertSame(MissionStatus::PendingAttendanceValidation, $mission->fresh()->status);
+
+        $this->travelTo(Carbon::parse('2026-10-20 00:00:00', 'UTC'));
+        $this->artisan('missions:expire-unconfirmed-faces')->assertSuccessful();
+        $this->artisan('missions:expire-unconfirmed-faces')->assertSuccessful();
+
+        $this->assertSame(CandidatureStatus::Expired, $faces[0]['candidature']->fresh()->status);
+        $entry = $faces[0]['entry']->fresh();
+        $this->assertSame(EscrowStatus::Refunded, $entry->escrow_status);
+        $this->assertNull($entry->freed_at);
+        $this->assertSame(100000, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(1, WalletTransaction::query()->where('user_id', $this->producerUser->id)->count());
+
+        $this->assertTrue($mission->fresh()->canBeCompleted());
+        app(\App\Services\MissionService::class)->completeMission($mission->fresh());
+        $this->assertSame(MissionStatus::Completed, $mission->fresh()->status);
+        $this->assertSame(100000, (int) $this->producerUser->fresh()->balance);
+    }
+
+    public function test_a_replacement_chosen_twenty_hours_before_the_shooting_that_never_confirms_is_refunded_at_the_start(): void
+    {
+        // Tournage le 21/10 (début 20/10 23:00 UTC).
+        [$mission, , $faces, $rejected] = $this->paidMission(selected: 2, rejected: 1, dateTournage: '2026-10-21');
+        $faces[1]['candidature']->update(['status' => CandidatureStatus::Confirmed]);
+        $this->artisan('missions:expire-unconfirmed-faces');
+
+        $this->travelTo(Carbon::parse('2026-10-20 03:00:00', 'UTC'));
+        $this->replace($mission, $rejected[0])->assertOk();
+
+        $this->travelTo(Carbon::parse('2026-10-20 23:00:00', 'UTC'));
+        app(MissionAttendanceService::class)->markAttendance($mission, [$faces[1]['entry']->id => 'present'], $this->producerUser);
+        $this->assertSame(MissionStatus::PendingAttendanceValidation, $mission->fresh()->status);
+
+        $this->artisan('missions:expire-unconfirmed-faces')->assertSuccessful();
+        $this->artisan('missions:expire-unconfirmed-faces')->assertSuccessful();
+
+        $this->assertSame(CandidatureStatus::Expired, $rejected[0]->fresh()->status);
+        $newEntry = MissionPaymentCandidature::query()->where('candidature_id', $rejected[0]->id)->sole();
+        $this->assertSame(EscrowStatus::Refunded, $newEntry->escrow_status);
+        $this->assertSame(100000, (int) $this->producerUser->fresh()->balance);
+        $this->assertSame(1, WalletTransaction::query()->where('user_id', $this->producerUser->id)->count());
+        $this->assertTrue($mission->fresh()->canBeCompleted());
+    }
+
     // --- 3. Remboursement au début du jour de tournage ---
 
     public function test_a_freed_place_without_replacement_is_refunded_at_the_start_of_the_shooting_day(): void

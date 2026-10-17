@@ -1064,10 +1064,13 @@ class MissionPaymentService
                 || $mission->type_mission === MissionType::Ugc
                 // Avant toute action de présence : une absence déclarée suit sa propre règle
                 // (contestation 72 h puis remboursement de la part nette), jamais les deux.
-                || $mission->status !== MissionStatus::Closed
+                // Lot B4 : un tournage commencé (pending_attendance_validation) laisse une échéance au plancher
+                // de 12 h dépasser son début ; la place suit alors le chemin du remboursement.
+                || ! in_array($mission->status, [MissionStatus::Closed, MissionStatus::PendingAttendanceValidation], true)
                 // getAttribute : la colonne est nullable en base (lignes historiques) malgré le PHPDoc.
                 || ! in_array($entry->getAttribute('attendance_status'), [null, AttendanceStatus::Pending], true)
                 || $locked->status !== CandidatureStatus::Accepted
+                || $entry->freed_at !== null
                 || $entry->escrow_status !== EscrowStatus::Locked) {
                 return null;
             }
@@ -1195,13 +1198,23 @@ class MissionPaymentService
             return false;
         }
 
-        $shootingStart = $mission->shootingDayStartsAt();
-
-        if ($shootingStart !== null && now()->gte($shootingStart)) {
+        if (self::isTooLateToReplace($mission->shootingDayStartsAt())) {
             return false;
         }
 
         return $this->replacementCandidates($mission)->isNotEmpty();
+    }
+
+    public const TOO_LATE_TO_REPLACE_MESSAGE = 'Trop tard pour remplacer : le tournage commence dans moins de 12 h. La place sera remboursée.';
+
+    /**
+     * Lot B4 : le tournage commence-t-il dans moins de FACE_CONFIRMATION_MIN_HOURS (ou a-t-il commencé) ?
+     * Une remplaçante choisie à ce moment aurait une échéance (plancher B3) après le début du tournage.
+     */
+    public static function isTooLateToReplace(?\Carbon\CarbonInterface $shootingStart): bool
+    {
+        return $shootingStart !== null
+            && $shootingStart->lessThan(now()->addHours(self::FACE_CONFIRMATION_MIN_HOURS));
     }
 
     /**

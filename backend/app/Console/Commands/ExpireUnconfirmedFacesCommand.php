@@ -36,9 +36,13 @@ class ExpireUnconfirmedFacesCommand extends Command
             ->where('status', CandidatureStatus::Accepted->value)
             ->whereNotNull('accepted_at') // sans ancrage : ignorées (le backfill de migration couvre l'existant)
             // Avant toute action de présence (re-vérifié sous verrou dans expireUnconfirmedFace).
-            ->whereHas('mission', fn ($query) => $query->where('status', MissionStatus::Closed->value))
+            ->whereHas('mission', fn ($query) => $query->whereIn('status', [
+                MissionStatus::Closed->value,
+                MissionStatus::PendingAttendanceValidation->value,
+            ]))
             ->whereHas('paymentEntry', fn ($query) => $query
                 ->whereNotNull('mission_payment_id')
+                ->whereNull('freed_at')
                 ->where(fn ($q) => $q->whereNull('attendance_status')
                     ->orWhere('attendance_status', AttendanceStatus::Pending->value)))
             ->with('mission')

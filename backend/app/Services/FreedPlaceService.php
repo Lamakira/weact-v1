@@ -85,10 +85,17 @@ class FreedPlaceService
 
             if ($lockedMission->type_mission === MissionType::Ugc
                 || $lockedMission->status !== MissionStatus::Closed
-                || $payment->status !== MissionPaymentStatus::Paid
-                || ($shootingStart !== null && now()->gte($shootingStart))) {
+                || $payment->status !== MissionPaymentStatus::Paid) {
                 throw ValidationException::withMessages([
                     'place' => ['Une place libérée ne peut plus être pourvue sur cette mission (jour du tournage commencé ou mission non clôturée).'],
+                ]);
+            }
+
+            // Une remplaçante a au moins FACE_CONFIRMATION_MIN_HOURS pour confirmer (plancher B3) : son échéance
+            // ne doit jamais dépasser le début du jour de tournage, sinon elle resterait sans issue.
+            if (MissionPaymentService::isTooLateToReplace($shootingStart)) {
+                throw ValidationException::withMessages([
+                    'place' => [MissionPaymentService::TOO_LATE_TO_REPLACE_MESSAGE],
                 ]);
             }
 
