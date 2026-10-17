@@ -98,6 +98,22 @@ describe('CandidatureCard', () => {
       expect(wrapper.find('span.bg-gray-100').exists()).toBe(true)
     })
 
+    it('shows « Sélection en cours de paiement » in amber and keeps the cancel button', () => {
+      const wrapper = mountCard(
+        makeCandidature({
+          status: 'pending',
+          status_label: 'En attente',
+          display_status: 'selection_payment_pending',
+          display_status_label: 'Sélection en cours de paiement',
+        }),
+      )
+
+      expect(wrapper.text()).toContain('Sélection en cours de paiement')
+      expect(wrapper.text()).not.toContain('Mission clôturée')
+      expect(wrapper.text()).toContain('Annuler ma candidature')
+      expect(wrapper.find('span.bg-yellow-100').exists()).toBe(true)
+    })
+
     it('keeps « En attente » and the cancel button for a genuinely pending candidature', () => {
       const wrapper = mountCard(
         makeCandidature({

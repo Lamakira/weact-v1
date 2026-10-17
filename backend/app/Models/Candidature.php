@@ -138,15 +138,24 @@ class Candidature extends Model
     /** Valeur d'affichage Face d'une candidature `pending` dont la mission n'accepte plus de candidatures. */
     public const DISPLAY_STATUS_MISSION_CLOSED = 'mission_closed';
 
+    /** Valeur d'affichage Face d'une candidature `pending` dont la mission est en attente de paiement de la sélection (lot B2). */
+    public const DISPLAY_STATUS_SELECTION_PAYMENT_PENDING = 'selection_payment_pending';
+
     /**
      * Statut EFFECTIF à afficher à la Face (le statut stocké n'est jamais modifié :
      * une réouverture de la mission doit rester possible). Une candidature `pending`
      * dont la mission n'est plus publiée (clôturée, en validation de présences,
      * terminée) est « mission_closed ». Le dépassement de date_limite_candidature
      * n'y suffit PAS : le Producteur peut encore accepter après cette date.
+     * Mission `pending_payment` : « selection_payment_pending » pour TOUTES les candidatures
+     * pending (sélectionnées ou non — l'appartenance à la sélection ne doit pas fuiter).
      */
     public function displayStatus(): string
     {
+        if ($this->status === CandidatureStatus::Pending && $this->mission->status === MissionStatus::PendingPayment) {
+            return self::DISPLAY_STATUS_SELECTION_PAYMENT_PENDING;
+        }
+
         if ($this->status === CandidatureStatus::Pending && $this->mission->status !== MissionStatus::Published) {
             return self::DISPLAY_STATUS_MISSION_CLOSED;
         }
@@ -156,9 +165,11 @@ class Candidature extends Model
 
     public function displayStatusLabel(): string
     {
-        return $this->displayStatus() === self::DISPLAY_STATUS_MISSION_CLOSED
-            ? 'Mission clôturée'
-            : $this->status->label();
+        return match ($this->displayStatus()) {
+            self::DISPLAY_STATUS_MISSION_CLOSED => 'Mission clôturée',
+            self::DISPLAY_STATUS_SELECTION_PAYMENT_PENDING => 'Sélection en cours de paiement',
+            default => $this->status->label(),
+        };
     }
 
     /**

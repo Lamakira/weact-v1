@@ -41,7 +41,8 @@ const displayStatus = computed(() => props.candidature.display_status ?? props.c
 const displayStatusLabel = computed(() => props.candidature.display_status_label ?? props.candidature.status_label)
 
 // « Mission clôturée » : pending côté base, mais plus rien à annuler ni à attendre.
-const canCancel = computed(() => displayStatus.value === 'pending')
+// « Sélection en cours de paiement » : la Face peut encore se retirer.
+const canCancel = computed(() => displayStatus.value === 'pending' || displayStatus.value === 'selection_payment_pending')
 
 /**
  * Computed: Show chat button when candidature allows chat and has conversation
@@ -134,7 +135,9 @@ const formattedCreatedAt = computed(() => {
 const statusBadgeClass = computed(() => {
   const color = displayStatus.value === 'mission_closed'
     ? 'gray'
-    : CandidatureStatusColor[props.candidature.status]
+    : displayStatus.value === 'selection_payment_pending'
+      ? 'yellow'
+      : CandidatureStatusColor[props.candidature.status]
   const colorClasses: Record<string, string> = {
     yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
     blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
