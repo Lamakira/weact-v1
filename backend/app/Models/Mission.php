@@ -33,6 +33,7 @@ use Illuminate\Support\Str;
  * @property \Carbon\CarbonInterface|null $date_tournage
  * @property \Carbon\CarbonInterface|null $shooting_reminder_sent_at
  * @property \Carbon\CarbonInterface|null $date_limite_candidature
+ * @property \Carbon\CarbonInterface|null $candidature_response_reminder_sent_at
  * @property string|null $profil_recherche
  * @property int $budget
  * @property int $nombre_faces_voulu
@@ -134,6 +135,7 @@ class Mission extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'candidature_response_reminder_sent_at',
         'producer_id',
         'titre',
         'description',
@@ -174,6 +176,7 @@ class Mission extends Model
             'date_tournage' => 'date',
             'shooting_reminder_sent_at' => 'datetime',
             'date_limite_candidature' => 'date',
+            'candidature_response_reminder_sent_at' => 'datetime',
             'budget' => 'integer',
             'nombre_faces_voulu' => 'integer',
             'status' => MissionStatus::class,
@@ -331,6 +334,63 @@ class Mission extends Model
         return Carbon::parse($this->date_tournage->toDateString(), (string) config('app.business_timezone'))
             ->startOfDay()
             ->utc();
+    }
+
+    /** Lot B6 (D3) : délai de réponse du Producer aux candidatures, après leur clôture. */
+    public const PRODUCER_RESPONSE_WINDOW_HOURS = 72;
+
+    /** Lot B6 : le Producer est relancé une fois quand il reste au plus ce délai. */
+    public const PRODUCER_RESPONSE_REMINDER_BEFORE_HOURS = 24;
+
+    /**
+     * Fin du dernier jour de candidature (date_limite_candidature incluse), fuseau métier,
+     * exprimée en UTC. Null sans date limite.
+     */
+    public function candidaturesCloseAt(): ?CarbonInterface
+    {
+        if ($this->date_limite_candidature === null) {
+            return null;
+        }
+
+        return Carbon::parse($this->date_limite_candidature->toDateString(), (string) config('app.business_timezone'))
+            ->addDay()
+            ->startOfDay()
+            ->utc();
+    }
+
+    /**
+     * Lot B6 (D3) : échéance de réponse du Producer aux candidatures en attente =
+     * clôture des candidatures + 72 h, ou début du jour de tournage s'il arrive plus tôt.
+     * Source unique (relance, expiration). Null sans date limite.
+     */
+    public function producerResponseDeadline(): ?CarbonInterface
+    {
+        $closeAt = $this->candidaturesCloseAt();
+
+        if ($closeAt === null) {
+            return null;
+        }
+
+        $deadline = $closeAt->copy()->addHours(self::PRODUCER_RESPONSE_WINDOW_HOURS);
+        $shootingStart = $this->shootingDayStartsAt();
+
+        return $shootingStart !== null && $shootingStart->lessThan($deadline) ? $shootingStart : $deadline;
+    }
+
+    /**
+     * Échéance de réponse au format affiché (« 24/10 à 00:00 », fuseau métier).
+     */
+    public function producerResponseDeadlineLabel(): ?string
+    {
+        $deadline = $this->producerResponseDeadline();
+
+        if ($deadline === null) {
+            return null;
+        }
+
+        $local = $deadline->copy()->setTimezone((string) config('app.business_timezone'));
+
+        return $local->format('d/m').' à '.$local->format('H:i');
     }
 
     /**

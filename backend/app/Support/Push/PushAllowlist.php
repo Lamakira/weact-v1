@@ -78,6 +78,8 @@ final class PushAllowlist
         'mission_closed_pending_candidature' => self::MISSION,
         'mission_participation_confirmation_required' => self::MISSION,
         'mission_candidature_slot_released' => self::MISSION,
+        'candidature_expired_no_response' => self::MISSION,
+        'mission_candidatures_response_reminder' => self::REMINDER,
         'mission_confirmation_expired' => self::MISSION,
 
         // UGC tunnel

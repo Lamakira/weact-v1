@@ -107,4 +107,50 @@ describe('MissionApplyBlock — états Face (clôture, absence)', () => {
 
     expect(wrapper.find('[data-testid="absence-contestable"]').exists()).toBe(false)
   })
+
+  it('explique une candidature expirée faute de réponse du producteur (lot B6)', () => {
+    const wrapper = mountBlock(
+      makeCandidature({
+        status: 'expired',
+        status_label: 'Expirée',
+        display_status: 'expired',
+        display_status_label: 'Sans réponse du producteur',
+      }),
+      false,
+    )
+
+    expect(wrapper.text()).toContain('(Sans réponse du producteur)')
+  })
+
+  it('annonce la réponse du producteur sous 72 h après la clôture des candidatures (lot B6)', () => {
+    const wrapper = mount(MissionApplyBlock, {
+      props: {
+        mission: { id: 'mission-uuid-1', is_accepting_candidatures: true } as unknown as Mission,
+        candidature: null,
+        hasApplied: false,
+        showFaceTrackingCard: false,
+        candidatureShipment: null,
+        ugcTrackingStep: 0,
+        isSubmittingReceipt: false,
+        isUploadingDeliverable: false,
+        uploadProgress: null,
+        ugcEngaged: false,
+        canCancelCandidature: false,
+        canReconfirmUgc: false,
+        isReconfirming: false,
+        isCancelling: false,
+        canApply: true,
+        isSubscriptionGated: false,
+        isResendingVerification: false,
+        isGenderContextUnknown: false,
+        isRefreshingGenderContext: false,
+        genderContextMessage: '',
+        isGenderMismatch: false,
+        genderMismatchMessage: '',
+      },
+      global: { stubs: { ConfirmModal: true } },
+    })
+
+    expect(wrapper.text()).toContain('Réponse du producteur sous 72 h après la clôture des candidatures')
+  })
 })

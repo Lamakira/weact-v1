@@ -8,6 +8,7 @@ use App\Console\Commands\CompleteFinishedUgcMissionsCommand;
 use App\Console\Commands\ExpireFaceSubscriptionsCommand;
 use App\Console\Commands\ExpireUnacceptedBookingsCommand;
 use App\Console\Commands\ExpireUnacceptedUgcDealsCommand;
+use App\Console\Commands\ExpireUnansweredCandidaturesCommand;
 use App\Console\Commands\ExpireUnconfirmedFacesCommand;
 use App\Console\Commands\ExpireUnpaidBookingsCommand;
 use App\Console\Commands\ExpireUnpaidMissionSelectionsCommand;
@@ -20,6 +21,7 @@ use App\Console\Commands\PurgeExpiredMediaCommand;
 use App\Console\Commands\RebuildFaceListingRanksCommand;
 use App\Console\Commands\ReconcileWalletCommand;
 use App\Console\Commands\RemindBookingPaymentCommand;
+use App\Console\Commands\RemindCandidatureResponseCommand;
 use App\Console\Commands\RemindFaceSubscriptionRenewalsCommand;
 use App\Console\Commands\RemindPendingBookingConfirmationCommand;
 use App\Console\Commands\RemindShootingDayCommand;
@@ -56,6 +58,9 @@ app(Schedule::class)->command(ExpireUnconfirmedFacesCommand::class)->hourly()->w
 app(Schedule::class)->command(ExpireUnreconfirmedUgcCandidaturesCommand::class)->hourly();
 // Lot B8 : fin des missions UGC (et rattrapage des candidatures produit seul livrées).
 app(Schedule::class)->command(CompleteFinishedUgcMissionsCommand::class)->hourly()->withoutOverlapping();
+// Lot B6 (D3) : réponse du Producer aux candidatures sous 72 h après leur clôture.
+app(Schedule::class)->command(RemindCandidatureResponseCommand::class)->hourly()->withoutOverlapping();
+app(Schedule::class)->command(ExpireUnansweredCandidaturesCommand::class)->hourly()->withoutOverlapping();
 // 4.5 — relance d'escalade des deadlines d'upload Face (~15 min, NFR3/AR3).
 // Idempotente par shipments.last_notified_threshold ; withoutOverlapping en
 // défense supplémentaire (D-4.5.d).

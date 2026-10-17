@@ -128,7 +128,7 @@ defineEmits<{
         <span class="text-xs min-[376px]:text-sm font-medium">
           {{ candidature?.status === 'cancelled' ? 'Candidature annulée' : 'Candidature envoyée' }}
         </span>
-        <span class="text-xs opacity-75">({{ candidature?.status_label }})</span>
+        <span class="text-xs opacity-75">({{ candidature?.display_status_label ?? candidature?.status_label }})</span>
       </div>
       <!-- Absence déclarée par le Producteur : contestation 72 h -->
       <MissionAbsenceContestBlock
@@ -295,7 +295,7 @@ defineEmits<{
         Postuler à cette mission
       </button>
       <p class="mt-2.5 text-center text-xs text-gray-400">
-        Candidature gratuite · réponse du producteur sous 72h
+        Candidature gratuite · Réponse du producteur sous 72 h après la clôture des candidatures
       </p>
     </div>
 
