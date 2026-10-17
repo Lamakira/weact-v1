@@ -250,6 +250,8 @@ class FreedPlaceService
                 'mission' => $mission,
                 'amount' => $amount,
                 'no_face_left' => ! $this->missionPaymentService->hasActiveSelectedFace($payment),
+                // Une entry issue d'un remplacement : une remplaçante avait été choisie mais n'a pas confirmé.
+                'replacement_chosen' => $entry->replacement_of_entry_id !== null,
             ];
         }, 3);
 
@@ -265,7 +267,8 @@ class FreedPlaceService
             'user_id' => $userId,
             'type' => 'mission_freed_place_refunded',
             'data' => [
-                'message' => "Aucune remplaçante n'a confirmé pour la place libérée sur « {$mission->titre} » : {$formattedAmount} FCFA ont été crédités sur votre wallet.",
+                'message' => ($result['replacement_chosen'] ? "Aucune remplaçante n'a confirmé" : "Aucune remplaçante n'a été choisie à temps")
+                    ." pour la place libérée sur « {$mission->titre} » : {$formattedAmount} FCFA ont été crédités sur votre wallet.",
                 'mission_id' => $mission->id,
                 'montant' => $result['amount'],
                 'url' => "/producer/missions/{$mission->uuid}/candidatures",

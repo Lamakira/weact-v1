@@ -303,6 +303,21 @@ class FreedPlaceReplacementTest extends TestCase
         $this->assertSame(0, (int) $this->producerUser->fresh()->balance);
     }
 
+    public function test_the_refund_message_says_the_replacement_did_not_confirm_when_one_was_chosen(): void
+    {
+        [$mission, , , $rejected] = $this->paidMission(rejected: 2);
+        $this->artisan('missions:expire-unconfirmed-faces');
+        $this->replace($mission, $rejected[0])->assertOk();
+
+        $this->travelTo(now()->addHours(49));
+        $this->artisan('missions:expire-unconfirmed-faces')->assertSuccessful();
+        $this->travelTo(Carbon::parse('2026-10-29 23:00:00', 'UTC'));
+        $this->artisan('missions:refund-freed-places')->assertSuccessful();
+
+        $message = Notification::query()->where('user_id', $this->producerUser->id)->where('type', 'mission_freed_place_refunded')->sole()->data['message'];
+        $this->assertStringContainsString("Aucune remplaçante n'a confirmé", $message);
+    }
+
     // --- 2 bis. Remplacement trop tardif / échéances après le début du tournage ---
 
     public function test_a_replacement_is_refused_when_the_shooting_day_starts_in_less_than_twelve_hours(): void
@@ -402,6 +417,8 @@ class FreedPlaceReplacementTest extends TestCase
 
         $message = Notification::query()->where('user_id', $this->producerUser->id)->where('type', 'mission_freed_place_refunded')->sole()->data['message'];
         $this->assertStringContainsString('100 000 FCFA ont été crédités sur votre wallet', $message);
+        $this->assertStringContainsString("Aucune remplaçante n'a été choisie à temps", $message);
+        $this->assertStringNotContainsString("n'a confirmé", $message);
 
         // Idempotent.
         $this->artisan('missions:refund-freed-places')->expectsOutputToContain('Freed places refunded: 0');
