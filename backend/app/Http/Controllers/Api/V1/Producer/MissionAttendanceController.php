@@ -99,7 +99,7 @@ class MissionAttendanceController extends Controller
     }
 
     /**
-     * @return array<string, string|null>
+     * @return array<string, string|bool|null>
      */
     private function missionPayload(Mission $mission): array
     {
