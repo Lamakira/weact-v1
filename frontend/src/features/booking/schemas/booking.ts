@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { CONTACT_DETAILS_MESSAGE, containsContactDetails } from '@/lib/contactDetails'
 
 /** True only when the value is a real, finite number (not '', NaN or undefined). */
 const isFilledNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
@@ -34,9 +35,11 @@ export const bookingSchema = z
       .optional()
       .or(z.literal('')),
 
+    // Lot B12 : brief facultatif, sans coordonnées (miroir de la règle backend NoContactDetails).
     message: z
       .string()
-      .max(1000, 'Le message ne peut pas dépasser 1000 caractères')
+      .max(1000, 'Le brief ne peut pas dépasser 1000 caractères')
+      .refine((value) => !containsContactDetails(value), CONTACT_DETAILS_MESSAGE)
       .optional()
       .or(z.literal('')),
 

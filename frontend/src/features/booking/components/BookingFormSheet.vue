@@ -13,7 +13,7 @@ import {
   computeUgcHybridProducerTotal,
   type UgcCompensationType,
 } from '@/components/ugc'
-import { FloatingField, FloatingDateField, FloatingSelect } from '@/components/ui/form'
+import { FloatingField, FloatingDateField, FloatingSelect, FloatingTextarea } from '@/components/ui/form'
 import { Button } from '@/components/ui/button'
 import { BENIN_CITY_OPTIONS } from '@/shared/constants/beninCities'
 import { useToast } from '@/composables/useToast'
@@ -90,6 +90,7 @@ const makeDefaultValues = () => ({
   duree_heures: 4,
   type_contenu: 'Publicité',
   lieu: '',
+  message: '',
   type_compensation: 'product',
   nom_produit: '',
   valeur_produit: undefined,
@@ -111,6 +112,8 @@ const dateFinMin = computed(() => date_debut.value || dateDebutMin)
 const { value: duree_heures, errorMessage: dureeError } = useField<number>('duree_heures')
 const { value: type_contenu, errorMessage: typeContenuError } = useField<string>('type_contenu')
 const { value: lieu, errorMessage: lieuError } = useField<string>('lieu')
+// Lot B12 : brief facultatif (cash et UGC), sans coordonnées.
+const { value: message, errorMessage: messageError } = useField<string>('message')
 
 // UGC fields (validated conditionally when type_contenu === 'UGC')
 const { value: type_compensation } = useField<UgcCompensationType>('type_compensation')
@@ -261,6 +264,11 @@ const onSubmit = handleSubmit(async (values) => {
     data.lieu = values.lieu
   }
 
+  const brief = values.message?.trim()
+  if (brief) {
+    data.message = brief
+  }
+
   const result = await createBooking(data)
 
   if (result.success && result.data) {
@@ -275,6 +283,7 @@ const onSubmit = handleSubmit(async (values) => {
       'duree_heures',
       'type_contenu',
       'lieu',
+      'message',
       'type_compensation',
       'nom_produit',
       'valeur_produit',
@@ -466,6 +475,22 @@ const onSubmit = handleSubmit(async (values) => {
                   <span>Paiement WeAct sécurisé · Remboursé si refus</span>
                 </div>
               </template>
+
+              <!-- Brief facultatif (lot B12) : jamais de coordonnées avant paiement -->
+              <div>
+                <FloatingTextarea
+                  id="message"
+                  v-model="message"
+                  label="Brief pour la Face (facultatif)"
+                  :error="messageError"
+                  :maxlength="1000"
+                  :rows="3"
+                  data-testid="booking-brief"
+                />
+                <p v-if="!messageError" class="mt-1 text-xs text-gray-500">
+                  Décrivez le projet en quelques lignes. Pas de numéro, d'e-mail ni de lien : la messagerie s'ouvre après le paiement.
+                </p>
+              </div>
 
               <!-- Pricing Preview (cash bookings only) -->
               <div
