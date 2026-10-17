@@ -516,6 +516,9 @@ class Mission extends Model
             ->exists();
     }
 
+    /** Lot B4 : message du blocage « toutes les places remboursées » (aussi testé par la clôture automatique). */
+    public const NO_FACE_CONFIRMED_MESSAGE = "Aucune Face n'a confirmé sa participation : il n'y a rien à terminer. Les places ont été remboursées sur votre wallet.";
+
     /**
      * First rule that prevents the Producer from completing this mission, as
      * [error key, message], or null when none applies. Single source of truth shared by
@@ -593,7 +596,7 @@ class Mission extends Model
             ->exists();
 
         if (! $hasEngagedFace) {
-            return ['candidatures', "Aucune Face n'a confirmé sa participation : il n'y a rien à terminer. Les places ont été remboursées sur votre wallet."];
+            return ['candidatures', self::NO_FACE_CONFIRMED_MESSAGE];
         }
 
         return null;

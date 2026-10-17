@@ -47,8 +47,18 @@ class AutoReleaseMissionFundsCommand extends Command
 
         $completed = 0;
         $failed = 0;
+        $skipped = 0;
 
         foreach ($missions as $mission) {
+            // Lot B4 : toutes les places remboursées (aucune Face n'a jamais confirmé) : la mission reste
+            // clôturée, « Terminer » est refusé au Producer et la clôture automatique ne la termine pas non plus.
+            if (($mission->completionBlocker()[1] ?? null) === Mission::NO_FACE_CONFIRMED_MESSAGE) {
+                $this->info("Skipped mission #{$mission->id} — all places refunded, no Face confirmed.");
+                $skipped++;
+
+                continue;
+            }
+
             try {
                 $this->missionService->completeMission($mission);
                 $this->info("Auto-completed mission #{$mission->id} — {$mission->titre}");
@@ -59,7 +69,7 @@ class AutoReleaseMissionFundsCommand extends Command
             }
         }
 
-        $this->info("Done. Completed: {$completed}, Failed: {$failed}.");
+        $this->info("Done. Completed: {$completed}, Failed: {$failed}, Skipped: {$skipped}.");
 
         return self::SUCCESS;
     }
