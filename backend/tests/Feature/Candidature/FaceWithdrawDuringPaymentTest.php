@@ -82,6 +82,24 @@ class FaceWithdrawDuringPaymentTest extends TestCase
         $this->assertSame("/producer/missions/{$mission->uuid}/candidatures", $notification->data['url']);
     }
 
+    public function test_payment_reminder_is_not_mistaken_for_a_recently_resumed_checkout(): void
+    {
+        // La relance Producteur (12-20 h) n'est pas une reprise du checkout : elle ne doit pas
+        // bloquer le retrait d'une Face pendant l'heure qui suit.
+        \Illuminate\Support\Facades\Mail::fake();
+        [$mission, $payment, $faces] = $this->pendingSelection(2);
+        $this->agePayment($payment->id, 15);
+        $this->artisan('missions:remind-unpaid-selections')->assertSuccessful();
+        $this->assertNotNull($payment->fresh()->reminder_sent_at);
+        $this->fedapayReports('pending', createdAt: now()->subHours(15));
+
+        $this->cancel($faces[0])->assertOk();
+
+        $this->assertNull(MissionPayment::find($payment->id));
+        $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
+        $this->assertSame(CandidatureStatus::Cancelled, $faces[0]['candidature']->fresh()->status);
+    }
+
     public function test_selected_face_is_refused_while_checkout_was_resumed_recently(): void
     {
         [$mission, $payment, $faces] = $this->pendingSelection(2);
