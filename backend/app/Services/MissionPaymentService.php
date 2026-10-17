@@ -1840,12 +1840,16 @@ class MissionPaymentService
     }
 
     /** Paiement cash Pending auquel la candidature appartient (entry Pending d'un MissionPayment Pending), sinon null. */
-    public function pendingCashPaymentFor(Candidature $candidature): ?MissionPayment
+    public function pendingCashPaymentFor(Candidature $candidature, bool $lockingRead = false): ?MissionPayment
     {
+        // $lockingRead : dans une transaction MySQL (REPEATABLE READ), une lecture simple relit
+        // l'instantané pris à la première lecture et ignore une sélection commitée depuis ; une
+        // lecture verrouillante voit toujours le dernier état commité.
         $entry = MissionPaymentCandidature::query()
             ->where('candidature_id', $candidature->id)
             ->where('escrow_status', EscrowStatus::Pending->value)
             ->whereNotNull('mission_payment_id')
+            ->when($lockingRead, fn ($query) => $query->sharedLock())
             ->first();
 
         if ($entry === null) {
@@ -1855,6 +1859,7 @@ class MissionPaymentService
         return MissionPayment::query()
             ->whereKey($entry->mission_payment_id)
             ->where('status', MissionPaymentStatus::Pending->value)
+            ->when($lockingRead, fn ($query) => $query->sharedLock())
             ->first();
     }
 

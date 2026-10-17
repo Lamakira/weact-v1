@@ -47,6 +47,21 @@ class RemindUnpaidMissionSelectionsCommandTest extends TestCase
         Mail::assertQueued(MissionPaymentReminderMail::class, 1);
     }
 
+    public function test_reminder_does_not_move_the_checkout_resume_anchor(): void
+    {
+        // updated_at sert d'ancre de « dernière reprise du checkout » (settleOrResetPendingSelection,
+        // assessCashCheckout) : une relance n'est pas une reprise et ne doit pas la déplacer.
+        [, $payment] = $this->pendingSelection(1);
+        $this->agePayment($payment->id, 15);
+        $anchor = $payment->fresh()->updated_at;
+
+        $this->artisan('missions:remind-unpaid-selections')->assertSuccessful();
+
+        $fresh = $payment->fresh();
+        $this->assertNotNull($fresh->reminder_sent_at);
+        $this->assertSame($anchor->toDateTimeString(), $fresh->updated_at->toDateTimeString());
+    }
+
     public function test_selections_outside_the_reminder_window_are_ignored(): void
     {
         [, $young] = $this->pendingSelection(1, transactionId: 777001);
