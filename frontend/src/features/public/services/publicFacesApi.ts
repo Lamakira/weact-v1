@@ -1,5 +1,6 @@
 import { AxiosError } from 'axios'
 import { publicApiClient } from './apiClient'
+import { getAuthToken } from '@/services/apiClient'
 import type { FacePhoto, FaceExperience } from '@/features/candidature/types'
 
 /**
@@ -9,6 +10,26 @@ import type { FacePhoto, FaceExperience } from '@/features/candidature/types'
 /**
  * Value+label pair for categories and niches
  */
+/**
+ * Lot B13 : le jeton de session (s'il existe) accompagne la liste et le profil publics ; le
+ * backend renvoie alors le nom complet si le visiteur est un Producer connecté, la vue
+ * invité sinon (jeton absent, invalide, Face, admin). Aucun en-tête pour un invité.
+ */
+function viewerHeaders(): Record<string, string> | undefined {
+  const token = getAuthToken()
+  return token ? { Authorization: `Bearer ${token}` } : undefined
+}
+
+/**
+ * Nom affiché d'une Face publique : « Prénom Nom » quand l'API a fourni le nom complet
+ * (Producer connecté), sinon le prénom seul (l'initiale « K. » n'est pas affichée).
+ */
+export function publicFaceName(face: Pick<PublicFace, 'prenom' | 'nom'>): string {
+  const nom = face.nom?.trim()
+  if (!nom || /^\p{Lu}\.$/u.test(nom)) return face.prenom
+  return `${face.prenom} ${nom}`
+}
+
 export interface ValueLabel {
   value: string
   label: string
@@ -172,8 +193,10 @@ export async function fetchPublicFaces(
   // current one and reports it back in meta.generation.
   if (typeof generation === 'number') params.generation = generation
 
+  const headers = viewerHeaders()
   const response = await publicApiClient.get<PublicFacesResponse>('/public/faces', {
     params,
+    ...(headers ? { headers } : {}),
   })
 
   return response.data
@@ -200,8 +223,10 @@ export async function fetchPublicFaceProfile(
   username: string
 ): Promise<PublicFaceProfileResult> {
   try {
+    const headers = viewerHeaders()
     const response = await publicApiClient.get<PublicFaceProfileResponse>(
-      `/public/faces/${encodeURIComponent(username)}`
+      `/public/faces/${encodeURIComponent(username)}`,
+      headers ? { headers } : undefined,
     )
 
     return {
