@@ -171,6 +171,12 @@ class Candidature extends Model
 
     public function displayStatusLabel(): string
     {
+        // Lot B6 : expirée sans avoir jamais été retenue = le Producer n'a pas répondu à temps
+        // (une place retenue puis non confirmée, lot B3, porte un accepted_at).
+        if ($this->status === CandidatureStatus::Expired && $this->accepted_at === null) {
+            return 'Sans réponse du producteur';
+        }
+
         return match ($this->displayStatus()) {
             self::DISPLAY_STATUS_MISSION_CLOSED => 'Mission clôturée',
             self::DISPLAY_STATUS_SELECTION_PAYMENT_PENDING => 'Sélection en cours de paiement',
