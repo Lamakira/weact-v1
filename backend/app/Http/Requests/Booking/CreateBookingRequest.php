@@ -7,6 +7,7 @@ namespace App\Http\Requests\Booking;
 use App\Enums\CompensationType;
 use App\Models\Booking;
 use App\Models\Face;
+use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
 use App\Services\FaceEntitlementService;
@@ -54,7 +55,9 @@ class CreateBookingRequest extends FormRequest
                     }
                 },
             ],
-            'date_debut' => ['required', 'date', 'after:today'],
+            // « Aujourd'hui » = jour calendaire du fuseau métier (comme l'échéance de réponse de la
+            // Face, lot B10) : `after:today` (UTC) laisserait naître une demande déjà expirée.
+            'date_debut' => ['required', 'date', 'after:'.Mission::businessToday()],
             'date_fin' => ['required', 'date', 'after_or_equal:date_debut'],
             'duree_heures' => ['required', 'integer', 'min:4', 'max:720'],
             'type_contenu' => ['required', 'string', 'max:100'],
@@ -66,7 +69,7 @@ class CreateBookingRequest extends FormRequest
         if ($this->input('type_contenu') === 'UGC') {
             // Une dotation UGC n'a ni lieu, ni dates, ni durée de tournage (la Face filme
             // chez elle, à son rythme) → on relâche ces champs cash en nullable pour l'UGC.
-            $rules['date_debut'] = ['nullable', 'date', 'after:today'];
+            $rules['date_debut'] = ['nullable', 'date', 'after:'.Mission::businessToday()];
             $rules['date_fin'] = ['nullable', 'date', 'after_or_equal:date_debut'];
             $rules['duree_heures'] = ['nullable', 'integer', 'min:4', 'max:720'];
             $rules['lieu'] = ['nullable', 'string', 'max:100'];

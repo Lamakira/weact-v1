@@ -57,7 +57,9 @@ class BookingPolicy
                 && $booking->commission_refunded_at === null;
         }
 
-        return $booking->status === BookingStatus::Pending;
+        // Lot B10 : passé l'échéance de réponse, la demande n'est plus acceptable même si le
+        // cron d'expiration n'est pas encore passé.
+        return $booking->status === BookingStatus::Pending && ! $booking->faceResponseWindowElapsed();
     }
 
     /**

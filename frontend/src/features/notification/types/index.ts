@@ -18,6 +18,7 @@ export const NotificationType = {
   BOOKING_CANCELLED: 'booking_cancelled',
   BOOKING_EXPIRED: 'booking_expired',
   BOOKING_PAYMENT_REMINDER: 'booking_payment_reminder',
+  BOOKING_RESPONSE_REMINDER: 'booking_response_reminder',
   BOOKING_RATING_RECEIVED: 'booking_rating_received',
   // Mission domain
   MISSION_CLOSED_PENDING_CANDIDATURE: 'mission_closed_pending_candidature',

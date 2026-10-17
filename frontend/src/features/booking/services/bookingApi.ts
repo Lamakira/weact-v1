@@ -193,9 +193,9 @@ export const bookingApi = {
    */
   async checkCommissionStatus(
     bookingId: string,
-  ): Promise<BookingResponse & { commission_payment_status?: 'paid' | 'pending' | 'failed' }> {
+  ): Promise<BookingResponse & { commission_payment_status?: 'paid' | 'pending' | 'failed' | 'credited' }> {
     const response = await apiClient.get<
-      BookingResponse & { commission_payment_status?: 'paid' | 'pending' | 'failed' }
+      BookingResponse & { commission_payment_status?: 'paid' | 'pending' | 'failed' | 'credited' }
     >(`/bookings/${bookingId}/commission-status`)
     return response.data
   },

@@ -7,15 +7,19 @@ namespace Tests\Feature\Commands;
 use App\Enums\BookingStatus;
 use App\Enums\FinancialEventType;
 use App\Enums\UgcRefundReason;
+use App\Enums\WalletCreditMotif;
+use App\Mail\WalletCreditedMail;
 use App\Models\Booking;
 use App\Models\Face;
 use App\Models\FinancialEvent;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\FedapayService;
 use Illuminate\Console\Command;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Tests\Feature\Ugc\Concerns\DispatchesFedapayWebhooks;
 use Tests\TestCase;
@@ -176,9 +180,135 @@ class ExpireUnpaidUgcBookingsCommandTest extends TestCase
             'type' => 'credit',
             'amount' => 2500,
         ]);
+
+        // Libellé propre au crédit tardif (jamais « deal non abouti »), e-mail + notification in-app.
+        Mail::assertQueued(WalletCreditedMail::class, 1);
+        Mail::assertQueued(
+            WalletCreditedMail::class,
+            fn (WalletCreditedMail $m): bool => $m->motif === WalletCreditMotif::UgcCommissionPaidAfterExpiry
+                && $m->motif->label() === "Commission réglée après l'expiration de votre demande : le montant a été crédité sur votre wallet WeAct.",
+        );
+        $message = Notification::query()
+            ->where('user_id', $this->producerUser->id)
+            ->where('type', 'ugc_commission_refunded')
+            ->sole()
+            ->data['message'];
+        $this->assertStringContainsString("Commission réglée après l'expiration de votre demande", $message);
+        $this->assertStringNotContainsString('remboursé', $message);
+
         $this->assertSame(1, FinancialEvent::query()->where('booking_id', $booking->id)->where('type', FinancialEventType::PaymentConfirmed->value)->count());
         $this->assertSame(1, FinancialEvent::query()->where('booking_id', $booking->id)->where('type', FinancialEventType::Refund->value)->count());
         $this->assertDatabaseMissing('escrow_transactions', ['booking_id' => $booking->id]);
+    }
+
+    public function test_a_second_webhook_after_a_late_credit_is_an_idempotent_no_op_without_critical_log(): void
+    {
+        $booking = $this->ugcBooking([
+            'created_at' => now()->subHours(49),
+            'fedapay_transaction_id' => 4444,
+        ]);
+        $this->artisan('bookings:expire-unpaid-ugc')->assertExitCode(Command::SUCCESS);
+
+        Log::spy();
+
+        $this->dispatchWebhook('transaction.approved', 4444, 'ref_late');
+        $this->dispatchWebhook('transaction.approved', 4444, 'ref_late');
+
+        Log::shouldNotHaveReceived('critical');
+        Log::shouldHaveReceived('info')->withArgs(
+            fn (string $message): bool => str_contains($message, 'déjà crédité'),
+        )->once();
+        $this->assertSame(2500, (int) $this->producerUser->refresh()->balance);
+        $this->assertDatabaseCount('wallet_transactions', 1);
+        $this->assertNotNull($booking->refresh()->commission_refunded_at);
+    }
+
+    public function test_commission_checkout_is_refused_once_the_48_hour_window_has_elapsed(): void
+    {
+        // Pas encore passé par le cron : toujours Pending, mais l'échéance est dépassée.
+        $booking = $this->ugcBooking(['created_at' => now()->subHours(48)->subMinute()]);
+
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldNotReceive('initiatePaymentForUgcBooking');
+        });
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/pay-commission")
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.status.0', 'Le délai de 48 h pour régler la commission est dépassé : cette demande a expiré.');
+    }
+
+    public function test_commission_checkout_is_still_allowed_just_before_the_deadline(): void
+    {
+        $booking = $this->ugcBooking(['created_at' => now()->subHours(48)->addMinute()]);
+
+        $this->mock(FedapayService::class, function ($mock): void {
+            $mock->shouldReceive('initiatePaymentForUgcBooking')
+                ->once()
+                ->andReturn(['fedapay_transaction_id' => 5151, 'checkout_url' => 'https://fedapay.test/ok']);
+        });
+
+        $this->actingAs($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/pay-commission")
+            ->assertOk();
+    }
+
+    public function test_polling_credits_a_late_approval_on_an_expired_request_once_and_reports_credited(): void
+    {
+        $booking = $this->ugcBooking([
+            'created_at' => now()->subHours(49),
+            'fedapay_transaction_id' => 6161,
+        ]);
+        $this->artisan('bookings:expire-unpaid-ugc')->assertExitCode(Command::SUCCESS);
+
+        $transaction = \Mockery::mock(\FedaPay\Transaction::class);
+        $transaction->status = 'approved';
+        $transaction->reference = 'ref_poll_late';
+
+        $this->mock(FedapayService::class, function ($mock) use ($transaction): void {
+            $mock->shouldReceive('retrieveTransaction')->with(6161)->andReturn($transaction);
+        });
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}/commission-status")
+            ->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::Expired->value)
+            ->assertJsonPath('commission_payment_status', 'credited');
+
+        // Second poll puis webhook tardif : pas de second crédit, même statut.
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}/commission-status")
+            ->assertOk()
+            ->assertJsonPath('commission_payment_status', 'credited');
+        $this->dispatchWebhook('transaction.approved', 6161, 'ref_poll_late');
+
+        $this->assertSame(2500, (int) $this->producerUser->refresh()->balance);
+        $this->assertDatabaseCount('wallet_transactions', 1);
+        $this->assertSame(UgcRefundReason::CommissionPaidAfterExpiry, $booking->refresh()->commission_refund_reason);
+    }
+
+    public function test_polling_an_expired_request_whose_payment_was_never_approved_stays_pending_without_credit(): void
+    {
+        $booking = $this->ugcBooking([
+            'created_at' => now()->subHours(49),
+            'fedapay_transaction_id' => 6262,
+        ]);
+        $this->artisan('bookings:expire-unpaid-ugc')->assertExitCode(Command::SUCCESS);
+
+        $transaction = \Mockery::mock(\FedaPay\Transaction::class);
+        $transaction->status = 'pending';
+
+        $this->mock(FedapayService::class, function ($mock) use ($transaction): void {
+            $mock->shouldReceive('retrieveTransaction')->with(6262)->andReturn($transaction);
+        });
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}/commission-status")
+            ->assertOk()
+            ->assertJsonPath('commission_payment_status', 'pending');
+
+        $this->assertSame(0, (int) $this->producerUser->refresh()->balance);
+        $this->assertDatabaseCount('wallet_transactions', 0);
     }
 
     public function test_a_late_payment_on_a_hybrid_request_credits_the_full_amount_and_locks_no_escrow(): void

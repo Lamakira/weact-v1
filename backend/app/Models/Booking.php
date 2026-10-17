@@ -422,6 +422,17 @@ class Booking extends Model
     }
 
     /**
+     * Le délai de réponse de la Face est-il écoulé (now >= échéance) ? Faux sans échéance (UGC).
+     * Source unique de la garde d'acceptation (policy + service), avant même le passage du cron.
+     */
+    public function faceResponseWindowElapsed(): bool
+    {
+        $deadline = $this->faceResponseDeadline();
+
+        return $deadline !== null && now()->greaterThanOrEqualTo($deadline);
+    }
+
+    /**
      * Échéance de réponse au format affiché (« 23/10 à 13:00 », fuseau métier), null sans échéance.
      */
     public function faceResponseDeadlineLabel(): ?string

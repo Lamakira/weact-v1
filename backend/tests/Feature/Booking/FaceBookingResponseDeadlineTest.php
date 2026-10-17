@@ -173,6 +173,43 @@ class FaceBookingResponseDeadlineTest extends TestCase
         $this->assertSame(BookingStatus::Expired, $booking->refresh()->status);
     }
 
+    public function test_the_face_cannot_accept_after_the_deadline_even_before_the_cron_ran(): void
+    {
+        $booking = $this->pendingCash();
+
+        // Une minute avant l'échéance (23/10 12:00 UTC) : acceptable, bouton actif.
+        $this->travelTo(Carbon::parse('2026-10-23 11:59:00', 'UTC'));
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}")
+            ->assertJsonPath('data.can_accept', true);
+
+        // Une minute après : le cron n'est pas passé (statut encore Pending) mais l'accept est refusé.
+        $this->travelTo(Carbon::parse('2026-10-23 12:01:00', 'UTC'));
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/bookings/{$booking->uuid}")
+            ->assertJsonPath('data.can_accept', false);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/accept")
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.status.0', 'Le délai de réponse est dépassé : cette demande a expiré.');
+
+        $this->assertSame(BookingStatus::Pending, $booking->refresh()->status);
+        $this->assertNull($booking->accepted_at);
+    }
+
+    public function test_the_service_itself_refuses_an_accept_past_the_deadline(): void
+    {
+        $booking = $this->pendingCash();
+        $this->travelTo(Carbon::parse('2026-10-23 12:00:00', 'UTC'));
+
+        $this->expectException(\Illuminate\Validation\ValidationException::class);
+        $this->expectExceptionMessage('Le délai de réponse est dépassé : cette demande a expiré.');
+
+        app(\App\Services\BookingService::class)->accept($booking);
+    }
+
     // --- Relance à 48 h ---
 
     public function test_the_face_is_reminded_once_when_24_hours_remain(): void

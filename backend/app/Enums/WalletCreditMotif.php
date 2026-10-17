@@ -12,6 +12,7 @@ enum WalletCreditMotif: string
     case UgcCommissionRefund = 'ugc_commission_refund';
     case UgcSettlementRefund = 'ugc_settlement_refund';
     case UgcSuspensionRefund = 'ugc_suspension_refund';
+    case UgcCommissionPaidAfterExpiry = 'ugc_commission_paid_after_expiry';
 
     public function label(): string
     {
@@ -22,6 +23,7 @@ enum WalletCreditMotif: string
             self::UgcCommissionRefund => 'Remboursement de la commission — deal UGC non abouti',
             self::UgcSettlementRefund => 'Remboursement du règlement UGC — deal non abouti',
             self::UgcSuspensionRefund => 'Remboursement suite à la suspension de la Face — deal UGC non livré',
+            self::UgcCommissionPaidAfterExpiry => "Commission réglée après l'expiration de votre demande : le montant a été crédité sur votre wallet WeAct.",
         };
     }
 }

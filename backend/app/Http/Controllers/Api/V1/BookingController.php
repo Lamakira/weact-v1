@@ -28,6 +28,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Validation\ValidationException;
 
 class BookingController extends Controller
 {
@@ -187,6 +188,16 @@ class BookingController extends Controller
      */
     public function accept(AcceptBookingRequest $request, Booking $booking): JsonResponse
     {
+        // Lot B10 : échéance dépassée avant le passage du cron → 422 explicite (la policy, qui
+        // masque le bouton, répondrait un 403 générique).
+        if ($request->user()->id === $booking->face_id
+            && $booking->status === BookingStatus::Pending
+            && $booking->faceResponseWindowElapsed()) {
+            throw ValidationException::withMessages([
+                'status' => ['Le délai de réponse est dépassé : cette demande a expiré.'],
+            ]);
+        }
+
         Gate::authorize('accept', $booking);
 
         // Gate FR5 (2.4) : une Face non éligible/suspendue ne peut pas s'engager sur un deal UGC.
