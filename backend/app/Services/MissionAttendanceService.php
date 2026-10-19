@@ -256,6 +256,13 @@ class MissionAttendanceService
             $entriesToValidate = $lockedMission->payment->entries()
                 ->where('escrow_status', EscrowStatus::Locked)
                 ->where('attendance_status', AttendanceStatus::Pending)
+                // Lot B4 : une place libérée (Face expirée) n'est jamais versée ; seule une Face
+                // confirmée est validée présente (même règle que le pointage, lot B5).
+                ->whereNull('freed_at')
+                ->whereHas('candidature', fn ($query) => $query->whereIn('status', array_map(
+                    static fn (CandidatureStatus $status): string => $status->value,
+                    self::MARKABLE_CANDIDATURE_STATUSES,
+                )))
                 ->lockForUpdate()
                 ->get();
 

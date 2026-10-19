@@ -44,7 +44,10 @@ class AdminFinanceController extends Controller
 
         // ── Escrow still in flight ───────────────────────────────────────────
         $bookingEscrowLocked = (int) EscrowTransaction::where('status', 'locked')->sum('amount');
-        $missionEscrowLocked = (int) MissionPaymentCandidature::where('escrow_status', EscrowStatus::Locked)->sum('montant_face_recoit');
+        $missionEscrowLocked = (int) MissionPaymentCandidature::where('escrow_status', EscrowStatus::Locked)
+            // Lot B4 : une place libérée (Face expirée) reste l'argent du Producer, pas celui des Faces.
+            ->whereNull('freed_at')
+            ->sum('montant_face_recoit');
         $totalEscrow = $bookingEscrowLocked + $missionEscrowLocked;
 
         // ── Platform revenue (commissions) ───────────────────────────────────
@@ -65,6 +68,16 @@ class AdminFinanceController extends Controller
             ->where('mission_payment_candidatures.escrow_status', EscrowStatus::Refunded->value)
             ->where('candidatures.status', CandidatureStatus::Expired->value)
             ->selectRaw('SUM(mission_payments.budget_par_face - mission_payment_candidatures.montant_face_recoit) as total')
+            ->value('total');
+
+        // Lot B4 : une place transférée à une remplaçante garde l'argent de la place ; seule la
+        // commission Face change (palier de la nouvelle Face) : revenu += net ancien − net nouveau.
+        $missionCommissions += (int) MissionPaymentCandidature::query()
+            ->from('mission_payment_candidatures as replacement')
+            ->join('mission_payment_candidatures as replaced', 'replaced.id', '=', 'replacement.replacement_of_entry_id')
+            ->join('mission_payments', 'mission_payments.id', '=', 'replacement.mission_payment_id')
+            ->where('mission_payments.status', MissionPaymentStatus::Paid->value)
+            ->selectRaw('SUM(CAST(replaced.montant_face_recoit AS SIGNED) - CAST(replacement.montant_face_recoit AS SIGNED)) as total')
             ->value('total');
 
         $totalPlatformRevenue = $bookingCommissions + $missionCommissions;

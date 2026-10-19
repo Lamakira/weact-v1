@@ -17,6 +17,8 @@ const props = defineProps<{
   isSelected?: boolean
   isUgcMission?: boolean
   ugcCompensationType?: string | null
+  /** Lot B4 : une place libérée peut être proposée à cette candidature non retenue. */
+  canOfferFreedPlace?: boolean
 }>()
 
 /**
@@ -28,6 +30,7 @@ const emit = defineEmits<{
   release: [candidatureId: string]
   'toggle-selection': [candidatureId: string]
   'confirm-shipment': []
+  'offer-freed-place': [candidatureId: string]
 }>()
 
 /**
@@ -455,6 +458,19 @@ const categoryLabel = computed(() => {
       </div>
 
       <!-- Chat + Confirm-shipment + Release buttons (accepted/confirmed/in_progress/completed) -->
+      <!-- Lot B4 : proposer une place libérée à une candidature non retenue -->
+      <div v-else-if="canOfferFreedPlace && candidature.can_replace_freed_place === true && candidature.status === 'rejected' && !selectionMode" class="flex gap-2">
+        <button
+          type="button"
+          data-testid="offer-freed-place-btn"
+          class="inline-flex items-center gap-2 rounded-lg bg-weact px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-weact/90"
+          @click="emit('offer-freed-place', candidature.id)"
+        >
+          <Check class="h-4 w-4" />
+          Proposer la place libérée
+        </button>
+      </div>
+
       <div v-else-if="canChat || canConfirmShipment || canRelease" class="flex flex-wrap gap-2">
         <RouterLink
           v-if="canChat"
