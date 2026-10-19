@@ -43,6 +43,15 @@ enum BookingStatus: string
     }
 
     /**
+     * Avant paiement : la messagerie du booking est encore fermée (commission_paid = UGC,
+     * commission réglée mais chat toujours fermé).
+     */
+    public function isBeforePayment(): bool
+    {
+        return in_array($this, [self::Pending, self::Accepted, self::CommissionPaid], true);
+    }
+
+    /**
      * Get all enum values as an array of strings.
      *
      * @return array<int, string>
