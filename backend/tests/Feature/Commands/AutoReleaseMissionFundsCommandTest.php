@@ -108,4 +108,56 @@ class AutoReleaseMissionFundsCommandTest extends TestCase
             'type' => 'mission_completed_producer',
         ]);
     }
+
+    public function test_command_skips_a_mission_whose_selected_faces_all_expired_and_were_refunded(): void
+    {
+        $producer = Producer::factory()->create();
+        $producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+
+        $mission = Mission::factory()->closed()->create([
+            'producer_id' => $producer->id,
+            'date_tournage' => now()->subDays(15)->format('Y-m-d'),
+        ]);
+
+        $payment = MissionPayment::create([
+            'mission_id' => $mission->id,
+            'producer_id' => $producer->id,
+            'nombre_faces_retenues' => 1,
+            'budget_par_face' => 100000,
+            'montant_sous_total' => 100000,
+            'commission_producteur' => 10000,
+            'montant_total_producteur' => 110000,
+            'commission_faces_total' => 10000,
+            'montant_total_faces' => 90000,
+            'status' => MissionPaymentStatus::Paid,
+            'paid_at' => now()->subDays(20),
+        ]);
+
+        $face = Face::factory()->create();
+        $candidature = Candidature::factory()->create([
+            'mission_id' => $mission->id,
+            'face_id' => $face->id,
+            'status' => CandidatureStatus::Expired,
+        ]);
+        MissionPaymentCandidature::create([
+            'mission_payment_id' => $payment->id,
+            'candidature_id' => $candidature->id,
+            'face_id' => $face->id,
+            'montant_face_recoit' => 90000,
+            'escrow_status' => EscrowStatus::Refunded,
+            'locked_at' => now()->subDays(20),
+            'refunded_at' => now()->subDays(18),
+        ]);
+
+        $this->artisan('missions:auto-release-funds')->assertExitCode(0);
+
+        $this->assertDatabaseHas('missions', ['id' => $mission->id, 'status' => 'closed']);
+        $this->assertDatabaseMissing('notifications', [
+            'user_id' => $producerUser->id,
+            'type' => 'mission_completed_producer',
+        ]);
+    }
 }

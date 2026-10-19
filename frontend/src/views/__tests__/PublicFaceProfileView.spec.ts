@@ -479,4 +479,24 @@ describe('PublicFaceProfileView — UGC booking redirect (story 1.6)', () => {
     await emitBookingSuccess('Publicité')
     expect(mockRouter.push).toHaveBeenCalledWith('/producer')
   })
+
+  it('affiche le nom complet fourni par l\'API pour un Producer connecté, le prénom seul pour un invité (lot B13)', async () => {
+    vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
+      success: true,
+      profile: { ...mockProfile, nom: 'Dossou' },
+    })
+    const producerView = mountView()
+    await flushPromises()
+    expect(producerView.find('[data-testid="profile-info-section"]').text()).toBe('Adjoua Dossou')
+    producerView.unmount()
+
+    vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
+      success: true,
+      profile: { ...mockProfile, nom: undefined },
+    })
+    const guestView = mountView()
+    await flushPromises()
+    expect(guestView.find('[data-testid="profile-info-section"]').text()).toBe('Adjoua')
+    guestView.unmount()
+  })
 })

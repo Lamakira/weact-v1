@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Services;
 
 use App\Enums\AttendanceStatus;
+use App\Enums\CandidatureStatus;
 use App\Enums\DisputeResolutionOutcome;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Events\MissionAttendanceMarkedAbsent;
 use App\Models\Admin;
+use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
 use App\Models\MissionPayment;
@@ -23,6 +25,19 @@ use Illuminate\Validation\ValidationException;
 
 class MissionAttendanceService
 {
+    /**
+     * Lot B5 : seule une Face qui a confirmé sa participation (confirmed, puis in_progress)
+     * peut être pointée présente ou absente.
+     *
+     * @var list<CandidatureStatus>
+     */
+    public const MARKABLE_CANDIDATURE_STATUSES = [
+        CandidatureStatus::Confirmed,
+        CandidatureStatus::InProgress,
+    ];
+
+    public const UNCONFIRMED_FACE_MESSAGE = "Une ou plusieurs Faces n'ont pas confirmé leur participation : leur présence ne peut pas être pointée.";
+
     public function __construct(
         private readonly MissionPaymentService $missionPaymentService,
         private readonly MissionService $missionService,
@@ -109,6 +124,13 @@ class MissionAttendanceService
                 ]);
             }
 
+            // Lot B5 : défense en profondeur de la garde du FormRequest (jour du tournage).
+            if (! $lockedMission->isAttendanceOpen()) {
+                throw ValidationException::withMessages([
+                    'date_tournage' => [(string) $lockedMission->attendanceBlockedReason()],
+                ]);
+            }
+
             $entriesToRelease = [];
 
             foreach ($entryIdToStatus as $entryId => $status) {
@@ -134,6 +156,14 @@ class MissionAttendanceService
                     || $attendanceStatus !== AttendanceStatus::Pending
                 ) {
                     continue;
+                }
+
+                // Lot B5 : une entry qu'on s'apprête à trancher appartient à une Face confirmée.
+                $candidatureStatus = Candidature::query()->whereKey($entry->candidature_id)->first(['id', 'status'])?->status;
+                if (! in_array($candidatureStatus, self::MARKABLE_CANDIDATURE_STATUSES, true)) {
+                    throw ValidationException::withMessages([
+                        'entries' => [self::UNCONFIRMED_FACE_MESSAGE],
+                    ]);
                 }
 
                 $targetStatus = AttendanceStatus::from($status);
@@ -226,6 +256,13 @@ class MissionAttendanceService
             $entriesToValidate = $lockedMission->payment->entries()
                 ->where('escrow_status', EscrowStatus::Locked)
                 ->where('attendance_status', AttendanceStatus::Pending)
+                // Lot B4 : une place libérée (Face expirée) n'est jamais versée ; seule une Face
+                // confirmée est validée présente (même règle que le pointage, lot B5).
+                ->whereNull('freed_at')
+                ->whereHas('candidature', fn ($query) => $query->whereIn('status', array_map(
+                    static fn (CandidatureStatus $status): string => $status->value,
+                    self::MARKABLE_CANDIDATURE_STATUSES,
+                )))
                 ->lockForUpdate()
                 ->get();
 

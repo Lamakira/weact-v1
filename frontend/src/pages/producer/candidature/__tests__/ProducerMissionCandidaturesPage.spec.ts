@@ -7,6 +7,7 @@ import { candidatureApi } from '@/features/candidature/services/candidatureApi'
 import type { Mission } from '@/features/mission/types'
 
 const toastErrorSpy = vi.fn()
+const toastSuccessSpy = vi.hoisted(() => vi.fn())
 const redirectSpy = vi.hoisted(() => vi.fn())
 const openCandidaturePaymentSpy = vi.hoisted(() => vi.fn())
 
@@ -24,7 +25,7 @@ vi.mock('vue-router', () => ({
 vi.mock('@/composables/useToast', () => ({
   useToast: () => ({
     error: toastErrorSpy,
-    success: vi.fn(),
+    success: toastSuccessSpy,
     warning: vi.fn(),
     info: vi.fn(),
     clear: vi.fn(),
@@ -72,6 +73,7 @@ vi.mock('@/features/mission/services/missionApi', () => ({
     getPaymentStatus: vi.fn(),
     getCommissionStatus: vi.fn(),
     confirmSelection: vi.fn(),
+    cancelSelection: vi.fn(),
   },
 }))
 
@@ -180,6 +182,77 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
     expect(startPollingSpy).not.toHaveBeenCalled()
     expect(wrapper.find('[data-testid="mission-payment-pending-banner"]').exists()).toBe(false)
     expect(wrapper.find('[data-testid="mission-payment-init-failed-banner"]').exists()).toBe(true)
+  })
+
+  it('lot B1 : shows the payment deadline and « Modifier la sélection » on a pending_payment mission', async () => {
+    vi.mocked(missionApi.getMission).mockResolvedValueOnce({
+      data: makePendingPaymentMission(),
+      message: 'ok',
+    })
+    vi.mocked(missionApi.getPaymentStatus).mockResolvedValueOnce({
+      data: {
+        has_payment: true,
+        is_trackable: true,
+        payment_id: 42,
+        status: 'pending',
+        expires_at: '2026-10-17T14:30:00Z',
+        mission_status: 'pending_payment',
+      },
+    })
+
+    const wrapper = mount(ProducerMissionCandidaturesPage)
+    await flushPromises()
+    await flushPromises()
+
+    const deadline = wrapper.get('[data-testid="mission-payment-deadline"]')
+    expect(deadline.text()).toMatch(/^À payer avant le .+ à \d{2}h\d{2}\. Sans paiement, la sélection sera annulée\.$/)
+    expect(wrapper.find('[data-testid="mission-payment-cancel-selection-btn"]').exists()).toBe(true)
+  })
+
+  it('lot B1 : hides the deadline and the cancel button when the mission is not pending_payment', async () => {
+    vi.mocked(missionApi.getMission).mockResolvedValueOnce({
+      data: makePendingPaymentMission({ status: 'published' }),
+      message: 'ok',
+    })
+
+    const wrapper = mount(ProducerMissionCandidaturesPage)
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="mission-payment-deadline"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="mission-payment-cancel-selection-btn"]').exists()).toBe(false)
+  })
+
+  it('lot B1 : « Modifier la sélection » confirms, cancels server-side, toasts the message and refreshes', async () => {
+    vi.mocked(missionApi.getMission)
+      .mockResolvedValueOnce({ data: makePendingPaymentMission(), message: 'ok' })
+      .mockResolvedValueOnce({ data: makePendingPaymentMission({ status: 'published' }), message: 'ok' })
+    vi.mocked(missionApi.getPaymentStatus).mockResolvedValueOnce({
+      data: { has_payment: true, is_trackable: true, payment_id: 42, status: 'pending', mission_status: 'pending_payment' },
+    })
+    vi.mocked(missionApi.cancelSelection).mockResolvedValueOnce({
+      data: { mission_status: 'published' },
+      message: 'Sélection annulée. Vous pouvez refaire votre sélection.',
+    })
+
+    const wrapper = mount(ProducerMissionCandidaturesPage, { attachTo: document.body })
+    await flushPromises()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="mission-payment-cancel-selection-btn"]').trigger('click')
+    expect(missionApi.cancelSelection).not.toHaveBeenCalled()
+
+    const confirm = Array.from(document.body.querySelectorAll('button')).find((b) => b.textContent?.trim() === 'Annuler le paiement')
+    expect(confirm).toBeDefined()
+    confirm!.click()
+    await flushPromises()
+    await flushPromises()
+
+    expect(missionApi.cancelSelection).toHaveBeenCalledWith('mission-uuid-under-test')
+    expect(toastSuccessSpy).toHaveBeenCalledWith('Sélection annulée. Vous pouvez refaire votre sélection.')
+    expect(missionApi.getMission).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-testid="mission-payment-cancel-selection-btn"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 
   it('starts polling and shows the pending banner when pending_payment is trackable', async () => {
@@ -707,5 +780,54 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       expect(redirectSpy).toHaveBeenCalledWith('https://checkout.fedapay.test/regenerated')
       wrapper.unmount()
     })
+  })
+
+})
+
+describe('ProducerMissionCandidaturesPage — place libérée (lot B4)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    routeState.query = {}
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
+    vi.restoreAllMocks()
+  })
+
+  it('annonce la place libérée et invite à choisir une remplaçante', async () => {
+    vi.mocked(missionApi.getMission).mockResolvedValueOnce({
+      data: makePendingPaymentMission({
+        status: 'closed',
+        status_label: 'Clôturée',
+        freed_places_count: 1,
+        can_replace_freed_place: true,
+        freed_places_refund_at: '2026-10-29T23:00:00+00:00',
+      }),
+      message: 'ok',
+    })
+
+    const wrapper = mount(ProducerMissionCandidaturesPage)
+    await flushPromises()
+    await flushPromises()
+
+    const banner = wrapper.find('[data-testid="mission-freed-place-banner"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain("Une place s'est libérée")
+    expect(banner.text()).toContain('proposez-la à une Face non retenue')
+    expect(banner.text()).toContain('le budget de la place est crédité sur votre wallet')
+  })
+
+  it("n'affiche rien sans place libérée", async () => {
+    vi.mocked(missionApi.getMission).mockResolvedValueOnce({
+      data: makePendingPaymentMission({ status: 'closed', status_label: 'Clôturée', freed_places_count: 0 }),
+      message: 'ok',
+    })
+
+    const wrapper = mount(ProducerMissionCandidaturesPage)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="mission-freed-place-banner"]').exists()).toBe(false)
   })
 })

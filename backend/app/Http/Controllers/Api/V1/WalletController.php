@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\AttendanceStatus;
+use App\Enums\CandidatureStatus;
 use App\Enums\ErrorCodes;
+use App\Enums\EscrowStatus;
 use App\Exceptions\WithdrawalLockException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\WithdrawWalletRequest;
@@ -12,6 +15,7 @@ use App\Http\Resources\WalletResource;
 use App\Models\Booking;
 use App\Models\EscrowTransaction;
 use App\Models\Face;
+use App\Models\MissionPaymentCandidature;
 use App\Models\WalletTransaction;
 use App\Models\WithdrawalRequest;
 use App\Services\WithdrawalService;
@@ -50,6 +54,28 @@ class WalletController extends Controller
             : (int) EscrowTransaction::whereIn('booking_id', $heldBookingIds)
                 ->where('status', 'locked')
                 ->sum('amount');
+
+        // Lot B7 : séquestre des missions. Entries Locked d'une place engagée (acceptée,
+        // confirmée, en cours) ; une absence pointée ou contestée est « en litige », comme
+        // un booking en fenêtre de contestation. entries.face_id = faces.id.
+        if ($isFace) {
+            $missionEscrow = MissionPaymentCandidature::query()
+                ->where('face_id', $user->userable_id)
+                ->where('escrow_status', EscrowStatus::Locked->value)
+                ->whereHas('candidature', fn ($query) => $query->whereIn('status', [
+                    CandidatureStatus::Accepted->value,
+                    CandidatureStatus::Confirmed->value,
+                    CandidatureStatus::InProgress->value,
+                ]));
+
+            $pendingEscrow += (int) (clone $missionEscrow)
+                ->whereIn('attendance_status', [AttendanceStatus::Pending->value, AttendanceStatus::Present->value])
+                ->sum('montant_face_recoit');
+
+            $heldInDispute += (int) (clone $missionEscrow)
+                ->whereIn('attendance_status', [AttendanceStatus::Absent->value, AttendanceStatus::Disputed->value])
+                ->sum('montant_face_recoit');
+        }
 
         $transactions = WalletTransaction::where('user_id', $user->id)
             ->latest()

@@ -11,6 +11,8 @@ import {
 } from 'lucide-vue-next'
 import { useProducerCandidatures, useRejectCandidature, useAcceptCandidature, useReleaseCandidature } from '../composables'
 import { useMissionPayment } from '@/features/mission/composables'
+import { missionApi } from '@/features/mission/services/missionApi'
+import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import ProducerCandidatureCard from './ProducerCandidatureCard.vue'
 import UgcCandidaturePaymentOverlay from './UgcCandidaturePaymentOverlay.vue'
 import MissionSelectionSummary from '@/features/mission/components/MissionSelectionSummary.vue'
@@ -35,6 +37,8 @@ const props = defineProps<{
   ugcCompensationType?: string | null
   /** Cash par-Face d'une mission UGC hybride (aperçu pricing overlay, D-8.5.i/j). */
   missionMontantRemuneration?: number | null
+  /** Lot B4 : une place libérée peut être proposée aux candidatures non retenues. */
+  canReplaceFreedPlace?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -46,6 +50,8 @@ const emit = defineEmits<{
    * mission. (FIX-19.3 AC #1, #4.)
    */
   'selection-failed': [message: string]
+  /** Lot B4 : une place libérée vient d'être donnée à une remplaçante. */
+  'freed-place-replaced': []
 }>()
 
 /**
@@ -182,6 +188,36 @@ async function handleRelease(candidatureId: string): Promise<void> {
   }
 
   resetRelease()
+}
+
+/**
+ * Lot B4 : proposer une place libérée à une candidature non retenue (confirmation, puis API).
+ */
+const freedPlaceTarget = ref<{ id: string; faceName: string } | null>(null)
+const isReplacingFreedPlace = ref(false)
+
+function handleOfferFreedPlace(candidatureId: string): void {
+  const candidature = candidatures.value.find((c) => c.id === candidatureId)
+  freedPlaceTarget.value = { id: candidatureId, faceName: candidature?.face.display_name ?? 'cette Face' }
+}
+
+async function confirmOfferFreedPlace(): Promise<void> {
+  if (!freedPlaceTarget.value || isReplacingFreedPlace.value) return
+  isReplacingFreedPlace.value = true
+  try {
+    const result = await missionApi.replaceFreedPlace(props.missionId, freedPlaceTarget.value.id)
+    toast.success(result.message || 'Place proposée : la Face a 48 h pour confirmer.')
+    freedPlaceTarget.value = null
+    await refresh()
+    emit('freed-place-replaced')
+  } catch (err) {
+    const axiosErr = err as { response?: { data?: { message?: string; errors?: Record<string, string[]> } } }
+    const errors = axiosErr.response?.data?.errors
+    const firstError = errors ? Object.values(errors)[0]?.[0] : undefined
+    toast.error(firstError || axiosErr.response?.data?.message || 'Impossible de proposer la place.')
+  } finally {
+    isReplacingFreedPlace.value = false
+  }
 }
 
 /**
@@ -481,6 +517,8 @@ onMounted(() => {
           :is-selected="isSelected(candidature.id)"
           :is-ugc-mission="isUgcMission"
           :ugc-compensation-type="ugcCompensationType"
+          :can-offer-freed-place="canReplaceFreedPlace"
+          @offer-freed-place="handleOfferFreedPlace"
           @reject="handleReject"
           @accept="handleAccept"
           @release="handleRelease"
@@ -578,5 +616,17 @@ onMounted(() => {
         </div>
       </div>
     </Teleport>
+
+    <!-- Lot B4 : confirmation de la place libérée proposée à une candidature non retenue -->
+    <ConfirmModal
+      :is-open="freedPlaceTarget !== null"
+      title="Proposer la place libérée ?"
+      :message="`${freedPlaceTarget?.faceName ?? 'Cette Face'} reprend la place libérée, sans frais supplémentaires. Elle aura 48 h pour confirmer sa participation.`"
+      confirm-text="Proposer la place"
+      cancel-text="Retour"
+      :confirm-disabled="isReplacingFreedPlace"
+      @confirm="confirmOfferFreedPlace"
+      @cancel="freedPlaceTarget = null"
+    />
   </section>
 </template>

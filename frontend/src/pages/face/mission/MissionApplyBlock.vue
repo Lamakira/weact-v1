@@ -18,6 +18,7 @@
 import {
   AlertCircle,
   CheckCircle,
+  Clock,
   Loader2,
   Mail,
   ShieldAlert,
@@ -92,6 +93,19 @@ defineEmits<{
         </p>
       </div>
       <div
+        v-else-if="candidature?.display_status === 'selection_payment_pending'"
+        class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-6 min-[376px]:px-8 py-3 text-amber-800"
+        data-testid="candidature-selection-payment-pending"
+      >
+        <Clock class="h-5 w-5 shrink-0 mt-0.5" aria-hidden="true" />
+        <div>
+          <p class="text-xs min-[376px]:text-sm font-medium">Sélection en cours de paiement</p>
+          <p class="text-xs min-[376px]:text-sm opacity-90">
+            Le producteur finalise le paiement de sa sélection. Vous serez prévenue par e-mail si votre candidature est retenue.
+          </p>
+        </div>
+      </div>
+      <div
         v-else-if="candidature?.display_status === 'mission_closed'"
         class="flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-6 min-[376px]:px-8 py-3 text-gray-600"
         data-testid="candidature-mission-closed"
@@ -114,7 +128,7 @@ defineEmits<{
         <span class="text-xs min-[376px]:text-sm font-medium">
           {{ candidature?.status === 'cancelled' ? 'Candidature annulée' : 'Candidature envoyée' }}
         </span>
-        <span class="text-xs opacity-75">({{ candidature?.status_label }})</span>
+        <span class="text-xs opacity-75">({{ candidature?.display_status_label ?? candidature?.status_label }})</span>
       </div>
       <!-- Absence déclarée par le Producteur : contestation 72 h -->
       <MissionAbsenceContestBlock
@@ -281,7 +295,7 @@ defineEmits<{
         Postuler à cette mission
       </button>
       <p class="mt-2.5 text-center text-xs text-gray-400">
-        Candidature gratuite · réponse du producteur sous 72h
+        Candidature gratuite · Réponse du producteur sous 72 h après la clôture des candidatures
       </p>
     </div>
 
