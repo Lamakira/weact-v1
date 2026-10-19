@@ -13,6 +13,7 @@ use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\EnsureUserIsFace;
 use App\Http\Middleware\EnsureUserIsFaceOrProducer;
 use App\Http\Middleware\EnsureUserIsProducer;
+use App\Http\Middleware\ResolvePublicViewer;
 use App\Http\Middleware\SetLocale;
 use App\Http\Middleware\ThrottleRequestsWithBypass;
 use App\Http\Middleware\TrustConfiguredProxies;
@@ -66,6 +67,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'admin.2fa' => EnsureAdminTwoFactorEnrolled::class,
             'api.token' => EnsureApiBearerToken::class,
             'public.cache' => CachePublicResponse::class,
+            'public.viewer' => ResolvePublicViewer::class,
             'superadmin' => EnsureSuperAdmin::class,
             'face' => EnsureUserIsFace::class,
             'google.enabled' => EnsureGoogleOAuthEnabled::class,

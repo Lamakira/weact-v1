@@ -23,8 +23,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
     // Public Faces list (paginated)
+    // Lot B13 : public.viewer (avant public.cache) — un Producer connecté voit le nom complet.
     Route::get('/faces', [FaceController::class, 'index'])
-        ->middleware('public.cache:page,per_page,categorie,niche,ville,search,generation');
+        ->middleware(['public.viewer', 'public.cache:page,per_page,categorie,niche,ville,search,generation']);
 
     // Public Faces filter options (categories, niches, cities)
     Route::get('/faces/options', [FaceController::class, 'filterOptions'])
@@ -32,7 +33,7 @@ Route::prefix('v1/public')->middleware('throttle:60,1')->group(function () {
 
     // Public Face profile (limited info)
     Route::get('/faces/{username}', [FaceController::class, 'show'])
-        ->middleware('public.cache');
+        ->middleware(['public.viewer', 'public.cache']);
 
     // Producer public profile
     Route::get('/producers/{producer:slug}', [ProducerController::class, 'show'])

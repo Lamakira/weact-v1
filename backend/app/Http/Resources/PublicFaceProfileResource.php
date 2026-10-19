@@ -7,6 +7,7 @@ namespace App\Http\Resources;
 use App\Enums\FaceVideoType;
 use App\Models\FaceVideo;
 use App\Services\FaceEntitlementService;
+use App\Support\PublicViewer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -29,6 +30,7 @@ class PublicFaceProfileResource extends JsonResource
     {
         $entitlement = app(FaceEntitlementService::class);
         $capabilities = $entitlement->capabilities($this->resource);
+        $viewerIsProducer = PublicViewer::isProducer($request);
         $maxPhotos = $capabilities->maxAlbumPhotos;
 
         $visiblePhotos = $this->photos->filter(fn ($photo) => $photo->position <= $maxPhotos)->values();
@@ -48,8 +50,10 @@ class PublicFaceProfileResource extends JsonResource
             'id' => $this->uuid,
             'username' => $this->username,
             'prenom' => $this->prenom,
-            // Initial only: the full last name is never public (no `nom` key here).
-            'display_name' => $this->publicDisplayName(),
+            // Guests: initial only, no `nom` key. A logged-in Producer gets the full last
+            // name (lot B13, PublicViewer — the public cache keys on the viewer class).
+            'nom' => $this->when($viewerIsProducer, fn () => $this->nom),
+            'display_name' => $viewerIsProducer ? $this->display_name : $this->publicDisplayName(),
             'sexe' => $this->sexe?->value,
             'sexe_label' => $this->sexe?->label(),
             'age' => $this->publiclyVisibleAge(),
