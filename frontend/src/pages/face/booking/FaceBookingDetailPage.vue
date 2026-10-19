@@ -61,6 +61,7 @@ import { usePaymentReturn } from '@/composables/usePaymentReturn'
 import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
 import { useUgcShipment } from '@/composables/useUgcShipment'
 import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
+import { CONTACT_DETAILS_MESSAGE, containsContactDetails } from '@/lib/contactDetails'
 
 const route = useRoute()
 const router = useRouter()
@@ -169,6 +170,13 @@ const canConfirmShipment = computed(
 // Refuse dialog state
 const showRefuseDialog = ref(false)
 const refuseReason = ref('')
+// Erreurs de validation serveur (422) affichées sous le champ des dialogues de refus / annulation.
+const refuseFieldError = ref<string | null>(null)
+const cancelFieldError = ref<string | null>(null)
+// Refus possible uniquement avant paiement (messagerie fermée) : pas de coordonnées dans la raison (lot B12).
+const refuseContactError = computed<string | null>(() =>
+  containsContactDetails(refuseReason.value) ? CONTACT_DETAILS_MESSAGE : null,
+)
 const showReasonField = ref(false)
 
 // Cancellation dialog state
@@ -456,6 +464,7 @@ async function handleEngagementConfirm(): Promise<void> {
 
 function openRefuseDialog(): void {
   refuseReason.value = ''
+  refuseFieldError.value = null
   showReasonField.value = false
   showRefuseDialog.value = true
 }
@@ -463,18 +472,22 @@ function openRefuseDialog(): void {
 function closeRefuseDialog(): void {
   showRefuseDialog.value = false
   refuseReason.value = ''
+  refuseFieldError.value = null
   showReasonField.value = false
 }
 
 async function handleRefuse(): Promise<void> {
-  if (!booking.value) return
+  if (!booking.value || refuseContactError.value) return
 
   clearError()
+  refuseFieldError.value = null
   const result = await refuse(booking.value.id, refuseReason.value || undefined)
   if (result) {
     booking.value = result
     closeRefuseDialog()
     toast.success('Booking refusé')
+  } else if (actionErrorStatus.value === 422 && actionError.value) {
+    refuseFieldError.value = actionError.value
   } else {
     toast.error(actionError.value || 'Erreur lors du refus')
   }
@@ -496,6 +509,7 @@ async function handleConfirm(): Promise<void> {
 async function handleCancel(payload: BookingCancellationPayload): Promise<void> {
   if (!booking.value) return
   clearError()
+  cancelFieldError.value = null
 
   const result = await cancel(booking.value.id, payload.reason, payload.customReason)
   if (result) {
@@ -506,6 +520,8 @@ async function handleCancel(payload: BookingCancellationPayload): Promise<void> 
         ? 'Booking annulé. Les fonds restent en séquestre 72 h : la Face peut contester, sinon vous serez remboursé.'
         : 'Booking annulé',
     )
+  } else if (actionErrorStatus.value === 422 && actionError.value) {
+    cancelFieldError.value = actionError.value
   } else {
     toast.error(actionError.value || 'Erreur lors de l\'annulation')
   }
@@ -1230,8 +1246,9 @@ onUnmounted(() => {
       :is-cancelling="isCancelling"
       :is-face="isFace"
       :is-late-cancel="isLateProducerCancel"
+      :server-error="cancelFieldError"
       @confirm="handleCancel"
-      @cancel="showCancellationDialog = false"
+      @cancel="showCancellationDialog = false; cancelFieldError = null"
     />
 
     <!-- Confirmation « Produit reçu » (3.4, D-3.4.c) — chrono 7j irréversible.
@@ -1364,7 +1381,17 @@ onUnmounted(() => {
               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-weact focus:ring-2 focus:ring-weact/20 outline-none"
               placeholder="Expliquez la raison..."
               maxlength="1000"
+              data-testid="refuse-reason-textarea"
+              :aria-invalid="refuseContactError || refuseFieldError ? 'true' : undefined"
             />
+            <p
+              v-if="refuseContactError || refuseFieldError"
+              data-testid="refuse-reason-error"
+              class="mt-1 text-sm text-red-600"
+              role="alert"
+            >
+              {{ refuseContactError ?? refuseFieldError }}
+            </p>
           </div>
 
           <!-- Show optional reason field toggle -->
@@ -1386,7 +1413,8 @@ onUnmounted(() => {
             </button>
             <button
               class="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              :disabled="isRefusing"
+              :disabled="isRefusing || !!refuseContactError"
+              data-testid="confirm-refuse-button"
               @click="handleRefuse"
             >
               <Loader2 v-if="isRefusing" class="w-4 h-4 animate-spin inline mr-1" />
