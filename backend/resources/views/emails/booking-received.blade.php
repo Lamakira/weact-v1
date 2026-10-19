@@ -55,6 +55,10 @@
     </table>
 
     <p style="margin: 0; padding: 12px 16px; background-color: #fef3c7; border-radius: 6px; color: #92400e; font-size: 13px; line-height: 1.5;">
-        ⏰ Pensez à répondre rapidement&nbsp;: la demande a une fenêtre d'acceptation limitée et expire automatiquement passé ce délai.
+        @if($responseDeadline)
+            Répondez avant le {{ $responseDeadline }}&nbsp;: passé ce délai, la demande expire automatiquement.
+        @else
+            ⏰ Pensez à répondre rapidement&nbsp;: la demande a une fenêtre d'acceptation limitée et expire automatiquement passé ce délai.
+        @endif
     </p>
 @endsection

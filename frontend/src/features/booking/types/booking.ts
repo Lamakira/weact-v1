@@ -141,6 +141,10 @@ export interface Booking {
   date_debut: string | null
   // Dernier instant où la Face peut annuler (24 h avant le jour du tournage) ; null sans date
   face_cancellation_deadline?: string | null
+  // Lot B10 : échéance de réponse de la Face (demande cash en attente) ; null sinon
+  face_response_deadline?: string | null
+  // Lot B10 : échéance de règlement de la commission (demande UGC en attente) ; null sinon
+  ugc_commission_payment_deadline?: string | null
   date_fin: string | null
   duree_heures: number | null
   type_contenu: string

@@ -83,6 +83,9 @@ const SUCCESS_MESSAGES: Record<PaymentReturnKind, string> = {
   subscription: 'Votre abonnement est activé.',
 }
 
+const LATE_CREDIT_MESSAGE =
+  "Commission réglée après l'expiration de votre demande : le montant a été crédité sur votre wallet WeAct."
+
 const BOOKING_DEAD_STATUSES: string[] = [
   BookingStatus.REFUSED,
   BookingStatus.EXPIRED,
@@ -123,6 +126,7 @@ export function usePaymentReturn(options: UsePaymentReturnOptions): UsePaymentRe
   let cancelled = false
   let lastIds: PaymentReturnIds = {}
   let startPath: string | undefined
+  let lateCredit = false
 
   const isVerifying = computed(() => state.value === 'verifying')
 
@@ -156,6 +160,11 @@ export function usePaymentReturn(options: UsePaymentReturnOptions): UsePaymentRe
           ids.bookingId as string,
         )
         if (data.status === BookingStatus.COMMISSION_PAID) return 'settled'
+        // Paiement approuvé après l'expiration de la demande : crédité sur le wallet.
+        if (commission_payment_status === 'credited') {
+          lateCredit = true
+          return 'settled'
+        }
         if (commission_payment_status === 'failed') return 'failed'
         if (BOOKING_DEAD_STATUSES.includes(data.status)) return 'failed'
         return data.status === BookingStatus.PENDING ? 'pending' : 'settled'
@@ -238,7 +247,11 @@ export function usePaymentReturn(options: UsePaymentReturnOptions): UsePaymentRe
         // The payment IS confirmed — a failed refetch must not turn it into an error.
       }
       if (cancelled) return
-      toast.success(SUCCESS_MESSAGES[k])
+      if (k === 'booking_commission' && lateCredit) {
+        toast.info(LATE_CREDIT_MESSAGE)
+      } else {
+        toast.success(SUCCESS_MESSAGES[k])
+      }
     }
     await cleanUrl(startPath)
     options.onFinished?.(k, outcome as 'confirmed' | 'failed' | 'timeout')
@@ -270,6 +283,7 @@ export function usePaymentReturn(options: UsePaymentReturnOptions): UsePaymentRe
 
     cancelled = false
     kind.value = k
+    lateCredit = false
     lastIds = resolveIds()
     startPath = route.path
     // Display hint only (never a state change): FedaPay says the user cancelled or was

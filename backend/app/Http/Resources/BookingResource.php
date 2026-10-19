@@ -33,6 +33,13 @@ class BookingResource extends JsonResource
             'status_label' => $this->status->label(),
             'date_debut' => $this->date_debut?->toIso8601String(),
             'face_cancellation_deadline' => $this->faceCancellationDeadline()?->toIso8601String(),
+            // Lot B10 : échéances tant que la demande attend (réponse de la Face / commission UGC).
+            'face_response_deadline' => $this->status === BookingStatus::Pending
+                ? $this->faceResponseDeadline()?->toIso8601String()
+                : null,
+            'ugc_commission_payment_deadline' => $this->status === BookingStatus::Pending && $this->commission_paid_at === null
+                ? $this->ugcCommissionPaymentDeadline()?->toIso8601String()
+                : null,
             'date_fin' => $this->date_fin?->toIso8601String(),
             'duree_heures' => $this->duree_heures,
             'type_contenu' => $this->type_contenu,

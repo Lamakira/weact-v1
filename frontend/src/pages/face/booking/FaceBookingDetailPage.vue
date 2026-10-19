@@ -61,6 +61,7 @@ import { usePaymentReturn } from '@/composables/usePaymentReturn'
 import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
 import { useUgcShipment } from '@/composables/useUgcShipment'
 import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
+import { formatBookingDeadline } from '@/features/booking/utils/formatBookingDeadline'
 import { CONTACT_DETAILS_MESSAGE, containsContactDetails } from '@/lib/contactDetails'
 
 const route = useRoute()
@@ -366,6 +367,28 @@ const confirmLabel = computed<string | null>(() => {
   // Producer sees "Confirmer aussi" when Face already confirmed
   if (!isFace.value && status === BookingStatus.CONFIRMED_BY_FACE) return 'Confirmer aussi'
   return null
+})
+
+// Lot B10 : échéances fournies par le backend tant que la demande attend une réponse
+// (Face) ou le règlement de la commission UGC (Producer). Masquées une fois dépassées.
+const responseDeadlineText = computed<string | null>(() => {
+  const raw = booking.value?.face_response_deadline
+  if (!raw || booking.value?.status !== BookingStatus.PENDING) return null
+  if (new Date(raw).getTime() <= nowTimestamp.value) return null
+  const label = formatBookingDeadline(raw)
+  return isFace.value
+    ? `Répondez avant le ${label}, sinon la demande expire.`
+    : `La Face a jusqu'au ${label} pour répondre à votre demande.`
+})
+
+const ugcCommissionDeadlineText = computed<string | null>(() => {
+  const raw = booking.value?.ugc_commission_payment_deadline
+  if (!raw || booking.value?.status !== BookingStatus.PENDING) return null
+  if (new Date(raw).getTime() <= nowTimestamp.value) return null
+  const label = formatBookingDeadline(raw)
+  return isFace.value
+    ? `Le Producteur doit régler la commission avant le ${label}, sinon la demande expire.`
+    : `Réglez la commission avant le ${label}, sinon la demande expire.`
 })
 
 const isBeforeShootingDate = computed<boolean>(() => {
@@ -1118,6 +1141,21 @@ onUnmounted(() => {
           </div>
 
           <!-- Action buttons -->
+          <p
+            v-if="responseDeadlineText"
+            class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+            data-testid="face-response-deadline"
+          >
+            {{ responseDeadlineText }}
+          </p>
+          <p
+            v-if="ugcCommissionDeadlineText"
+            class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+            data-testid="ugc-commission-deadline"
+          >
+            {{ ugcCommissionDeadlineText }}
+          </p>
+
           <div v-if="booking.can_accept || booking.can_refuse || booking.can_pay" class="flex gap-3">
             <button
               v-if="booking.can_pay && !isPaymentOverdue"

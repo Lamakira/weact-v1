@@ -41,6 +41,7 @@ final class BookingReceivedMail extends BaseMail
                 'dureeHeures' => $this->booking->duree_heures,
                 'formattedAmount' => $this->formatAmount(),
                 'bookingUrl' => $this->buildBookingUrl(),
+                'responseDeadline' => $this->booking->faceResponseDeadlineLabel(),
             ],
         );
     }

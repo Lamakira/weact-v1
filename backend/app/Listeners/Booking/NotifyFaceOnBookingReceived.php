@@ -27,12 +27,15 @@ class NotifyFaceOnBookingReceived
             $formattedDate = $booking->date_debut?->format('d/m/Y');
             $dateSuffix = $formattedDate ? " le {$formattedDate}" : '';
             $locationSuffix = $booking->lieu ? " à {$booking->lieu}" : '';
+            // Lot B10 : échéance de réponse (demandes cash ; l'UGC répond après la commission).
+            $deadlineLabel = $booking->faceResponseDeadlineLabel();
+            $deadlineSuffix = $deadlineLabel !== null ? ". Répondez avant le {$deadlineLabel}." : '';
 
             Notification::create([
                 'user_id' => $booking->face_id,
                 'type' => 'booking_received',
                 'data' => [
-                    'message' => "{$producerName} souhaite vous booker pour {$booking->type_contenu}{$dateSuffix}{$locationSuffix}",
+                    'message' => "{$producerName} souhaite vous booker pour {$booking->type_contenu}{$dateSuffix}{$locationSuffix}{$deadlineSuffix}",
                     'booking_id' => $booking->id,
                     'url' => "/face/bookings/{$booking->uuid}",
                 ],

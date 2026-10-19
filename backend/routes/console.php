@@ -12,6 +12,7 @@ use App\Console\Commands\ExpireUnansweredCandidaturesCommand;
 use App\Console\Commands\ExpireUnconfirmedFacesCommand;
 use App\Console\Commands\ExpireUnpaidBookingsCommand;
 use App\Console\Commands\ExpireUnpaidMissionSelectionsCommand;
+use App\Console\Commands\ExpireUnpaidUgcBookingsCommand;
 use App\Console\Commands\ExpireUnreconfirmedUgcCandidaturesCommand;
 use App\Console\Commands\FailStalePendingFaceSubscriptionsCommand;
 use App\Console\Commands\ProcessUgcDeadlinesCommand;
@@ -23,6 +24,7 @@ use App\Console\Commands\ReconcileWalletCommand;
 use App\Console\Commands\RefundFreedPlacesCommand;
 use App\Console\Commands\RemindBookingPaymentCommand;
 use App\Console\Commands\RemindCandidatureResponseCommand;
+use App\Console\Commands\RemindFaceBookingResponseCommand;
 use App\Console\Commands\RemindFaceSubscriptionRenewalsCommand;
 use App\Console\Commands\RemindPendingBookingConfirmationCommand;
 use App\Console\Commands\RemindShootingDayCommand;
@@ -45,6 +47,10 @@ app(Schedule::class)->command(AutoCompleteBookingsCommand::class)->hourly();
 app(Schedule::class)->command(SettleBookingDisputesCommand::class)->hourly()->withoutOverlapping();
 app(Schedule::class)->command(RemindPendingBookingConfirmationCommand::class)->hourly()->withoutOverlapping();
 app(Schedule::class)->command(ExpireUnacceptedBookingsCommand::class)->hourly();
+// Lot B10 : relance de la Face quand il lui reste 24 h pour répondre à une demande cash.
+app(Schedule::class)->command(RemindFaceBookingResponseCommand::class)->hourly()->withoutOverlapping();
+// Lot B10 : demandes UGC dont la commission n'est pas réglée 48 h après leur création.
+app(Schedule::class)->command(ExpireUnpaidUgcBookingsCommand::class)->hourly()->withoutOverlapping();
 app(Schedule::class)->command(ExpireUnpaidBookingsCommand::class)->hourly();
 app(Schedule::class)->command(ExpireUnacceptedUgcDealsCommand::class)->hourly();
 // Lot B1 — expire les sélections de mission impayées après 24 h (relance entre 12 h et 20 h).

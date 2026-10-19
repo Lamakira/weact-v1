@@ -57,6 +57,7 @@ final class PushAllowlist
 
         // Reminders
         'booking_payment_reminder' => self::REMINDER,
+        'booking_response_reminder' => self::REMINDER,
         'mission_payment_reminder' => self::REMINDER,
         'mission_confirmation_reminder' => self::REMINDER,
         'booking_completion_reminder' => self::REMINDER,

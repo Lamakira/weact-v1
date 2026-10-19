@@ -11,7 +11,9 @@ use App\Enums\EscrowStatus;
 use App\Enums\FinancialEventType;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
+use App\Enums\UgcRefundReason;
 use App\Events\BookingCommissionPaid;
+use App\Events\UgcCommissionRefunded;
 use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Face;
@@ -57,7 +59,7 @@ class UgcCommissionPaymentService
 
     /**
      * Statut de paiement de commission dérivé du dernier checkAndProcess* (ugc-3-5 Item 3, exposition lecture).
-     * 'paid' | 'pending' | 'failed'. Stateful par requête : un seul checkAndProcess* par requête de polling.
+     * 'paid' | 'pending' | 'failed' | 'credited' (commission créditée au wallet après expiration, lot B10). Stateful par requête : un seul checkAndProcess* par requête de polling.
      *
      * ⚠️ NE PAS enregistrer ce service en singleton (`$this->app->singleton(...)`). Cet état est
      * volontairement par-instance/par-requête : le contrôleur appelle checkAndProcess* PUIS lit
@@ -70,6 +72,7 @@ class UgcCommissionPaymentService
         private readonly FedapayService $fedapayService,
         private readonly \App\Services\EscrowService $escrowService,
         private readonly FaceEntitlementService $faceEntitlementService,
+        private readonly UgcRefundService $ugcRefundService,
     ) {}
 
     // -------------------------------------------------------------------------
@@ -160,12 +163,58 @@ class UgcCommissionPaymentService
      */
     public function markBookingCommissionPaid(Booking $booking, string $fedapayRef): Booking
     {
-        return DB::transaction(function () use ($booking, $fedapayRef) {
+        $lateSettled = null;
+
+        $result = DB::transaction(function () use ($booking, $fedapayRef, &$lateSettled) {
             /** @var Booking $booking */
             $booking = Booking::query()->lockForUpdate()->findOrFail($booking->id);
 
             if ($booking->status === BookingStatus::CommissionPaid) {
                 return $booking; // idempotent
+            }
+
+            // Lot B10 : demande expirée faute de commission à 48 h alors qu'un paiement était
+            // en vol. L'encaissement est enregistré puis crédité au wallet du Producteur
+            // (jamais d'escrow : le deal est mort). Idempotent : un second webhook trouve
+            // commission_paid_at posé et retombe dans le log ci-dessous sans re-créditer.
+            if ($booking->status === BookingStatus::Expired
+                && $booking->type_contenu === 'UGC'
+                && $booking->commission_paid_at === null
+                && $booking->commission_refunded_at === null
+                && ! $this->hasExistingFinancialEvent($booking->id, FinancialEventType::PaymentConfirmed)) {
+                $booking->update(['commission_paid_at' => now()]);
+                $fresh = $booking->fresh();
+
+                $this->recordFinancialEvent(
+                    FinancialEventType::PaymentConfirmed,
+                    $fresh,
+                    (int) $fresh->montant_total_producteur,
+                    ['fedapay_ref' => $fedapayRef, 'status' => 'confirmed', 'metadata' => ['kind' => 'ugc_commission', 'late_after_expiry' => true]],
+                );
+
+                $lateSettled = $this->ugcRefundService->settleLatePaymentOnExpiredBooking($fresh);
+
+                Log::warning('UGC: commission réglée après expiration de la demande — créditée au wallet du Producteur', [
+                    'booking_id' => $fresh->id,
+                    'fedapay_ref' => $fedapayRef,
+                    'amount' => (int) $fresh->montant_total_producteur,
+                ]);
+
+                return $lateSettled ?? $fresh;
+            }
+
+            // Second webhook (ou poll) d'une commission déjà créditée après expiration : no-op
+            // idempotent, ce n'est PAS un paiement orphelin à rembourser par les ops.
+            if ($booking->status === BookingStatus::Expired
+                && $booking->type_contenu === 'UGC'
+                && $booking->commission_paid_at !== null
+                && $booking->commission_refund_reason === UgcRefundReason::CommissionPaidAfterExpiry) {
+                Log::info('UGC: commission déjà créditée après expiration — webhook ignoré', [
+                    'booking_id' => $booking->id,
+                    'fedapay_ref' => $fedapayRef,
+                ]);
+
+                return $booking;
             }
 
             if ($booking->status !== BookingStatus::Pending) {
@@ -206,6 +255,20 @@ class UgcCommissionPaymentService
 
             return $fresh;
         });
+
+        // Après commit : e-mail « wallet crédité » au Producteur (SendWalletCreditedEmailOnUgcRefunded).
+        if ($lateSettled !== null) {
+            try {
+                UgcCommissionRefunded::dispatch($lateSettled);
+            } catch (\Throwable $e) {
+                Log::warning('UgcCommissionRefunded dispatch failed after late commission payment', [
+                    'booking_id' => $lateSettled->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        return $result;
     }
 
     /**
@@ -247,6 +310,12 @@ class UgcCommissionPaymentService
             return $booking;
         }
 
+        if ($booking->status === BookingStatus::Expired
+            && $booking->type_contenu === 'UGC'
+            && $booking->fedapay_transaction_id) {
+            return $this->reconcileLatePaymentOnExpiredBooking($booking);
+        }
+
         if ($booking->status !== BookingStatus::Pending || ! $booking->fedapay_transaction_id) {
             $this->lastCommissionPaymentStatus = 'pending';
 
@@ -267,6 +336,49 @@ class UgcCommissionPaymentService
         $this->lastCommissionPaymentStatus = in_array($transaction->status, self::TERMINAL_FAILED_STATUSES, true)
             ? 'failed'
             : 'pending';
+
+        return $booking;
+    }
+
+    /**
+     * Lot B10 : demande expirée à 48 h dont le paiement approuvé arrive tard. Le polling suit le
+     * même chemin que le webhook (markBookingCommissionPaid, idempotent) et expose le statut
+     * 'credited' (montant crédité sur le wallet) que la page de retour affiche, au lieu de
+     * rester sur 'pending' tant que le webhook n'est pas arrivé.
+     */
+    private function reconcileLatePaymentOnExpiredBooking(Booking $booking): Booking
+    {
+        if ($booking->commission_refund_reason === UgcRefundReason::CommissionPaidAfterExpiry) {
+            $this->lastCommissionPaymentStatus = 'credited';
+
+            return $booking;
+        }
+
+        $this->lastCommissionPaymentStatus = 'pending';
+
+        // Paiement déjà encaissé/remboursé par un autre chemin : rien à rejouer.
+        if ($booking->commission_paid_at !== null || $booking->commission_refunded_at !== null) {
+            return $booking;
+        }
+
+        $transaction = FedapayPollCache::remember(
+            (int) $booking->fedapay_transaction_id,
+            fn () => $this->fedapayService->retrieveTransaction((int) $booking->fedapay_transaction_id),
+        );
+
+        if (in_array($transaction->status, ['approved', 'transferred'], true)) {
+            $settled = $this->markBookingCommissionPaid($booking, (string) ($transaction->reference ?? 'fedapay_poll'));
+
+            if ($settled->commission_refund_reason === UgcRefundReason::CommissionPaidAfterExpiry) {
+                $this->lastCommissionPaymentStatus = 'credited';
+            }
+
+            return $settled;
+        }
+
+        if (in_array($transaction->status, self::TERMINAL_FAILED_STATUSES, true)) {
+            $this->lastCommissionPaymentStatus = 'failed';
+        }
 
         return $booking;
     }
@@ -662,6 +774,16 @@ class UgcCommissionPaymentService
         if ($booking->status !== BookingStatus::Pending) {
             throw ValidationException::withMessages([
                 'status' => ['La commission de ce booking ne peut pas être payée dans son état actuel.'],
+            ]);
+        }
+
+        // Fenêtre de 48 h (lot B10) appliquée dès le checkout : tant que le cron n'est pas
+        // passé la demande est encore Pending, mais plus payable.
+        $deadline = $booking->ugcCommissionPaymentDeadline();
+
+        if ($deadline !== null && now()->greaterThanOrEqualTo($deadline)) {
+            throw ValidationException::withMessages([
+                'status' => ['Le délai de 48 h pour régler la commission est dépassé : cette demande a expiré.'],
             ]);
         }
     }

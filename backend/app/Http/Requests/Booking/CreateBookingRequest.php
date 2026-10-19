@@ -7,6 +7,7 @@ namespace App\Http\Requests\Booking;
 use App\Enums\CompensationType;
 use App\Models\Booking;
 use App\Models\Face;
+use App\Models\Mission;
 use App\Models\Producer;
 use App\Models\User;
 use App\Rules\NoContactDetails;
@@ -22,6 +23,9 @@ use Illuminate\Validation\Validator;
 class CreateBookingRequest extends FormRequest
 {
     private const MAX_UNSIGNED_INTEGER = 4294967295;
+
+    /** Heure (fuseau métier) à partir de laquelle on ne peut plus demander un booking pour le lendemain. */
+    private const NEXT_DAY_CUTOFF_HOUR = 16;
 
     public function authorize(): bool
     {
@@ -55,7 +59,9 @@ class CreateBookingRequest extends FormRequest
                     }
                 },
             ],
-            'date_debut' => ['required', 'date', 'after:today'],
+            // « Aujourd'hui » = jour calendaire du fuseau métier (comme l'échéance de réponse de la
+            // Face, lot B10) : `after:today` (UTC) laisserait naître une demande déjà expirée.
+            'date_debut' => ['required', 'date', 'after:'.Mission::businessToday()],
             'date_fin' => ['required', 'date', 'after_or_equal:date_debut'],
             'duree_heures' => ['required', 'integer', 'min:4', 'max:720'],
             'type_contenu' => ['required', 'string', 'max:100'],
@@ -68,7 +74,7 @@ class CreateBookingRequest extends FormRequest
         if ($this->input('type_contenu') === 'UGC') {
             // Une dotation UGC n'a ni lieu, ni dates, ni durée de tournage (la Face filme
             // chez elle, à son rythme) → on relâche ces champs cash en nullable pour l'UGC.
-            $rules['date_debut'] = ['nullable', 'date', 'after:today'];
+            $rules['date_debut'] = ['nullable', 'date', 'after:'.Mission::businessToday()];
             $rules['date_fin'] = ['nullable', 'date', 'after_or_equal:date_debut'];
             $rules['duree_heures'] = ['nullable', 'integer', 'min:4', 'max:720'];
             $rules['lieu'] = ['nullable', 'string', 'max:100'];
@@ -149,6 +155,7 @@ class CreateBookingRequest extends FormRequest
     {
         $validator->after(function (Validator $validator): void {
             $this->validateFaceCanReceiveUgc($validator);
+            $this->validateNextDayCutoff($validator);
 
             $faceUuid = $this->input('face_id');
             $dateDebut = $this->input('date_debut');
@@ -214,6 +221,34 @@ class CreateBookingRequest extends FormRequest
         $face = Face::where('uuid', $faceUuid)->first();
         if ($face && ! app(FaceEntitlementService::class)->canAccessUgc($face)) {
             $validator->errors()->add('type_contenu', "Cette Face n'est pas disponible pour les contenus UGC.");
+        }
+    }
+
+    /**
+     * Cash uniquement : après 16 h (heure du Bénin), plus de demande pour le lendemain — l'échéance
+     * de réponse de la Face (08 h le jour du tournage) ne lui laisserait qu'une nuit (PO 19/10).
+     * « Aujourd'hui » reste refusé par la règle `after:` de date_debut.
+     */
+    private function validateNextDayCutoff(Validator $validator): void
+    {
+        $dateDebut = $this->input('date_debut');
+        if ($this->input('type_contenu') === 'UGC' || ! is_string($dateDebut) || $validator->errors()->has('date_debut')) {
+            return;
+        }
+
+        $now = CarbonImmutable::now((string) config('app.business_timezone'));
+
+        try {
+            $start = CarbonImmutable::parse($dateDebut, $now->getTimezone())->startOfDay();
+        } catch (\Throwable) {
+            return;
+        }
+
+        if ($now->hour >= self::NEXT_DAY_CUTOFF_HOUR && $start->isSameDay($now->addDay())) {
+            $validator->errors()->add(
+                'date_debut',
+                'Après 16 h, vous ne pouvez plus envoyer de demande pour le lendemain. Choisissez une date ultérieure.'
+            );
         }
     }
 

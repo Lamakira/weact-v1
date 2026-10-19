@@ -10,7 +10,7 @@ import { faceApi } from '@/features/face/services/faceApi'
 const ctx = vi.hoisted(() => ({
   route: { query: {} as Record<string, unknown> },
   replace: vi.fn().mockResolvedValue(undefined),
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
   refreshStatus: vi.fn().mockResolvedValue(undefined),
   current: { value: null as { status: string } | null },
 }))
@@ -118,6 +118,20 @@ describe('usePaymentReturn', () => {
     expect(bookingApi.checkCommissionStatus).toHaveBeenCalledWith('b-uuid')
     expect(bookingApi.checkPaymentStatus).not.toHaveBeenCalled()
     expect(api.state.value).toBe('confirmed')
+  })
+
+  it('booking_commission: a late approval credited to the wallet is shown as credited, not as a published request', async () => {
+    ctx.route.query = { payment_return: 'booking_commission' }
+    vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue(
+      bookingRes('expired', { commission_payment_status: 'credited' }),
+    )
+    const { api } = mountReturn()
+
+    await api.start()
+
+    expect(api.state.value).toBe('confirmed')
+    expect(ctx.toast.success).not.toHaveBeenCalled()
+    expect(ctx.toast.info).toHaveBeenCalledWith(expect.stringContaining('crédité sur votre wallet WeAct'))
   })
 
   it('mission_commission: polls the mission commission-status with the ?mission id and strips the companion ids', async () => {
