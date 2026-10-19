@@ -1656,6 +1656,30 @@ class MissionPaymentService
         }
     }
 
+    /** Paiement cash Pending auquel la candidature appartient (entry Pending d'un MissionPayment Pending), sinon null. */
+    public function pendingCashPaymentFor(Candidature $candidature, bool $lockingRead = false): ?MissionPayment
+    {
+        // $lockingRead : dans une transaction MySQL (REPEATABLE READ), une lecture simple relit
+        // l'instantané pris à la première lecture et ignore une sélection commitée depuis ; une
+        // lecture verrouillante voit toujours le dernier état commité.
+        $entry = MissionPaymentCandidature::query()
+            ->where('candidature_id', $candidature->id)
+            ->where('escrow_status', EscrowStatus::Pending->value)
+            ->whereNotNull('mission_payment_id')
+            ->when($lockingRead, fn ($query) => $query->sharedLock())
+            ->first();
+
+        if ($entry === null) {
+            return null;
+        }
+
+        return MissionPayment::query()
+            ->whereKey($entry->mission_payment_id)
+            ->where('status', MissionPaymentStatus::Pending->value)
+            ->when($lockingRead, fn ($query) => $query->sharedLock())
+            ->first();
+    }
+
     /**
      * Whether a parentless hybrid UGC entry is Pending with a FedaPay transaction on this candidature.
      */
@@ -1855,9 +1879,11 @@ class MissionPaymentService
         }
 
         $url = $mission instanceof Mission ? "/producer/missions/{$mission->uuid}/candidatures" : '/producer/missions';
-        $message = $reason === 'selection_payment_expired'
+        $message = $reason === 'face_withdrew_during_payment'
+            ? 'Une Face a retiré sa candidature pendant le paiement : votre sélection sur « '.($mission instanceof Mission ? $mission->titre : 'votre mission').' » a été annulée. Refaites-la depuis la page Candidatures. Si un paiement aboutit malgré tout, son montant sera crédité sur votre wallet WeAct.'
+            : ($reason === 'selection_payment_expired'
             ? 'Le délai de 24 h pour payer votre sélection sur « '.($mission instanceof Mission ? $mission->titre : 'votre mission').' » est dépassé : la sélection a été annulée. Vous pouvez en refaire une.'
-            : 'Le paiement de votre sélection n\'a pas abouti : la sélection a été annulée, veuillez la refaire.';
+            : 'Le paiement de votre sélection n\'a pas abouti : la sélection a été annulée, veuillez la refaire.');
 
         $this->notifySafely(
             userId: $this->getUserIdForProducer((int) $payment->producer_id),

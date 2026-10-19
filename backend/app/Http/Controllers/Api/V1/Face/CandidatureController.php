@@ -464,33 +464,35 @@ class CandidatureController extends Controller
 
         $payments = app(MissionPaymentService::class);
 
-        // Checkout cash : on interroge FedaPay (API serveur) AVANT de prendre le moindre verrou.
-        // Payé → réglé ici puis retrait refusé (candidature acceptée) ; en cours → refus ;
-        // indisponible → refus par prudence ; mort / abandonné → la sélection sera réinitialisée.
-        $assessment = $candidature->status === CandidatureStatus::Pending
-            ? $payments->assessCashCheckout($candidature)
+        // Face sélectionnée dans une sélection cash en attente de paiement : on règle / réinitialise
+        // la sélection AVANT tout verrou (appel FedaPay). Réinitialisée → le retrait se poursuit ;
+        // checkout récent, payé ou invérifiable → refus. Non sélectionnée : retrait inchangé.
+        $payment = $candidature->status === CandidatureStatus::Pending
+            ? $payments->pendingCashPaymentFor($candidature)
             : null;
 
-        if ($assessment !== null) {
-            if ($assessment['kind'] === MissionPaymentService::CHECKOUT_UNVERIFIABLE) {
-                return response()->json(ErrorCodes::InvalidStatus->envelope(
-                    'Impossible de vérifier le paiement pour le moment, réessayez dans quelques minutes.'
-                ), 422);
-            }
+        if ($payment !== null) {
+            $outcome = $payments->settleOrResetPendingSelection($payment, 'face_withdrew_during_payment', respectOpenCheckout: true);
 
-            if ($assessment['kind'] === MissionPaymentService::CHECKOUT_IN_FLIGHT) {
-                return response()->json(ErrorCodes::InvalidStatus->envelope(
-                    'Le producteur est en train de payer ; réessayez dans une heure si le paiement n\'aboutit pas.'
-                ), 422);
+            $refusal = match ($outcome) {
+                MissionPaymentService::SELECTION_IN_FLIGHT => 'Le producteur est en train de payer sa sélection. Réessayez dans une heure.',
+                MissionPaymentService::SELECTION_UNVERIFIABLE => 'Impossible de vérifier le paiement pour le moment, réessayez dans quelques minutes.',
+                MissionPaymentService::SELECTION_SETTLED => 'Le producteur vient de finaliser le paiement : votre candidature est retenue. Confirmez votre participation depuis vos candidatures.',
+                default => null,
+            };
+
+            if ($refusal !== null) {
+                return response()->json(ErrorCodes::InvalidStatus->envelope($refusal), 422);
             }
         }
 
         // Sous verrou : relit la candidature (une approbation concurrente peut l'avoir fait
         // avancer) puis applique les gardes et l'annulation de façon atomique.
-        $blocked = DB::transaction(function () use ($candidature, $payments, $assessment): ?JsonResponse {
+        $blocked = DB::transaction(function () use ($candidature, $payments): ?JsonResponse {
             // Ordre de verrous (aligné sur markAsPaid) : payment → entries → mission → candidature.
-            if ($assessment !== null && $assessment['kind'] === MissionPaymentService::CHECKOUT_RESETTABLE) {
-                $payments->lockCashSelection($assessment['payment_id']);
+            $stillPending = $payments->pendingCashPaymentFor($candidature);
+            if ($stillPending !== null) {
+                $payments->lockCashSelection($stillPending->id);
             }
             Mission::query()->lockForUpdate()->find($candidature->mission_id);
 
@@ -505,12 +507,13 @@ class CandidatureController extends Controller
                 );
             }
 
-            // Checkout cash abandonné / mort : réinitialisation de la sélection entière (payment +
-            // entries supprimés, mission republiée), puis le retrait se poursuit.
-            if ($assessment !== null
-                && ! $payments->resetPendingCashSelection($locked, 'face_withdrew_stale_checkout', $assessment)) {
+            // Fail-closed : la candidature figure encore dans une sélection cash en attente de
+            // paiement (reset impossible : checkout repris en parallèle, sélection confirmée
+            // entre-temps) → le Producteur paierait une place sans Face. Lecture verrouillante :
+            // une sélection commitée après la première lecture de cette transaction doit être vue.
+            if ($payments->pendingCashPaymentFor($locked, lockingRead: true) !== null) {
                 return response()->json(ErrorCodes::InvalidStatus->envelope(
-                    'Le producteur est en train de payer ; réessayez dans une heure si le paiement n\'aboutit pas.'
+                    'Le producteur est en train de payer sa sélection. Réessayez dans une heure.'
                 ), 422);
             }
 
