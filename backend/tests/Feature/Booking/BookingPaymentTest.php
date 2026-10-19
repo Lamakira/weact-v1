@@ -378,12 +378,12 @@ class BookingPaymentTest extends TestCase
     {
         Log::spy();
 
-        // Booking annulé entre l'initiation du paiement et le webhook approved :
+        // Booking refusé (l'annulation tardive est créditée au wallet, lot B11b) entre l'initiation du paiement et le webhook approved :
         // le client a potentiellement été débité sur un état invalide. Avant le
         // durcissement, BookingService::markAsPaid faisait THROW (ValidationException)
         // → retries inutiles puis failed_jobs muet. Désormais : pas de throw,
         // CRITICAL + event processed, statut inchangé.
-        $cancelled = Booking::factory()->cancelledByProducer()->create([
+        $cancelled = Booking::factory()->refused()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
             'fedapay_transaction_id' => 88888,
@@ -410,7 +410,7 @@ class BookingPaymentTest extends TestCase
         );
 
         $cancelled->refresh();
-        $this->assertEquals(BookingStatus::CancelledByProducer, $cancelled->status);
+        $this->assertEquals(BookingStatus::Refused, $cancelled->status);
 
         $webhookEvent->refresh();
         $this->assertEquals('processed', $webhookEvent->status);
@@ -419,7 +419,7 @@ class BookingPaymentTest extends TestCase
             ->withArgs(function (string $message, array $context) use ($cancelled): bool {
                 return $message === 'Fedapay webhook: booking settlement rejected by business guard — money possibly collected on an invalid state, manual review required'
                     && ($context['booking_id'] ?? null) === $cancelled->id
-                    && ($context['booking_status'] ?? null) === 'cancelled_by_producer'
+                    && ($context['booking_status'] ?? null) === 'refused'
                     && ($context['exception'] ?? null) === \Illuminate\Validation\ValidationException::class;
             })
             ->once();
