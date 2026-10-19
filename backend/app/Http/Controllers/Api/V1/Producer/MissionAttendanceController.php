@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Producer;
 
+use App\Enums\CandidatureStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Http\Controllers\Controller;
@@ -48,8 +49,10 @@ class MissionAttendanceController extends Controller
             ]);
         }
 
+        // Une Face dont la place a expiré (B3) n'est plus à pointer : entry remboursée, exclue de la liste.
         $entries = $payment->entries()
-            ->with('face')
+            ->whereDoesntHave('candidature', fn ($query) => $query->where('status', CandidatureStatus::Expired->value))
+            ->with(['face', 'candidature'])
             ->orderBy('id')
             ->get();
 
@@ -83,7 +86,7 @@ class MissionAttendanceController extends Controller
         /** @var MissionPayment|null $payment */
         $payment = $freshMission->payment;
         $entries = $payment
-            ? $payment->entries()->with('face')->orderBy('id')->get()
+            ? $payment->entries()->with(['face', 'candidature'])->orderBy('id')->get()
             : new Collection;
 
         return response()->json([
@@ -96,7 +99,7 @@ class MissionAttendanceController extends Controller
     }
 
     /**
-     * @return array<string, string|null>
+     * @return array<string, string|bool|null>
      */
     private function missionPayload(Mission $mission): array
     {
@@ -106,6 +109,10 @@ class MissionAttendanceController extends Controller
             'status' => $mission->status->value,
             'status_label' => $mission->status->label(),
             'date_tournage' => $mission->date_tournage?->toIso8601String(),
+            // Lot B5 : ouverture des présences au début du jour du tournage (fuseau métier).
+            'attendance_opens_at' => $mission->shootingDayStartsAt()?->toIso8601String(),
+            'can_mark_attendance' => $mission->isAttendanceOpen(),
+            'attendance_blocked_reason' => $mission->attendanceBlockedReason(),
         ];
     }
 }

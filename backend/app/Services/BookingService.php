@@ -54,6 +54,9 @@ class BookingService
     /** Paiement automatique de la Face 7 jours après la fin du jour de tournage (jour J + 8 à 00:00). */
     public const SILENT_AUTO_COMPLETE_AFTER_DAYS = 8;
 
+    /** Motif posé sur une demande refusée automatiquement : la Face a accepté une autre demande sur ces dates. */
+    public const OVERLAP_AUTO_REFUSAL_REASON = 'La Face a accepté une autre demande sur ces dates : votre demande a été refusée automatiquement.';
+
     public function __construct(
         private readonly FedapayService $fedapayService,
         private readonly EscrowService $escrowService,
@@ -241,7 +244,10 @@ class BookingService
      */
     public function accept(Booking $booking): Booking
     {
-        return DB::transaction(function () use ($booking) {
+        /** @var list<int> $concurrentPendingIds */
+        $concurrentPendingIds = [];
+
+        $accepted = DB::transaction(function () use ($booking, &$concurrentPendingIds) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
             // UGC (2.4) : l'acceptation n'ouvre qu'une fois la commission réglée.
@@ -288,6 +294,21 @@ class BookingService
                         'date_debut' => ['Vous avez déjà un booking accepté sur ces dates.'],
                     ]);
                 }
+
+                // Demandes concurrentes (lot B9) : relevées ici (lecture simple, après le verrou
+                // de la Face, même raisonnement que ci-dessus) mais refusées APRÈS le commit,
+                // chacune sous son propre verrou : les verrouiller ici inverserait l'ordre
+                // booking -> Face des autres flux.
+                $concurrentPendingIds = Booking::query()
+                    ->pendingOverlappingForFace(
+                        (int) $booking->face_id,
+                        $booking->date_debut->copy()->startOfDay(),
+                        $booking->date_fin->copy()->endOfDay(),
+                        $booking->id,
+                    )
+                    ->pluck('id')
+                    ->map(fn (mixed $id): int => (int) $id)
+                    ->all();
             }
 
             $booking->update([
@@ -300,6 +321,47 @@ class BookingService
 
             return $booking->fresh();
         });
+
+        foreach ($concurrentPendingIds as $concurrentId) {
+            $this->autoRefuseConcurrentRequest($concurrentId);
+        }
+
+        return $accepted;
+    }
+
+    /**
+     * Refus automatique d'une demande en attente dont les dates chevauchent un booking que
+     * la Face vient d'accepter (lot B9). Transaction propre, idempotent : une demande déjà
+     * traitée entre-temps (acceptée ailleurs, annulée, expirée) est laissée telle quelle.
+     * Non-fatal : l'acceptation est déjà validée ; une demande restée en attente ne pourra
+     * de toute façon plus être acceptée (contrôle de chevauchement) et expirera.
+     */
+    private function autoRefuseConcurrentRequest(int $bookingId): void
+    {
+        try {
+            DB::transaction(function () use ($bookingId): void {
+                /** @var Booking|null $locked */
+                $locked = Booking::query()->lockForUpdate()->find($bookingId);
+
+                if ($locked === null
+                    || $locked->status !== BookingStatus::Pending
+                    || $locked->type_contenu === 'UGC') {
+                    return;
+                }
+
+                $locked->update([
+                    'status' => BookingStatus::Refused,
+                    'cancellation_reason' => self::OVERLAP_AUTO_REFUSAL_REASON,
+                ]);
+
+                BookingRefused::dispatch($locked->fresh(), true);
+            });
+        } catch (\Throwable $e) {
+            Log::warning('Concurrent booking auto-refusal failed', [
+                'booking_id' => $bookingId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

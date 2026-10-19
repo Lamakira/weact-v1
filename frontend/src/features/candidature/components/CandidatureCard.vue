@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { Calendar, MapPin, Wallet, User, Check, Loader2, MessageCircle, XCircle } from 'lucide-vue-next'
 import type { FaceCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
+import { formatConfirmationDeadline } from '../utils/formatConfirmationDeadline'
 import { StatusPill, tunnelStatusToPillKind } from '@/components/ugc'
 import MissionAbsenceContestBlock from './MissionAbsenceContestBlock.vue'
 
@@ -41,7 +42,8 @@ const displayStatus = computed(() => props.candidature.display_status ?? props.c
 const displayStatusLabel = computed(() => props.candidature.display_status_label ?? props.candidature.status_label)
 
 // « Mission clôturée » : pending côté base, mais plus rien à annuler ni à attendre.
-const canCancel = computed(() => displayStatus.value === 'pending')
+// « Sélection en cours de paiement » : la Face peut encore se retirer.
+const canCancel = computed(() => displayStatus.value === 'pending' || displayStatus.value === 'selection_payment_pending')
 
 /**
  * Computed: Show chat button when candidature allows chat and has conversation
@@ -134,7 +136,9 @@ const formattedCreatedAt = computed(() => {
 const statusBadgeClass = computed(() => {
   const color = displayStatus.value === 'mission_closed'
     ? 'gray'
-    : CandidatureStatusColor[props.candidature.status]
+    : displayStatus.value === 'selection_payment_pending'
+      ? 'yellow'
+      : CandidatureStatusColor[props.candidature.status]
   const colorClasses: Record<string, string> = {
     yellow: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
     blue: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
@@ -175,6 +179,15 @@ const formattedReconfirmDeadline = computed(() => {
     return ''
   }
 })
+
+/**
+ * Computed: Confirmation deadline of a cash selection (lot B3) — « jeudi 19 octobre à 08h51 ».
+ * Backend `confirmation_deadline` (min(accepted_at + 48 h, début du jour de tournage)) ;
+ * null/absent hors candidature cash `accepted` (UGC : voir reconfirm_deadline).
+ */
+const formattedConfirmationDeadline = computed(() =>
+  canConfirm.value ? formatConfirmationDeadline(props.candidature.confirmation_deadline) : '',
+)
 </script>
 
 <template>
@@ -289,6 +302,15 @@ const formattedReconfirmDeadline = computed(() => {
         <Check v-else class="h-4 w-4" />
         {{ isConfirming ? 'Confirmation...' : 'Confirmer ma participation' }}
       </button>
+
+      <!-- Confirmation deadline label (cash accepted, lot B3) -->
+      <p
+        v-if="formattedConfirmationDeadline"
+        data-testid="confirmation-deadline-label"
+        class="text-center text-xs text-amber-600 dark:text-amber-400"
+      >
+        À confirmer avant le {{ formattedConfirmationDeadline }}
+      </p>
 
       <!-- Reconfirmation deadline label (UGC accepted, 9-2, D-9.2.e) -->
       <p

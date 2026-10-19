@@ -14,6 +14,7 @@ use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Enums\UgcRefundReason;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -32,6 +33,7 @@ use Illuminate\Support\Str;
  * @property \Carbon\CarbonInterface|null $date_tournage
  * @property \Carbon\CarbonInterface|null $shooting_reminder_sent_at
  * @property \Carbon\CarbonInterface|null $date_limite_candidature
+ * @property \Carbon\CarbonInterface|null $candidature_response_reminder_sent_at
  * @property string|null $profil_recherche
  * @property int $budget
  * @property int $nombre_faces_voulu
@@ -133,6 +135,7 @@ class Mission extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'candidature_response_reminder_sent_at',
         'producer_id',
         'titre',
         'description',
@@ -173,6 +176,7 @@ class Mission extends Model
             'date_tournage' => 'date',
             'shooting_reminder_sent_at' => 'datetime',
             'date_limite_candidature' => 'date',
+            'candidature_response_reminder_sent_at' => 'datetime',
             'budget' => 'integer',
             'nombre_faces_voulu' => 'integer',
             'status' => MissionStatus::class,
@@ -319,6 +323,101 @@ class Mission extends Model
     }
 
     /**
+     * Début du jour de tournage en fuseau métier (exprimé en UTC), null sans date de tournage.
+     */
+    public function shootingDayStartsAt(): ?CarbonInterface
+    {
+        if ($this->date_tournage === null) {
+            return null;
+        }
+
+        return Carbon::parse($this->date_tournage->toDateString(), (string) config('app.business_timezone'))
+            ->startOfDay()
+            ->utc();
+    }
+
+    /** Lot B6 (D3) : délai de réponse du Producer aux candidatures, après leur clôture. */
+    public const PRODUCER_RESPONSE_WINDOW_HOURS = 72;
+
+    /** Lot B6 : le Producer est relancé une fois quand il reste au plus ce délai. */
+    public const PRODUCER_RESPONSE_REMINDER_BEFORE_HOURS = 24;
+
+    /**
+     * Fin du dernier jour de candidature (date_limite_candidature incluse), fuseau métier,
+     * exprimée en UTC. Null sans date limite.
+     */
+    public function candidaturesCloseAt(): ?CarbonInterface
+    {
+        if ($this->date_limite_candidature === null) {
+            return null;
+        }
+
+        return Carbon::parse($this->date_limite_candidature->toDateString(), (string) config('app.business_timezone'))
+            ->addDay()
+            ->startOfDay()
+            ->utc();
+    }
+
+    /**
+     * Lot B6 (D3) : échéance de réponse du Producer aux candidatures en attente =
+     * clôture des candidatures + 72 h, ou début du jour de tournage s'il arrive plus tôt.
+     * Source unique (relance, expiration). Null sans date limite.
+     */
+    public function producerResponseDeadline(): ?CarbonInterface
+    {
+        $closeAt = $this->candidaturesCloseAt();
+
+        if ($closeAt === null) {
+            return null;
+        }
+
+        $deadline = $closeAt->copy()->addHours(self::PRODUCER_RESPONSE_WINDOW_HOURS);
+        $shootingStart = $this->shootingDayStartsAt();
+
+        return $shootingStart !== null && $shootingStart->lessThan($deadline) ? $shootingStart : $deadline;
+    }
+
+    /**
+     * Échéance de réponse au format affiché (« 24/10 à 00:00 », fuseau métier).
+     */
+    public function producerResponseDeadlineLabel(): ?string
+    {
+        $deadline = $this->producerResponseDeadline();
+
+        if ($deadline === null) {
+            return null;
+        }
+
+        $local = $deadline->copy()->setTimezone((string) config('app.business_timezone'));
+
+        return $local->format('d/m').' à '.$local->format('H:i');
+    }
+
+    /**
+     * Lot B5 : les présences se pointent à partir du jour du tournage (fuseau métier).
+     * Sans date de tournage (données anciennes), rien ne permet de bloquer : ouvert.
+     */
+    public function isAttendanceOpen(): bool
+    {
+        $start = $this->shootingDayStartsAt();
+
+        return $start === null || now()->gte($start);
+    }
+
+    /**
+     * Raison affichée quand les présences ne sont pas encore ouvertes, null sinon.
+     */
+    public function attendanceBlockedReason(): ?string
+    {
+        if ($this->isAttendanceOpen()) {
+            return null;
+        }
+
+        return 'Les présences se valident à partir du jour du tournage (le '
+            .$this->date_tournage?->format('d/m/Y').').';
+    }
+
+    /**
      * Date du jour (Y-m-d) dans le fuseau métier (Bénin), pas en UTC : la date
      * limite est un jour calendaire béninois.
      */
@@ -417,6 +516,9 @@ class Mission extends Model
             ->exists();
     }
 
+    /** Lot B4 : message du blocage « toutes les places remboursées » (aussi testé par la clôture automatique). */
+    public const NO_FACE_CONFIRMED_MESSAGE = "Aucune Face n'a confirmé sa participation : il n'y a rien à terminer. Les places ont été remboursées sur votre wallet.";
+
     /**
      * First rule that prevents the Producer from completing this mission, as
      * [error key, message], or null when none applies. Single source of truth shared by
@@ -427,6 +529,12 @@ class Mission extends Model
     public function completionBlocker(): ?array
     {
         $onlyClosed = 'Seules les missions clôturées peuvent être marquées comme terminées';
+
+        // Lot B8 : une mission UGC n'a pas de MissionPayment (commission payée à la
+        // publication, escrow hybride par candidature) ; règle dédiée.
+        if ($this->type_mission === MissionType::Ugc) {
+            return $this->ugcCompletionBlocker($onlyClosed);
+        }
 
         if ($this->status === MissionStatus::Draft || $this->status === MissionStatus::Published) {
             return ['status', $onlyClosed];
@@ -467,6 +575,30 @@ class Mission extends Model
             return ['candidatures', 'Toutes les faces sélectionnées doivent confirmer leur participation avant de terminer la mission'];
         }
 
+        // Lot B4 : une place libérée garde son argent en séquestre jusqu'à une remplaçante
+        // ou son remboursement ; terminer la verserait à tort.
+        $hasPendingFreedPlace = $payment->entries()
+            ->whereNotNull('freed_at')
+            ->where('escrow_status', EscrowStatus::Locked->value)
+            ->exists();
+
+        if ($hasPendingFreedPlace) {
+            return ['candidatures', 'Une place libérée attend une remplaçante ou son remboursement : la mission ne peut pas encore être terminée.'];
+        }
+
+        // Lot B4 : toutes les Faces sélectionnées ont expiré (places remboursées) : rien à terminer.
+        $hasEngagedFace = Candidature::whereIn('id', $selectedCandidatureIds)
+            ->whereIn('status', [
+                CandidatureStatus::Confirmed->value,
+                CandidatureStatus::InProgress->value,
+                CandidatureStatus::Completed->value,
+            ])
+            ->exists();
+
+        if (! $hasEngagedFace) {
+            return ['candidatures', self::NO_FACE_CONFIRMED_MESSAGE];
+        }
+
         return null;
     }
 
@@ -476,8 +608,70 @@ class Mission extends Model
      */
     public function canBeCompleted(): bool
     {
-        return in_array($this->status, [MissionStatus::Closed, MissionStatus::PendingAttendanceValidation], true)
+        // Lot B8 : une mission UGC dont le recrutement est fini peut être encore publiée
+        // (date limite passée sans avoir rempli toutes les places).
+        $completableStatuses = $this->type_mission === MissionType::Ugc
+            ? [MissionStatus::Closed, MissionStatus::Published]
+            : [MissionStatus::Closed, MissionStatus::PendingAttendanceValidation];
+
+        return in_array($this->status, $completableStatuses, true)
             && $this->completionBlocker() === null;
+    }
+
+    /**
+     * Lot B8 : statuts de candidature UGC encore engagés dans une livraison (non terminaux).
+     *
+     * @var list<CandidatureStatus>
+     */
+    public const UGC_ACTIVE_CANDIDATURE_STATUSES = [
+        CandidatureStatus::Accepted,
+        CandidatureStatus::Confirmed,
+        CandidatureStatus::InProgress,
+    ];
+
+    /**
+     * Lot B8 : règle de fin d'une mission UGC. Terminable quand le recrutement est fini
+     * (clôturée, ou date limite de candidature passée), qu'aucune Face engagée n'est encore
+     * en cours de livraison (acceptée, confirmée, en cours) et qu'au moins une livraison
+     * est terminée. Aucun argent ne bouge à la fin : chaque candidature est déjà réglée.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    private function ugcCompletionBlocker(string $onlyClosed): ?array
+    {
+        if ($this->status === MissionStatus::Completed) {
+            return ['status', 'Cette mission est déjà terminée'];
+        }
+
+        if ($this->status === MissionStatus::PendingPayment) {
+            return ['status', 'La commission doit être réglée avant de terminer la mission'];
+        }
+
+        $recruitmentOver = $this->status === MissionStatus::Closed
+            || ($this->status === MissionStatus::Published
+                && $this->date_limite_candidature !== null
+                && $this->date_limite_candidature->toDateString() < self::businessToday());
+
+        if (! $recruitmentOver) {
+            return ['status', $onlyClosed];
+        }
+
+        $hasActiveFaces = $this->candidatures()
+            ->whereIn('status', array_map(
+                static fn (CandidatureStatus $status): string => $status->value,
+                self::UGC_ACTIVE_CANDIDATURE_STATUSES,
+            ))
+            ->exists();
+
+        if ($hasActiveFaces) {
+            return ['candidatures', 'Toutes les Faces engagées doivent avoir terminé leur livraison (ou quitté la mission) avant de terminer la mission.'];
+        }
+
+        if (! $this->candidatures()->where('status', CandidatureStatus::Completed->value)->exists()) {
+            return ['candidatures', "Cette mission n'a aucune livraison terminée."];
+        }
+
+        return null;
     }
 
     /**

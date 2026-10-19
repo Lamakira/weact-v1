@@ -278,13 +278,37 @@ class Booking extends Model
      */
     public function scopeOverlappingActiveForFace($query, int $faceUserId, CarbonInterface $start, CarbonInterface $end, ?int $exceptBookingId = null): void
     {
+        $query->whereIn('status', [
+            BookingStatus::Accepted->value,
+            BookingStatus::Paid->value,
+            BookingStatus::ConfirmedByFace->value,
+            BookingStatus::ConfirmedByProducer->value,
+        ])
+            ->overlappingRangeForFace($faceUserId, $start, $end, $exceptBookingId);
+    }
+
+    /**
+     * Demandes en attente (Pending) d'une Face dont la plage chevauche [$start, $end] :
+     * celles qu'on refuse automatiquement quand la Face accepte une demande sur ces dates.
+     * Même règle de chevauchement que scopeOverlappingActiveForFace.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Booking>  $query
+     */
+    public function scopePendingOverlappingForFace($query, int $faceUserId, CarbonInterface $start, CarbonInterface $end, ?int $exceptBookingId = null): void
+    {
+        $query->where('status', BookingStatus::Pending->value)
+            ->overlappingRangeForFace($faceUserId, $start, $end, $exceptBookingId);
+    }
+
+    /**
+     * Plage [date_debut, date_fin] d'une Face qui chevauche [$start, $end] (bornes incluses).
+     * Les bookings sans dates (dotations UGC) ne chevauchent jamais rien.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Booking>  $query
+     */
+    public function scopeOverlappingRangeForFace($query, int $faceUserId, CarbonInterface $start, CarbonInterface $end, ?int $exceptBookingId = null): void
+    {
         $query->where('face_id', $faceUserId)
-            ->whereIn('status', [
-                BookingStatus::Accepted->value,
-                BookingStatus::Paid->value,
-                BookingStatus::ConfirmedByFace->value,
-                BookingStatus::ConfirmedByProducer->value,
-            ])
             ->where('date_debut', '<=', $end)
             ->where('date_fin', '>=', $start)
             ->when($exceptBookingId !== null, fn ($q) => $q->where('id', '!=', $exceptBookingId));

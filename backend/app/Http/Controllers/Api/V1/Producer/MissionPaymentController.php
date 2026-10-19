@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1\Producer;
 
 use App\Enums\ErrorCodes;
 use App\Enums\MissionPaymentStatus;
+use App\Enums\MissionStatus;
 use App\Exceptions\MissionPaymentInitiationException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Mission\PayUgcMissionCommissionRequest;
@@ -112,6 +113,7 @@ class MissionPaymentController extends Controller
                     'has_payment' => false,
                     'status' => null,
                     'is_trackable' => false,
+                    'expires_at' => null,
                     'mission_status' => $mission->status,
                 ],
             ]);
@@ -164,9 +166,55 @@ class MissionPaymentController extends Controller
                 'is_trackable' => $isTrackable,
                 'paid_at' => $payment->paid_at,
                 'montant_total' => $payment->montant_total_producteur,
+                'expires_at' => $payment->status === MissionPaymentStatus::Pending
+                    ? $this->missionPaymentService->selectionExpiresAt($payment)->toIso8601String()
+                    : null,
                 'mission_status' => $mission->fresh()->status,
             ],
         ]);
+    }
+
+    /**
+     * « Modifier la sélection » : annule le paiement en attente de la sélection (Producer only).
+     *
+     * POST /api/v1/producer/missions/{mission}/cancel-selection
+     */
+    public function cancelSelection(Request $request, Mission $mission): JsonResponse
+    {
+        $user = $request->user();
+
+        if ($user->userable_type !== Producer::class || $user->userable_id !== $mission->producer_id) {
+            abort(403, 'Cette action n\'est pas autorisée');
+        }
+
+        $payment = $mission->payment;
+
+        if (! $payment || $mission->status !== MissionStatus::PendingPayment || $payment->status !== MissionPaymentStatus::Pending) {
+            return response()->json(ErrorCodes::InvalidStatus->envelope('Aucun paiement en attente à annuler.'), 422);
+        }
+
+        $outcome = $this->missionPaymentService->settleOrResetPendingSelection(
+            $payment,
+            'producer_cancelled_selection',
+            respectOpenCheckout: false,
+        );
+
+        return match ($outcome) {
+            MissionPaymentService::SELECTION_RESET => response()->json([
+                'data' => ['mission_status' => MissionStatus::Published->value],
+                'message' => 'Sélection annulée. Vous pouvez refaire votre sélection.',
+            ]),
+            MissionPaymentService::SELECTION_SETTLED => response()->json(ErrorCodes::InvalidStatus->envelope(
+                'Le paiement vient d\'être confirmé : la sélection ne peut plus être modifiée.'
+            ), 409),
+            MissionPaymentService::SELECTION_IN_FLIGHT => response()->json(ErrorCodes::InvalidStatus->envelope(
+                'Un paiement est en cours d\'initialisation, réessayez dans un instant.'
+            ), 409),
+            MissionPaymentService::SELECTION_UNVERIFIABLE => response()->json(ErrorCodes::InvalidStatus->envelope(
+                'Impossible de vérifier le paiement pour le moment, réessayez dans quelques minutes.'
+            ), 422),
+            default => response()->json(ErrorCodes::InvalidStatus->envelope('Aucun paiement en attente à annuler.'), 422),
+        };
     }
 
     /**
