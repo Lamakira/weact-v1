@@ -7,16 +7,23 @@ namespace App\Mail;
 use App\Models\Booking;
 use Illuminate\Mail\Mailables\Content;
 
-/** Email Producteur (vouvoiement, D-7.1.e) : la Face a refusé son booking (ugc-7-5). */
+/**
+ * Email Producteur (vouvoiement, D-7.1.e) : la Face a refusé son booking (ugc-7-5),
+ * ou la demande a été refusée automatiquement parce que la Face a accepté une autre
+ * demande sur les mêmes dates (lot B9, $automatic).
+ */
 final class BookingRefusedMail extends BaseMail
 {
     public function __construct(
         public readonly Booking $booking,
+        public readonly bool $automatic = false,
     ) {}
 
     protected function subjectLine(): string
     {
-        return 'Votre booking a été refusé';
+        return $this->automatic
+            ? "Votre demande de booking n'a pas abouti"
+            : 'Votre booking a été refusé';
     }
 
     public function content(): Content
@@ -28,6 +35,7 @@ final class BookingRefusedMail extends BaseMail
                 'reasonLabel' => $this->resolveReason(),
                 'refusedAt' => $this->booking->updated_at?->format('d/m/Y H:i') ?? 'Inconnue',
                 'bookingUrl' => $this->buildBookingUrl(),
+                'automatic' => $this->automatic,
             ],
         );
     }
