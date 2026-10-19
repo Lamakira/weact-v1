@@ -1056,9 +1056,10 @@ class BookingService
         }
 
         $lateCredit = null;
+        $lateMotif = WalletCreditMotif::BookingLatePaymentRefund;
         $expiredHere = false;
 
-        $result = DB::transaction(function () use ($booking, $fedapayRef, &$lateCredit, &$expiredHere) {
+        $result = DB::transaction(function () use ($booking, $fedapayRef, &$lateCredit, &$lateMotif, &$expiredHere) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
             // Idempotent: already paid, skip
@@ -1089,7 +1090,24 @@ class BookingService
                     return $booking;
                 }
 
-                $lateCredit = $this->creditLatePaymentOnExpiredBooking($booking, $fedapayRef);
+                $lateCredit = $this->creditLatePayment($booking, $fedapayRef, 'expiry');
+
+                return $booking->fresh();
+            }
+
+            // Lot B11b : paiement approuvé après l'annulation (Face ou Producteur) pendant que le
+            // checkout était ouvert (ex. délai de confirmation mobile money). Même crédit wallet
+            // intégral que l'expiré, statut inchangé, aucun escrow. Uniquement si le booking n'a
+            // JAMAIS été payé : un booking payé puis annulé a déjà son propre remboursement
+            // (escrow) et un PaymentConfirmed — on ne recrédite pas (idempotent).
+            if (in_array($booking->status, [BookingStatus::CancelledByFace, BookingStatus::CancelledByProducer], true)) {
+                if ($this->hasExistingFinancialEvent($booking->id, FinancialEventType::PaymentConfirmed)
+                    || $booking->escrowTransaction()->exists()) {
+                    return $booking;
+                }
+
+                $lateCredit = $this->creditLatePayment($booking, $fedapayRef, 'cancellation');
+                $lateMotif = WalletCreditMotif::BookingLatePaymentAfterCancellation;
 
                 return $booking->fresh();
             }
@@ -1134,17 +1152,18 @@ class BookingService
         }
 
         if ($lateCredit !== null) {
-            $this->notifyLatePaymentCredit($result, $lateCredit);
+            $this->notifyLatePaymentCredit($result, $lateCredit, $lateMotif);
         }
 
         return $result;
     }
 
     /**
-     * Crédit wallet d'un paiement arrivé sur un booking expiré (lot B11). Sous le verrou du
-     * booking, dans la transaction de markAsPaid. Retourne le montant crédité.
+     * Crédit wallet d'un paiement arrivé sur un booking expiré (lot B11) ou annulé jamais payé
+     * (lot B11b) : `$cause` = 'expiry' | 'cancellation'. Sous le verrou du booking, dans la
+     * transaction de markAsPaid. Retourne le montant crédité.
      */
-    private function creditLatePaymentOnExpiredBooking(Booking $booking, string $fedapayRef): int
+    private function creditLatePayment(Booking $booking, string $fedapayRef, string $cause): int
     {
         $amount = (int) $booking->montant_total_producteur;
 
@@ -1152,24 +1171,26 @@ class BookingService
             FinancialEventType::PaymentConfirmed,
             $booking,
             $amount,
-            ['fedapay_ref' => $fedapayRef, 'status' => 'confirmed', 'metadata' => ['late_after_expiry' => true]],
+            ['fedapay_ref' => $fedapayRef, 'status' => 'confirmed', 'metadata' => ["late_after_{$cause}" => true]],
         );
 
         $this->walletService->credit(
             (int) $booking->producer_id,
             $amount,
             $booking,
-            WalletCreditMotif::BookingLatePaymentRefund->label(),
+            ($cause === 'cancellation'
+                ? WalletCreditMotif::BookingLatePaymentAfterCancellation
+                : WalletCreditMotif::BookingLatePaymentRefund)->label(),
         );
 
         $this->recordFinancialEvent(
             FinancialEventType::Refund,
             $booking,
             $amount,
-            ['fedapay_ref' => $fedapayRef, 'status' => 'refunded', 'metadata' => ['reason' => 'late_payment_after_expiry', 'settlement' => 'wallet']],
+            ['fedapay_ref' => $fedapayRef, 'status' => 'refunded', 'metadata' => ['reason' => "late_payment_after_{$cause}", 'settlement' => 'wallet']],
         );
 
-        Log::warning('Booking payment approved after expiry — credited to the Producer wallet', [
+        Log::warning("Booking payment approved after {$cause} — credited to the Producer wallet", [
             'booking_id' => $booking->id,
             'fedapay_ref' => $fedapayRef,
             'amount' => $amount,
@@ -1181,15 +1202,17 @@ class BookingService
     /**
      * Après commit : notification in-app et e-mail « wallet crédité » au Producteur. Non-fatal.
      */
-    private function notifyLatePaymentCredit(Booking $booking, int $amount): void
+    private function notifyLatePaymentCredit(Booking $booking, int $amount, WalletCreditMotif $motif): void
     {
         try {
             Notification::create([
                 'user_id' => $booking->producer_id,
                 'type' => 'booking_wallet_credited',
                 'data' => [
-                    'message' => 'Votre paiement est arrivé après l\'expiration du booking : '
-                        .number_format($amount, 0, ',', ' ').' XOF ont été crédités sur votre wallet.',
+                    'message' => $motif === WalletCreditMotif::BookingLatePaymentAfterCancellation
+                        ? $motif->label()
+                        : 'Votre paiement est arrivé après l\'expiration du booking : '
+                            .number_format($amount, 0, ',', ' ').' XOF ont été crédités sur votre wallet.',
                     'booking_id' => $booking->id,
                     'url' => "/producer/bookings/{$booking->uuid}",
                 ],
@@ -1203,7 +1226,7 @@ class BookingService
                 Mail::to($email)->queue(new WalletCreditedMail(
                     producer: $producer,
                     amount: $amount,
-                    motif: WalletCreditMotif::BookingLatePaymentRefund,
+                    motif: $motif,
                     newBalance: (int) $producerUser->balance,
                 ));
             }
@@ -1243,13 +1266,24 @@ class BookingService
      */
     public function checkAndProcessPayment(Booking $booking): Booking
     {
-        // Already processed — return as-is. Un booking expiré reste réconciliable : un paiement
-        // approuvé tardivement est crédité au wallet (même chemin que le webhook, idempotent).
-        if (! in_array($booking->status, [BookingStatus::Accepted, BookingStatus::Expired], true)) {
+        // Already processed — return as-is. Un booking expiré ou annulé reste réconciliable : un
+        // paiement approuvé tardivement est crédité au wallet (même chemin que le webhook, idempotent).
+        if (! in_array($booking->status, [
+            BookingStatus::Accepted,
+            BookingStatus::Expired,
+            BookingStatus::CancelledByFace,
+            BookingStatus::CancelledByProducer,
+        ], true)) {
             return $booking;
         }
 
         if (! $booking->fedapay_transaction_id) {
+            return $booking;
+        }
+
+        // Annulé après un vrai paiement : déjà réglé (remboursement escrow), rien à réconcilier.
+        if (in_array($booking->status, [BookingStatus::CancelledByFace, BookingStatus::CancelledByProducer], true)
+            && $this->hasExistingFinancialEvent($booking->id, FinancialEventType::PaymentConfirmed)) {
             return $booking;
         }
 
