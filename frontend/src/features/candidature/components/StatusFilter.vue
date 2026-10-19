@@ -29,6 +29,7 @@ const filterOptions = computed(() => [
   { value: CandidatureStatus.COMPLETED, label: CandidatureStatusLabel[CandidatureStatus.COMPLETED] },
   { value: CandidatureStatus.REJECTED, label: CandidatureStatusLabel[CandidatureStatus.REJECTED] },
   { value: CandidatureStatus.CANCELLED, label: CandidatureStatusLabel[CandidatureStatus.CANCELLED] },
+  { value: CandidatureStatus.EXPIRED, label: CandidatureStatusLabel[CandidatureStatus.EXPIRED] },
 ])
 
 /**

@@ -63,7 +63,7 @@ class EscrowMissionGuardsTest extends TestCase
         [$mission, $faces] = $this->paidCashMission(3);
         $producerBefore = (int) $this->producerUser->fresh()->balance;
 
-        // Étape 1 : marquer une Face absente (aucune garde de date) → PendingAttendanceValidation.
+        // Étape 1 : marquer une Face absente (tournage passé) → PendingAttendanceValidation.
         $this->actingAs($this->producerUser)->postJson(
             "/api/v1/producer/missions/{$mission->uuid}/validate-attendance",
             ['entries' => [['entry_id' => $faces[0]['entry']->id, 'status' => 'absent']]],
@@ -528,22 +528,25 @@ class EscrowMissionGuardsTest extends TestCase
         $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
     }
 
-    public function test_resume_then_withdraw_is_refused_while_fedapay_says_pending(): void
+    public function test_resume_then_withdraw_older_than_an_hour_resets_the_selection_even_while_fedapay_says_pending(): void
     {
-        // F1 : le Producteur a repris le checkout (token régénéré, row intacte, updated_at ancien).
+        // Lot B2 : un checkout ouvert/repris il y a plus de 60 min ne piège plus la Face sélectionnée
+        // (avant : 422 « en train de payer » pendant 24 h). Le paiement tardif éventuel est crédité
+        // au wallet du Producteur par le chemin « detached ».
         [$mission, $faces] = $this->pendingCheckoutMission(2);
         $this->ageCheckout($faces[0]['entry']->mission_payment_id, 71);
         $this->fedapayReports('pending', createdAt: now()->subMinutes(71));
 
         $this->actingAs($faces[0]['faceUser'])
             ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
-            ->assertStatus(422)
-            ->assertJsonPath('error.message', 'Le producteur est en train de payer ; réessayez dans une heure si le paiement n\'aboutit pas.');
+            ->assertOk();
 
-        $this->assertSame(1, MissionPayment::where('mission_id', $mission->id)->count());
-        $this->assertSame(2, MissionPaymentCandidature::count());
-        $this->assertSame(CandidatureStatus::Pending, $faces[0]['candidature']->fresh()->status);
-        $this->assertDatabaseMissing('financial_events', ['type' => 'payment_detached']);
+        $this->assertSame(0, MissionPayment::where('mission_id', $mission->id)->count());
+        $this->assertSame(0, MissionPaymentCandidature::count());
+        $this->assertSame(CandidatureStatus::Cancelled, $faces[0]['candidature']->fresh()->status);
+        $this->assertSame(CandidatureStatus::Pending, $faces[1]['candidature']->fresh()->status);
+        $this->assertSame(MissionStatus::Published, $mission->fresh()->status);
+        $this->assertDatabaseHas('financial_events', ['type' => 'payment_detached', 'fedapay_ref' => '777001']);
     }
 
     public function test_approved_but_webhook_late_settles_the_payment_and_refuses_the_withdrawal(): void
@@ -554,7 +557,8 @@ class EscrowMissionGuardsTest extends TestCase
 
         $this->actingAs($faces[0]['faceUser'])
             ->postJson("/api/v1/face/candidatures/{$faces[0]['candidature']->uuid}/cancel")
-            ->assertStatus(400);
+            ->assertStatus(422)
+            ->assertJsonPath('error.message', 'Le producteur vient de finaliser le paiement : votre candidature est retenue. Confirmez votre participation depuis vos candidatures.');
 
         $payment = MissionPayment::where('mission_id', $mission->id)->sole();
         $this->assertSame(MissionPaymentStatus::Paid, $payment->status);
@@ -938,7 +942,11 @@ class EscrowMissionGuardsTest extends TestCase
     private function paidCashMission(int $faceCount, MissionStatus $status = MissionStatus::Closed): array
     {
         /** @var Mission $mission */
-        $mission = Mission::factory()->closed()->create(['producer_id' => $this->producer->id]);
+        // Lot B5 : tournage passé, sinon le pointage des présences est refusé.
+        $mission = Mission::factory()->closed()->create([
+            'producer_id' => $this->producer->id,
+            'date_tournage' => now()->subDay(),
+        ]);
         if ($status !== MissionStatus::Closed) {
             $mission->update(['status' => $status]);
         }

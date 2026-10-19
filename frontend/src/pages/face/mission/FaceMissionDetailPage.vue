@@ -151,6 +151,7 @@ const hasApplied = computed(() => candidature.value !== null)
 
 // Computed: Can the user cancel? (only pending candidatures)
 // « Mission clôturée » (display_status) : pending en base mais rien à annuler.
+// « Sélection en cours de paiement » : la Face peut encore se retirer.
 const canCancelCandidature = computed(
   () => candidature.value?.status === 'pending' && candidature.value?.display_status !== 'mission_closed',
 )
@@ -354,6 +355,8 @@ async function handleCancelConfirm(): Promise<void> {
       ...candidature.value,
       status: 'cancelled',
       status_label: 'Annulée',
+      display_status: 'cancelled',
+      display_status_label: 'Annulée',
     })
   } else {
     toast.error(cancelError.value || 'Erreur lors de l\'annulation')

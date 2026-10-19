@@ -112,7 +112,8 @@ final class AccountDeletionGuard
         });
 
         if ($user->userable_type === Face::class && $user->userable_id !== null) {
-            return (clone $entries)->where('face_id', $user->userable_id)->exists();
+            // Lot B4 : une place libérée (Face expirée) garde l'argent du Producer, pas celui de la Face.
+            return (clone $entries)->where('face_id', $user->userable_id)->whereNull('freed_at')->exists();
         }
 
         if ($user->userable_type === Producer::class && $user->userable_id !== null) {

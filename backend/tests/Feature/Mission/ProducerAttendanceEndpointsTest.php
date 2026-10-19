@@ -81,6 +81,8 @@ class ProducerAttendanceEndpointsTest extends TestCase
         /** @var Mission $mission */
         $mission = Mission::factory()->{$factoryMethod}()->create([
             'producer_id' => $this->producer->id,
+            // Lot B5 : les présences ne se pointent qu'à partir du jour du tournage.
+            'date_tournage' => now()->subDay(),
         ]);
 
         if ($missionStatus === MissionStatus::PendingAttendanceValidation) {

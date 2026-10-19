@@ -11,11 +11,13 @@ use App\Http\Requests\Mission\CompleteMissionRequest;
 use App\Http\Requests\Mission\DeleteMissionRequest;
 use App\Http\Requests\Mission\IndexProducerMissionsRequest;
 use App\Http\Requests\Mission\ReopenMissionRequest;
+use App\Http\Requests\Mission\ReplaceFreedPlaceRequest;
 use App\Http\Requests\Mission\StoreMissionRequest;
 use App\Http\Requests\Mission\UpdateMissionRequest;
 use App\Http\Resources\MissionResource;
 use App\Models\Mission;
 use App\Models\Producer;
+use App\Services\FreedPlaceService;
 use App\Services\MissionService;
 use App\Support\LifecycleSort;
 use Illuminate\Http\JsonResponse;
@@ -95,7 +97,7 @@ class MissionController extends Controller
      * Display the specified mission.
      * For producer routes, only the owner can view their mission details.
      */
-    public function show(Request $request, Mission $mission): JsonResponse
+    public function show(Request $request, Mission $mission, FreedPlaceService $freedPlaces): JsonResponse
     {
         $user = $request->user();
 
@@ -108,8 +110,26 @@ class MissionController extends Controller
             abort(403, 'Cette mission ne vous appartient pas');
         }
 
+        // Lot B4 : places libérées (détail seulement : pas de requête par ligne sur les listes).
+        $freedCount = FreedPlaceService::pendingFreedEntries($mission)->count();
+        $mission->setAttribute('freed_places_count', $freedCount);
+        $mission->setAttribute('can_replace_freed_place', $freedPlaces->canReplaceNow($mission, $freedCount));
+
         return response()->json([
             'data' => new MissionResource($mission->load(['producer', 'productPhotos'])),
+        ]);
+    }
+
+    /**
+     * Lot B4 (D2) : donne une place libérée à une candidature non retenue de la mission.
+     */
+    public function replaceFreedPlace(ReplaceFreedPlaceRequest $request, Mission $mission, FreedPlaceService $freedPlaces): JsonResponse
+    {
+        $candidature = $freedPlaces->replace($mission, (string) $request->validated('candidature_id'));
+
+        return response()->json([
+            'data' => ['candidature_id' => $candidature->uuid, 'status' => $candidature->status->value],
+            'message' => 'Place proposée à la remplaçante : elle a 48 h pour confirmer.',
         ]);
     }
 

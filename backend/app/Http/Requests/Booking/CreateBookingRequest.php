@@ -9,6 +9,7 @@ use App\Models\Booking;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
+use App\Rules\NoContactDetails;
 use App\Services\FaceEntitlementService;
 use App\Support\UploadedMedia;
 use App\ValueObjects\BookingPricing;
@@ -59,7 +60,8 @@ class CreateBookingRequest extends FormRequest
             'duree_heures' => ['required', 'integer', 'min:4', 'max:720'],
             'type_contenu' => ['required', 'string', 'max:100'],
             'lieu' => ['required', 'string', 'max:100'],
-            'message' => ['nullable', 'string', 'max:1000'],
+            // Lot B12 : brief facultatif, sans coordonnées (le chat n'ouvre qu'après paiement).
+            'message' => ['nullable', 'string', 'max:1000', new NoContactDetails],
         ];
 
         // UGC : compensation produit seul ou hybride.

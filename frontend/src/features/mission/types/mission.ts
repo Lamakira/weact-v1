@@ -116,6 +116,10 @@ export interface Mission {
   has_paid_payment: boolean
   // Propriétaire seulement : miroir serveur des règles de POST /complete.
   can_complete?: boolean
+  // Lot B4 : places libérées (détail Producer) — remplaçante possible jusqu'au début du tournage
+  freed_places_count?: number
+  can_replace_freed_place?: boolean
+  freed_places_refund_at?: string | null
   candidatures_count?: number
   // Photos produit UGC (spec photos produit, `whenLoaded`) — clé OMISE sur les
   // listes, chargée sur les détails. URLs publiques directes (disque public).
@@ -157,7 +161,7 @@ export interface MissionCandidature {
   face_id: string
   status: string
   status_label: string
-  /** Statut effectif d'affichage (`mission_closed` si pending + mission plus publiée). */
+  /** Statut effectif d'affichage (`mission_closed` si pending + mission plus publiée, `selection_payment_pending` si mission en attente de paiement). */
   display_status?: string
   display_status_label?: string
   /** Absence mission contestable (72 h) — null/absent sinon. */

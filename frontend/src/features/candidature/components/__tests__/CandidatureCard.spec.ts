@@ -98,6 +98,22 @@ describe('CandidatureCard', () => {
       expect(wrapper.find('span.bg-gray-100').exists()).toBe(true)
     })
 
+    it('shows « Sélection en cours de paiement » in amber and keeps the cancel button', () => {
+      const wrapper = mountCard(
+        makeCandidature({
+          status: 'pending',
+          status_label: 'En attente',
+          display_status: 'selection_payment_pending',
+          display_status_label: 'Sélection en cours de paiement',
+        }),
+      )
+
+      expect(wrapper.text()).toContain('Sélection en cours de paiement')
+      expect(wrapper.text()).not.toContain('Mission clôturée')
+      expect(wrapper.text()).toContain('Annuler ma candidature')
+      expect(wrapper.find('span.bg-yellow-100').exists()).toBe(true)
+    })
+
     it('keeps « En attente » and the cancel button for a genuinely pending candidature', () => {
       const wrapper = mountCard(
         makeCandidature({
@@ -164,6 +180,37 @@ describe('CandidatureCard', () => {
       )
 
       expect(wrapper.find('[data-testid="reconfirm-deadline-label"]').exists()).toBe(false)
+    })
+  })
+
+  describe('confirmation deadline label (lot B3)', () => {
+    it('renders « À confirmer avant le … » for an accepted cash candidature with a confirmation_deadline', () => {
+      const wrapper = mountCard(
+        makeCandidature({
+          status: 'accepted',
+          status_label: 'Acceptée',
+          confirmation_deadline: '2026-10-19T08:51:00+00:00',
+        }),
+      )
+
+      const label = wrapper.find('[data-testid="confirmation-deadline-label"]')
+      expect(label.exists()).toBe(true)
+      expect(label.text()).toContain('À confirmer avant le')
+      expect(label.text()).toContain('octobre')
+      expect(label.text()).toMatch(/à \d{2}h\d{2}/)
+    })
+
+    it('omits the label without deadline, and for a non-accepted candidature', () => {
+      expect(
+        mountCard(makeCandidature({ status: 'accepted', status_label: 'Acceptée' }))
+          .find('[data-testid="confirmation-deadline-label"]')
+          .exists(),
+      ).toBe(false)
+      expect(
+        mountCard(makeCandidature({ status: 'expired', status_label: 'Expirée', confirmation_deadline: '2026-10-19T08:51:00+00:00' }))
+          .find('[data-testid="confirmation-deadline-label"]')
+          .exists(),
+      ).toBe(false)
     })
   })
 })

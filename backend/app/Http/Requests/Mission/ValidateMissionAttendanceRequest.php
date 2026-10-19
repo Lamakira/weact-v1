@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Mission;
 
+use App\Enums\CandidatureStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Models\Mission;
@@ -11,6 +12,7 @@ use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\MissionAttendanceService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -88,6 +90,13 @@ class ValidateMissionAttendanceRequest extends FormRequest
                 return;
             }
 
+            // Lot B5 : pas de pointage avant le jour du tournage (fuseau métier).
+            if (! $mission->isAttendanceOpen()) {
+                $validator->errors()->add('date_tournage', (string) $mission->attendanceBlockedReason());
+
+                return;
+            }
+
             if ($validator->errors()->isNotEmpty()) {
                 return;
             }
@@ -121,6 +130,37 @@ class ValidateMissionAttendanceRequest extends FormRequest
                     'entries',
                     'Une ou plusieurs entries ne correspondent pas à cette mission.'
                 );
+
+                return;
+            }
+
+            $hasExpiredEntry = MissionPaymentCandidature::query()
+                ->whereIn('id', $payloadEntryIds)
+                ->whereHas('candidature', fn ($query) => $query->where('status', CandidatureStatus::Expired->value))
+                ->exists();
+
+            if ($hasExpiredEntry) {
+                $validator->errors()->add(
+                    'entries',
+                    'Une ou plusieurs entries correspondent à une Face qui n\'a pas confirmé sa participation : sa place a été libérée.'
+                );
+
+                return;
+            }
+
+            // Lot B5 : seule une Face confirmée (confirmed / in_progress) se pointe ; completed =
+            // déjà payée, l'entry est ignorée par le service (rejeu sans effet).
+            $hasUnconfirmedEntry = MissionPaymentCandidature::query()
+                ->whereIn('id', $payloadEntryIds)
+                ->whereHas('candidature', fn ($query) => $query->whereNotIn('status', [
+                    CandidatureStatus::Confirmed->value,
+                    CandidatureStatus::InProgress->value,
+                    CandidatureStatus::Completed->value,
+                ]))
+                ->exists();
+
+            if ($hasUnconfirmedEntry) {
+                $validator->errors()->add('entries', MissionAttendanceService::UNCONFIRMED_FACE_MESSAGE);
             }
         });
     }

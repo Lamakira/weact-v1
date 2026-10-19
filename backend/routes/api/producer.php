@@ -89,6 +89,8 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
     // Mission payment routes
     Route::post('/missions/{mission}/confirm-selection', [MissionPaymentController::class, 'confirmAndPay'])
         ->middleware('throttle:10,1');
+    Route::post('/missions/{mission}/cancel-selection', [MissionPaymentController::class, 'cancelSelection'])
+        ->middleware('throttle:10,1');
     Route::get('/missions/{mission}/payment-status', [MissionPaymentController::class, 'paymentStatus'])
         ->middleware('throttle:polling');
 
@@ -99,6 +101,11 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
     Route::get('/missions/{mission}/commission-status', [MissionPaymentController::class, 'ugcCommissionStatus'])
         ->middleware('throttle:polling')
         ->name('producer.missions.commission-status');
+
+    // Lot B4 : place libérée -> remplaçante parmi les candidatures non retenues
+    Route::post('/missions/{mission}/freed-places/replace', [MissionController::class, 'replaceFreedPlace'])
+        ->middleware('throttle:60,1')
+        ->name('producer.missions.freed-places.replace');
 
     // Candidature routes (nested under missions)
     Route::get('/missions/{mission}/candidatures', [CandidatureController::class, 'index'])
