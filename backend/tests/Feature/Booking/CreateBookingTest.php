@@ -97,7 +97,7 @@ class CreateBookingTest extends TestCase
         Event::fake([BookingCreated::class]);
 
         // 20/10 23:30 UTC = 21/10 00:30 à Porto-Novo : le jour de tournage « 21/10 » a déjà
-        // commencé côté métier, la demande naîtrait expirée (échéance Face = 21/10 00:00 locale).
+        // commencé côté métier, la demande naîtrait expirée (échéance Face = 21/10 08:00 locale).
         $this->travelTo(Carbon::parse('2026-10-20 23:30:00', 'UTC'));
 
         $data = $this->getValidBookingData();
@@ -120,6 +120,47 @@ class CreateBookingTest extends TestCase
             ->assertCreated();
 
         $this->assertTrue(Booking::query()->sole()->faceResponseDeadline()->greaterThan(now()));
+    }
+
+    public function test_booking_for_tomorrow_is_accepted_at_1559_business_time(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        Carbon::setTestNow(Carbon::parse('2026-10-20 15:59:00', 'Africa/Porto-Novo'));
+
+        $data = $this->getValidBookingData();
+        $data['date_debut'] = '2026-10-21';
+        $data['date_fin'] = '2026-10-21';
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
+            ->assertCreated();
+    }
+
+    public function test_booking_for_tomorrow_is_refused_from_1600_business_time(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        Carbon::setTestNow(Carbon::parse('2026-10-20 16:00:00', 'Africa/Porto-Novo'));
+
+        $data = $this->getValidBookingData();
+        $data['date_debut'] = '2026-10-21';
+        $data['date_fin'] = '2026-10-21';
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['date_debut' => 'Après 16 h, vous ne pouvez plus envoyer de demande pour le lendemain. Choisissez une date ultérieure.']);
+
+        $this->assertDatabaseCount('bookings', 0);
+
+        // Le surlendemain reste accepté après 16 h.
+        $data['date_debut'] = '2026-10-22';
+        $data['date_fin'] = '2026-10-22';
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
+            ->assertCreated();
     }
 
     public function test_create_booking_dispatches_event_and_queues_email_to_face(): void

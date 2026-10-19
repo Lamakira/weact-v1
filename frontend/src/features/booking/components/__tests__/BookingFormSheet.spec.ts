@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref, nextTick } from 'vue'
 import BookingFormSheet from '../BookingFormSheet.vue'
 import { calculatePricingPreview } from '@/features/booking/types'
-import { addDaysIso, tomorrowIso } from '@/lib/dates'
+import { addDaysIso, bookingMinStartDateIso } from '@/lib/dates'
 
 // Hoisted so the UGC submission tests can drive the resolved value.
 // The 3 existing describe blocks never call createBooking, so this is inert for them.
@@ -61,19 +61,54 @@ const mountForm = (propsOverride: Record<string, unknown> = {}) =>
   })
 
 describe('BookingFormSheet — bornes des dates', () => {
-  it('date_debut min = demain (règle backend after:today)', () => {
-    const wrapper = mountForm()
-    expect(wrapper.find('input#date_debut').attributes('min')).toBe(tomorrowIso())
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
-  it('date_fin min = demain tant que date_debut est vide, puis = date_debut', async () => {
+  it('date_debut min = demain avant 16 h (heure du Bénin)', () => {
+    // 20/10 14:59 UTC = 15:59 à Porto-Novo (UTC+1).
+    vi.useFakeTimers({ now: new Date('2026-10-20T14:59:00Z'), toFake: ['Date'] })
     const wrapper = mountForm()
-    expect(wrapper.find('input#date_fin').attributes('min')).toBe(tomorrowIso())
+    expect(wrapper.find('input#date_debut').attributes('min')).toBe('2026-10-21')
+    expect(wrapper.find('[data-testid="date-debut-hint"]').text()).toContain('jusqu\'à 16 h')
+  })
 
-    const target = addDaysIso(tomorrowIso(), 5)
+  it('date_debut min = après-demain à partir de 16 h (heure du Bénin)', () => {
+    // 20/10 15:00 UTC = 16:00 à Porto-Novo.
+    vi.useFakeTimers({ now: new Date('2026-10-20T15:00:00Z'), toFake: ['Date'] })
+    const wrapper = mountForm()
+    expect(wrapper.find('input#date_debut').attributes('min')).toBe('2026-10-22')
+    expect(wrapper.find('[data-testid="date-debut-hint"]').text()).toContain('Après 16 h')
+  })
+
+  it('date_fin min = date de début minimale tant que date_debut est vide, puis = date_debut', async () => {
+    const wrapper = mountForm()
+    expect(wrapper.find('input#date_fin').attributes('min')).toBe(bookingMinStartDateIso())
+
+    const target = addDaysIso(bookingMinStartDateIso(), 5)
     await wrapper.find('input#date_debut').setValue(target)
     await nextTick()
     expect(wrapper.find('input#date_fin').attributes('min')).toBe(target)
+  })
+
+  it('affiche sous le champ date_debut l\'erreur serveur (règle des 16 h)', async () => {
+    createBookingMock.mockResolvedValue({
+      success: false,
+      errors: { date_debut: ['Après 16 h, vous ne pouvez plus envoyer de demande pour le lendemain. Choisissez une date ultérieure.'] },
+    })
+    const wrapper = mountForm({ faceId: '3f2b8c1e-9d4a-4e6b-8a1c-2d5f7e9b0a13' })
+    const start = bookingMinStartDateIso()
+    await wrapper.find('input#date_debut').setValue(start)
+    await wrapper.find('input#date_fin').setValue(start)
+    await wrapper.find('#lieu').setValue('Cotonou')
+    await flushPromises()
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await flushPromises()
+
+    expect(createBookingMock).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('Après 16 h, vous ne pouvez plus envoyer de demande pour le lendemain.')
   })
 })
 

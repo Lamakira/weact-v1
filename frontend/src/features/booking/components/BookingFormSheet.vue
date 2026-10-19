@@ -17,7 +17,7 @@ import { FloatingField, FloatingDateField, FloatingSelect } from '@/components/u
 import { Button } from '@/components/ui/button'
 import { BENIN_CITY_OPTIONS } from '@/shared/constants/beninCities'
 import { useToast } from '@/composables/useToast'
-import { tomorrowIso } from '@/lib/dates'
+import { BOOKING_NEXT_DAY_CUTOFF_HOUR, bookingMinStartDateIso, isBookingNextDayClosed } from '@/lib/dates'
 import {
   X,
   Calendar,
@@ -105,8 +105,10 @@ const { handleSubmit, setFieldError, resetForm } = useForm({
 const { value: date_debut, errorMessage: dateDebutError } = useField<string>('date_debut')
 const { value: date_fin, errorMessage: dateFinError } = useField<string>('date_fin')
 
-// Bornes alignées sur le backend : date_debut `after:today`, date_fin `after_or_equal:date_debut`.
-const dateDebutMin = tomorrowIso()
+// Bornes alignées sur le backend : date_debut `after:today` + plus de demande pour le lendemain
+// à partir de 16 h (heure du Bénin), date_fin `after_or_equal:date_debut`.
+const dateDebutMin = bookingMinStartDateIso()
+const nextDayClosed = isBookingNextDayClosed()
 const dateFinMin = computed(() => date_debut.value || dateDebutMin)
 const { value: duree_heures, errorMessage: dureeError } = useField<number>('duree_heures')
 const { value: type_contenu, errorMessage: typeContenuError } = useField<string>('type_contenu')
@@ -388,6 +390,11 @@ const onSubmit = handleSubmit(async (values) => {
                   required
                 />
               </div>
+              <p class="-mt-2 text-xs text-gray-500" data-testid="date-debut-hint">
+                {{ nextDayClosed
+                  ? `Après ${BOOKING_NEXT_DAY_CUTOFF_HOUR} h (heure du Bénin), les demandes pour le lendemain ne sont plus possibles.`
+                  : `Les demandes pour le lendemain sont possibles jusqu'à ${BOOKING_NEXT_DAY_CUTOFF_HOUR} h (heure du Bénin).` }}
+              </p>
 
               <!-- Duration -->
               <FloatingSelect

@@ -19,7 +19,7 @@ class ExpireUnacceptedBookingsCommand extends Command
     /**
      * The console command description.
      */
-    protected $description = 'Expire pending cash bookings the Face did not answer in time (72 h after creation, or the start of the shooting day if earlier)';
+    protected $description = 'Expire pending cash bookings the Face did not answer in time (72 h after creation, or 08:00 on the shooting day if earlier)';
 
     public function __construct(
         private readonly BookingService $bookingService,
@@ -32,8 +32,8 @@ class ExpireUnacceptedBookingsCommand extends Command
      */
     public function handle(): int
     {
-        // Sur-ensemble SQL borné (créée il y a 72 h ou plus, ou tournage d'ici un jour : le
-        // début du jour en fuseau métier précède date_debut d'au plus quelques heures), puis
+        // Sur-ensemble SQL borné (créée il y a 72 h ou plus, ou tournage d'ici un jour : 08 h
+        // en fuseau métier le jour du tournage suit date_debut (minuit) de quelques heures seulement), puis
         // échéance exacte en PHP — Booking::faceResponseDeadline() reste la source unique.
         // BINARY : aligne SQL (collation _ci) sur le PHP `=== 'UGC'` ; UGC exclu (fenêtre dédiée).
         $bookings = Booking::where('status', BookingStatus::Pending->value)
