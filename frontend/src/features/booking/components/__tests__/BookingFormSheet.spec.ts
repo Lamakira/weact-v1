@@ -465,8 +465,8 @@ describe('BookingFormSheet — brief facultatif (lot B12)', () => {
   }
 
   const fillValidCashForm = async (wrapper: ReturnType<typeof mountForm>) => {
-    await wrapper.find('#date_debut').setValue(addDaysIso(tomorrowIso(), 5))
-    await wrapper.find('#date_fin').setValue(addDaysIso(tomorrowIso(), 5))
+    await wrapper.find('#date_debut').setValue(addDaysIso(bookingMinStartDateIso(), 5))
+    await wrapper.find('#date_fin').setValue(addDaysIso(bookingMinStartDateIso(), 5))
     await wrapper.find('select#lieu').setValue('Cotonou')
     await flushPromises()
   }
