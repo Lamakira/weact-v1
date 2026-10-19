@@ -19,9 +19,11 @@ use App\Events\DeliverableValidated;
 use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Deliverable;
+use App\Models\Mission;
 use App\Models\Shipment;
 use App\Services\BookingService;
 use App\Services\MissionPaymentService;
+use App\Services\MissionService;
 use App\Support\UploadedMedia;
 use App\Support\VideoMetadataStripper;
 use FFMpeg\Coordinate\TimeCode;
@@ -31,6 +33,7 @@ use FFMpeg\Media\Video;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -261,8 +264,9 @@ class UgcDeliverableService
      * escrow → wallet Face (hybride ; produit-seul no-op) + `BookingStatus → Completed`
      * (calque completeBooking). Pour une CANDIDATURE hybride (ugc-8-4, D-8.4.g), dans la
      * MÊME transaction : release escrow par-Candidature → wallet Face + candidature
-     * Confirmed → Completed (produit-seul = no-op, pas d'entry → candidature reste
-     * Confirmed). Idempotent (re-valider un non-in_review → invalid_status).
+     * Confirmed → Completed ; produit seul (pas d'entry) : candidature Completed aussi
+     * (lot B8). Après le commit, la mission UGC est terminée si sa règle de fin est
+     * remplie. Idempotent (re-valider un non-in_review → invalid_status).
      *
      * @return array{outcome: string, deliverable?: Deliverable}
      */
@@ -304,14 +308,41 @@ class UgcDeliverableService
                     app(BookingService::class)->completeUgcBooking($owner);
                 } elseif ($owner instanceof Candidature) {
                     app(MissionPaymentService::class)->releaseUgcCandidatureEscrow($owner);
+
+                    // Lot B8 : produit seul (pas d'entry) — l'Avis validé termine aussi la
+                    // candidature ; l'hybride vient de passer completed via releaseToFace.
+                    Candidature::query()
+                        ->whereKey($owner->id)
+                        ->whereIn('status', [CandidatureStatus::Confirmed->value, CandidatureStatus::InProgress->value])
+                        ->update(['status' => CandidatureStatus::Completed->value]);
                 }
             }
 
-            return ['outcome' => 'validated', 'deliverable' => $fresh];
+            return ['outcome' => 'validated', 'deliverable' => $fresh, 'owner' => $owner];
         });
 
         if ($result['outcome'] === 'validated') {
             DeliverableValidated::dispatch($result['deliverable']); // post-commit
+
+            // Lot B8 : la dernière livraison terminée peut clore la mission UGC (transaction et
+            // verrou mission propres, après le commit du tunnel). Non-fatal : le sweep horaire
+            // missions:complete-finished-ugc rattrape un échec.
+            $owner = $result['owner'] ?? null;
+            if ($owner instanceof Candidature && $result['deliverable']->kind === DeliverableKind::Avis) {
+                try {
+                    $mission = $owner->mission;
+                    if ($mission instanceof Mission) {
+                        app(MissionService::class)->completeUgcMissionIfFinished($mission);
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('UGC mission completion after Avis validation failed', [
+                        'candidature_id' => $owner->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
+            unset($result['owner']);
         }
 
         return $result;

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Tests\Feature\Candidature;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\MissionStatus;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
@@ -63,6 +64,21 @@ class FaceCandidatureDisplayStateTest extends TestCase
             ->assertJsonPath('data.0.display_status_label', 'Mission clôturée');
     }
 
+    public function test_list_shows_selection_payment_pending_for_pending_candidature_on_pending_payment_mission(): void
+    {
+        $mission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::PendingPayment,
+        ]);
+        $this->candidatureOn($mission);
+
+        $this->actingAs($this->faceUser)->getJson('/api/v1/face/candidatures')
+            ->assertOk()
+            ->assertJsonPath('data.0.status', 'pending')
+            ->assertJsonPath('data.0.display_status', 'selection_payment_pending')
+            ->assertJsonPath('data.0.display_status_label', 'Sélection en cours de paiement');
+    }
+
     public function test_list_shows_mission_closed_for_pending_candidature_on_completed_mission(): void
     {
         $mission = Mission::factory()->completed()->create(['producer_id' => $this->producer->id]);
@@ -109,6 +125,17 @@ class FaceCandidatureDisplayStateTest extends TestCase
             ->assertJsonPath('candidature.status', 'pending')
             ->assertJsonPath('candidature.display_status', 'mission_closed')
             ->assertJsonPath('candidature.display_status_label', 'Mission clôturée');
+
+        $pendingPayment = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::PendingPayment,
+        ]);
+        $this->candidatureOn($pendingPayment);
+
+        $this->actingAs($this->faceUser)->getJson("/api/v1/face/missions/{$pendingPayment->uuid}")
+            ->assertOk()
+            ->assertJsonPath('candidature.display_status', 'selection_payment_pending')
+            ->assertJsonPath('candidature.display_status_label', 'Sélection en cours de paiement');
     }
 
     public function test_manual_close_notification_does_not_claim_pending_candidates_were_rejected(): void

@@ -279,4 +279,21 @@ describe('FaceCard', () => {
       expect(wrapper.classes()).toContain('hover:border-[#198496]/30')
     })
   })
+
+  describe('Nom affiché (lot B13)', () => {
+    it('affiche le nom complet quand l\'API le fournit (Producer connecté)', () => {
+      const wrapper = mountCard({ nom: 'Dossou' })
+      expect(wrapper.find('[data-testid="face-card-name"]').text()).toBe('Adjoua Dossou')
+    })
+
+    it('affiche le prénom seul pour un invité (initiale non affichée)', () => {
+      const wrapper = mountCard({ nom: 'D.' })
+      expect(wrapper.find('[data-testid="face-card-name"]').text()).toBe('Adjoua')
+    })
+
+    it('affiche le prénom seul sans nom', () => {
+      const wrapper = mountCard({ nom: null })
+      expect(wrapper.find('[data-testid="face-card-name"]').text()).toBe('Adjoua')
+    })
+  })
 })

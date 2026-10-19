@@ -532,8 +532,9 @@ class UgcDeliverableValidationTest extends TestCase
 
         $this->assertSame(UgcTunnelStatus::Completed, $shipment->fresh()->tunnel_status);
         // ugc-8-4 (D-8.4.g) : produit-seul = pas d'entry escrow → releaseUgcCandidatureEscrow
-        // est un no-op. La candidature reste Confirmed (RH.3 AC3 préservé), aucun wallet/payout.
-        $this->assertSame(CandidatureStatus::Confirmed, $candidature->fresh()->status);
+        // est un no-op, aucun wallet/payout. Lot B8 : la candidature passe tout de même
+        // completed (livraison terminée).
+        $this->assertSame(CandidatureStatus::Completed, $candidature->fresh()->status);
         $this->assertSame(0, WalletTransaction::count());
         $this->assertDatabaseMissing('mission_payment_candidatures', ['candidature_id' => $candidature->id]);
         $this->assertDatabaseMissing('financial_events', ['type' => 'escrow_release']);

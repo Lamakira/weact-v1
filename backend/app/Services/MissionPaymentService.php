@@ -8,14 +8,20 @@ use App\Concerns\RecordsFinancialEvent;
 use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
+use App\Enums\FaceSubscriptionTier;
 use App\Enums\FinancialEventType;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Exceptions\MissionPaymentInitiationException;
 use App\Mail\CandidatureAcceptedMail;
+use App\Mail\FaceConfirmationExpiredMail;
 use App\Mail\FaceSelectedMail;
 use App\Mail\MissionCompletedMail;
+use App\Mail\MissionFaceUnconfirmedMail;
+use App\Mail\MissionPlaceFreedMail;
+use App\Mail\MissionSelectionExpiredMail;
+use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Conversation;
 use App\Models\Face;
@@ -29,6 +35,7 @@ use App\Models\User;
 use App\Support\FedapayPollCache;
 use App\ValueObjects\BookingPricing;
 use App\ValueObjects\MissionPricing;
+use Carbon\CarbonInterface;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +70,32 @@ class MissionPaymentService
             $existingPayment = $this->resolveResumablePayment($mission);
 
             if ($existingPayment instanceof MissionPayment) {
+                // Lot B1 — l'échéance de 24 h est stricte (created_at) : reprendre le checkout ne la repousse pas.
+                if (now()->greaterThanOrEqualTo($this->selectionExpiresAt($existingPayment))) {
+                    $outcome = $this->settleOrResetPendingSelection(
+                        $existingPayment,
+                        'selection_payment_expired',
+                        respectOpenCheckout: false,
+                        callerHoldsLock: true,
+                    );
+
+                    if ($outcome === self::SELECTION_SETTLED) {
+                        return ['payment' => $existingPayment->fresh() ?? $existingPayment, 'checkout_url' => null];
+                    }
+
+                    if ($outcome === self::SELECTION_RESET) {
+                        throw ValidationException::withMessages([
+                            'candidature_ids' => ['Le délai de 24 h pour payer cette sélection est dépassé : elle a été annulée. Refaites votre sélection.'],
+                        ]);
+                    }
+
+                    if ($outcome === self::SELECTION_UNVERIFIABLE) {
+                        throw ValidationException::withMessages([
+                            'candidature_ids' => ['Impossible de vérifier le paiement pour le moment, réessayez dans quelques minutes.'],
+                        ]);
+                    }
+                }
+
                 try {
                     return $this->initiatePayment($existingPayment);
                 } catch (\Throwable $e) {
@@ -650,6 +683,10 @@ class MissionPaymentService
                     continue;
                 }
 
+                $selectedCandidature = Candidature::query()->find($entry->candidature_id);
+                $selectedCandidature?->setRelation('mission', $mission);
+                $confirmationDeadline = $selectedCandidature?->confirmationDeadline();
+
                 try {
                     Mail::to($faceUser->email)->queue(
                         new FaceSelectedMail(
@@ -657,6 +694,9 @@ class MissionPaymentService
                             mission: $mission,
                             producerName: $producerName,
                             amount: (int) $entry->montant_face_recoit,
+                            confirmationDeadline: $confirmationDeadline !== null
+                                ? Booking::formatForBusiness($confirmationDeadline, 'd/m/Y \à H\hi')
+                                : null,
                         )
                     );
                 } catch (\Throwable $e) {
@@ -704,7 +744,7 @@ class MissionPaymentService
 
             foreach ($selectedPending as $candidature) {
                 /** @var Candidature $candidature */
-                $candidature->update(['status' => CandidatureStatus::Accepted]);
+                $candidature->update(['status' => CandidatureStatus::Accepted, 'accepted_at' => now()]);
                 $newlyAcceptedIds[] = (int) $candidature->id;
             }
         }
@@ -766,6 +806,8 @@ class MissionPaymentService
         // completeMission) — une entry déjà réglée par un flux concurrent n'est jamais repayée.
         $entries = $payment->entries()
             ->where('escrow_status', EscrowStatus::Locked)
+            // Lot B4 : une place libérée n'est jamais versée (remplaçante ou remboursement).
+            ->whereNull('freed_at')
             ->with(['face', 'candidature'])
             ->lockForUpdate()
             ->get();
@@ -961,6 +1003,329 @@ class MissionPaymentService
                 ),
             ],
         );
+    }
+
+    /**
+     * Quand plus aucune Face sélectionnée n'est `Accepted` (toutes ont confirmé ou expiré), fait passer
+     * les candidatures `Confirmed` de la sélection en `InProgress`. Partagé par la confirmation Face
+     * et l'expiration B3 (une Face qui expire peut être la dernière à bloquer le démarrage).
+     */
+    public function startConfirmedCandidaturesIfNonePending(MissionPayment $payment): void
+    {
+        $selectedCandidatureIds = $payment->entries()->pluck('candidature_id');
+
+        $pendingConfirmation = Candidature::whereIn('id', $selectedCandidatureIds)
+            ->where('status', CandidatureStatus::Accepted)
+            ->exists();
+
+        if (! $pendingConfirmation) {
+            Candidature::whereIn('id', $selectedCandidatureIds)
+                ->where('status', CandidatureStatus::Confirmed)
+                ->update(['status' => CandidatureStatus::InProgress->value]);
+        }
+    }
+
+    /**
+     * Lot B3 — une Face sélectionnée (mission cash payée) n'a pas confirmé dans les délais : la candidature
+     * passe `expired`, la place est libérée et le Producteur est remboursé tout de suite de `budget_par_face`
+     * (budget de la place ; WeAct ne garde que ses 10 % Producteur, la part commission Face est rendue car
+     * aucune Face n'a travaillé). Idempotent : no-op (false) sauf candidature encore `Accepted` avec une entry
+     * `Locked`. Ordre de verrous aligné sur markAsPaid : payment → entries → mission → candidature.
+     * Notifications et emails partent après commit, jamais bloquants.
+     *
+     * @return bool true ssi la place a effectivement été libérée et remboursée.
+     */
+    public function expireUnconfirmedFace(Candidature $candidature, string $reason = 'face_confirmation_expired'): bool
+    {
+        /** @var MissionPaymentCandidature|null $entryRef */
+        $entryRef = MissionPaymentCandidature::query()
+            ->where('candidature_id', $candidature->id)
+            ->whereNotNull('mission_payment_id')
+            ->first();
+
+        if ($entryRef === null) {
+            return false;
+        }
+
+        $result = DB::transaction(function () use ($candidature, $reason, $entryRef): ?array {
+            $this->lockCashSelection((int) $entryRef->mission_payment_id);
+
+            /** @var MissionPayment|null $payment */
+            $payment = MissionPayment::query()->find($entryRef->mission_payment_id);
+            /** @var Mission|null $mission */
+            $mission = $payment !== null ? Mission::query()->lockForUpdate()->find($payment->mission_id) : null;
+            /** @var Candidature|null $locked */
+            $locked = Candidature::query()->lockForUpdate()->find($candidature->id);
+            /** @var MissionPaymentCandidature|null $entry */
+            $entry = MissionPaymentCandidature::query()->find($entryRef->id);
+
+            if ($payment === null || $mission === null || $locked === null || $entry === null
+                || $payment->status !== MissionPaymentStatus::Paid
+                || $mission->type_mission === MissionType::Ugc
+                // Avant toute action de présence : une absence déclarée suit sa propre règle
+                // (contestation 72 h puis remboursement de la part nette), jamais les deux.
+                // Lot B4 : un tournage commencé (pending_attendance_validation) laisse une échéance au plancher
+                // de 12 h dépasser son début ; la place suit alors le chemin du remboursement.
+                || ! in_array($mission->status, [MissionStatus::Closed, MissionStatus::PendingAttendanceValidation], true)
+                // getAttribute : la colonne est nullable en base (lignes historiques) malgré le PHPDoc.
+                || ! in_array($entry->getAttribute('attendance_status'), [null, AttendanceStatus::Pending], true)
+                || $locked->status !== CandidatureStatus::Accepted
+                || $entry->freed_at !== null
+                || $entry->escrow_status !== EscrowStatus::Locked) {
+                return null;
+            }
+
+            $refundAmount = (int) $payment->budget_par_face;
+
+            // Lot B4 (D2) : tant qu'une remplaçante est possible (candidature non retenue éligible,
+            // jour du tournage pas commencé), la place est seulement libérée : l'argent reste en
+            // séquestre sur l'entry, le Producer choisit une remplaçante ou est remboursé au début
+            // du jour de tournage (missions:refund-freed-places). Sinon, remboursement immédiat (D1).
+            $freed = $this->canFreedPlaceBeReplaced($mission);
+
+            if ($freed) {
+                $entry->update(['freed_at' => now()]);
+            } else {
+                $this->refundToProducer(
+                    $entry,
+                    $mission,
+                    $reason,
+                    ['candidature_id' => $locked->id, 'refund_basis' => 'budget_par_face'],
+                    walletLabel: "Mission : place non confirmée — {$mission->titre}",
+                    amountOverride: $refundAmount,
+                );
+
+                // refundToProducer sort sans rien faire si le Producteur est introuvable : on ne libère jamais
+                // la place sans avoir rendu l'argent (rollback, le sweep réessaiera et alertera).
+                if ($entry->fresh()?->escrow_status !== EscrowStatus::Refunded) {
+                    throw new \RuntimeException("Impossible de rembourser l'entry {$entry->id} (place non confirmée).");
+                }
+            }
+
+            $locked->update(['status' => CandidatureStatus::Expired]);
+
+            $this->startConfirmedCandidaturesIfNonePending($payment);
+
+            return [
+                'mission' => $mission,
+                'face_id' => (int) $locked->face_id,
+                'candidature_id' => (int) $locked->id,
+                'amount' => $refundAmount,
+                'freed' => $freed,
+                'no_face_left' => ! $freed && ! $this->hasActiveSelectedFace($payment),
+            ];
+        });
+
+        if ($result === null) {
+            return false;
+        }
+
+        /** @var Mission $mission */
+        $mission = $result['mission'];
+        $faceUserId = $this->getUserIdForFace($result['face_id']);
+        $producerUserId = $this->getUserIdForProducer((int) $mission->producer_id);
+        /** @var Face|null $face */
+        $face = Face::query()->find($result['face_id']);
+        $faceName = trim((string) $face?->display_name) !== '' ? (string) $face?->display_name : 'Une Face';
+        $formattedAmount = number_format($result['amount'], 0, ',', ' ');
+
+        $this->notifySafely(
+            userId: $faceUserId,
+            type: 'mission_confirmation_expired',
+            data: [
+                'message' => "Vous n'avez pas confirmé votre participation à « {$mission->titre} » dans les délais : votre place a été libérée.",
+                'mission_id' => $mission->id,
+                'candidature_id' => $result['candidature_id'],
+                'url' => '/face/candidatures',
+                'reason' => $reason,
+            ],
+        );
+
+        if ($face !== null) {
+            $this->queueMailSafely($faceUserId, fn () => new FaceConfirmationExpiredMail($face, $mission), $mission, 'FaceConfirmationExpiredMail');
+        }
+
+        if ($result['freed']) {
+            $refundLabel = $this->formatShootingDayStart($mission);
+
+            $this->notifySafely(
+                userId: $producerUserId,
+                type: 'mission_place_freed',
+                data: [
+                    'message' => "{$faceName} n'a pas confirmé sa participation à « {$mission->titre} » : sa place est libérée. "
+                        ."Choisissez une remplaçante parmi les candidatures non retenues avant le {$refundLabel}, "
+                        ."sans frais supplémentaires ; sinon {$formattedAmount} FCFA seront crédités sur votre wallet.",
+                    'mission_id' => $mission->id,
+                    'candidature_id' => $result['candidature_id'],
+                    'montant' => $result['amount'],
+                    'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                    'reason' => $reason,
+                ],
+            );
+            $this->queueMailSafely($producerUserId, fn () => new MissionPlaceFreedMail($mission, $faceName, $result['amount'], $refundLabel), $mission, 'MissionPlaceFreedMail');
+
+            return true;
+        }
+
+        $this->notifySafely(
+            userId: $producerUserId,
+            type: 'mission_face_confirmation_expired',
+            data: [
+                'message' => "{$faceName} n'a pas confirmé sa participation à « {$mission->titre} » : sa place est libérée et {$formattedAmount} FCFA ont été crédités sur votre wallet.",
+                'mission_id' => $mission->id,
+                'candidature_id' => $result['candidature_id'],
+                'montant' => $result['amount'],
+                'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                'reason' => $reason,
+            ],
+        );
+        $this->queueMailSafely($producerUserId, fn () => new MissionFaceUnconfirmedMail($mission, $faceName, $result['amount']), $mission, 'MissionFaceUnconfirmedMail');
+
+        if ($result['no_face_left']) {
+            $this->notifyAllPlacesRefunded($mission);
+        }
+
+        return true;
+    }
+
+    /**
+     * Lot B4 : une place libérée peut-elle encore être pourvue ? Mission standard, jour du
+     * tournage pas commencé, et au moins une candidature non retenue éligible.
+     */
+    public function canFreedPlaceBeReplaced(Mission $mission): bool
+    {
+        if ($mission->type_mission === MissionType::Ugc) {
+            return false;
+        }
+
+        if (self::isTooLateToReplace($mission->shootingDayStartsAt())) {
+            return false;
+        }
+
+        return $this->replacementCandidates($mission)->isNotEmpty();
+    }
+
+    public const TOO_LATE_TO_REPLACE_MESSAGE = 'Trop tard pour remplacer : le tournage commence dans moins de 12 h. La place sera remboursée.';
+
+    /**
+     * Lot B4 : le tournage commence-t-il dans moins de FACE_CONFIRMATION_MIN_HOURS (ou a-t-il commencé) ?
+     * Une remplaçante choisie à ce moment aurait une échéance (plancher B3) après le début du tournage.
+     */
+    public static function isTooLateToReplace(?\Carbon\CarbonInterface $shootingStart): bool
+    {
+        return $shootingStart !== null
+            && $shootingStart->lessThan(now()->addHours(self::FACE_CONFIRMATION_MIN_HOURS));
+    }
+
+    /**
+     * Lot B4 (D2) : candidatures non retenues (rejected) de la mission pouvant reprendre une place
+     * libérée : jamais sélectionnées (aucune entry), Face abonnée (palier non gratuit, règle des
+     * missions standard) et compte actif.
+     *
+     * @return \Illuminate\Support\Collection<int, Candidature>
+     */
+    public function replacementCandidates(Mission $mission): \Illuminate\Support\Collection
+    {
+        return Candidature::query()
+            ->where('mission_id', $mission->id)
+            ->where('status', CandidatureStatus::Rejected->value)
+            ->whereDoesntHave('paymentEntry')
+            ->with('face.activeSubscription')
+            ->get()
+            ->filter(fn (Candidature $candidature): bool => $this->isEligibleReplacement($candidature))
+            ->values();
+    }
+
+    public function isEligibleReplacement(Candidature $candidature): bool
+    {
+        $face = $candidature->face;
+
+        if (! $face instanceof Face) {
+            return false;
+        }
+
+        $faceUserActive = User::query()
+            ->where('userable_type', Face::class)
+            ->where('userable_id', $face->id)
+            ->where('is_active', true)
+            ->exists();
+
+        return $faceUserActive
+            && $this->faceEntitlementService->capabilities($face)->tier !== FaceSubscriptionTier::Free;
+    }
+
+    /**
+     * Lot B4 : la sélection payée a-t-elle encore une Face engagée (acceptée, confirmée, en cours,
+     * terminée) ou une place libérée en attente ? Faux = toutes les places ont été remboursées.
+     */
+    public function hasActiveSelectedFace(MissionPayment $payment): bool
+    {
+        $candidatureIds = $payment->entries()->pluck('candidature_id');
+
+        $hasEngagedFace = Candidature::query()
+            ->whereIn('id', $candidatureIds)
+            ->whereIn('status', [
+                CandidatureStatus::Accepted->value,
+                CandidatureStatus::Confirmed->value,
+                CandidatureStatus::InProgress->value,
+                CandidatureStatus::Completed->value,
+            ])
+            ->exists();
+
+        return $hasEngagedFace || $payment->entries()
+            ->whereNotNull('freed_at')
+            ->where('escrow_status', EscrowStatus::Locked->value)
+            ->exists();
+    }
+
+    /** Lot B4 : toutes les places de la sélection ont été remboursées, prévient le Producer. */
+    public function notifyAllPlacesRefunded(Mission $mission): void
+    {
+        $this->notifySafely(
+            userId: $this->getUserIdForProducer((int) $mission->producer_id),
+            type: 'mission_all_places_refunded',
+            data: [
+                'message' => "Aucune Face sélectionnée n'a confirmé sa participation à « {$mission->titre} » : toutes les places ont été remboursées sur votre wallet (hors frais de service).",
+                'mission_id' => $mission->id,
+                'url' => "/producer/missions/{$mission->uuid}/candidatures",
+            ],
+        );
+    }
+
+    /** Début du jour de tournage affiché (« 30/10 à 00:00 », fuseau métier), « jour du tournage » sans date. */
+    public function formatShootingDayStart(Mission $mission): string
+    {
+        $start = $mission->shootingDayStartsAt();
+
+        if ($start === null) {
+            return 'jour du tournage';
+        }
+
+        $local = $start->copy()->setTimezone((string) config('app.business_timezone'));
+
+        return $local->format('d/m').' à '.$local->format('H:i');
+    }
+
+    /** Queue un email vers l'utilisateur donné, après commit : un échec est journalisé, jamais propagé. */
+    private function queueMailSafely(?int $userId, \Closure $mailFactory, Mission $mission, string $label): void
+    {
+        if ($userId === null) {
+            return;
+        }
+
+        try {
+            $email = trim((string) User::query()->whereKey($userId)->value('email'));
+
+            if ($email !== '') {
+                Mail::to($email)->queue($mailFactory());
+            }
+        } catch (\Throwable $e) {
+            Log::warning("{$label} queue failed", [
+                'mission_id' => $mission->id,
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -1487,6 +1852,180 @@ class MissionPaymentService
 
     public const CHECKOUT_UNVERIFIABLE = 'unverifiable';
 
+    /** Lot B1 — le Producteur a 24 h (depuis la création du MissionPayment) pour payer sa sélection. */
+    public const SELECTION_PAYMENT_WINDOW_HOURS = 24;
+
+    /** Lot B3 : délai laissé à une Face sélectionnée (mission cash payée) pour confirmer sa participation. */
+    public const FACE_CONFIRMATION_WINDOW_HOURS = 48;
+
+    /** Lot B3 : délai minimal de confirmation, même quand le tournage arrive avant les 48 h. */
+    public const FACE_CONFIRMATION_MIN_HOURS = 12;
+
+    /** Lot B3 : la relance de confirmation part quand il reste au plus ce nombre d'heures. */
+    public const FACE_CONFIRMATION_REMINDER_HOURS = 24;
+
+    /** Fenêtre de relance : entre 12 h et 20 h après la création du paiement. */
+    public const SELECTION_REMINDER_MIN_AGE_HOURS = 12;
+
+    public const SELECTION_REMINDER_MAX_AGE_HOURS = 20;
+
+    /** À l'échéance, un checkout FedaPay ouvert/repris depuis moins de cela n'est pas réinitialisé par le cron. */
+    public const SELECTION_OPEN_CHECKOUT_GRACE_MINUTES = 60;
+
+    public const SELECTION_SETTLED = 'settled';
+
+    public const SELECTION_RESET = 'reset';
+
+    public const SELECTION_IN_FLIGHT = 'in_flight';
+
+    public const SELECTION_UNVERIFIABLE = 'unverifiable';
+
+    public const SELECTION_NOOP = 'noop';
+
+    /** Échéance de paiement d'une sélection : created_at + 24 h (une reprise du checkout ne la repousse pas). */
+    public function selectionExpiresAt(MissionPayment $payment): CarbonInterface
+    {
+        return ($payment->created_at ?? now())->copy()->addHours(self::SELECTION_PAYMENT_WINDOW_HOURS);
+    }
+
+    /**
+     * Règle une sélection de mission en attente de paiement : payée côté FedaPay → settled ; morte,
+     * abandonnée ou annulée par le Producteur → reset ; sinon rien. MUST be called OUTSIDE any DB
+     * transaction (appel HTTP FedaPay, markAsPaid).
+     *
+     * @return string une des constantes SELECTION_* (settled|reset|in_flight|unverifiable|noop)
+     */
+    public function settleOrResetPendingSelection(
+        MissionPayment $payment,
+        string $reason,
+        bool $respectOpenCheckout,
+        bool $callerHoldsLock = false,
+    ): string {
+        /** @var MissionPayment|null $payment */
+        $payment = MissionPayment::query()->find($payment->id);
+
+        if ($payment === null || $payment->status !== MissionPaymentStatus::Pending) {
+            return self::SELECTION_NOOP;
+        }
+
+        /** @var Mission|null $mission */
+        $mission = Mission::query()->find($payment->mission_id);
+
+        if ($mission === null || $mission->status !== MissionStatus::PendingPayment) {
+            return self::SELECTION_NOOP;
+        }
+
+        if (! $callerHoldsLock && $this->isMissionPaymentLockHeld($payment->mission_id)) {
+            return self::SELECTION_IN_FLIGHT;
+        }
+
+        $transactionId = $payment->fedapay_transaction_id !== null ? (int) $payment->fedapay_transaction_id : null;
+        $fedapayStatus = null;
+        $fedapayCreatedAt = null;
+        $reference = '';
+
+        if ($transactionId === null) {
+            if ($payment->created_at === null
+                || $payment->created_at->gt(now()->subMinutes(self::CASH_CHECKOUT_INITIATION_GRACE_MINUTES))) {
+                return self::SELECTION_IN_FLIGHT;
+            }
+        } else {
+            try {
+                $transaction = $this->fedapayService->retrieveTransaction($transactionId);
+                $fedapayStatus = (string) $transaction->status;
+                $fedapayCreatedAt = isset($transaction->created_at)
+                    ? \Illuminate\Support\Carbon::parse((string) $transaction->created_at)
+                    : null;
+                $reference = (string) ($transaction->reference ?? $transactionId);
+            } catch (\Throwable $e) {
+                Log::warning('MissionPaymentService::settleOrResetPendingSelection — FedaPay indisponible, refus par prudence', [
+                    'payment_id' => $payment->id,
+                    'transaction_id' => $transactionId,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return self::SELECTION_UNVERIFIABLE;
+            }
+
+            if (in_array($fedapayStatus, ['approved', 'transferred'], true)) {
+                $this->markAsPaid($payment, $reference);
+
+                return self::SELECTION_SETTLED;
+            }
+
+            if (! in_array($fedapayStatus, FedapayService::TERMINAL_FAILED_STATUSES, true) && $respectOpenCheckout) {
+                $threshold = now()->subMinutes(self::SELECTION_OPEN_CHECKOUT_GRACE_MINUTES);
+
+                if (($fedapayCreatedAt !== null && $fedapayCreatedAt->gt($threshold))
+                    || ($payment->updated_at !== null && $payment->updated_at->gt($threshold))) {
+                    return self::SELECTION_IN_FLIGHT;
+                }
+            }
+        }
+
+        $reset = DB::transaction(fn (): bool => $this->resetSelectionForPayment(
+            $payment->id,
+            $reason,
+            $transactionId,
+            $fedapayStatus,
+        ));
+
+        if (! $reset) {
+            return self::SELECTION_NOOP;
+        }
+
+        if ($reason === 'selection_payment_expired') {
+            $this->queueSelectionExpiredMail($mission, (int) $payment->producer_id);
+        }
+
+        return self::SELECTION_RESET;
+    }
+
+    /** Email « sélection annulée » : après commit, jamais bloquant. */
+    private function queueSelectionExpiredMail(Mission $mission, int $producerId): void
+    {
+        try {
+            /** @var User|null $user */
+            $user = User::where('userable_type', Producer::class)
+                ->where('userable_id', $producerId)
+                ->first();
+            $email = trim((string) $user?->email);
+
+            if ($email !== '') {
+                Mail::to($email)->queue(new MissionSelectionExpiredMail($mission));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('MissionPaymentService: selection expired email queue failed', [
+                'mission_id' => $mission->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /** Paiement cash Pending auquel la candidature appartient (entry Pending d'un MissionPayment Pending), sinon null. */
+    public function pendingCashPaymentFor(Candidature $candidature, bool $lockingRead = false): ?MissionPayment
+    {
+        // $lockingRead : dans une transaction MySQL (REPEATABLE READ), une lecture simple relit
+        // l'instantané pris à la première lecture et ignore une sélection commitée depuis ; une
+        // lecture verrouillante voit toujours le dernier état commité.
+        $entry = MissionPaymentCandidature::query()
+            ->where('candidature_id', $candidature->id)
+            ->where('escrow_status', EscrowStatus::Pending->value)
+            ->whereNotNull('mission_payment_id')
+            ->when($lockingRead, fn ($query) => $query->sharedLock())
+            ->first();
+
+        if ($entry === null) {
+            return null;
+        }
+
+        return MissionPayment::query()
+            ->whereKey($entry->mission_payment_id)
+            ->where('status', MissionPaymentStatus::Pending->value)
+            ->when($lockingRead, fn ($query) => $query->sharedLock())
+            ->first();
+    }
+
     /**
      * Whether a parentless hybrid UGC entry is Pending with a FedaPay transaction on this candidature.
      */
@@ -1632,27 +2171,43 @@ class MissionPaymentService
      */
     public function resetPendingCashSelection(Candidature $candidature, string $reason, array $assessment): bool
     {
+        return $this->resetSelectionForPayment(
+            $assessment['payment_id'],
+            $reason,
+            $assessment['transaction_id'],
+            $assessment['fedapay_status'],
+        );
+    }
+
+    /**
+     * Corps du reset au niveau paiement (voir resetPendingCashSelection). MUST be inside a DB::transaction().
+     * Notification Producteur selon la raison : `selection_payment_expired` → message d'échéance 24 h
+     * (l'email part après commit, côté appelant) ; `producer_cancelled_selection` → aucune (c'est lui
+     * qui a agi) ; toute autre raison → message historique.
+     */
+    private function resetSelectionForPayment(int $paymentId, string $reason, ?int $expectedTransactionId, ?string $fedapayStatus): bool
+    {
         // Ordre de verrous (aligné sur markAsPaid) : payment → entries → mission.
-        $this->lockCashSelection($assessment['payment_id']);
+        $this->lockCashSelection($paymentId);
 
         /** @var MissionPayment|null $payment */
-        $payment = MissionPayment::query()->find($assessment['payment_id']);
+        $payment = MissionPayment::query()->find($paymentId);
 
         if ($payment === null
             || $payment->status !== MissionPaymentStatus::Pending
-            || ($payment->fedapay_transaction_id !== null ? (int) $payment->fedapay_transaction_id : null) !== $assessment['transaction_id']) {
+            || ($payment->fedapay_transaction_id !== null ? (int) $payment->fedapay_transaction_id : null) !== $expectedTransactionId) {
             return false;
         }
 
         /** @var Mission|null $mission */
-        $mission = Mission::query()->lockForUpdate()->find($candidature->mission_id);
+        $mission = Mission::query()->lockForUpdate()->find($payment->mission_id);
 
         if ($payment->fedapay_transaction_id !== null) {
             $this->recordDetachedPayment(
                 'mission_payment',
                 $payment->id,
                 (string) $payment->fedapay_transaction_id,
-                $assessment['fedapay_status'],
+                $fedapayStatus,
                 (int) $payment->montant_total_producteur,
                 ['mission_id' => $payment->mission_id, 'producer_id' => $payment->producer_id, 'reason' => $reason],
             );
@@ -1665,14 +2220,25 @@ class MissionPaymentService
             $mission->update(['status' => MissionStatus::Published]);
         }
 
+        if ($reason === 'producer_cancelled_selection') {
+            return true;
+        }
+
+        $url = $mission instanceof Mission ? "/producer/missions/{$mission->uuid}/candidatures" : '/producer/missions';
+        $message = $reason === 'face_withdrew_during_payment'
+            ? 'Une Face a retiré sa candidature pendant le paiement : votre sélection sur « '.($mission instanceof Mission ? $mission->titre : 'votre mission').' » a été annulée. Refaites-la depuis la page Candidatures. Si un paiement aboutit malgré tout, son montant sera crédité sur votre wallet WeAct.'
+            : ($reason === 'selection_payment_expired'
+            ? 'Le délai de 24 h pour payer votre sélection sur « '.($mission instanceof Mission ? $mission->titre : 'votre mission').' » est dépassé : la sélection a été annulée. Vous pouvez en refaire une.'
+            : 'Le paiement de votre sélection n\'a pas abouti : la sélection a été annulée, veuillez la refaire.');
+
         $this->notifySafely(
             userId: $this->getUserIdForProducer((int) $payment->producer_id),
             type: 'mission_selection_reset',
             data: [
-                'message' => 'Le paiement de votre sélection n\'a pas abouti : la sélection a été annulée, veuillez la refaire.',
+                'message' => $message,
                 'mission_id' => $payment->mission_id,
                 'reason' => $reason,
-                'url' => $mission instanceof Mission ? "/producer/missions/{$mission->uuid}/candidatures" : '/producer/missions',
+                'url' => $url,
             ],
         );
 
