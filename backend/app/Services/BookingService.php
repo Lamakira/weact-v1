@@ -12,6 +12,7 @@ use App\Enums\DisputeResolutionOutcome;
 use App\Enums\EscrowStatus;
 use App\Enums\FinancialEventType;
 use App\Enums\UgcRefundReason;
+use App\Enums\WalletCreditMotif;
 use App\Events\BookingAccepted;
 use App\Events\BookingCancelled;
 use App\Events\BookingCompleted;
@@ -22,11 +23,13 @@ use App\Events\BookingNoShowReported;
 use App\Events\BookingPaid;
 use App\Events\BookingPartiallyConfirmed;
 use App\Events\BookingRefused;
+use App\Mail\WalletCreditedMail;
 use App\Models\Admin;
 use App\Models\Booking;
 use App\Models\EscrowTransaction;
 use App\Models\Face;
 use App\Models\Notification;
+use App\Models\Producer;
 use App\Models\User;
 use App\Services\Ugc\UgcCommissionService;
 use App\Services\Ugc\UgcRefundService;
@@ -35,6 +38,7 @@ use App\ValueObjects\BookingPricing;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -919,6 +923,7 @@ class BookingService
                 }
 
                 $this->ensureBookingPaymentIsSupported($lockedBooking);
+                $this->ensurePaymentWindowIsOpen($lockedBooking);
 
                 if ($lockedBooking->fedapay_transaction_id !== null) {
                     return [
@@ -1050,12 +1055,43 @@ class BookingService
             return $booking;
         }
 
-        return DB::transaction(function () use ($booking, $fedapayRef) {
+        $lateCredit = null;
+        $expiredHere = false;
+
+        $result = DB::transaction(function () use ($booking, $fedapayRef, &$lateCredit, &$expiredHere) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
             // Idempotent: already paid, skip
             if ($booking->status === BookingStatus::Paid) {
                 return $booking;
+            }
+
+            // Lot B11 : paiement approuvé après l'expiration (checkout ouvert avant les 24 h,
+            // validé après). L'encaissement est enregistré et intégralement crédité au wallet
+            // du Producteur ; le booking reste expiré, aucun escrow. Idempotent par l'événement
+            // PaymentConfirmed (un second webhook ne recrédite pas).
+            // Déterministe : une approbation traitée à partir de l'échéance (accepted_at + 24 h)
+            // sur un booking encore Accepted (cron pas passé) l'expire d'abord, comme le cron,
+            // puis suit le même chemin de crédit tardif — que le cron soit passé avant ou non.
+            if ($booking->status === BookingStatus::Accepted
+                && ! $this->hasExistingFinancialEvent($booking->id, FinancialEventType::PaymentConfirmed)) {
+                $deadline = $booking->paymentDeadline();
+
+                if ($deadline !== null && now()->greaterThanOrEqualTo($deadline)) {
+                    $booking->update(['status' => BookingStatus::Expired]);
+                    $booking = $booking->fresh();
+                    $expiredHere = true;
+                }
+            }
+
+            if ($booking->status === BookingStatus::Expired) {
+                if ($this->hasExistingFinancialEvent($booking->id, FinancialEventType::PaymentConfirmed)) {
+                    return $booking;
+                }
+
+                $lateCredit = $this->creditLatePaymentOnExpiredBooking($booking, $fedapayRef);
+
+                return $booking->fresh();
             }
 
             if ($booking->status !== BookingStatus::Accepted) {
@@ -1085,6 +1121,98 @@ class BookingService
 
             return $freshBooking;
         });
+
+        if ($expiredHere) {
+            try {
+                BookingExpired::dispatch($result->fresh());
+            } catch (\Throwable $e) {
+                Log::warning('BookingExpired broadcast failed', [
+                    'booking_id' => $result->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($lateCredit !== null) {
+            $this->notifyLatePaymentCredit($result, $lateCredit);
+        }
+
+        return $result;
+    }
+
+    /**
+     * Crédit wallet d'un paiement arrivé sur un booking expiré (lot B11). Sous le verrou du
+     * booking, dans la transaction de markAsPaid. Retourne le montant crédité.
+     */
+    private function creditLatePaymentOnExpiredBooking(Booking $booking, string $fedapayRef): int
+    {
+        $amount = (int) $booking->montant_total_producteur;
+
+        $this->recordFinancialEvent(
+            FinancialEventType::PaymentConfirmed,
+            $booking,
+            $amount,
+            ['fedapay_ref' => $fedapayRef, 'status' => 'confirmed', 'metadata' => ['late_after_expiry' => true]],
+        );
+
+        $this->walletService->credit(
+            (int) $booking->producer_id,
+            $amount,
+            $booking,
+            WalletCreditMotif::BookingLatePaymentRefund->label(),
+        );
+
+        $this->recordFinancialEvent(
+            FinancialEventType::Refund,
+            $booking,
+            $amount,
+            ['fedapay_ref' => $fedapayRef, 'status' => 'refunded', 'metadata' => ['reason' => 'late_payment_after_expiry', 'settlement' => 'wallet']],
+        );
+
+        Log::warning('Booking payment approved after expiry — credited to the Producer wallet', [
+            'booking_id' => $booking->id,
+            'fedapay_ref' => $fedapayRef,
+            'amount' => $amount,
+        ]);
+
+        return $amount;
+    }
+
+    /**
+     * Après commit : notification in-app et e-mail « wallet crédité » au Producteur. Non-fatal.
+     */
+    private function notifyLatePaymentCredit(Booking $booking, int $amount): void
+    {
+        try {
+            Notification::create([
+                'user_id' => $booking->producer_id,
+                'type' => 'booking_wallet_credited',
+                'data' => [
+                    'message' => 'Votre paiement est arrivé après l\'expiration du booking : '
+                        .number_format($amount, 0, ',', ' ').' XOF ont été crédités sur votre wallet.',
+                    'booking_id' => $booking->id,
+                    'url' => "/producer/bookings/{$booking->uuid}",
+                ],
+            ]);
+
+            $producerUser = User::query()->find($booking->producer_id);
+            $producer = $producerUser?->userable;
+            $email = trim((string) $producerUser?->email);
+
+            if ($producerUser !== null && $producer instanceof Producer && $email !== '') {
+                Mail::to($email)->queue(new WalletCreditedMail(
+                    producer: $producer,
+                    amount: $amount,
+                    motif: WalletCreditMotif::BookingLatePaymentRefund,
+                    newBalance: (int) $producerUser->balance,
+                ));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Late booking payment credit notification failed', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**
@@ -1115,8 +1243,9 @@ class BookingService
      */
     public function checkAndProcessPayment(Booking $booking): Booking
     {
-        // Already processed — return as-is
-        if (! in_array($booking->status, [BookingStatus::Accepted], true)) {
+        // Already processed — return as-is. Un booking expiré reste réconciliable : un paiement
+        // approuvé tardivement est crédité au wallet (même chemin que le webhook, idempotent).
+        if (! in_array($booking->status, [BookingStatus::Accepted, BookingStatus::Expired], true)) {
             return $booking;
         }
 
@@ -1479,6 +1608,21 @@ class BookingService
         }
 
         return 0;
+    }
+
+    /**
+     * Lot B11 : plus aucun paiement (ni réutilisation d'un checkout existant) à partir de
+     * accepted_at + 24 h, même si le cron d'expiration n'est pas encore passé.
+     */
+    private function ensurePaymentWindowIsOpen(Booking $booking): void
+    {
+        if ($booking->isPaymentWindowOpen()) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'status' => ['Le délai de paiement de 24 h est dépassé.'],
+        ]);
     }
 
     private function ensureBookingPaymentIsSupported(Booking $booking): void

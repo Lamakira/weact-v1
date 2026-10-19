@@ -396,15 +396,18 @@ const isBeforeShootingDate = computed<boolean>(() => {
   return new Date(booking.value.date_debut).getTime() > nowTimestamp.value
 })
 
+// Lot B11 : échéance fournie par le backend (accepted_at + 24 h, source unique) ; repli
+// sur le calcul local pour une réponse qui ne la porterait pas.
 const paymentDeadline = computed<Date | null>(() => {
+  if (booking.value?.payment_deadline) return new Date(booking.value.payment_deadline)
   if (!booking.value?.accepted_at) return null
   return new Date(new Date(booking.value.accepted_at).getTime() + 24 * 60 * 60 * 1000)
 })
 
 const shouldShowPaymentDeadline = computed<boolean>(() => {
   // UGC (2.4) : aucun paiement cash n'est attendu après acceptation.
-  return !isFace.value
-    && booking.value?.status === BookingStatus.ACCEPTED
+  // Lot B11 : la Face voit aussi l'échéance (le chat s'ouvre au paiement).
+  return booking.value?.status === BookingStatus.ACCEPTED
     && booking.value?.type_contenu !== 'UGC'
     && !!booking.value.accepted_at
 })
@@ -416,11 +419,34 @@ const isPaymentOverdue = computed<boolean>(() => {
 
 const formattedPaymentDeadline = computed<string>(() => {
   if (!paymentDeadline.value) return ''
-  return new Intl.DateTimeFormat('fr-FR', {
-    dateStyle: 'short',
-    timeStyle: 'short',
-  }).format(paymentDeadline.value)
+  return formatBookingDeadline(paymentDeadline.value.toISOString())
 })
+
+// Lot B11 : le bouton « Payer maintenant » disparaît à l'échéance exacte, sans attendre
+// le prochain tic de la minute (le backend refuse tout paiement à partir de cet instant).
+let paymentDeadlineTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearPaymentDeadlineTimer(): void {
+  if (paymentDeadlineTimer !== null) {
+    clearTimeout(paymentDeadlineTimer)
+    paymentDeadlineTimer = null
+  }
+}
+
+watch(
+  paymentDeadline,
+  (deadline) => {
+    clearPaymentDeadlineTimer()
+    if (!deadline) return
+    const delay = deadline.getTime() - Date.now()
+    // setTimeout plafonne à ~24,8 jours ; l'échéance de paiement est à 24 h au plus.
+    if (delay <= 0 || delay > 2 * 24 * 60 * 60 * 1000) return
+    paymentDeadlineTimer = setTimeout(() => {
+      nowTimestamp.value = Date.now()
+    }, delay)
+  },
+  { immediate: true },
+)
 
 /**
  * FORMAT HELPERS
@@ -771,6 +797,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  clearPaymentDeadlineTimer()
   if (countdownTicker !== null) {
     clearInterval(countdownTicker)
     countdownTicker = null
@@ -1076,13 +1103,20 @@ onUnmounted(() => {
 
           <div
             v-if="shouldShowPaymentDeadline"
+            data-testid="payment-deadline"
             class="rounded-xl border px-4 py-3 text-sm"
             :class="isPaymentOverdue
               ? 'border-red-200 bg-red-50 text-red-800'
               : 'border-amber-200 bg-amber-50 text-amber-800'"
           >
-            <span v-if="isPaymentOverdue">Délai expiré — ce booking sera bientôt annulé</span>
-            <span v-else>Paiement requis avant {{ formattedPaymentDeadline }}</span>
+            <template v-if="isFace">
+              <span v-if="isPaymentOverdue">Délai de paiement dépassé — cette demande va bientôt expirer</span>
+              <span v-else>Le Producteur doit payer avant le {{ formattedPaymentDeadline }}, sinon la demande expirera.</span>
+            </template>
+            <template v-else>
+              <span v-if="isPaymentOverdue">Délai expiré — cette demande va bientôt expirer</span>
+              <span v-else>Paiement requis avant le {{ formattedPaymentDeadline }}</span>
+            </template>
           </div>
 
           <!-- Confirm button (double-confirmation) -->
