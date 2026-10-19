@@ -26,6 +26,9 @@ use Illuminate\Support\Facades\Mail;
  */
 class CandidatureResponseDeadlineService
 {
+    /** Échéance dépassée depuis plus que cela : expiration sans notification (historique). */
+    public const SILENT_EXPIRY_AFTER_HOURS = 24;
+
     /**
      * Candidatures en attente d'une réponse du Producer, hors sélection en cours de paiement.
      *
@@ -78,6 +81,14 @@ class CandidatureResponseDeadlineService
 
             return $ids;
         }, 3);
+
+        // Historique (échéance dépassée depuis plus de 24 h, ex. au premier passage après le
+        // déploiement) : expirée sans notification, pour ne pas envoyer des centaines d'avis
+        // sur des candidatures anciennes. Le cron horaire notifie toutes les nouvelles.
+        $deadline = $mission->producerResponseDeadline();
+        if ($deadline !== null && $deadline->lt(now()->subHours(self::SILENT_EXPIRY_AFTER_HOURS))) {
+            return count($expiredIds);
+        }
 
         foreach ($expiredIds as $candidatureId) {
             $this->notifyFaceOfExpiry($mission, $candidatureId);
