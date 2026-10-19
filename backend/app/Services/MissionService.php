@@ -396,6 +396,13 @@ class MissionService
      */
     public function completeMission(Mission $mission): Mission
     {
+        if ($mission->type_mission === MissionType::Ugc) {
+            $completed = $this->completeUgcMission($mission, throwWhenBlocked: true);
+
+            /** @var Mission $completed */
+            return $completed;
+        }
+
         return DB::transaction(function () use ($mission): Mission {
             // Serialise with a concurrent delete / attendance action and re-read the state
             // under lock: the same entry can never be paid twice through different keys.
@@ -448,6 +455,60 @@ class MissionService
 
             return $freshMission;
         }, 3);
+    }
+
+    /**
+     * Lot B8 : termine une mission UGC si la règle de fin est remplie (sweep, validation de
+     * l'Avis). Sans effet sinon. Retourne vrai si la mission vient d'être terminée.
+     */
+    public function completeUgcMissionIfFinished(Mission $mission): bool
+    {
+        if ($mission->type_mission !== MissionType::Ugc) {
+            return false;
+        }
+
+        return $this->completeUgcMission($mission, throwWhenBlocked: false) !== null;
+    }
+
+    /**
+     * Fin d'une mission UGC sous verrou : aucun mouvement d'argent (commission payée à la
+     * publication, escrow hybride déjà libéré ou remboursé candidature par candidature).
+     *
+     * @throws ValidationException quand $throwWhenBlocked et que la règle de fin bloque
+     */
+    private function completeUgcMission(Mission $mission, bool $throwWhenBlocked): ?Mission
+    {
+        $completed = DB::transaction(function () use ($mission, $throwWhenBlocked): ?Mission {
+            /** @var Mission $locked */
+            $locked = Mission::query()->lockForUpdate()->findOrFail($mission->id);
+
+            if ($locked->type_mission !== MissionType::Ugc) {
+                return null;
+            }
+
+            $blocker = $locked->canBeCompleted() ? null : ($locked->completionBlocker() ?? ['status', 'Cette mission ne peut pas être terminée dans son état actuel.']);
+
+            if ($blocker !== null) {
+                if ($throwWhenBlocked) {
+                    throw ValidationException::withMessages([$blocker[0] => [$blocker[1]]]);
+                }
+
+                return null;
+            }
+
+            $locked->update(['status' => MissionStatus::Completed]);
+
+            /** @var Mission $fresh */
+            $fresh = $locked->fresh();
+
+            return $fresh;
+        }, 3);
+
+        if ($completed !== null) {
+            $this->notifyProducerOnCompletion($completed);
+        }
+
+        return $completed;
     }
 
     public function notifyProducerOnCompletion(Mission $mission): void

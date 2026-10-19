@@ -467,6 +467,12 @@ class Mission extends Model
     {
         $onlyClosed = 'Seules les missions clôturées peuvent être marquées comme terminées';
 
+        // Lot B8 : une mission UGC n'a pas de MissionPayment (commission payée à la
+        // publication, escrow hybride par candidature) ; règle dédiée.
+        if ($this->type_mission === MissionType::Ugc) {
+            return $this->ugcCompletionBlocker($onlyClosed);
+        }
+
         if ($this->status === MissionStatus::Draft || $this->status === MissionStatus::Published) {
             return ['status', $onlyClosed];
         }
@@ -515,8 +521,70 @@ class Mission extends Model
      */
     public function canBeCompleted(): bool
     {
-        return in_array($this->status, [MissionStatus::Closed, MissionStatus::PendingAttendanceValidation], true)
+        // Lot B8 : une mission UGC dont le recrutement est fini peut être encore publiée
+        // (date limite passée sans avoir rempli toutes les places).
+        $completableStatuses = $this->type_mission === MissionType::Ugc
+            ? [MissionStatus::Closed, MissionStatus::Published]
+            : [MissionStatus::Closed, MissionStatus::PendingAttendanceValidation];
+
+        return in_array($this->status, $completableStatuses, true)
             && $this->completionBlocker() === null;
+    }
+
+    /**
+     * Lot B8 : statuts de candidature UGC encore engagés dans une livraison (non terminaux).
+     *
+     * @var list<CandidatureStatus>
+     */
+    public const UGC_ACTIVE_CANDIDATURE_STATUSES = [
+        CandidatureStatus::Accepted,
+        CandidatureStatus::Confirmed,
+        CandidatureStatus::InProgress,
+    ];
+
+    /**
+     * Lot B8 : règle de fin d'une mission UGC. Terminable quand le recrutement est fini
+     * (clôturée, ou date limite de candidature passée), qu'aucune Face engagée n'est encore
+     * en cours de livraison (acceptée, confirmée, en cours) et qu'au moins une livraison
+     * est terminée. Aucun argent ne bouge à la fin : chaque candidature est déjà réglée.
+     *
+     * @return array{0: string, 1: string}|null
+     */
+    private function ugcCompletionBlocker(string $onlyClosed): ?array
+    {
+        if ($this->status === MissionStatus::Completed) {
+            return ['status', 'Cette mission est déjà terminée'];
+        }
+
+        if ($this->status === MissionStatus::PendingPayment) {
+            return ['status', 'La commission doit être réglée avant de terminer la mission'];
+        }
+
+        $recruitmentOver = $this->status === MissionStatus::Closed
+            || ($this->status === MissionStatus::Published
+                && $this->date_limite_candidature !== null
+                && $this->date_limite_candidature->toDateString() < self::businessToday());
+
+        if (! $recruitmentOver) {
+            return ['status', $onlyClosed];
+        }
+
+        $hasActiveFaces = $this->candidatures()
+            ->whereIn('status', array_map(
+                static fn (CandidatureStatus $status): string => $status->value,
+                self::UGC_ACTIVE_CANDIDATURE_STATUSES,
+            ))
+            ->exists();
+
+        if ($hasActiveFaces) {
+            return ['candidatures', 'Toutes les Faces engagées doivent avoir terminé leur livraison (ou quitté la mission) avant de terminer la mission.'];
+        }
+
+        if (! $this->candidatures()->where('status', CandidatureStatus::Completed->value)->exists()) {
+            return ['candidatures', "Cette mission n'a aucune livraison terminée."];
+        }
+
+        return null;
     }
 
     /**

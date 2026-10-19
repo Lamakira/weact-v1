@@ -4,6 +4,7 @@ use App\Console\Commands\AutoCompleteBookingsCommand;
 use App\Console\Commands\AutoReleaseMissionFundsCommand;
 use App\Console\Commands\AutoValidateMissionAttendanceCommand;
 use App\Console\Commands\CheckFaceListingRanksFreshnessCommand;
+use App\Console\Commands\CompleteFinishedUgcMissionsCommand;
 use App\Console\Commands\ExpireFaceSubscriptionsCommand;
 use App\Console\Commands\ExpireUnacceptedBookingsCommand;
 use App\Console\Commands\ExpireUnacceptedUgcDealsCommand;
@@ -53,6 +54,8 @@ app(Schedule::class)->command(ExpireUnconfirmedFacesCommand::class)->hourly()->w
 // ugc-9-1 (D-9.1.g) — dénoue les candidatures UGC acceptées jamais reconfirmées après
 // 48h (refund escrow hybride au Producteur, libère le slot, réouvre la mission).
 app(Schedule::class)->command(ExpireUnreconfirmedUgcCandidaturesCommand::class)->hourly();
+// Lot B8 : fin des missions UGC (et rattrapage des candidatures produit seul livrées).
+app(Schedule::class)->command(CompleteFinishedUgcMissionsCommand::class)->hourly()->withoutOverlapping();
 // 4.5 — relance d'escalade des deadlines d'upload Face (~15 min, NFR3/AR3).
 // Idempotente par shipments.last_notified_threshold ; withoutOverlapping en
 // défense supplémentaire (D-4.5.d).
