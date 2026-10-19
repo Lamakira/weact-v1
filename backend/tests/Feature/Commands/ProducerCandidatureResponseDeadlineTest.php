@@ -116,6 +116,27 @@ class ProducerCandidatureResponseDeadlineTest extends TestCase
         $this->artisan('missions:expire-unanswered-candidatures')->expectsOutputToContain('Candidatures expired: 0');
     }
 
+    public function test_candidatures_whose_deadline_passed_long_ago_expire_silently(): void
+    {
+        // Historique au déploiement : échéance dépassée depuis plus de 24 h → expirée, Face non notifiée.
+        $old = $this->candidature($this->mission());
+        // Échéance dépassée depuis moins de 24 h → expirée et notifiée.
+        $recent = $this->candidature($this->mission(['date_limite_candidature' => '2026-10-22']));
+
+        // Échéances : 23/10 23:00 UTC (ancienne) et 25/10 23:00 UTC (récente).
+        $this->travelTo(Carbon::parse('2026-10-26 01:00:00', 'UTC'));
+        $this->artisan('missions:expire-unanswered-candidatures')
+            ->expectsOutputToContain('Candidatures expired: 2')
+            ->assertExitCode(Command::SUCCESS);
+
+        $this->assertSame(CandidatureStatus::Expired, $old->fresh()->status);
+        $this->assertSame(CandidatureStatus::Expired, $recent->fresh()->status);
+
+        $userIdOf = fn (Candidature $c): int => (int) User::query()->where('userable_type', Face::class)->where('userable_id', $c->face_id)->value('id');
+        $this->assertFalse(Notification::query()->where('user_id', $userIdOf($old))->where('type', 'candidature_expired_no_response')->exists());
+        $this->assertTrue(Notification::query()->where('user_id', $userIdOf($recent))->where('type', 'candidature_expired_no_response')->exists());
+    }
+
     public function test_an_expired_candidature_tells_the_face_the_producer_did_not_answer(): void
     {
         $mission = $this->mission();
