@@ -1450,7 +1450,7 @@ class BookingService
 
     /**
      * Expire an unanswered pending cash booking once the Face response deadline has passed
-     * (lot B10 : création + 72 h, ou début du jour de tournage s'il arrive plus tôt).
+     * (lot B10 : création + 72 h, ou 08 h le jour du tournage si cette heure arrive plus tôt).
      */
     public function expireUnaccepted(Booking $booking): void
     {

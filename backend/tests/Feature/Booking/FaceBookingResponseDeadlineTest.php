@@ -22,7 +22,7 @@ use Tests\TestCase;
 
 /**
  * Lot B10 — la Face répond à une demande de booking cash sous 72 h après sa création,
- * ou avant le début du jour de tournage s'il arrive plus tôt (fuseau métier). Relance
+ * ou avant 08 h le jour du tournage si cette heure arrive plus tôt (fuseau métier). Relance
  * unique quand il reste 24 h (soit à 48 h), échéance affichée partout.
  */
 class FaceBookingResponseDeadlineTest extends TestCase
@@ -77,12 +77,12 @@ class FaceBookingResponseDeadlineTest extends TestCase
         $this->assertTrue($booking->faceResponseDeadline()->equalTo(Carbon::parse('2026-10-23 12:00:00', 'UTC')));
     }
 
-    public function test_deadline_is_the_start_of_the_shooting_day_in_business_time_when_earlier(): void
+    public function test_deadline_is_8am_on_the_shooting_day_in_business_time_when_earlier(): void
     {
         $booking = $this->pendingCash(['date_debut' => '2026-10-22 00:00:00', 'date_fin' => '2026-10-22 00:00:00']);
 
-        // 22/10 00:00 à Porto-Novo = 21/10 23:00 UTC.
-        $this->assertTrue($booking->faceResponseDeadline()->equalTo(Carbon::parse('2026-10-21 23:00:00', 'UTC')));
+        // 22/10 08:00 à Porto-Novo = 22/10 07:00 UTC.
+        $this->assertTrue($booking->faceResponseDeadline()->equalTo(Carbon::parse('2026-10-22 07:00:00', 'UTC')));
     }
 
     public function test_ugc_bookings_have_no_face_response_deadline(): void
@@ -128,16 +128,16 @@ class FaceBookingResponseDeadlineTest extends TestCase
         $this->assertSame(BookingStatus::Expired, $booking->refresh()->status);
     }
 
-    public function test_a_request_expires_at_the_start_of_the_shooting_day_when_earlier(): void
+    public function test_a_request_expires_at_8am_on_the_shooting_day_when_earlier(): void
     {
         $booking = $this->pendingCash(['date_debut' => '2026-10-21 00:00:00', 'date_fin' => '2026-10-21 00:00:00']);
 
-        $this->travelTo(Carbon::parse('2026-10-20 22:59:00', 'UTC'));
+        $this->travelTo(Carbon::parse('2026-10-21 06:59:00', 'UTC'));
         $this->artisan('bookings:expire-unaccepted')->expectsOutput('Found 0 booking(s) to expire.');
         $this->assertSame(BookingStatus::Pending, $booking->refresh()->status);
 
-        // 21/10 00:00 à Porto-Novo.
-        $this->travelTo(Carbon::parse('2026-10-20 23:00:00', 'UTC'));
+        // 21/10 08:00 à Porto-Novo.
+        $this->travelTo(Carbon::parse('2026-10-21 07:00:00', 'UTC'));
         $this->artisan('bookings:expire-unaccepted')->expectsOutput('Found 1 booking(s) to expire.');
         $this->assertSame(BookingStatus::Expired, $booking->refresh()->status);
     }
@@ -240,10 +240,10 @@ class FaceBookingResponseDeadlineTest extends TestCase
 
     public function test_no_reminder_when_the_whole_window_is_24_hours_or_less(): void
     {
-        // Tournage le 21/10 : échéance 20/10 23:00 UTC, onze heures après la demande.
+        // Tournage le 21/10 : échéance 21/10 07:00 UTC (08 h locale), dix-neuf heures après la demande.
         $this->pendingCash(['date_debut' => '2026-10-21 00:00:00', 'date_fin' => '2026-10-21 00:00:00']);
 
-        $this->travelTo(Carbon::parse('2026-10-20 22:00:00', 'UTC'));
+        $this->travelTo(Carbon::parse('2026-10-21 05:00:00', 'UTC'));
         $this->artisan('bookings:remind-face-response')->expectsOutput('Found 0 booking(s) requiring a response reminder.');
 
         Mail::assertNothingQueued();

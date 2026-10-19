@@ -80,6 +80,9 @@ class Booking extends Model
     /** Délai de réponse de la Face à une demande cash, compté depuis sa création (lot B10). */
     public const FACE_RESPONSE_WINDOW_HOURS = 72;
 
+    /** Heure (fuseau métier) du jour de tournage à laquelle la Face ne peut plus répondre (PO 19/10). */
+    public const FACE_RESPONSE_SHOOTING_DAY_HOUR = 8;
+
     /** La Face est relancée une fois quand il reste au plus ce délai pour répondre. */
     public const FACE_RESPONSE_REMINDER_BEFORE_HOURS = 24;
 
@@ -395,8 +398,8 @@ class Booking extends Model
     }
 
     /**
-     * Échéance de réponse de la Face à une demande cash (lot B10) : création + 72 h, ou début
-     * du jour de tournage (fuseau métier) s'il arrive plus tôt. Null pour une dotation UGC
+     * Échéance de réponse de la Face à une demande cash (lot B10) : création + 72 h, ou 08 h
+     * le jour du tournage (fuseau métier) si cette heure arrive plus tôt. Null pour une dotation UGC
      * (la Face ne peut répondre qu'après le règlement de la commission, fenêtre UGC dédiée).
      */
     public function faceResponseDeadline(): ?CarbonInterface
@@ -411,7 +414,7 @@ class Booking extends Model
             $shootingStart = Carbon::parse(
                 $this->date_debut->toDateString(),
                 (string) config('app.business_timezone'),
-            )->startOfDay()->utc();
+            )->setTime(self::FACE_RESPONSE_SHOOTING_DAY_HOUR, 0)->utc();
 
             if ($shootingStart->lessThan($deadline)) {
                 $deadline = $shootingStart;
