@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Services\FaceEntitlementService;
+use App\Support\PublicViewer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -25,14 +26,16 @@ class PublicFaceResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $viewerIsProducer = PublicViewer::isProducer($request);
+
         return [
             'id' => $this->uuid,
             'username' => $this->username,
             'prenom' => $this->prenom,
-            // Public payloads carry the initial only ("K."); the full last name is
-            // reserved to logged-in Producers, the owner and admins (FaceResource).
-            'nom' => $this->lastNameInitial(),
-            'display_name' => $this->publicDisplayName(),
+            // Guests get the initial only ("K."); a logged-in Producer gets the full last
+            // name (lot B13, PublicViewer — the public cache keys on the viewer class).
+            'nom' => $viewerIsProducer ? $this->nom : $this->lastNameInitial(),
+            'display_name' => $viewerIsProducer ? $this->display_name : $this->publicDisplayName(),
             'ville' => $this->ville,
             'categories' => $this->categoriesWithLabels(),
             'is_available' => $this->is_available,

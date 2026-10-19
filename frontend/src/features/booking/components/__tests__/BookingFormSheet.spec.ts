@@ -453,3 +453,86 @@ describe('BookingFormSheet — monté déjà ouvert (chargement asynchrone)', ()
     wrapper.unmount()
   })
 })
+
+describe('BookingFormSheet — brief facultatif (lot B12)', () => {
+  const FACE_UUID = '550e8400-e29b-41d4-a716-446655440000'
+
+  const waitForValidation = async () => {
+    await flushPromises()
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await flushPromises()
+  }
+
+  const fillValidCashForm = async (wrapper: ReturnType<typeof mountForm>) => {
+    await wrapper.find('#date_debut').setValue(addDaysIso(tomorrowIso(), 5))
+    await wrapper.find('#date_fin').setValue(addDaysIso(tomorrowIso(), 5))
+    await wrapper.find('select#lieu').setValue('Cotonou')
+    await flushPromises()
+  }
+
+  beforeEach(() => {
+    createBookingMock.mockReset()
+  })
+
+  it('affiche un champ brief facultatif', () => {
+    const wrapper = mountForm()
+    const brief = wrapper.find('textarea#message')
+
+    expect(brief.exists()).toBe(true)
+    expect(brief.attributes('maxlength')).toBe('1000')
+    expect(brief.attributes('required')).toBeUndefined()
+  })
+
+  it('envoie le brief nettoyé avec la demande', async () => {
+    createBookingMock.mockResolvedValue({ success: true, data: { id: 'abc' } })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await fillValidCashForm(wrapper)
+    await wrapper.find('textarea#message').setValue('  Publicité de 30 secondes, deux tenues.  ')
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(createBookingMock).toHaveBeenCalledTimes(1)
+    expect(createBookingMock.mock.calls[0][0]).toMatchObject({ message: 'Publicité de 30 secondes, deux tenues.' })
+  })
+
+  it('n\'envoie pas de clé message quand le brief est vide', async () => {
+    createBookingMock.mockResolvedValue({ success: true, data: { id: 'abc' } })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await fillValidCashForm(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(createBookingMock).toHaveBeenCalledTimes(1)
+    expect(createBookingMock.mock.calls[0][0]).not.toHaveProperty('message')
+  })
+
+  it('bloque un brief contenant un numéro et explique pourquoi', async () => {
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await fillValidCashForm(wrapper)
+    await wrapper.find('textarea#message').setValue('Appelez-moi au 97 12 34 56')
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(createBookingMock).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="message-error"]').text()).toContain('ne partagez pas de coordonnées')
+  })
+
+  it('affiche l\'erreur serveur sur le brief', async () => {
+    createBookingMock.mockResolvedValue({
+      success: false,
+      errors: { message: ['Refus serveur du brief'] },
+    })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await fillValidCashForm(wrapper)
+    await wrapper.find('textarea#message').setValue('Brief anodin')
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(wrapper.find('[data-testid="message-error"]').text()).toContain('Refus serveur du brief')
+  })
+})

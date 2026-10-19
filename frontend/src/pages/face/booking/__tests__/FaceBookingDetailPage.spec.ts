@@ -15,6 +15,7 @@ const mockActionErrorCode = ref<string | null>(null)
 const mockActionErrorStatus = ref<number | null>(null)
 const mockIsReportingNoShow = ref(false)
 const mockAccept = vi.fn()
+const mockRefuse = vi.fn()
 const mockReportNoShow = vi.fn()
 const mockContest = vi.fn()
 const mockFetchBooking = vi.fn()
@@ -47,7 +48,7 @@ vi.mock('@/features/booking/composables', () => ({
     errorStatus: mockActionErrorStatus,
     confirm: vi.fn(),
     accept: mockAccept,
-    refuse: vi.fn(),
+    refuse: mockRefuse,
     cancel: vi.fn(),
     reportNoShow: mockReportNoShow,
     contest: mockContest,
@@ -1403,6 +1404,80 @@ describe('FaceBookingDetailPage — délai d\'annulation Face (24 h avant le jou
     )
 
     expect(wrapper.find('[data-testid="face-cancel-closed"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+})
+
+describe('FaceBookingDetailPage — dialogue de refus, filtre de coordonnées (lot B12)', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockActionError.value = null
+    mockActionErrorCode.value = null
+    mockActionErrorStatus.value = null
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    mockRefuse.mockReset()
+    mockToastError.mockReset()
+  })
+
+  async function openRefuseDialog() {
+    const wrapper = await mountPage(makeBooking({ status: 'pending', can_refuse: true, can_accept: true }))
+    await wrapper.findAll('button').find((b) => b.text().startsWith('Refuser'))!.trigger('click')
+    const showReason = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Ajouter une raison'),
+    )
+    showReason!.click()
+    await flushPromises()
+    return wrapper
+  }
+
+  async function typeReason(text: string) {
+    const textarea = document.body.querySelector<HTMLTextAreaElement>('[data-testid="refuse-reason-textarea"]')!
+    textarea.value = text
+    textarea.dispatchEvent(new Event('input'))
+    await flushPromises()
+  }
+
+  it('shows the client-side error and blocks the request when the reason contains a phone number', async () => {
+    const wrapper = await openRefuseDialog()
+    await typeReason('Appelez-moi au 97 12 34 56')
+
+    expect(document.body.querySelector('[data-testid="refuse-reason-error"]')?.textContent).toContain('coordonnées')
+    const confirm = document.body.querySelector<HTMLButtonElement>('[data-testid="confirm-refuse-button"]')!
+    expect(confirm.disabled).toBe(true)
+    confirm.click()
+    await flushPromises()
+    expect(mockRefuse).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('sends a clean reason without error', async () => {
+    mockRefuse.mockResolvedValueOnce(makeBooking({ status: 'refused' }))
+    const wrapper = await openRefuseDialog()
+    await typeReason('Je ne suis pas disponible.')
+
+    expect(document.body.querySelector('[data-testid="refuse-reason-error"]')).toBeNull()
+    document.body.querySelector<HTMLButtonElement>('[data-testid="confirm-refuse-button"]')!.click()
+    await flushPromises()
+    expect(mockRefuse).toHaveBeenCalledWith('booking-uuid-1', 'Je ne suis pas disponible.')
+    wrapper.unmount()
+  })
+
+  it('displays the server 422 message under the field instead of a toast', async () => {
+    mockRefuse.mockImplementationOnce(async () => {
+      mockActionError.value = 'Pour votre sécurité, ne partagez pas de coordonnées.'
+      mockActionErrorStatus.value = 422
+      return null
+    })
+    const wrapper = await openRefuseDialog()
+    await typeReason('Je suis disponible')
+    document.body.querySelector<HTMLButtonElement>('[data-testid="confirm-refuse-button"]')!.click()
+    await flushPromises()
+
+    expect(document.body.querySelector('[data-testid="refuse-reason-error"]')?.textContent).toContain(
+      'ne partagez pas de coordonnées',
+    )
+    expect(mockToastError).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })

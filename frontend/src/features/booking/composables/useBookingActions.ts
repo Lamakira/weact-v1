@@ -70,6 +70,7 @@ export function useBookingActions(): UseBookingActionsReturn {
     isRefusing.value = true
     error.value = null
     errorCode.value = null
+    errorStatus.value = null
 
     try {
       const response = await bookingApi.refuseBooking(bookingId, reason)
@@ -77,6 +78,7 @@ export function useBookingActions(): UseBookingActionsReturn {
     } catch (err) {
       error.value = getApiErrorMessage(err)
       errorCode.value = extractErrorCode(err)
+      errorStatus.value = isAxiosError(err) ? (err.response?.status ?? null) : null
       return null
     } finally {
       isRefusing.value = false
@@ -108,6 +110,7 @@ export function useBookingActions(): UseBookingActionsReturn {
     isCancelling.value = true
     error.value = null
     errorCode.value = null
+    errorStatus.value = null
 
     try {
       const response = await bookingApi.cancelBooking(bookingId, reason, customReason)
@@ -115,6 +118,7 @@ export function useBookingActions(): UseBookingActionsReturn {
     } catch (err) {
       error.value = getApiErrorMessage(err)
       errorCode.value = extractErrorCode(err)
+      errorStatus.value = isAxiosError(err) ? (err.response?.status ?? null) : null
       return null
     } finally {
       isCancelling.value = false

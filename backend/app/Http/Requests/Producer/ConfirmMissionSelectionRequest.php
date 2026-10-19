@@ -58,7 +58,7 @@ class ConfirmMissionSelectionRequest extends FormRequest
             'candidature_ids.required' => 'Vous devez sélectionner au moins une candidature.',
             'candidature_ids.min' => 'Vous devez sélectionner au moins une candidature.',
             'candidature_ids.*.exists' => 'Une ou plusieurs candidatures sélectionnées sont invalides.',
-            'candidature_ids.prohibited' => 'Ce paiement est déjà initié. Pour changer la sélection, annulez d\'abord le paiement en cours.',
+            'candidature_ids.prohibited' => 'Ce paiement est déjà initié. Pour changer la sélection, utilisez « Modifier la sélection » pour annuler le paiement en cours.',
         ];
     }
 

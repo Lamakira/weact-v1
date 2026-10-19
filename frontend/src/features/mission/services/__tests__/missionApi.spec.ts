@@ -115,3 +115,19 @@ describe('missionApi.getMissions / getMissionsPage', () => {
     expect(mockGet).toHaveBeenCalledWith('/producer/missions?page=1&per_page=15')
   })
 })
+
+describe('missionApi.cancelSelection — lot B1', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockPost.mockResolvedValue({ data: { data: { mission_status: 'published' }, message: 'ok' } })
+    mockGetCsrfCookie.mockResolvedValue(undefined)
+  })
+
+  it('POSTs cancel-selection after fetching the CSRF cookie', async () => {
+    const result = await missionApi.cancelSelection('m-uuid')
+
+    expect(mockGetCsrfCookie).toHaveBeenCalled()
+    expect(mockPost).toHaveBeenCalledWith('/producer/missions/m-uuid/cancel-selection')
+    expect(result.data.mission_status).toBe('published')
+  })
+})

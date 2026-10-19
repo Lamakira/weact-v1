@@ -39,7 +39,14 @@ export interface PaymentStatusData {
   status?: string
   paid_at?: string | null
   montant_total?: number
+  /** Échéance de paiement de la sélection (ISO 8601) ; null hors paiement en attente. */
+  expires_at?: string | null
   mission_status: string
+}
+
+export interface CancelSelectionResponse {
+  data: { mission_status: string }
+  message: string
 }
 
 export interface PaymentStatusResponse {
@@ -217,6 +224,32 @@ export const missionApi = {
     const response = await apiClient.post<ConfirmSelectionResponse>(
       `/producer/missions/${missionId}/confirm-selection`,
       { candidature_ids: candidatureIds }
+    )
+    return response.data
+  },
+
+  /**
+   * « Modifier la sélection » : annule le paiement en attente et rouvre la sélection.
+   */
+  /**
+   * Lot B4 : donne une place libérée (Face sélectionnée non confirmée) à une candidature non
+   * retenue de la mission. Aucun paiement : l'argent de la place est repris.
+   */
+  async replaceFreedPlace(missionId: string, candidatureId: string): Promise<{ message: string }> {
+    await getCsrfCookie()
+
+    const response = await apiClient.post<{ message: string }>(
+      `/producer/missions/${missionId}/freed-places/replace`,
+      { candidature_id: candidatureId },
+    )
+    return response.data
+  },
+
+  async cancelSelection(missionId: string): Promise<CancelSelectionResponse> {
+    await getCsrfCookie()
+
+    const response = await apiClient.post<CancelSelectionResponse>(
+      `/producer/missions/${missionId}/cancel-selection`
     )
     return response.data
   },

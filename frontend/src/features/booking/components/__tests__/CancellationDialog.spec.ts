@@ -211,3 +211,51 @@ describe('CancellationDialog', () => {
     expect(wrapper.text()).not.toContain('Votre note moyenne sera pénalisée de -1 étoile')
   })
 })
+
+describe('CancellationDialog — filtre de coordonnées (lot B12)', () => {
+  async function mountOther(status: Booking['status'], serverError: string | null = null) {
+    const wrapper = mount(CancellationDialog, {
+      props: {
+        booking: makeBooking({ status }),
+        isOpen: true,
+        isCancelling: false,
+        isFace: false,
+        serverError,
+      },
+      global: { stubs: { Teleport: true } },
+    })
+    await wrapper.get('[data-testid="cancellation-reason-select"]').setValue('other')
+    return wrapper
+  }
+
+  it('shows an error and disables confirm when the custom reason has a link before payment', async () => {
+    const wrapper = await mountOther(BookingStatus.ACCEPTED)
+    await wrapper.get('[data-testid="custom-cancellation-reason-textarea"]').setValue('Voir https://instagram.com/moi')
+
+    expect(wrapper.get('[data-testid="custom-cancellation-reason-error"]').text()).toContain('coordonnées')
+    expect(wrapper.get('[data-testid="confirm-cancellation-button"]').attributes('disabled')).toBeDefined()
+  })
+
+  it('allows the same text once the booking is paid (chat open)', async () => {
+    const wrapper = await mountOther(BookingStatus.PAID)
+    await wrapper.get('[data-testid="custom-cancellation-reason-textarea"]').setValue('Voir https://instagram.com/moi')
+
+    expect(wrapper.find('[data-testid="custom-cancellation-reason-error"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="confirm-cancellation-button"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('allows a clean reason before payment', async () => {
+    const wrapper = await mountOther(BookingStatus.PENDING)
+    await wrapper.get('[data-testid="custom-cancellation-reason-textarea"]').setValue('Le projet est reporté.')
+
+    expect(wrapper.find('[data-testid="custom-cancellation-reason-error"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="confirm-cancellation-button"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('displays the server error under the field', async () => {
+    const wrapper = await mountOther(BookingStatus.ACCEPTED, 'Message serveur 422')
+    await wrapper.get('[data-testid="custom-cancellation-reason-textarea"]').setValue('Le projet est reporté.')
+
+    expect(wrapper.get('[data-testid="custom-cancellation-reason-error"]').text()).toBe('Message serveur 422')
+  })
+})
