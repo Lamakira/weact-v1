@@ -63,7 +63,7 @@ class EscrowMissionGuardsTest extends TestCase
         [$mission, $faces] = $this->paidCashMission(3);
         $producerBefore = (int) $this->producerUser->fresh()->balance;
 
-        // Étape 1 : marquer une Face absente (aucune garde de date) → PendingAttendanceValidation.
+        // Étape 1 : marquer une Face absente (tournage passé) → PendingAttendanceValidation.
         $this->actingAs($this->producerUser)->postJson(
             "/api/v1/producer/missions/{$mission->uuid}/validate-attendance",
             ['entries' => [['entry_id' => $faces[0]['entry']->id, 'status' => 'absent']]],
@@ -942,7 +942,11 @@ class EscrowMissionGuardsTest extends TestCase
     private function paidCashMission(int $faceCount, MissionStatus $status = MissionStatus::Closed): array
     {
         /** @var Mission $mission */
-        $mission = Mission::factory()->closed()->create(['producer_id' => $this->producer->id]);
+        // Lot B5 : tournage passé, sinon le pointage des présences est refusé.
+        $mission = Mission::factory()->closed()->create([
+            'producer_id' => $this->producer->id,
+            'date_tournage' => now()->subDay(),
+        ]);
         if ($status !== MissionStatus::Closed) {
             $mission->update(['status' => $status]);
         }

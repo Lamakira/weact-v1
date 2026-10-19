@@ -61,8 +61,18 @@ function formatDate(iso: string | null): string {
   }).format(d)
 }
 
+// Lot B5 : pointage fermé avant le jour du tournage et pour une Face non confirmée
+// (le backend refuse aussi ; il fournit les raisons affichées).
+const attendanceBlockedReason = computed<string | null>(() => {
+  const mission = data.value?.mission
+  if (!mission || mission.can_mark_attendance !== false) return null
+  return mission.attendance_blocked_reason ?? 'Les présences se valident à partir du jour du tournage.'
+})
+
 function isEntryEditable(entry: AttendanceEntry): boolean {
   return entry.attendance_status === AttendanceStatus.PENDING
+    && attendanceBlockedReason.value === null
+    && entry.can_mark !== false
 }
 
 function hydrateDecisions(entries: AttendanceEntry[]): void {
@@ -301,6 +311,15 @@ watch(missionUuid, loadForm, { immediate: true })
         </div>
       </div>
 
+      <p
+        v-if="attendanceBlockedReason"
+        class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+        role="status"
+        data-testid="attendance-blocked-reason"
+      >
+        {{ attendanceBlockedReason }}
+      </p>
+
       <!-- Mark all present -->
       <div>
         <button
@@ -342,6 +361,13 @@ watch(missionUuid, loadForm, { immediate: true })
               <p class="font-medium text-foreground truncate">{{ entry.face.display_name }}</p>
               <p class="text-sm text-muted-foreground">
                 {{ formatCurrency(entry.montant_face_recoit) }}
+              </p>
+              <p
+                v-if="entry.can_mark === false && entry.blocked_reason"
+                class="text-xs text-amber-700 mt-1"
+                :data-testid="`attendance-entry-${entry.id}-blocked`"
+              >
+                {{ entry.blocked_reason }}
               </p>
               <p
                 v-if="!isEntryEditable(entry) && entry.notified_at"
