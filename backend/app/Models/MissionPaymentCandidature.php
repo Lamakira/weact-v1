@@ -25,6 +25,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $attendance_dispute_message
  * @property \Carbon\Carbon|null $released_at
  * @property \Carbon\Carbon|null $refunded_at
+ * @property \Carbon\Carbon|null $freed_at
+ * @property int|null $replacement_of_entry_id
  * @property-read \App\Models\MissionPayment|null $missionPayment
  * @property-read \App\Models\Candidature|null $candidature
  * @property-read \App\Models\Face|null $face
@@ -44,6 +46,8 @@ class MissionPaymentCandidature extends Model
         'refunded_at',
         'notified_at',
         'attendance_dispute_message',
+        'freed_at',
+        'replacement_of_entry_id',
     ];
 
     /**
@@ -80,6 +84,8 @@ class MissionPaymentCandidature extends Model
             'locked_at' => 'datetime',
             'released_at' => 'datetime',
             'refunded_at' => 'datetime',
+            'freed_at' => 'datetime',
+            'replacement_of_entry_id' => 'integer',
         ];
     }
 

@@ -12,6 +12,7 @@ namespace App\Enums;
  * - accepted → confirmed (Face confirms participation) - unlocks chat
  * - confirmed → in_progress (Mission starts)
  * - in_progress → completed (Mission finishes) - enables ratings
+ * - accepted → expired (cash mission: the Face did not confirm within the deadline; place freed and refunded)
  */
 enum CandidatureStatus: string
 {
@@ -22,6 +23,7 @@ enum CandidatureStatus: string
     case Completed = 'completed';
     case Rejected = 'rejected';
     case Cancelled = 'cancelled';
+    case Expired = 'expired';
 
     /**
      * Get the display name in French for this candidature status.
@@ -36,6 +38,7 @@ enum CandidatureStatus: string
             self::Completed => 'Terminée',
             self::Rejected => 'Refusée',
             self::Cancelled => 'Annulée',
+            self::Expired => 'Expirée',
         };
     }
 

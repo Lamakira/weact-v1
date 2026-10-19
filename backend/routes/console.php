@@ -4,10 +4,14 @@ use App\Console\Commands\AutoCompleteBookingsCommand;
 use App\Console\Commands\AutoReleaseMissionFundsCommand;
 use App\Console\Commands\AutoValidateMissionAttendanceCommand;
 use App\Console\Commands\CheckFaceListingRanksFreshnessCommand;
+use App\Console\Commands\CompleteFinishedUgcMissionsCommand;
 use App\Console\Commands\ExpireFaceSubscriptionsCommand;
 use App\Console\Commands\ExpireUnacceptedBookingsCommand;
 use App\Console\Commands\ExpireUnacceptedUgcDealsCommand;
+use App\Console\Commands\ExpireUnansweredCandidaturesCommand;
+use App\Console\Commands\ExpireUnconfirmedFacesCommand;
 use App\Console\Commands\ExpireUnpaidBookingsCommand;
+use App\Console\Commands\ExpireUnpaidMissionSelectionsCommand;
 use App\Console\Commands\ExpireUnreconfirmedUgcCandidaturesCommand;
 use App\Console\Commands\FailStalePendingFaceSubscriptionsCommand;
 use App\Console\Commands\ProcessUgcDeadlinesCommand;
@@ -16,10 +20,14 @@ use App\Console\Commands\PurgeExpiredCacheCommand;
 use App\Console\Commands\PurgeExpiredMediaCommand;
 use App\Console\Commands\RebuildFaceListingRanksCommand;
 use App\Console\Commands\ReconcileWalletCommand;
+use App\Console\Commands\RefundFreedPlacesCommand;
 use App\Console\Commands\RemindBookingPaymentCommand;
+use App\Console\Commands\RemindCandidatureResponseCommand;
 use App\Console\Commands\RemindFaceSubscriptionRenewalsCommand;
 use App\Console\Commands\RemindPendingBookingConfirmationCommand;
 use App\Console\Commands\RemindShootingDayCommand;
+use App\Console\Commands\RemindUnconfirmedFacesCommand;
+use App\Console\Commands\RemindUnpaidMissionSelectionsCommand;
 use App\Console\Commands\RotateFaceListingRanksCommand;
 use App\Console\Commands\SettleBookingDisputesCommand;
 use App\Console\Commands\SettleDisputedMissionAttendanceCommand;
@@ -39,9 +47,23 @@ app(Schedule::class)->command(RemindPendingBookingConfirmationCommand::class)->h
 app(Schedule::class)->command(ExpireUnacceptedBookingsCommand::class)->hourly();
 app(Schedule::class)->command(ExpireUnpaidBookingsCommand::class)->hourly();
 app(Schedule::class)->command(ExpireUnacceptedUgcDealsCommand::class)->hourly();
+// Lot B1 — expire les sélections de mission impayées après 24 h (relance entre 12 h et 20 h).
+app(Schedule::class)->command(RemindUnpaidMissionSelectionsCommand::class)->hourly()->withoutOverlapping();
+app(Schedule::class)->command(ExpireUnpaidMissionSelectionsCommand::class)->hourly()->withoutOverlapping();
+// Lot B3 — relance puis expire (place libérée + Producteur remboursé) les Faces sélectionnées qui
+// n'ont pas confirmé sous 48 h (ou avant le jour de tournage).
+app(Schedule::class)->command(RemindUnconfirmedFacesCommand::class)->hourly()->withoutOverlapping();
+app(Schedule::class)->command(ExpireUnconfirmedFacesCommand::class)->hourly()->withoutOverlapping();
 // ugc-9-1 (D-9.1.g) — dénoue les candidatures UGC acceptées jamais reconfirmées après
 // 48h (refund escrow hybride au Producteur, libère le slot, réouvre la mission).
 app(Schedule::class)->command(ExpireUnreconfirmedUgcCandidaturesCommand::class)->hourly();
+// Lot B8 : fin des missions UGC (et rattrapage des candidatures produit seul livrées).
+app(Schedule::class)->command(CompleteFinishedUgcMissionsCommand::class)->hourly()->withoutOverlapping();
+// Lot B6 (D3) : réponse du Producer aux candidatures sous 72 h après leur clôture.
+app(Schedule::class)->command(RemindCandidatureResponseCommand::class)->hourly()->withoutOverlapping();
+app(Schedule::class)->command(ExpireUnansweredCandidaturesCommand::class)->hourly()->withoutOverlapping();
+// Lot B4 (D1) : place libérée sans remplaçante au début du jour de tournage -> remboursée.
+app(Schedule::class)->command(RefundFreedPlacesCommand::class)->hourly()->withoutOverlapping();
 // 4.5 — relance d'escalade des deadlines d'upload Face (~15 min, NFR3/AR3).
 // Idempotente par shipments.last_notified_threshold ; withoutOverlapping en
 // défense supplémentaire (D-4.5.d).

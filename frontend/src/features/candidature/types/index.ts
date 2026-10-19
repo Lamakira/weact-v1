@@ -13,6 +13,7 @@ export const CandidatureStatus = {
   COMPLETED: 'completed',
   REJECTED: 'rejected',
   CANCELLED: 'cancelled',
+  EXPIRED: 'expired',
 } as const
 
 export type CandidatureStatusType = (typeof CandidatureStatus)[keyof typeof CandidatureStatus]
@@ -26,6 +27,7 @@ export const CandidatureStatusLabel: Record<CandidatureStatusType, string> = {
   [CandidatureStatus.COMPLETED]: 'Terminée',
   [CandidatureStatus.REJECTED]: 'Refusée',
   [CandidatureStatus.CANCELLED]: 'Annulée',
+  [CandidatureStatus.EXPIRED]: 'Expirée',
 }
 
 // Candidature data from API
@@ -36,6 +38,11 @@ export interface Candidature {
   status: CandidatureStatusType
   status_label: string
   message_motivation: string | null
+  /**
+   * Échéance de confirmation (ISO 8601, lot B3) d'une candidature cash `accepted` non encore
+   * confirmée ; null sinon. Optionnel : évite de casser les fixtures existantes.
+   */
+  confirmation_deadline?: string | null
   created_at: string
   updated_at: string
 }
@@ -124,10 +131,14 @@ export interface ProducerSummary {
 
 /**
  * Statut effectif d'affichage Face : le statut stocké, ou `mission_closed` quand la
- * candidature est `pending` mais que sa mission n'est plus publiée (statut stocké
- * inchangé côté backend : une réouverture reste possible).
+ * candidature est `pending` mais que sa mission n'est plus publiée, ou
+ * `selection_payment_pending` quand la mission attend le paiement de la sélection
+ * (statut stocké inchangé côté backend : une réouverture reste possible).
  */
-export type CandidatureDisplayStatus = CandidatureStatusType | 'mission_closed'
+export type CandidatureDisplayStatus =
+  | CandidatureStatusType
+  | 'mission_closed'
+  | 'selection_payment_pending'
 
 /**
  * Absence déclarée par le Producteur sur une mission, contestable par la Face
@@ -162,6 +173,8 @@ export interface FaceCandidature {
    * évite de casser les fixtures FaceCandidature existantes.
    */
   reconfirm_deadline?: string | null
+  /** Échéance de confirmation (ISO 8601, lot B3) d'une candidature cash `accepted` ; null sinon. */
+  confirmation_deadline?: string | null
   /** Expédition UGC (whenLoaded — clé OMISE hors deal UGC expédié, 3.3 AC8). */
   shipment?: Shipment
 }
@@ -192,6 +205,7 @@ export const CandidatureStatusColor: Record<CandidatureStatusType, string> = {
   [CandidatureStatus.COMPLETED]: 'emerald',
   [CandidatureStatus.REJECTED]: 'red',
   [CandidatureStatus.CANCELLED]: 'gray',
+  [CandidatureStatus.EXPIRED]: 'gray',
 }
 
 // Face summary for Producer candidature list (nested in ProducerCandidature)
@@ -215,6 +229,10 @@ export interface ProducerCandidature {
   status: CandidatureStatusType
   status_label: string
   message_motivation: string | null
+  /** Échéance de confirmation de la Face (ISO 8601, lot B3) tant que la candidature est `accepted` ; null sinon. */
+  confirmation_deadline?: string | null
+  /** Lot B4 : cette candidature non retenue peut reprendre une place libérée (éligibilité calculée côté serveur). */
+  can_replace_freed_place?: boolean
   created_at: string
   conversation_id: string | null
   face: FaceSummary

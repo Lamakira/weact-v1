@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Enums\AttendanceStatus;
+use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Models\Face;
+use App\Services\MissionAttendanceService;
 use DateTimeInterface;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -45,6 +47,11 @@ class MissionAttendanceEntryResource extends JsonResource
             'released_at' => $this->dateTimeToIso8601($this->released_at),
             'refunded_at' => $this->dateTimeToIso8601($this->refunded_at),
             'notified_at' => $this->dateTimeToIso8601($this->notified_at),
+            // Lot B5 : une Face qui n'a pas confirmé sa participation ne se pointe pas.
+            'can_mark' => $this->whenLoaded('candidature', fn (): bool => $this->isMarkableCandidature()),
+            'blocked_reason' => $this->whenLoaded('candidature', fn (): ?string => $this->isMarkableCandidature()
+                ? null
+                : "Cette Face n'a pas confirmé sa participation."),
         ];
     }
 
@@ -65,6 +72,7 @@ class MissionAttendanceEntryResource extends JsonResource
             EscrowStatus::Locked => 'Bloqué',
             EscrowStatus::Released => 'Libéré',
             EscrowStatus::Refunded => 'Remboursé',
+            EscrowStatus::Transferred => 'Transféré',
         };
     }
 
@@ -75,5 +83,12 @@ class MissionAttendanceEntryResource extends JsonResource
         }
 
         return is_string($value) ? $value : null;
+    }
+
+    private function isMarkableCandidature(): bool
+    {
+        $status = $this->candidature?->status;
+
+        return in_array($status, [...MissionAttendanceService::MARKABLE_CANDIDATURE_STATUSES, CandidatureStatus::Completed], true);
     }
 }

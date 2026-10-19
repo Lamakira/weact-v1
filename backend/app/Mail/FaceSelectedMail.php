@@ -15,6 +15,7 @@ final class FaceSelectedMail extends BaseMail
         public readonly Mission $mission,
         public readonly string $producerName,
         public readonly int $amount,
+        public readonly ?string $confirmationDeadline = null,
     ) {}
 
     protected function subjectLine(): string
@@ -33,6 +34,7 @@ final class FaceSelectedMail extends BaseMail
                 'shootingDate' => $this->formatShootingDate(),
                 'formattedAmount' => $this->formatAmount(),
                 'confirmUrl' => $this->buildConfirmUrl(),
+                'confirmationDeadline' => $this->confirmationDeadline,
             ],
         );
     }
