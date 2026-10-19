@@ -9,6 +9,9 @@ use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
+use App\Services\MissionPaymentService;
+use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -27,6 +30,7 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
  * @property string|null $message_motivation
  * @property \App\Enums\CandidatureStatus $status
  * @property \Illuminate\Support\Carbon|null $accepted_at
+ * @property \Illuminate\Support\Carbon|null $confirmation_reminder_sent_at
  * @property \Illuminate\Support\Carbon|null $created_at
  * @property-read \App\Models\Face|null $face
  * @property-read \App\Models\Mission|null $mission
@@ -60,6 +64,7 @@ class Candidature extends Model
         'message_motivation',
         'status',
         'accepted_at',
+        'confirmation_reminder_sent_at',
     ];
 
     /**
@@ -72,6 +77,7 @@ class Candidature extends Model
         return [
             'status' => CandidatureStatus::class,
             'accepted_at' => 'datetime',
+            'confirmation_reminder_sent_at' => 'datetime',
         ];
     }
 
@@ -184,6 +190,44 @@ class Candidature extends Model
         }
 
         return $this->accepted_at->copy()->addHours((int) config('ugc.reconfirm_window_hours', 48));
+    }
+
+    /**
+     * Échéance de confirmation d'une Face sélectionnée sur une mission cash (lot B3) :
+     * min(accepted_at + 48 h, début du jour de tournage dans le fuseau métier).
+     * Source unique de la règle (crons de relance/expiration, API, emails). Null hors
+     * mission standard, hors statut Accepted ou sans ancrage `accepted_at`.
+     */
+    public function confirmationDeadline(): ?CarbonInterface
+    {
+        if ($this->status !== CandidatureStatus::Accepted || $this->accepted_at === null) {
+            return null;
+        }
+
+        $mission = $this->mission;
+
+        if ($mission === null || $mission->type_mission === MissionType::Ugc) {
+            return null;
+        }
+
+        $deadline = $this->accepted_at->copy()->addHours(MissionPaymentService::FACE_CONFIRMATION_WINDOW_HOURS);
+
+        if ($mission->date_tournage !== null) {
+            $shootingStart = Carbon::parse(
+                $mission->date_tournage->toDateString(),
+                (string) config('app.business_timezone'),
+            )->startOfDay();
+
+            if ($shootingStart->lessThan($deadline)) {
+                $deadline = $shootingStart;
+            }
+        }
+
+        // Plancher : une sélection payée la veille ou le jour du tournage laisse quand même
+        // à la Face un délai réel pour confirmer (sinon expiration/remboursement immédiats).
+        $floor = $this->accepted_at->copy()->addHours(MissionPaymentService::FACE_CONFIRMATION_MIN_HOURS);
+
+        return $deadline->lessThan($floor) ? $floor : $deadline;
     }
 
     /**

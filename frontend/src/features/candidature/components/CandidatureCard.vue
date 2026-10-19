@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { Calendar, MapPin, Wallet, User, Check, Loader2, MessageCircle, XCircle } from 'lucide-vue-next'
 import type { FaceCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
+import { formatConfirmationDeadline } from '../utils/formatConfirmationDeadline'
 import { StatusPill, tunnelStatusToPillKind } from '@/components/ugc'
 import MissionAbsenceContestBlock from './MissionAbsenceContestBlock.vue'
 
@@ -178,6 +179,15 @@ const formattedReconfirmDeadline = computed(() => {
     return ''
   }
 })
+
+/**
+ * Computed: Confirmation deadline of a cash selection (lot B3) — « jeudi 19 octobre à 08h51 ».
+ * Backend `confirmation_deadline` (min(accepted_at + 48 h, début du jour de tournage)) ;
+ * null/absent hors candidature cash `accepted` (UGC : voir reconfirm_deadline).
+ */
+const formattedConfirmationDeadline = computed(() =>
+  canConfirm.value ? formatConfirmationDeadline(props.candidature.confirmation_deadline) : '',
+)
 </script>
 
 <template>
@@ -292,6 +302,15 @@ const formattedReconfirmDeadline = computed(() => {
         <Check v-else class="h-4 w-4" />
         {{ isConfirming ? 'Confirmation...' : 'Confirmer ma participation' }}
       </button>
+
+      <!-- Confirmation deadline label (cash accepted, lot B3) -->
+      <p
+        v-if="formattedConfirmationDeadline"
+        data-testid="confirmation-deadline-label"
+        class="text-center text-xs text-amber-600 dark:text-amber-400"
+      >
+        À confirmer avant le {{ formattedConfirmationDeadline }}
+      </p>
 
       <!-- Reconfirmation deadline label (UGC accepted, 9-2, D-9.2.e) -->
       <p

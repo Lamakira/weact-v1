@@ -182,4 +182,35 @@ describe('CandidatureCard', () => {
       expect(wrapper.find('[data-testid="reconfirm-deadline-label"]').exists()).toBe(false)
     })
   })
+
+  describe('confirmation deadline label (lot B3)', () => {
+    it('renders « À confirmer avant le … » for an accepted cash candidature with a confirmation_deadline', () => {
+      const wrapper = mountCard(
+        makeCandidature({
+          status: 'accepted',
+          status_label: 'Acceptée',
+          confirmation_deadline: '2026-10-19T08:51:00+00:00',
+        }),
+      )
+
+      const label = wrapper.find('[data-testid="confirmation-deadline-label"]')
+      expect(label.exists()).toBe(true)
+      expect(label.text()).toContain('À confirmer avant le')
+      expect(label.text()).toContain('octobre')
+      expect(label.text()).toMatch(/à \d{2}h\d{2}/)
+    })
+
+    it('omits the label without deadline, and for a non-accepted candidature', () => {
+      expect(
+        mountCard(makeCandidature({ status: 'accepted', status_label: 'Acceptée' }))
+          .find('[data-testid="confirmation-deadline-label"]')
+          .exists(),
+      ).toBe(false)
+      expect(
+        mountCard(makeCandidature({ status: 'expired', status_label: 'Expirée', confirmation_deadline: '2026-10-19T08:51:00+00:00' }))
+          .find('[data-testid="confirmation-deadline-label"]')
+          .exists(),
+      ).toBe(false)
+    })
+  })
 })
