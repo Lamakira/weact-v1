@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Middleware;
 
+use App\Support\PublicViewer;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -11,7 +12,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Short response cache for the public GET endpoints, whose payload is the SAME
- * for every visitor (no read of the request user, forced `fr` locale).
+ * for every visitor of a given viewer class (forced `fr` locale). Lot B13: the
+ * viewer class (`guest` / `producer`, resolved by `public.viewer` on the routes
+ * that depend on it, `guest` everywhere else) is part of the key, so a Producer
+ * response is never served to a guest.
  *
  * Why: each public request costs 30-60 ms of PHP even with an idle database,
  * so a handful of identical hits saturate the CPU. A hit here skips the
@@ -31,7 +35,8 @@ use Symfony\Component\HttpFoundation\Response;
  *    Detail routes take no param (empty allowlist).
  *  - `cache.public_response_ttl <= 0` disables the middleware (pass-through).
  *
- * Only attach it to routes whose output does NOT depend on the viewer.
+ * Only attach it to routes whose output depends on the viewer through
+ * PublicViewer alone (and then with `public.viewer` placed before it).
  */
 class CachePublicResponse
 {
@@ -60,7 +65,8 @@ class CachePublicResponse
         }
 
         $store = Cache::store(config('cache.public_response_store'));
-        $key = $this->cacheKey($request);
+        $viewerClass = PublicViewer::classFor($request);
+        $key = $this->cacheKey($request, $viewerClass);
 
         $cached = $store->get($key);
 
@@ -76,6 +82,15 @@ class CachePublicResponse
         $response = $next($request);
 
         $contentType = (string) $response->headers->get('Content-Type', '');
+
+        // Fail closed (lot B13) : si la classe du visiteur a changé pendant le pipeline
+        // (`public.viewer` placé APRÈS ce middleware), la clé calculée plus haut ne décrit
+        // pas la réponse (ex. clé « guest » pour un contenu Producer) : on ne stocke rien.
+        if (PublicViewer::classFor($request) !== $viewerClass) {
+            $response->headers->set('X-Public-Cache', 'BYPASS');
+
+            return $response;
+        }
 
         if ($response->getStatusCode() === 200 && str_contains($contentType, 'json')) {
             $store->put($key, [200, (string) $response->getContent(), $contentType], $ttl);
@@ -100,12 +115,12 @@ class CachePublicResponse
         return true;
     }
 
-    private function cacheKey(Request $request): string
+    private function cacheKey(Request $request, string $viewerClass): string
     {
         $query = $request->query();
         $this->ksortRecursive($query);
 
-        return 'public-response:'.sha1($request->path().'?'.json_encode($query));
+        return 'public-response:'.sha1($viewerClass.'|'.$request->path().'?'.json_encode($query));
     }
 
     /**

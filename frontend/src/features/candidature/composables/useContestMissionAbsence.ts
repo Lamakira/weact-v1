@@ -12,14 +12,15 @@ export function useContestMissionAbsence() {
 
   /**
    * @param missionId The mission UUID
+   * @param message Explication de la Face (lue par l'admin)
    * @returns true if the contest was recorded, false otherwise
    */
-  async function contestAbsence(missionId: string): Promise<boolean> {
+  async function contestAbsence(missionId: string, message: string): Promise<boolean> {
     isContesting.value = true
     error.value = null
 
     try {
-      await candidatureApi.contestMissionAbsence(missionId)
+      await candidatureApi.contestMissionAbsence(missionId, message)
       return true
     } catch (err: unknown) {
       error.value = formatApiError(err, 'Impossible d\'envoyer votre contestation. Veuillez réessayer.')

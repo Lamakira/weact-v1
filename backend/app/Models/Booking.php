@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -26,6 +27,7 @@ use Illuminate\Support\Facades\Auth;
  * @property \App\Enums\BookingStatus $status
  * @property \Carbon\CarbonInterface|null $accepted_at
  * @property \Carbon\CarbonInterface|null $payment_reminder_sent_at
+ * @property \Carbon\CarbonInterface|null $response_reminder_sent_at
  * @property \Carbon\CarbonInterface|null $date_debut
  * @property \Carbon\CarbonInterface|null $date_fin
  * @property int $face_id
@@ -75,6 +77,21 @@ class Booking extends Model
     use HasFactory;
     use HasRouteUuid;
 
+    /** Délai de réponse de la Face à une demande cash, compté depuis sa création (lot B10). */
+    public const FACE_RESPONSE_WINDOW_HOURS = 72;
+
+    /** Heure (fuseau métier) du jour de tournage à laquelle la Face ne peut plus répondre (PO 19/10). */
+    public const FACE_RESPONSE_SHOOTING_DAY_HOUR = 8;
+
+    /** La Face est relancée une fois quand il reste au plus ce délai pour répondre. */
+    public const FACE_RESPONSE_REMINDER_BEFORE_HOURS = 24;
+
+    /** Délai de paiement d'un booking cash accepté, compté depuis l'acceptation (lot B11). */
+    public const PAYMENT_WINDOW_HOURS = 24;
+
+    /** Délai de règlement de la commission d'une demande UGC, compté depuis sa création (lot B10). */
+    public const UGC_COMMISSION_PAYMENT_WINDOW_HOURS = 48;
+
     /**
      * The model's default values for attributes.
      *
@@ -95,6 +112,7 @@ class Booking extends Model
         'status',
         'accepted_at',
         'payment_reminder_sent_at',
+        'response_reminder_sent_at',
         'date_debut',
         'date_fin',
         'duree_heures',
@@ -173,6 +191,7 @@ class Booking extends Model
             'status' => BookingStatus::class,
             'accepted_at' => 'datetime',
             'payment_reminder_sent_at' => 'datetime',
+            'response_reminder_sent_at' => 'datetime',
             'date_debut' => 'datetime',
             'date_fin' => 'datetime',
             'duree_heures' => 'integer',
@@ -278,13 +297,37 @@ class Booking extends Model
      */
     public function scopeOverlappingActiveForFace($query, int $faceUserId, CarbonInterface $start, CarbonInterface $end, ?int $exceptBookingId = null): void
     {
+        $query->whereIn('status', [
+            BookingStatus::Accepted->value,
+            BookingStatus::Paid->value,
+            BookingStatus::ConfirmedByFace->value,
+            BookingStatus::ConfirmedByProducer->value,
+        ])
+            ->overlappingRangeForFace($faceUserId, $start, $end, $exceptBookingId);
+    }
+
+    /**
+     * Demandes en attente (Pending) d'une Face dont la plage chevauche [$start, $end] :
+     * celles qu'on refuse automatiquement quand la Face accepte une demande sur ces dates.
+     * Même règle de chevauchement que scopeOverlappingActiveForFace.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Booking>  $query
+     */
+    public function scopePendingOverlappingForFace($query, int $faceUserId, CarbonInterface $start, CarbonInterface $end, ?int $exceptBookingId = null): void
+    {
+        $query->where('status', BookingStatus::Pending->value)
+            ->overlappingRangeForFace($faceUserId, $start, $end, $exceptBookingId);
+    }
+
+    /**
+     * Plage [date_debut, date_fin] d'une Face qui chevauche [$start, $end] (bornes incluses).
+     * Les bookings sans dates (dotations UGC) ne chevauchent jamais rien.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder<Booking>  $query
+     */
+    public function scopeOverlappingRangeForFace($query, int $faceUserId, CarbonInterface $start, CarbonInterface $end, ?int $exceptBookingId = null): void
+    {
         $query->where('face_id', $faceUserId)
-            ->whereIn('status', [
-                BookingStatus::Accepted->value,
-                BookingStatus::Paid->value,
-                BookingStatus::ConfirmedByFace->value,
-                BookingStatus::ConfirmedByProducer->value,
-            ])
             ->where('date_debut', '<=', $end)
             ->where('date_fin', '>=', $start)
             ->when($exceptBookingId !== null, fn ($q) => $q->where('id', '!=', $exceptBookingId));
@@ -352,6 +395,109 @@ class Booking extends Model
     public function escrowTransaction(): HasOne
     {
         return $this->hasOne(EscrowTransaction::class);
+    }
+
+    /**
+     * Échéance de réponse de la Face à une demande cash (lot B10) : création + 72 h, ou 08 h
+     * le jour du tournage (fuseau métier) si cette heure arrive plus tôt. Null pour une dotation UGC
+     * (la Face ne peut répondre qu'après le règlement de la commission, fenêtre UGC dédiée).
+     */
+    public function faceResponseDeadline(): ?CarbonInterface
+    {
+        if ($this->type_contenu === 'UGC' || $this->created_at === null) {
+            return null;
+        }
+
+        $deadline = $this->created_at->copy()->utc()->addHours(self::FACE_RESPONSE_WINDOW_HOURS);
+
+        if ($this->date_debut !== null) {
+            $shootingStart = Carbon::parse(
+                $this->date_debut->toDateString(),
+                (string) config('app.business_timezone'),
+            )->setTime(self::FACE_RESPONSE_SHOOTING_DAY_HOUR, 0)->utc();
+
+            if ($shootingStart->lessThan($deadline)) {
+                $deadline = $shootingStart;
+            }
+        }
+
+        return $deadline;
+    }
+
+    /**
+     * Le délai de réponse de la Face est-il écoulé (now >= échéance) ? Faux sans échéance (UGC).
+     * Source unique de la garde d'acceptation (policy + service), avant même le passage du cron.
+     */
+    public function faceResponseWindowElapsed(): bool
+    {
+        $deadline = $this->faceResponseDeadline();
+
+        return $deadline !== null && now()->greaterThanOrEqualTo($deadline);
+    }
+
+    /**
+     * Échéance de réponse au format affiché (« 23/10 à 13:00 », fuseau métier), null sans échéance.
+     */
+    public function faceResponseDeadlineLabel(): ?string
+    {
+        $deadline = $this->faceResponseDeadline();
+
+        if ($deadline === null) {
+            return null;
+        }
+
+        return self::formatForBusiness($deadline, 'd/m').' à '.self::formatForBusiness($deadline, 'H:i');
+    }
+
+    /**
+     * Échéance de paiement d'un booking cash accepté (lot B11) : accepted_at + 24 h, exactement.
+     * Source unique (policy, initiation du paiement, cron d'expiration, API). Null pour l'UGC
+     * (pas de paiement cash après acceptation) ou sans accepted_at.
+     */
+    public function paymentDeadline(): ?CarbonInterface
+    {
+        if ($this->type_contenu === 'UGC' || $this->accepted_at === null) {
+            return null;
+        }
+
+        return $this->accepted_at->copy()->utc()->addHours(self::PAYMENT_WINDOW_HOURS);
+    }
+
+    /**
+     * Fenêtre de paiement encore ouverte : maintenant strictement avant l'échéance.
+     */
+    public function isPaymentWindowOpen(): bool
+    {
+        $deadline = $this->paymentDeadline();
+
+        return $deadline !== null && now()->lt($deadline);
+    }
+
+    /**
+     * Échéance de paiement au format affiché (« 21/10 à 13:00 », fuseau métier).
+     */
+    public function paymentDeadlineLabel(): ?string
+    {
+        $deadline = $this->paymentDeadline();
+
+        if ($deadline === null) {
+            return null;
+        }
+
+        return self::formatForBusiness($deadline, 'd/m').' à '.self::formatForBusiness($deadline, 'H:i');
+    }
+
+    /**
+     * Échéance de règlement de la commission d'une demande UGC (lot B10) : création + 48 h.
+     * Null hors UGC.
+     */
+    public function ugcCommissionPaymentDeadline(): ?CarbonInterface
+    {
+        if ($this->type_contenu !== 'UGC' || $this->created_at === null) {
+            return null;
+        }
+
+        return $this->created_at->copy()->utc()->addHours(self::UGC_COMMISSION_PAYMENT_WINDOW_HOURS);
     }
 
     /**

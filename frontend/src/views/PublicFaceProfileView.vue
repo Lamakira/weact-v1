@@ -6,6 +6,7 @@ import { ChevronLeft, AlertCircle, RefreshCw, UserX, Lock, CalendarPlus } from '
 import ReportButton from '@/components/report/ReportButton.vue'
 import { useFaceProfile } from '@/features/public/composables/useFaceProfile'
 import { usePublicFaceAccess } from '@/features/public/composables/usePublicFaceAccess'
+import { publicFaceName } from '@/features/public/services/publicFacesApi'
 import ProfilePhotoSection from '@/features/public/components/ProfilePhotoSection.vue'
 import ProfileInfoSection from '@/features/public/components/ProfileInfoSection.vue'
 import CandidateVideosSection from '@/features/candidature/components/CandidateVideosSection.vue'
@@ -440,8 +441,9 @@ async function handleRetry(): Promise<void> {
 
           <!-- Info Section (Right on desktop, bottom on mobile) -->
           <div class="reveal-right space-y-6">
+            <!-- Lot B13 : nom complet pour un Producer connecté (fourni par l'API), prénom sinon -->
             <ProfileInfoSection
-              :prenom="face.prenom"
+              :prenom="publicFaceName(face)"
               :ville="face.ville"
               :categories="face.categories"
               :niches="face.niches"

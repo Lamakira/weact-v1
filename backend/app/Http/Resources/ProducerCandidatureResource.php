@@ -35,6 +35,11 @@ class ProducerCandidatureResource extends JsonResource
             'message_motivation' => $this->message_motivation
                 ? Str::limit($this->message_motivation, 150)
                 : null,
+            // Échéance de confirmation (lot B3) : non-null seulement pour une candidature cash `accepted`
+            // non encore confirmée ; null si la mission n'est pas chargée (pas de lazy-load en liste).
+            'confirmation_deadline' => $this->relationLoaded('mission') ? $this->confirmationDeadline()?->toIso8601String() : null,
+            // Lot B4 : la candidature peut reprendre une place libérée (même prédicat que le serveur au remplacement).
+            'can_replace_freed_place' => (bool) $this->resource->getAttribute('can_replace_freed_place'),
             'created_at' => $this->created_at?->toIso8601String(),
             'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->uuid),
             'shipment' => new ShipmentResource($this->whenLoaded('shipment')),

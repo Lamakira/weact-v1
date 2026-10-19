@@ -49,6 +49,7 @@ final class PushAllowlist
         'mission_payment_confirmed' => self::PAYMENT,
         'mission_completed' => self::PAYMENT,
         'mission_candidature_refunded' => self::PAYMENT,
+        'mission_face_confirmation_expired' => self::PAYMENT,
         'mission_candidature_payment_failed' => self::PAYMENT,
         'mission_detached_payment_credited' => self::PAYMENT,
         'ugc_commission_paid' => self::PAYMENT,
@@ -56,6 +57,9 @@ final class PushAllowlist
 
         // Reminders
         'booking_payment_reminder' => self::REMINDER,
+        'booking_response_reminder' => self::REMINDER,
+        'mission_payment_reminder' => self::REMINDER,
+        'mission_confirmation_reminder' => self::REMINDER,
         'booking_completion_reminder' => self::REMINDER,
         'shooting_day_reminder' => self::REMINDER,
         'ugc_deliverable_deadline_approaching' => self::REMINDER,
@@ -75,6 +79,13 @@ final class PushAllowlist
         'mission_closed_pending_candidature' => self::MISSION,
         'mission_participation_confirmation_required' => self::MISSION,
         'mission_candidature_slot_released' => self::MISSION,
+        'candidature_expired_no_response' => self::MISSION,
+        'mission_place_freed' => self::MISSION,
+        'mission_place_freed_selected' => self::MISSION,
+        'mission_freed_place_refunded' => self::PAYMENT,
+        'mission_all_places_refunded' => self::PAYMENT,
+        'mission_candidatures_response_reminder' => self::REMINDER,
+        'mission_confirmation_expired' => self::MISSION,
 
         // UGC tunnel
         'ugc_deal_accepted' => self::UGC,

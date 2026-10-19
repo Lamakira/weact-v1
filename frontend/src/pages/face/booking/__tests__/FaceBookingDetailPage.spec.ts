@@ -3,6 +3,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import FaceBookingDetailPage from '../FaceBookingDetailPage.vue'
+import { formatBookingDeadline } from '@/features/booking/utils/formatBookingDeadline'
 import { bookingApi } from '@/features/booking/services/bookingApi'
 
 const mockBooking = ref<Record<string, unknown> | null>(null)
@@ -14,6 +15,7 @@ const mockActionErrorCode = ref<string | null>(null)
 const mockActionErrorStatus = ref<number | null>(null)
 const mockIsReportingNoShow = ref(false)
 const mockAccept = vi.fn()
+const mockRefuse = vi.fn()
 const mockReportNoShow = vi.fn()
 const mockContest = vi.fn()
 const mockFetchBooking = vi.fn()
@@ -46,7 +48,7 @@ vi.mock('@/features/booking/composables', () => ({
     errorStatus: mockActionErrorStatus,
     confirm: vi.fn(),
     accept: mockAccept,
-    refuse: vi.fn(),
+    refuse: mockRefuse,
     cancel: vi.fn(),
     reportNoShow: mockReportNoShow,
     contest: mockContest,
@@ -1403,5 +1405,191 @@ describe('FaceBookingDetailPage — délai d\'annulation Face (24 h avant le jou
 
     expect(wrapper.find('[data-testid="face-cancel-closed"]').exists()).toBe(false)
     wrapper.unmount()
+  })
+})
+
+describe('FaceBookingDetailPage — dialogue de refus, filtre de coordonnées (lot B12)', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockActionError.value = null
+    mockActionErrorCode.value = null
+    mockActionErrorStatus.value = null
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    mockRefuse.mockReset()
+    mockToastError.mockReset()
+  })
+
+  async function openRefuseDialog() {
+    const wrapper = await mountPage(makeBooking({ status: 'pending', can_refuse: true, can_accept: true }))
+    await wrapper.findAll('button').find((b) => b.text().startsWith('Refuser'))!.trigger('click')
+    const showReason = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Ajouter une raison'),
+    )
+    showReason!.click()
+    await flushPromises()
+    return wrapper
+  }
+
+  async function typeReason(text: string) {
+    const textarea = document.body.querySelector<HTMLTextAreaElement>('[data-testid="refuse-reason-textarea"]')!
+    textarea.value = text
+    textarea.dispatchEvent(new Event('input'))
+    await flushPromises()
+  }
+
+  it('shows the client-side error and blocks the request when the reason contains a phone number', async () => {
+    const wrapper = await openRefuseDialog()
+    await typeReason('Appelez-moi au 97 12 34 56')
+
+    expect(document.body.querySelector('[data-testid="refuse-reason-error"]')?.textContent).toContain('coordonnées')
+    const confirm = document.body.querySelector<HTMLButtonElement>('[data-testid="confirm-refuse-button"]')!
+    expect(confirm.disabled).toBe(true)
+    confirm.click()
+    await flushPromises()
+    expect(mockRefuse).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('sends a clean reason without error', async () => {
+    mockRefuse.mockResolvedValueOnce(makeBooking({ status: 'refused' }))
+    const wrapper = await openRefuseDialog()
+    await typeReason('Je ne suis pas disponible.')
+
+    expect(document.body.querySelector('[data-testid="refuse-reason-error"]')).toBeNull()
+    document.body.querySelector<HTMLButtonElement>('[data-testid="confirm-refuse-button"]')!.click()
+    await flushPromises()
+    expect(mockRefuse).toHaveBeenCalledWith('booking-uuid-1', 'Je ne suis pas disponible.')
+    wrapper.unmount()
+  })
+
+  it('displays the server 422 message under the field instead of a toast', async () => {
+    mockRefuse.mockImplementationOnce(async () => {
+      mockActionError.value = 'Pour votre sécurité, ne partagez pas de coordonnées.'
+      mockActionErrorStatus.value = 422
+      return null
+    })
+    const wrapper = await openRefuseDialog()
+    await typeReason('Je suis disponible')
+    document.body.querySelector<HTMLButtonElement>('[data-testid="confirm-refuse-button"]')!.click()
+    await flushPromises()
+
+    expect(document.body.querySelector('[data-testid="refuse-reason-error"]')?.textContent).toContain(
+      'ne partagez pas de coordonnées',
+    )
+    expect(mockToastError).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+})
+
+describe('FaceBookingDetailPage — échéances de réponse et de commission (lot B10)', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    mockFetchBooking.mockReset()
+  })
+
+  it('la Face voit « Répondez avant le … » sur une demande en attente', async () => {
+    const deadline = new Date(Date.now() + 2 * 86400000)
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', accepted_at: null, face_response_deadline: deadline.toISOString() }),
+    )
+
+    const banner = wrapper.find('[data-testid="face-response-deadline"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain(`Répondez avant le ${formatBookingDeadline(deadline.toISOString())}`)
+    wrapper.unmount()
+  })
+
+  it('le Producer voit le délai laissé à la Face', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const deadline = new Date(Date.now() + 86400000).toISOString()
+    const wrapper = await mountPage(
+      makeBooking({ status: 'pending', accepted_at: null, face_response_deadline: deadline }),
+    )
+
+    expect(wrapper.find('[data-testid="face-response-deadline"]').text()).toContain('La Face a jusqu\'au')
+    wrapper.unmount()
+  })
+
+  it('aucune échéance affichée une fois dépassée ou hors attente', async () => {
+    const past = await mountPage(
+      makeBooking({ status: 'pending', accepted_at: null, face_response_deadline: new Date(Date.now() - 60000).toISOString() }),
+    )
+    expect(past.find('[data-testid="face-response-deadline"]').exists()).toBe(false)
+    past.unmount()
+
+    const accepted = await mountPage(
+      makeBooking({ status: 'accepted', face_response_deadline: new Date(Date.now() + 86400000).toISOString() }),
+    )
+    expect(accepted.find('[data-testid="face-response-deadline"]').exists()).toBe(false)
+    accepted.unmount()
+  })
+
+  it('le Producer voit l\'échéance de la commission UGC', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const deadline = new Date(Date.now() + 86400000).toISOString()
+    const wrapper = await mountPage(
+      makeUgcBooking({ status: 'pending', commission_ugc: 2500, ugc_commission_payment_deadline: deadline }),
+    )
+
+    expect(wrapper.find('[data-testid="ugc-commission-deadline"]').text()).toContain('Réglez la commission avant le')
+    wrapper.unmount()
+  })
+})
+
+describe('FaceBookingDetailPage — paiement du booking sous 24 h (lot B11)', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    mockFetchBooking.mockReset()
+  })
+
+  it('la Face voit aussi l\'échéance de paiement', async () => {
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    const deadline = new Date(Date.now() + 3 * 3600000).toISOString()
+    const wrapper = await mountPage(
+      makeBooking({ status: 'accepted', payment_deadline: deadline, can_pay: false }),
+    )
+
+    const banner = wrapper.find('[data-testid="payment-deadline"]')
+    expect(banner.exists()).toBe(true)
+    expect(banner.text()).toContain(`Le Producteur doit payer avant le ${formatBookingDeadline(deadline)}`)
+    expect(banner.text()).toContain('sinon la demande expirera')
+    expect(banner.text()).not.toContain('annulé')
+    wrapper.unmount()
+  })
+
+  it('le bouton « Payer maintenant » reste visible jusqu\'à l\'échéance exacte puis disparaît', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] })
+    try {
+      vi.setSystemTime(new Date('2026-10-21T11:59:30Z'))
+      const wrapper = await mountPage(
+        makeBooking({
+          status: 'accepted',
+          accepted_at: '2026-10-20T12:00:00Z',
+          payment_deadline: '2026-10-21T12:00:00+00:00',
+          can_pay: true,
+        }),
+      )
+
+      expect(wrapper.text()).toContain('Payer maintenant')
+      expect(wrapper.find('[data-testid="payment-deadline"]').text()).toContain('Paiement requis avant le 21/10 à 13:00')
+
+      await vi.advanceTimersByTimeAsync(29000)
+      expect(wrapper.text()).toContain('Payer maintenant')
+
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(wrapper.text()).not.toContain('Payer maintenant')
+      expect(wrapper.find('[data-testid="payment-deadline"]').text()).toContain('Délai expiré')
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

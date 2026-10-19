@@ -335,4 +335,82 @@ describe('ProducerCandidatureCard', () => {
       expect(releaseBtnAfter.attributes('disabled')).toBeUndefined()
     })
   })
+
+  describe('confirmation deadline (lot B3)', () => {
+    function mountCard(candidature: Record<string, unknown>) {
+      return mount(ProducerCandidatureCard, {
+        props: { candidature: candidature as never },
+        global: { stubs: { RouterLink: true, Teleport: true } },
+      })
+    }
+
+    it('shows « Confirmation attendue avant le … » on an accepted candidature with a deadline', () => {
+      const wrapper = mountCard({
+        ...pendingCandidature,
+        status: 'accepted',
+        status_label: 'Acceptée',
+        confirmation_deadline: '2026-10-19T08:51:00+00:00',
+      })
+
+      const label = wrapper.find('[data-testid="confirmation-deadline-label"]')
+      expect(label.exists()).toBe(true)
+      expect(label.text()).toContain('Confirmation attendue avant le')
+      expect(label.text()).toContain('octobre')
+      expect(label.text()).toMatch(/à \d{2}h\d{2}/)
+    })
+
+    it('hides the label without deadline or once the Face has confirmed', () => {
+      expect(
+        mountCard({ ...pendingCandidature, status: 'accepted' }).find('[data-testid="confirmation-deadline-label"]').exists(),
+      ).toBe(false)
+      expect(
+        mountCard({ ...pendingCandidature, status: 'confirmed', confirmation_deadline: '2026-10-19T08:51:00+00:00' })
+          .find('[data-testid="confirmation-deadline-label"]')
+          .exists(),
+      ).toBe(false)
+    })
+
+    it('renders the « Expirée » status label for an expired candidature', () => {
+      const wrapper = mountCard({ ...pendingCandidature, status: 'expired', status_label: 'Expirée' })
+
+      expect(wrapper.text()).toContain('Expirée')
+    })
+  })
+
+  describe('place libérée (lot B4)', () => {
+    function mountCard(candidature: Record<string, unknown>, canOfferFreedPlace: boolean) {
+      return mount(ProducerCandidatureCard, {
+        props: { candidature: candidature as never, canOfferFreedPlace },
+        global: { stubs: { RouterLink: true, Teleport: true } },
+      })
+    }
+
+    it('propose la place libérée à une candidature non retenue', async () => {
+      const wrapper = mountCard({ ...pendingCandidature, status: 'rejected', status_label: 'Refusée', can_replace_freed_place: true }, true)
+
+      const button = wrapper.find('[data-testid="offer-freed-place-btn"]')
+      expect(button.exists()).toBe(true)
+      expect(button.text()).toContain('Proposer la place libérée')
+
+      await button.trigger('click')
+      expect(wrapper.emitted('offer-freed-place')?.[0]).toEqual([pendingCandidature.id])
+    })
+
+    it('ne propose rien sur une candidature non retenue inéligible (abonnement, compte inactif)', () => {
+      expect(
+        mountCard({ ...pendingCandidature, status: 'rejected', status_label: 'Refusée', can_replace_freed_place: false }, true)
+          .find('[data-testid="offer-freed-place-btn"]').exists(),
+      ).toBe(false)
+    })
+
+    it('ne propose rien sans place libérée ni sur une candidature en attente', () => {
+      expect(
+        mountCard({ ...pendingCandidature, status: 'rejected', status_label: 'Refusée' }, false)
+          .find('[data-testid="offer-freed-place-btn"]').exists(),
+      ).toBe(false)
+      expect(
+        mountCard(pendingCandidature, true).find('[data-testid="offer-freed-place-btn"]').exists(),
+      ).toBe(false)
+    })
+  })
 })

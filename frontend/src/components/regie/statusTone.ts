@@ -59,6 +59,7 @@ export const candidatureTones: Record<CandidatureStatusType, StatusTone> = {
   [CandidatureStatus.COMPLETED]: 'done',
   [CandidatureStatus.REJECTED]: 'danger',
   [CandidatureStatus.CANCELLED]: 'neutral',
+  [CandidatureStatus.EXPIRED]: 'neutral',
 }
 
 export function bookingStatusDot(status: BookingStatusType): StatusDot {

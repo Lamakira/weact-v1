@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Listeners\Ugc;
 
+use App\Enums\UgcRefundReason;
 use App\Enums\WalletCreditMotif;
 use App\Events\UgcCommissionRefunded;
 use App\Mail\WalletCreditedMail;
@@ -42,7 +43,10 @@ final class SendWalletCreditedEmailOnUgcRefunded
                     : null;
                 $producerUserId = $owner->producer_id;
                 $amount = (int) $owner->montant_total_producteur;
-                $motif = WalletCreditMotif::UgcSettlementRefund;
+                // Paiement tardif (demande déjà expirée) : libellé dédié, pas « deal non abouti ».
+                $motif = $owner->commission_refund_reason === UgcRefundReason::CommissionPaidAfterExpiry
+                    ? WalletCreditMotif::UgcCommissionPaidAfterExpiry
+                    : WalletCreditMotif::UgcSettlementRefund;
             }
 
             if ($producer === null || $producerUserId === null) {

@@ -37,7 +37,7 @@ final class SendBookingRefusedEmail
                 return;
             }
 
-            Mail::to($producerEmail)->queue(new BookingRefusedMail($booking));
+            Mail::to($producerEmail)->queue(new BookingRefusedMail($booking, $event->automatic));
         } catch (\Throwable $e) {
             Log::warning('BookingRefusedMail queue failed', [
                 'booking_id' => $event->booking->id,

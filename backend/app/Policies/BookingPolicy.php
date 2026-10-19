@@ -57,7 +57,9 @@ class BookingPolicy
                 && $booking->commission_refunded_at === null;
         }
 
-        return $booking->status === BookingStatus::Pending;
+        // Lot B10 : passé l'échéance de réponse, la demande n'est plus acceptable même si le
+        // cron d'expiration n'est pas encore passé.
+        return $booking->status === BookingStatus::Pending && ! $booking->faceResponseWindowElapsed();
     }
 
     /**
@@ -134,7 +136,9 @@ class BookingPolicy
     {
         return $user->id === $booking->producer_id
             && $booking->status === BookingStatus::Accepted
-            && $booking->type_contenu !== 'UGC';
+            && $booking->type_contenu !== 'UGC'
+            // Lot B11 : jusqu'à exactement accepted_at + 24 h, sans attendre le cron d'expiration.
+            && $booking->isPaymentWindowOpen();
     }
 
     /**

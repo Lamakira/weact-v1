@@ -13,7 +13,8 @@ use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 class NotifyPartiesOnBookingExpired
 {
     /**
-     * Handle the event — notify both parties when a booking expires after 24h without payment.
+     * Handle the event — notify both parties when a booking expires: no Face answer in time,
+     * no payment within 24 h of acceptance, or an unpaid UGC commission (lot B10).
      * Each notification is wrapped independently so one failure doesn't skip the other.
      */
     public function handle(BookingExpired $event): void
@@ -64,8 +65,13 @@ class NotifyPartiesOnBookingExpired
 
     private function expiryReason(\App\Models\Booking $booking): string
     {
+        // Lot B10 : demande UGC dont la commission n'a jamais été réglée.
+        if ($booking->type_contenu === 'UGC' && $booking->commission_paid_at === null) {
+            return "la commission n'a pas été réglée dans les 48 h";
+        }
+
         if ($booking->accepted_at === null) {
-            return 'la date de tournage est passée sans réponse de la Face';
+            return "la Face n'a pas répondu dans le délai imparti";
         }
 
         return "le paiement n'a pas été effectué dans les 24h";

@@ -25,6 +25,7 @@ use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class BookingNotificationTest extends TestCase
@@ -101,7 +102,8 @@ class BookingNotificationTest extends TestCase
             ->first();
 
         $this->assertNotNull($notification);
-        $this->assertStringNotContainsString(' à ', $notification->data['message']);
+        // Seule l'échéance de réponse (lot B10) contient « à » : aucun lieu avant elle.
+        $this->assertStringNotContainsString(' à ', Str::before($notification->data['message'], '. Répondez avant le'));
     }
 
     public function test_booking_accepted_creates_notification_for_producer(): void
@@ -275,8 +277,8 @@ class BookingNotificationTest extends TestCase
 
         $this->assertNotNull($producerNotification);
         $this->assertNotNull($faceNotification);
-        $this->assertStringContainsString('date de tournage est passée sans réponse de la Face', $producerNotification->data['message']);
-        $this->assertStringContainsString('date de tournage est passée sans réponse de la Face', $faceNotification->data['message']);
+        $this->assertStringContainsString("la Face n'a pas répondu dans le délai imparti", $producerNotification->data['message']);
+        $this->assertStringContainsString("la Face n'a pas répondu dans le délai imparti", $faceNotification->data['message']);
         $this->assertEquals("/producer/bookings/{$this->booking->uuid}", $producerNotification->data['url']);
         $this->assertEquals("/face/bookings/{$this->booking->uuid}", $faceNotification->data['url']);
     }

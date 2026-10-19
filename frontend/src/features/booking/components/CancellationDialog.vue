@@ -9,6 +9,7 @@ import {
   type BookingCancellationPayload,
   type CancellationReasonValue,
 } from '../types'
+import { CONTACT_DETAILS_MESSAGE, containsContactDetails } from '@/lib/contactDetails'
 
 const props = defineProps<{
   booking: Booking
@@ -17,6 +18,8 @@ const props = defineProps<{
   isFace: boolean
   // Producteur, booking payé, à partir du jour du tournage : fonds retenus 72 h (pas de remboursement immédiat).
   isLateCancel?: boolean
+  // Erreur de validation serveur (422) sur la raison personnalisée, affichée sous le champ.
+  serverError?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -33,8 +36,18 @@ const availableReasons = computed(() => {
 })
 const retainedAmount = computed(() => Math.round(props.booking.montant_total_producteur * 0.10))
 const refundAmount = computed(() => Math.round(props.booking.montant_total_producteur * 0.90))
+// Avant paiement la messagerie est fermée : la raison est lue par l'autre partie sans coordonnées (lot B12).
+const isBeforePayment = computed(() =>
+  ([BookingStatus.PENDING, BookingStatus.ACCEPTED, BookingStatus.COMMISSION_PAID] as string[]).includes(
+    props.booking.status,
+  ),
+)
+const contactError = computed(() =>
+  isBeforePayment.value && containsContactDetails(customReason.value) ? CONTACT_DETAILS_MESSAGE : null,
+)
+const customReasonError = computed(() => contactError.value ?? props.serverError ?? null)
 const canConfirm = computed(() => {
-  if (selectedReason.value === '' || props.isCancelling) {
+  if (selectedReason.value === '' || props.isCancelling || contactError.value !== null) {
     return false
   }
 
@@ -204,7 +217,16 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
               maxlength="1000"
               class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-weact focus:ring-2 focus:ring-weact/20"
               placeholder="Décrivez la raison de l'annulation"
+              :aria-invalid="customReasonError ? 'true' : undefined"
             />
+            <p
+              v-if="customReasonError"
+              data-testid="custom-cancellation-reason-error"
+              class="mt-1 text-sm text-red-600"
+              role="alert"
+            >
+              {{ customReasonError }}
+            </p>
           </div>
 
           <div class="flex items-center justify-end gap-3">

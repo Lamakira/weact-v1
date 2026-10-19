@@ -1,9 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref, nextTick } from 'vue'
 import BookingFormSheet from '../BookingFormSheet.vue'
 import { calculatePricingPreview } from '@/features/booking/types'
-import { addDaysIso, tomorrowIso } from '@/lib/dates'
+import { addDaysIso, bookingMinStartDateIso } from '@/lib/dates'
 
 // Hoisted so the UGC submission tests can drive the resolved value.
 // The 3 existing describe blocks never call createBooking, so this is inert for them.
@@ -61,19 +61,54 @@ const mountForm = (propsOverride: Record<string, unknown> = {}) =>
   })
 
 describe('BookingFormSheet — bornes des dates', () => {
-  it('date_debut min = demain (règle backend after:today)', () => {
-    const wrapper = mountForm()
-    expect(wrapper.find('input#date_debut').attributes('min')).toBe(tomorrowIso())
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
-  it('date_fin min = demain tant que date_debut est vide, puis = date_debut', async () => {
+  it('date_debut min = demain avant 16 h (heure du Bénin)', () => {
+    // 20/10 14:59 UTC = 15:59 à Porto-Novo (UTC+1).
+    vi.useFakeTimers({ now: new Date('2026-10-20T14:59:00Z'), toFake: ['Date'] })
     const wrapper = mountForm()
-    expect(wrapper.find('input#date_fin').attributes('min')).toBe(tomorrowIso())
+    expect(wrapper.find('input#date_debut').attributes('min')).toBe('2026-10-21')
+    expect(wrapper.find('[data-testid="date-debut-hint"]').text()).toContain('jusqu\'à 16 h')
+  })
 
-    const target = addDaysIso(tomorrowIso(), 5)
+  it('date_debut min = après-demain à partir de 16 h (heure du Bénin)', () => {
+    // 20/10 15:00 UTC = 16:00 à Porto-Novo.
+    vi.useFakeTimers({ now: new Date('2026-10-20T15:00:00Z'), toFake: ['Date'] })
+    const wrapper = mountForm()
+    expect(wrapper.find('input#date_debut').attributes('min')).toBe('2026-10-22')
+    expect(wrapper.find('[data-testid="date-debut-hint"]').text()).toContain('Après 16 h')
+  })
+
+  it('date_fin min = date de début minimale tant que date_debut est vide, puis = date_debut', async () => {
+    const wrapper = mountForm()
+    expect(wrapper.find('input#date_fin').attributes('min')).toBe(bookingMinStartDateIso())
+
+    const target = addDaysIso(bookingMinStartDateIso(), 5)
     await wrapper.find('input#date_debut').setValue(target)
     await nextTick()
     expect(wrapper.find('input#date_fin').attributes('min')).toBe(target)
+  })
+
+  it('affiche sous le champ date_debut l\'erreur serveur (règle des 16 h)', async () => {
+    createBookingMock.mockResolvedValue({
+      success: false,
+      errors: { date_debut: ['Après 16 h, vous ne pouvez plus envoyer de demande pour le lendemain. Choisissez une date ultérieure.'] },
+    })
+    const wrapper = mountForm({ faceId: '3f2b8c1e-9d4a-4e6b-8a1c-2d5f7e9b0a13' })
+    const start = bookingMinStartDateIso()
+    await wrapper.find('input#date_debut').setValue(start)
+    await wrapper.find('input#date_fin').setValue(start)
+    await wrapper.find('#lieu').setValue('Cotonou')
+    await flushPromises()
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await flushPromises()
+
+    expect(createBookingMock).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('Après 16 h, vous ne pouvez plus envoyer de demande pour le lendemain.')
   })
 })
 
@@ -416,5 +451,88 @@ describe('BookingFormSheet — monté déjà ouvert (chargement asynchrone)', ()
     expect(firstInput.exists()).toBe(true)
     expect(document.activeElement).toBe(firstInput.element)
     wrapper.unmount()
+  })
+})
+
+describe('BookingFormSheet — brief facultatif (lot B12)', () => {
+  const FACE_UUID = '550e8400-e29b-41d4-a716-446655440000'
+
+  const waitForValidation = async () => {
+    await flushPromises()
+    await nextTick()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    await flushPromises()
+  }
+
+  const fillValidCashForm = async (wrapper: ReturnType<typeof mountForm>) => {
+    await wrapper.find('#date_debut').setValue(addDaysIso(bookingMinStartDateIso(), 5))
+    await wrapper.find('#date_fin').setValue(addDaysIso(bookingMinStartDateIso(), 5))
+    await wrapper.find('select#lieu').setValue('Cotonou')
+    await flushPromises()
+  }
+
+  beforeEach(() => {
+    createBookingMock.mockReset()
+  })
+
+  it('affiche un champ brief facultatif', () => {
+    const wrapper = mountForm()
+    const brief = wrapper.find('textarea#message')
+
+    expect(brief.exists()).toBe(true)
+    expect(brief.attributes('maxlength')).toBe('1000')
+    expect(brief.attributes('required')).toBeUndefined()
+  })
+
+  it('envoie le brief nettoyé avec la demande', async () => {
+    createBookingMock.mockResolvedValue({ success: true, data: { id: 'abc' } })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await fillValidCashForm(wrapper)
+    await wrapper.find('textarea#message').setValue('  Publicité de 30 secondes, deux tenues.  ')
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(createBookingMock).toHaveBeenCalledTimes(1)
+    expect(createBookingMock.mock.calls[0][0]).toMatchObject({ message: 'Publicité de 30 secondes, deux tenues.' })
+  })
+
+  it('n\'envoie pas de clé message quand le brief est vide', async () => {
+    createBookingMock.mockResolvedValue({ success: true, data: { id: 'abc' } })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await fillValidCashForm(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(createBookingMock).toHaveBeenCalledTimes(1)
+    expect(createBookingMock.mock.calls[0][0]).not.toHaveProperty('message')
+  })
+
+  it('bloque un brief contenant un numéro et explique pourquoi', async () => {
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await fillValidCashForm(wrapper)
+    await wrapper.find('textarea#message').setValue('Appelez-moi au 97 12 34 56')
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(createBookingMock).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="message-error"]').text()).toContain('ne partagez pas de coordonnées')
+  })
+
+  it('affiche l\'erreur serveur sur le brief', async () => {
+    createBookingMock.mockResolvedValue({
+      success: false,
+      errors: { message: ['Refus serveur du brief'] },
+    })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await fillValidCashForm(wrapper)
+    await wrapper.find('textarea#message').setValue('Brief anodin')
+    await wrapper.find('form').trigger('submit')
+    await waitForValidation()
+
+    expect(wrapper.find('[data-testid="message-error"]').text()).toContain('Refus serveur du brief')
   })
 })

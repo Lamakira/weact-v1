@@ -19,7 +19,7 @@ class ExpireUnacceptedBookingsCommand extends Command
     /**
      * The console command description.
      */
-    protected $description = 'Expire pending bookings whose shooting date has passed without a response';
+    protected $description = 'Expire pending cash bookings the Face did not answer in time (72 h after creation, or 08:00 on the shooting day if earlier)';
 
     public function __construct(
         private readonly BookingService $bookingService,
@@ -32,11 +32,23 @@ class ExpireUnacceptedBookingsCommand extends Command
      */
     public function handle(): int
     {
-        $cutoff = now();
-
+        // Sur-ensemble SQL borné (créée il y a 72 h ou plus, ou tournage d'ici un jour : 08 h
+        // en fuseau métier le jour du tournage suit date_debut (minuit) de quelques heures seulement), puis
+        // échéance exacte en PHP — Booking::faceResponseDeadline() reste la source unique.
+        // BINARY : aligne SQL (collation _ci) sur le PHP `=== 'UGC'` ; UGC exclu (fenêtre dédiée).
         $bookings = Booking::where('status', BookingStatus::Pending->value)
-            ->where('date_debut', '<=', $cutoff)
-            ->get();
+            ->whereRaw("BINARY type_contenu != 'UGC'")
+            ->where(function ($query): void {
+                $query->where('created_at', '<=', now()->subHours(Booking::FACE_RESPONSE_WINDOW_HOURS))
+                    ->orWhere('date_debut', '<=', now()->addDay());
+            })
+            ->get()
+            ->filter(function (Booking $booking): bool {
+                $deadline = $booking->faceResponseDeadline();
+
+                return $deadline !== null && now()->gte($deadline);
+            })
+            ->values();
 
         $this->info("Found {$bookings->count()} booking(s) to expire.");
 

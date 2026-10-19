@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Face;
 
+use App\Rules\NoContactDetails;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreCandidatureRequest extends FormRequest
@@ -36,7 +37,8 @@ class StoreCandidatureRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'message_motivation' => ['nullable', 'string', 'max:2000'],
+            // Lot B12 : pas de coordonnées dans la motivation (le Producer ne la voit qu'avant paiement).
+            'message_motivation' => ['nullable', 'string', 'max:2000', new NoContactDetails],
         ];
     }
 

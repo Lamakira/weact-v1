@@ -550,4 +550,47 @@ describe('AttendanceValidationPage', () => {
     expect(toastErrorSpy).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('Cette mission ne peut pas être validée pour le moment.')
   })
+
+  describe('lot B5 — présences à partir du jour du tournage', () => {
+    it('désactive le pointage avant le jour du tournage et affiche la raison', async () => {
+      const form = makeAttendanceForm()
+      form.data.mission.can_mark_attendance = false
+      form.data.mission.attendance_blocked_reason = 'Les présences se valident à partir du jour du tournage (le 28/10/2026).'
+      vi.mocked(missionApi.getAttendanceForm).mockResolvedValueOnce(form)
+
+      const wrapper = mountPage()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="attendance-blocked-reason"]').text()).toContain('à partir du jour du tournage (le 28/10/2026)')
+      expect(wrapper.find('[data-testid="attendance-submit-button"]').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('[data-testid="mark-all-present-button"]').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('[data-testid="decision-1-present"]').attributes('disabled')).toBeDefined()
+    })
+
+    it('laisse pointer à partir du jour du tournage', async () => {
+      const form = makeAttendanceForm()
+      form.data.mission.can_mark_attendance = true
+      form.data.mission.attendance_blocked_reason = null
+      vi.mocked(missionApi.getAttendanceForm).mockResolvedValueOnce(form)
+
+      const wrapper = mountPage()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="attendance-blocked-reason"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="decision-1-present"]').attributes('disabled')).toBeUndefined()
+    })
+
+    it('verrouille une Face qui n\'a pas confirmé et en donne la raison', async () => {
+      vi.mocked(missionApi.getAttendanceForm).mockResolvedValueOnce(
+        makeAttendanceForm({ can_mark: false, blocked_reason: "Cette Face n'a pas confirmé sa participation." }),
+      )
+
+      const wrapper = mountPage()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="attendance-entry-1-blocked"]').text()).toBe("Cette Face n'a pas confirmé sa participation.")
+      expect(wrapper.find('[data-testid="decision-1-present"]').attributes('disabled')).toBeDefined()
+      expect(wrapper.find('[data-testid="decision-2-present"]').attributes('disabled')).toBeUndefined()
+    })
+  })
 })

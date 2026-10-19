@@ -4,6 +4,7 @@ import { RouterLink } from 'vue-router'
 import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X, Loader2, CheckSquare, Square, Truck, Check, UserMinus } from 'lucide-vue-next'
 import type { ProducerCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
+import { formatConfirmationDeadline } from '../utils/formatConfirmationDeadline'
 import WBadge from '@/components/ui/WBadge.vue'
 import { StatusPill, tunnelStatusToPillKind, ProductPhotoGallery } from '@/components/ugc'
 
@@ -16,6 +17,8 @@ const props = defineProps<{
   isSelected?: boolean
   isUgcMission?: boolean
   ugcCompensationType?: string | null
+  /** Lot B4 : une place libérée peut être proposée à cette candidature non retenue. */
+  canOfferFreedPlace?: boolean
 }>()
 
 /**
@@ -27,6 +30,7 @@ const emit = defineEmits<{
   release: [candidatureId: string]
   'toggle-selection': [candidatureId: string]
   'confirm-shipment': []
+  'offer-freed-place': [candidatureId: string]
 }>()
 
 /**
@@ -194,6 +198,14 @@ function resetReleasing(): void {
  * Expose methods for parent component
  */
 defineExpose({ resetRejecting, resetAccepting, resetReleasing })
+
+/**
+ * Computed: Face confirmation deadline (lot B3) — shown on an accepted, not yet confirmed
+ * candidature. Backend `confirmation_deadline` is null outside that state.
+ */
+const formattedConfirmationDeadline = computed(() =>
+  props.candidature.status === 'accepted' ? formatConfirmationDeadline(props.candidature.confirmation_deadline) : '',
+)
 
 /**
  * Computed: Status badge class
@@ -408,6 +420,15 @@ const categoryLabel = computed(() => {
       </div>
     </div>
 
+    <!-- Confirmation deadline (cash accepted, lot B3) -->
+    <p
+      v-if="formattedConfirmationDeadline"
+      data-testid="confirmation-deadline-label"
+      class="mt-3 text-xs text-amber-600 dark:text-amber-400"
+    >
+      Confirmation attendue avant le {{ formattedConfirmationDeadline }}
+    </p>
+
     <!-- Actions -->
     <div class="mt-4 flex items-center justify-between gap-3">
       <!-- Accept (UGC product-only, 8-3) + Reject buttons (pending, outside selection mode) -->
@@ -437,6 +458,19 @@ const categoryLabel = computed(() => {
       </div>
 
       <!-- Chat + Confirm-shipment + Release buttons (accepted/confirmed/in_progress/completed) -->
+      <!-- Lot B4 : proposer une place libérée à une candidature non retenue -->
+      <div v-else-if="canOfferFreedPlace && candidature.can_replace_freed_place === true && candidature.status === 'rejected' && !selectionMode" class="flex gap-2">
+        <button
+          type="button"
+          data-testid="offer-freed-place-btn"
+          class="inline-flex items-center gap-2 rounded-lg bg-weact px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-weact/90"
+          @click="emit('offer-freed-place', candidature.id)"
+        >
+          <Check class="h-4 w-4" />
+          Proposer la place libérée
+        </button>
+      </div>
+
       <div v-else-if="canChat || canConfirmShipment || canRelease" class="flex flex-wrap gap-2">
         <RouterLink
           v-if="canChat"

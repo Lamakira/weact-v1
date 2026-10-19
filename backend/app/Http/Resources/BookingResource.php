@@ -33,6 +33,13 @@ class BookingResource extends JsonResource
             'status_label' => $this->status->label(),
             'date_debut' => $this->date_debut?->toIso8601String(),
             'face_cancellation_deadline' => $this->faceCancellationDeadline()?->toIso8601String(),
+            // Lot B10 : échéances tant que la demande attend (réponse de la Face / commission UGC).
+            'face_response_deadline' => $this->status === BookingStatus::Pending
+                ? $this->faceResponseDeadline()?->toIso8601String()
+                : null,
+            'ugc_commission_payment_deadline' => $this->status === BookingStatus::Pending && $this->commission_paid_at === null
+                ? $this->ugcCommissionPaymentDeadline()?->toIso8601String()
+                : null,
             'date_fin' => $this->date_fin?->toIso8601String(),
             'duree_heures' => $this->duree_heures,
             'type_contenu' => $this->type_contenu,
@@ -53,6 +60,10 @@ class BookingResource extends JsonResource
             'fedapay_transaction_id' => $user && $user->id === $this->producer_id ? $this->fedapay_transaction_id : null,
             'payment_mode' => $this->payment_mode,
             'accepted_at' => $this->accepted_at?->toISOString(),
+            // Lot B11 : échéance de paiement (accepted_at + 24 h) tant que le booking attend son paiement.
+            'payment_deadline' => $this->status === BookingStatus::Accepted
+                ? $this->paymentDeadline()?->toIso8601String()
+                : null,
             // Présent uniquement quand le contrôleur a fait loadExists('escrowTransaction') (show).
             'was_paid' => $this->when(
                 array_key_exists('escrow_transaction_exists', $this->resource->getAttributes()),
