@@ -16,6 +16,7 @@ use App\Exceptions\MissionPaymentInitiationException;
 use App\Mail\CandidatureAcceptedMail;
 use App\Mail\FaceSelectedMail;
 use App\Mail\MissionCompletedMail;
+use App\Mail\MissionSelectionExpiredMail;
 use App\Models\Candidature;
 use App\Models\Conversation;
 use App\Models\Face;
@@ -29,6 +30,7 @@ use App\Models\User;
 use App\Support\FedapayPollCache;
 use App\ValueObjects\BookingPricing;
 use App\ValueObjects\MissionPricing;
+use Carbon\CarbonInterface;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +65,32 @@ class MissionPaymentService
             $existingPayment = $this->resolveResumablePayment($mission);
 
             if ($existingPayment instanceof MissionPayment) {
+                // Lot B1 — l'échéance de 24 h est stricte (created_at) : reprendre le checkout ne la repousse pas.
+                if (now()->greaterThanOrEqualTo($this->selectionExpiresAt($existingPayment))) {
+                    $outcome = $this->settleOrResetPendingSelection(
+                        $existingPayment,
+                        'selection_payment_expired',
+                        respectOpenCheckout: false,
+                        callerHoldsLock: true,
+                    );
+
+                    if ($outcome === self::SELECTION_SETTLED) {
+                        return ['payment' => $existingPayment->fresh() ?? $existingPayment, 'checkout_url' => null];
+                    }
+
+                    if ($outcome === self::SELECTION_RESET) {
+                        throw ValidationException::withMessages([
+                            'candidature_ids' => ['Le délai de 24 h pour payer cette sélection est dépassé : elle a été annulée. Refaites votre sélection.'],
+                        ]);
+                    }
+
+                    if ($outcome === self::SELECTION_UNVERIFIABLE) {
+                        throw ValidationException::withMessages([
+                            'candidature_ids' => ['Impossible de vérifier le paiement pour le moment, réessayez dans quelques minutes.'],
+                        ]);
+                    }
+                }
+
                 try {
                     return $this->initiatePayment($existingPayment);
                 } catch (\Throwable $e) {
@@ -1487,6 +1515,147 @@ class MissionPaymentService
 
     public const CHECKOUT_UNVERIFIABLE = 'unverifiable';
 
+    /** Lot B1 — le Producteur a 24 h (depuis la création du MissionPayment) pour payer sa sélection. */
+    public const SELECTION_PAYMENT_WINDOW_HOURS = 24;
+
+    /** Fenêtre de relance : entre 12 h et 20 h après la création du paiement. */
+    public const SELECTION_REMINDER_MIN_AGE_HOURS = 12;
+
+    public const SELECTION_REMINDER_MAX_AGE_HOURS = 20;
+
+    /** À l'échéance, un checkout FedaPay ouvert/repris depuis moins de cela n'est pas réinitialisé par le cron. */
+    public const SELECTION_OPEN_CHECKOUT_GRACE_MINUTES = 60;
+
+    public const SELECTION_SETTLED = 'settled';
+
+    public const SELECTION_RESET = 'reset';
+
+    public const SELECTION_IN_FLIGHT = 'in_flight';
+
+    public const SELECTION_UNVERIFIABLE = 'unverifiable';
+
+    public const SELECTION_NOOP = 'noop';
+
+    /** Échéance de paiement d'une sélection : created_at + 24 h (une reprise du checkout ne la repousse pas). */
+    public function selectionExpiresAt(MissionPayment $payment): CarbonInterface
+    {
+        return ($payment->created_at ?? now())->copy()->addHours(self::SELECTION_PAYMENT_WINDOW_HOURS);
+    }
+
+    /**
+     * Règle une sélection de mission en attente de paiement : payée côté FedaPay → settled ; morte,
+     * abandonnée ou annulée par le Producteur → reset ; sinon rien. MUST be called OUTSIDE any DB
+     * transaction (appel HTTP FedaPay, markAsPaid).
+     *
+     * @return string une des constantes SELECTION_* (settled|reset|in_flight|unverifiable|noop)
+     */
+    public function settleOrResetPendingSelection(
+        MissionPayment $payment,
+        string $reason,
+        bool $respectOpenCheckout,
+        bool $callerHoldsLock = false,
+    ): string {
+        /** @var MissionPayment|null $payment */
+        $payment = MissionPayment::query()->find($payment->id);
+
+        if ($payment === null || $payment->status !== MissionPaymentStatus::Pending) {
+            return self::SELECTION_NOOP;
+        }
+
+        /** @var Mission|null $mission */
+        $mission = Mission::query()->find($payment->mission_id);
+
+        if ($mission === null || $mission->status !== MissionStatus::PendingPayment) {
+            return self::SELECTION_NOOP;
+        }
+
+        if (! $callerHoldsLock && $this->isMissionPaymentLockHeld($payment->mission_id)) {
+            return self::SELECTION_IN_FLIGHT;
+        }
+
+        $transactionId = $payment->fedapay_transaction_id !== null ? (int) $payment->fedapay_transaction_id : null;
+        $fedapayStatus = null;
+        $fedapayCreatedAt = null;
+        $reference = '';
+
+        if ($transactionId === null) {
+            if ($payment->created_at === null
+                || $payment->created_at->gt(now()->subMinutes(self::CASH_CHECKOUT_INITIATION_GRACE_MINUTES))) {
+                return self::SELECTION_IN_FLIGHT;
+            }
+        } else {
+            try {
+                $transaction = $this->fedapayService->retrieveTransaction($transactionId);
+                $fedapayStatus = (string) $transaction->status;
+                $fedapayCreatedAt = isset($transaction->created_at)
+                    ? \Illuminate\Support\Carbon::parse((string) $transaction->created_at)
+                    : null;
+                $reference = (string) ($transaction->reference ?? $transactionId);
+            } catch (\Throwable $e) {
+                Log::warning('MissionPaymentService::settleOrResetPendingSelection — FedaPay indisponible, refus par prudence', [
+                    'payment_id' => $payment->id,
+                    'transaction_id' => $transactionId,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return self::SELECTION_UNVERIFIABLE;
+            }
+
+            if (in_array($fedapayStatus, ['approved', 'transferred'], true)) {
+                $this->markAsPaid($payment, $reference);
+
+                return self::SELECTION_SETTLED;
+            }
+
+            if (! in_array($fedapayStatus, FedapayService::TERMINAL_FAILED_STATUSES, true) && $respectOpenCheckout) {
+                $threshold = now()->subMinutes(self::SELECTION_OPEN_CHECKOUT_GRACE_MINUTES);
+
+                if (($fedapayCreatedAt !== null && $fedapayCreatedAt->gt($threshold))
+                    || ($payment->updated_at !== null && $payment->updated_at->gt($threshold))) {
+                    return self::SELECTION_IN_FLIGHT;
+                }
+            }
+        }
+
+        $reset = DB::transaction(fn (): bool => $this->resetSelectionForPayment(
+            $payment->id,
+            $reason,
+            $transactionId,
+            $fedapayStatus,
+        ));
+
+        if (! $reset) {
+            return self::SELECTION_NOOP;
+        }
+
+        if ($reason === 'selection_payment_expired') {
+            $this->queueSelectionExpiredMail($mission, (int) $payment->producer_id);
+        }
+
+        return self::SELECTION_RESET;
+    }
+
+    /** Email « sélection annulée » : après commit, jamais bloquant. */
+    private function queueSelectionExpiredMail(Mission $mission, int $producerId): void
+    {
+        try {
+            /** @var User|null $user */
+            $user = User::where('userable_type', Producer::class)
+                ->where('userable_id', $producerId)
+                ->first();
+            $email = trim((string) $user?->email);
+
+            if ($email !== '') {
+                Mail::to($email)->queue(new MissionSelectionExpiredMail($mission));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('MissionPaymentService: selection expired email queue failed', [
+                'mission_id' => $mission->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
     /**
      * Whether a parentless hybrid UGC entry is Pending with a FedaPay transaction on this candidature.
      */
@@ -1632,27 +1801,43 @@ class MissionPaymentService
      */
     public function resetPendingCashSelection(Candidature $candidature, string $reason, array $assessment): bool
     {
+        return $this->resetSelectionForPayment(
+            $assessment['payment_id'],
+            $reason,
+            $assessment['transaction_id'],
+            $assessment['fedapay_status'],
+        );
+    }
+
+    /**
+     * Corps du reset au niveau paiement (voir resetPendingCashSelection). MUST be inside a DB::transaction().
+     * Notification Producteur selon la raison : `selection_payment_expired` → message d'échéance 24 h
+     * (l'email part après commit, côté appelant) ; `producer_cancelled_selection` → aucune (c'est lui
+     * qui a agi) ; toute autre raison → message historique.
+     */
+    private function resetSelectionForPayment(int $paymentId, string $reason, ?int $expectedTransactionId, ?string $fedapayStatus): bool
+    {
         // Ordre de verrous (aligné sur markAsPaid) : payment → entries → mission.
-        $this->lockCashSelection($assessment['payment_id']);
+        $this->lockCashSelection($paymentId);
 
         /** @var MissionPayment|null $payment */
-        $payment = MissionPayment::query()->find($assessment['payment_id']);
+        $payment = MissionPayment::query()->find($paymentId);
 
         if ($payment === null
             || $payment->status !== MissionPaymentStatus::Pending
-            || ($payment->fedapay_transaction_id !== null ? (int) $payment->fedapay_transaction_id : null) !== $assessment['transaction_id']) {
+            || ($payment->fedapay_transaction_id !== null ? (int) $payment->fedapay_transaction_id : null) !== $expectedTransactionId) {
             return false;
         }
 
         /** @var Mission|null $mission */
-        $mission = Mission::query()->lockForUpdate()->find($candidature->mission_id);
+        $mission = Mission::query()->lockForUpdate()->find($payment->mission_id);
 
         if ($payment->fedapay_transaction_id !== null) {
             $this->recordDetachedPayment(
                 'mission_payment',
                 $payment->id,
                 (string) $payment->fedapay_transaction_id,
-                $assessment['fedapay_status'],
+                $fedapayStatus,
                 (int) $payment->montant_total_producteur,
                 ['mission_id' => $payment->mission_id, 'producer_id' => $payment->producer_id, 'reason' => $reason],
             );
@@ -1665,14 +1850,23 @@ class MissionPaymentService
             $mission->update(['status' => MissionStatus::Published]);
         }
 
+        if ($reason === 'producer_cancelled_selection') {
+            return true;
+        }
+
+        $url = $mission instanceof Mission ? "/producer/missions/{$mission->uuid}/candidatures" : '/producer/missions';
+        $message = $reason === 'selection_payment_expired'
+            ? 'Le délai de 24 h pour payer votre sélection sur « '.($mission instanceof Mission ? $mission->titre : 'votre mission').' » est dépassé : la sélection a été annulée. Vous pouvez en refaire une.'
+            : 'Le paiement de votre sélection n\'a pas abouti : la sélection a été annulée, veuillez la refaire.';
+
         $this->notifySafely(
             userId: $this->getUserIdForProducer((int) $payment->producer_id),
             type: 'mission_selection_reset',
             data: [
-                'message' => 'Le paiement de votre sélection n\'a pas abouti : la sélection a été annulée, veuillez la refaire.',
+                'message' => $message,
                 'mission_id' => $payment->mission_id,
                 'reason' => $reason,
-                'url' => $mission instanceof Mission ? "/producer/missions/{$mission->uuid}/candidatures" : '/producer/missions',
+                'url' => $url,
             ],
         );
 
