@@ -23,8 +23,11 @@ import { ApplyToMissionModal } from '@/features/candidature/components'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import MissionApplyBlock from './MissionApplyBlock.vue'
+import FaceMissionHub from './FaceMissionHub.vue'
 import { ugcCandidatureTunnelStep, UGC_UNBOXING_DAYS, ProductPhotoGallery, ProductPhotosUpload } from '@/components/ugc'
-import { useCancelCandidature, useReconfirmCandidature } from '@/features/candidature/composables'
+import { useCancelCandidature, useConfirmCandidature, useReconfirmCandidature } from '@/features/candidature/composables'
+import { formatShortDate } from '@/features/candidature/utils/faceMissionHub'
+import type { HubActionKey } from '@/features/candidature/utils/faceMissionHub'
 import { authApi } from '@/features/auth/services/authApi'
 import type { Face } from '@/features/auth/types'
 import { useToast } from '@/composables/useToast'
@@ -81,6 +84,11 @@ const {
   reconfirmCandidature,
 } = useReconfirmCandidature()
 
+// Confirmation de participation (mission standard, candidature `accepted`) — lot C5 :
+// faite directement depuis cette page, même endpoint que CandidatureCard.
+const { isConfirming, error: confirmError, confirmCandidature } = useConfirmCandidature()
+const showConfirmModal = ref(false)
+
 // Candidature engagée : la Face a accepté le deal (bandeau sans CTA ni annulation).
 const ugcEngaged = computed(() =>
   isUgc.value && ['confirmed', 'in_progress', 'completed'].includes(candidature.value?.status ?? ''),
@@ -124,12 +132,6 @@ const {
   uploadDeliverable,
 } = useUgcDeliverable()
 
-// CTA « Reconfirmer ma participation » : candidature UGC `accepted` (8-3, D-8.3.d).
-// Mutuellement exclusif avec « Annuler » (pending-only).
-const canReconfirmUgc = computed(
-  () => isUgc.value && candidature.value?.status === 'accepted',
-)
-
 // Email verification resend state
 const isResendingVerification = ref(false)
 const isRefreshingGenderContext = ref(false)
@@ -145,16 +147,6 @@ const missionId = computed(() => {
   const id = route.params.id
   return typeof id === 'string' && id.trim().length > 0 ? id : null
 })
-
-// Computed: Has the user already applied?
-const hasApplied = computed(() => candidature.value !== null)
-
-// Computed: Can the user cancel? (only pending candidatures)
-// « Mission clôturée » (display_status) : pending en base mais rien à annuler.
-// « Sélection en cours de paiement » : la Face peut encore se retirer.
-const canCancelCandidature = computed(
-  () => candidature.value?.status === 'pending' && candidature.value?.display_status !== 'mission_closed',
-)
 
 // Contestation d'absence envoyée : on relit la mission pour récupérer l'état serveur.
 async function handleAbsenceContested(): Promise<void> {
@@ -439,29 +431,62 @@ async function handleReconfirm(): Promise<void> {
 }
 
 /**
+ * CONFIRMATION DE PARTICIPATION (lot C5) — accepted → confirmed (mission standard).
+ */
+const confirmModalMessage = computed(() => {
+  const date = formatShortDate(mission.value?.date_tournage)
+  return `Vous vous engagez à être au tournage${date ? ` le ${date}` : ''}. En cas d’empêchement, prévenez le producteur au plus vite.`
+})
+
+async function handleConfirmParticipation(): Promise<void> {
+  showConfirmModal.value = false
+  if (!candidature.value || !missionId.value) return
+
+  const result = await confirmCandidature(candidature.value.id)
+  if (result) {
+    toast.success('Participation confirmée. Le chat est ouvert.')
+  } else {
+    toast.error(confirmError.value || 'Impossible de confirmer votre participation.')
+  }
+  // Relecture silencieuse (sans spinner) : la barre d'étapes s'anime vers l'état réel du serveur,
+  // y compris après un échec (état changé entre-temps, multi-onglets).
+  await fetchMission(missionId.value, { silent: true })
+}
+
+const hubBusy = computed(() => isConfirming.value || isReconfirming.value || isCancelling.value)
+
+function handleHubAction(key: HubActionKey): void {
+  switch (key) {
+    case 'confirm':
+      showConfirmModal.value = true
+      break
+    case 'reconfirm':
+      void handleReconfirm()
+      break
+    case 'cancel':
+      openCancelModal()
+      break
+    case 'chat':
+      if (candidature.value?.conversation_id) {
+        router.push({ name: 'face-conversation', params: { conversationId: candidature.value.conversation_id } })
+      }
+      break
+    case 'browse':
+      router.push({ name: 'face-missions' })
+      break
+  }
+}
+
+/**
  * APPLY BLOCK PROPS
  *
- * Regroupe l'état consommé par MissionApplyBlock pour le `v-bind` aux deux
- * emplacements (sidebar sticky desktop + barre fixe / inline mobile) sans
- * répéter ~20 props à la main. Purement présentationnel — aucune logique
+ * Regroupe l'état consommé par MissionApplyBlock (avant candidature) pour le `v-bind` aux deux
+ * emplacements (sidebar sticky desktop + barre fixe mobile) sans répéter les props à la main. Purement présentationnel — aucune logique
  * nouvelle, juste un miroir des computeds/refs existants. `mission.value!` :
  * le composant n'est rendu que dans la branche `v-else-if="mission"`.
  */
 const applyBlockProps = computed(() => ({
   mission: mission.value!,
-  candidature: candidature.value,
-  hasApplied: hasApplied.value,
-  showFaceTrackingCard: showFaceTrackingCard.value,
-  candidatureShipment: candidatureShipment.value,
-  ugcTrackingStep: ugcTrackingStep.value,
-  isSubmittingReceipt: isSubmittingReceipt.value,
-  isUploadingDeliverable: isUploadingDeliverable.value,
-  uploadProgress: uploadProgress.value,
-  ugcEngaged: ugcEngaged.value,
-  canCancelCandidature: canCancelCandidature.value,
-  canReconfirmUgc: canReconfirmUgc.value,
-  isReconfirming: isReconfirming.value,
-  isCancelling: isCancelling.value,
   canApply: canApply.value,
   isSubscriptionGated: isSubscriptionGated.value,
   isResendingVerification: isResendingVerification.value,
@@ -561,7 +586,27 @@ onMounted(() => {
       </button>
     </div>
 
-    <!-- Mission Detail Content -->
+    <!-- Candidature posée : la page mission devient le point central de la Face (lot C5) -->
+    <FaceMissionHub
+      v-else-if="mission && candidature"
+      :mission="mission"
+      :candidature="candidature"
+      :is-ugc="isUgc"
+      :producer-name="producerName"
+      :busy="hubBusy"
+      :show-face-tracking-card="showFaceTrackingCard"
+      :candidature-shipment="candidatureShipment"
+      :ugc-tracking-step="ugcTrackingStep"
+      :is-submitting-receipt="isSubmittingReceipt"
+      :is-uploading-deliverable="isUploadingDeliverable"
+      :upload-progress="uploadProgress"
+      @action="handleHubAction"
+      @confirm-receipt="openReceiptModal"
+      @upload="handleUploadDeliverable"
+      @contested="handleAbsenceContested"
+    />
+
+    <!-- Mission Detail Content (avant candidature) -->
     <div v-else-if="mission">
       <!-- En-tête pleine largeur (au-dessus de la grille) -->
       <div class="mb-6">
@@ -598,10 +643,7 @@ onMounted(() => {
            `items-start` est indispensable au fonctionnement du sticky. `pb-28`
            réserve l'espace de la barre d'action fixe mobile (retirée dès qu'on a
            déjà postulé — l'état passe alors inline dans la colonne de gauche). -->
-      <div
-        class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start"
-        :class="{ 'pb-28 lg:pb-0': !hasApplied }"
-      >
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start pb-28 lg:pb-0">
         <!-- COLONNE GAUCHE : contenu défilable -->
         <div class="lg:col-span-7 xl:col-span-8 space-y-5">
           <!-- Mobile : stats + producteur compact remontés en tête (signal de confiance ;
@@ -755,22 +797,6 @@ onMounted(() => {
             <h2 class="mb-2.5 text-sm font-semibold text-gray-900">Profil recherché</h2>
             <p class="whitespace-pre-line text-sm leading-relaxed text-gray-600">{{ mission.profil_recherche }}</p>
           </section>
-
-          <!-- Mobile : zone d'action inline une fois la candidature posée (le suivi de
-               livraison / les bandeaux n'ont pas leur place dans une barre fixe étroite). -->
-          <div v-if="hasApplied" class="lg:hidden">
-            <MissionApplyBlock
-              v-bind="applyBlockProps"
-              @apply="openApplyModal"
-              @cancel="openCancelModal"
-              @reconfirm="handleReconfirm"
-              @resend-verification="handleResendVerification"
-              @view-pricing="goToPricing"
-              @confirm-receipt="openReceiptModal"
-              @upload="handleUploadDeliverable"
-              @contested="handleAbsenceContested"
-            />
-          </div>
         </div>
 
         <!-- COLONNE DROITE : carte d'action sticky (desktop uniquement) -->
@@ -810,13 +836,8 @@ onMounted(() => {
               <MissionApplyBlock
                 v-bind="applyBlockProps"
                 @apply="openApplyModal"
-                @cancel="openCancelModal"
-                @reconfirm="handleReconfirm"
                 @resend-verification="handleResendVerification"
                 @view-pricing="goToPricing"
-                @confirm-receipt="openReceiptModal"
-                @upload="handleUploadDeliverable"
-                @contested="handleAbsenceContested"
               />
             </div>
 
@@ -859,23 +880,16 @@ onMounted(() => {
         </aside>
       </div>
 
-      <!-- Barre d'action fixe en bas (mobile) — CTA toujours visible tant qu'on n'a
-           pas postulé ; une fois la candidature posée, l'état passe inline (colonne
-           gauche). z-30 < menu mobile (z-40/z-50) → bien recouvert à l'ouverture. -->
+      <!-- Barre d'action fixe en bas (mobile) — CTA toujours visible avant candidature.
+           z-30 < menu mobile (z-40/z-50) → bien recouvert à l'ouverture. -->
       <div
-        v-if="!hasApplied"
         class="fixed inset-x-0 bottom-0 z-30 border-t border-gray-100 bg-white/95 px-4 pt-3 pb-7 backdrop-blur lg:hidden"
       >
         <MissionApplyBlock
           v-bind="applyBlockProps"
           @apply="openApplyModal"
-          @cancel="openCancelModal"
-          @reconfirm="handleReconfirm"
           @resend-verification="handleResendVerification"
           @view-pricing="goToPricing"
-          @confirm-receipt="openReceiptModal"
-          @upload="handleUploadDeliverable"
-          @contested="handleAbsenceContested"
         />
       </div>
     </div>
@@ -889,6 +903,19 @@ onMounted(() => {
       @close="closeApplyModal"
       @success="handleApplySuccess"
       @subscription-required="handleSubscriptionRequired"
+    />
+
+    <!-- Confirmation de participation (lot C5) -->
+    <ConfirmModal
+      :is-open="showConfirmModal"
+      title="Confirmer votre participation ?"
+      :message="confirmModalMessage"
+      confirm-text="Je confirme"
+      cancel-text="Pas maintenant"
+      variant="warning"
+      compact-motion
+      @confirm="handleConfirmParticipation"
+      @cancel="showConfirmModal = false"
     />
 
     <!-- Cancel Confirmation Modal -->

@@ -170,6 +170,14 @@ export interface MissionCandidature {
     deadline: string | null
     can_contest: boolean
   } | null
+  /** Échéance de confirmation (cash `accepted`, ISO 8601) — null sinon (lot C5). */
+  confirmation_deadline?: string | null
+  /** Date-limite de reconfirmation UGC (`accepted`, ISO 8601) — null sinon (lot C5). */
+  reconfirm_deadline?: string | null
+  /** Net reçu par la Face une fois sa place payée (escrow) — null avant sélection payée (lot C5). */
+  montant_face_recoit?: number | null
+  /** UUID de la conversation (chat) — null tant que la candidature n'est pas acceptée (lot C5). */
+  conversation_id?: string | null
   message_motivation: string | null
   created_at: string
   updated_at: string
