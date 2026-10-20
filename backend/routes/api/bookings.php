@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\ActionCountController;
 use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\BookingMessageController;
 use App\Http\Controllers\Api\V1\BookingRatingController;
@@ -93,6 +94,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (
     Route::post('/me/notifications/read-all', [NotificationController::class, 'markAllAsRead'])
         ->middleware('throttle:30,1')
         ->name('me.notifications.mark-all-read');
+
+    // Compteurs d'actions en attente (badges de navigation, lot D3) — Face + Producer
+    Route::get('/me/action-counts', ActionCountController::class)
+        ->middleware(['face_or_producer', 'throttle:polling'])
+        ->name('me.action-counts');
 
     // Web push subscriptions (Face + Producer; admins are refused by api.token)
     Route::get('/push/public-key', [PushSubscriptionController::class, 'publicKey'])

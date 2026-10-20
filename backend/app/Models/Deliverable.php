@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Concerns\HasRouteUuid;
 use App\Enums\DeliverableKind;
 use App\Enums\DeliverableValidationStatus;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
@@ -76,6 +77,23 @@ class Deliverable extends Model
             'validated_at' => 'datetime',
             'submitted_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Livrables en revue (in_review) d'un Producteur, sur les deux types d'owner. Asymétrie FK :
+     * booking via users.id, candidature via producers.id (mission.producer_id). Même règle que
+     * l'inbox de validation (UgcDeliverableValidationController::index), utilisable en COUNT.
+     *
+     * @param  Builder<Deliverable>  $query
+     */
+    public function scopeInReviewForProducer(Builder $query, User $user): void
+    {
+        $query->where('validation_status', DeliverableValidationStatus::InReview->value)
+            ->where(function (Builder $q) use ($user): void {
+                $q->whereHasMorph('owner', [Booking::class], fn (Builder $b) => $b->where('producer_id', $user->id))
+                    ->orWhereHasMorph('owner', [Candidature::class], fn (Builder $c) => $c
+                        ->whereHas('mission', fn (Builder $m) => $m->where('producer_id', $user->userable_id)));
+            });
     }
 
     public function owner(): MorphTo

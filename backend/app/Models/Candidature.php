@@ -10,6 +10,7 @@ use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
+use App\Enums\UgcTunnelStatus;
 use App\Services\MissionPaymentService;
 use App\Support\BusinessTimeSql;
 use Carbon\Carbon;
@@ -306,6 +307,22 @@ class Candidature extends Model
                                 ->whereNull('date_tournage')
                                 ->orWhereRaw(BusinessTimeSql::localInstant('date_tournage').' > ?', [$now]))));
             });
+    }
+
+    /**
+     * Candidatures UGC engagées (Confirmed) où la Face a une vidéo à envoyer : même règle de tunnel que
+     * Booking::awaitingFaceVideo (Unboxing après réception, Avis attendu). Source du compteur « livrables ».
+     *
+     * @param  Builder<Candidature>  $query
+     */
+    public function scopeAwaitingFaceVideo(Builder $query): Builder
+    {
+        return $query->where('status', CandidatureStatus::Confirmed->value)
+            ->whereHas('mission', fn (Builder $m) => $m->where('type_mission', MissionType::Ugc->value))
+            ->whereHas('shipment', fn (Builder $s) => $s->whereIn('tunnel_status', [
+                UgcTunnelStatus::Received->value,
+                UgcTunnelStatus::AvisPending->value,
+            ]));
     }
 
     /**

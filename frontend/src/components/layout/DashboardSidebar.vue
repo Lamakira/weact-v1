@@ -19,6 +19,11 @@ export interface SidebarItem {
   badge?: number
   /** Plafond d'affichage du badge : au-delà, « {badgeMax}+ » (ex. 9 pour Messages). */
   badgeMax?: number
+  /**
+   * Nature du badge, pour le libellé accessible : « N actions en attente » (défaut)
+   * ou « N messages non lus ».
+   */
+  badgeKind?: 'actions' | 'messages'
   /** Autres préfixes de route qui appartiennent à cet item (ex. /face/conversations pour Messages). */
   match?: string[]
 }
@@ -95,7 +100,7 @@ const getItemClasses = (item: SidebarItem) => {
         <li v-for="item in items" :key="item.to">
           <RouterLink
             :to="item.to"
-            class="flex items-center rounded-lg text-dash transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-weact-600"
+            class="relative flex items-center rounded-lg text-dash transition-colors duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-weact-600"
             :class="[
               getItemClasses(item),
               isExpanded ? 'h-9 px-2.5 gap-2.5' : 'w-11 h-11 justify-center mx-auto',
@@ -115,6 +120,14 @@ const getItemClasses = (item: SidebarItem) => {
               data-testid="sidebar-badge"
             >
               {{ formatBadge(item.badge, item.badgeMax) }}
+            </span>
+            <!-- Barre repliée : pastille sur l'icône à la place du badge -->
+            <span
+              v-else-if="item.badge && item.badge > 0"
+              class="absolute right-0.5 top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-weact-600 px-1 text-[10px] font-semibold leading-none text-white"
+              data-testid="sidebar-badge-collapsed"
+            >
+              {{ formatBadge(item.badge, item.badgeMax ?? 99) }}
             </span>
           </RouterLink>
         </li>

@@ -20,7 +20,7 @@ describe('DashboardMobileTabs', () => {
   const tabs = [
     { label: 'Accueil', icon: House, to: '/face/dashboard' },
     { label: 'Missions', icon: Briefcase, to: '/face/missions' },
-    { label: 'Messages', icon: MessageCircle, to: '/face/messages', badge: 3, match: ['/face/conversations'] },
+    { label: 'Messages', icon: MessageCircle, to: '/face/messages', badge: 3, badgeKind: 'messages' as const, match: ['/face/conversations'] },
     { label: 'Profil', icon: User, to: '/face/profile' },
   ]
 
@@ -72,8 +72,37 @@ describe('DashboardMobileTabs', () => {
     const wrapper = mountTabs()
     const messages = wrapper.find('[data-testid="mobile-tab-messages"]')
     expect(messages.find('[data-testid="mobile-tab-badge"]').text()).toBe('3')
-    expect(messages.attributes('aria-label')).toBe('Messages, 3 non lus')
+    expect(messages.attributes('aria-label')).toBe('Messages, 3 messages non lus')
     expect(wrapper.find('[data-testid="mobile-tab-profil"]').attributes('aria-label')).toBeUndefined()
+  })
+
+  it('libelle accessible par onglet : actions en attente (défaut) ou messages non lus, singulier géré', () => {
+    const wrapper = mountTabs({
+      tabs: [
+        { label: 'Missions', icon: Briefcase, to: '/face/missions', badge: 3 },
+        { label: 'Bookings', icon: Briefcase, to: '/face/bookings', badge: 1 },
+        { label: 'Messages', icon: MessageCircle, to: '/face/messages', badge: 1, badgeKind: 'messages' },
+        { label: 'Livrables', icon: Briefcase, to: '/producer/ugc/validation', badge: 2 },
+      ],
+    })
+    expect(wrapper.find('[data-testid="mobile-tab-missions"]').attributes('aria-label')).toBe('Missions, 3 actions en attente')
+    expect(wrapper.find('[data-testid="mobile-tab-bookings"]').attributes('aria-label')).toBe('Bookings, 1 action en attente')
+    expect(wrapper.find('[data-testid="mobile-tab-messages"]').attributes('aria-label')).toBe('Messages, 1 message non lu')
+    expect(wrapper.find('[data-testid="mobile-tab-livrables"]').attributes('aria-label')).toBe('Livrables, 2 actions en attente')
+  })
+
+  it('rend 5 destinations avec un badge par onglet concerné (Face)', () => {
+    const wrapper = mountTabs({
+      tabs: [
+        { label: 'Accueil', icon: House, to: '/face/dashboard' },
+        { label: 'Missions', icon: Briefcase, to: '/face/missions', badge: 2 },
+        { label: 'Bookings', icon: Briefcase, to: '/face/bookings', badge: 4 },
+        { label: 'Messages', icon: MessageCircle, to: '/face/messages', badge: 1, badgeKind: 'messages' },
+        { label: 'Profil', icon: User, to: '/face/profile' },
+      ],
+    })
+    expect(wrapper.findAll('a')).toHaveLength(5)
+    expect(wrapper.findAll('[data-testid="mobile-tab-badge"]').map((b) => b.text())).toEqual(['2', '4', '1'])
   })
 
   it('plafonne le compteur à « 9+ » (badgeMax) et le masque à 0', () => {

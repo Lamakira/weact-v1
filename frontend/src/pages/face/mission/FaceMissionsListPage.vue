@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   Inbox,
+  FileText,
   AlertCircle,
   RefreshCw,
   ChevronLeft,
@@ -155,10 +156,21 @@ function toggleFiltersPanel(): void {
         </p>
       </div>
 
+      <div class="flex shrink-0 items-center gap-2 lg:hidden">
+      <!-- Accès à « Mes candidatures » : absent de la barre du bas sur mobile -->
+      <RouterLink
+        to="/face/candidatures"
+        class="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs min-[376px]:text-sm font-medium transition-colors hover:bg-muted shrink-0"
+        data-testid="my-candidatures-link"
+      >
+        <FileText class="h-4 w-4" aria-hidden="true" />
+        <span>Mes candidatures</span>
+      </RouterLink>
+
       <!-- Mobile Filter Toggle -->
       <button
         type="button"
-        class="relative lg:hidden inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs min-[376px]:text-sm font-medium transition-colors hover:bg-muted shrink-0"
+        class="relative inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs min-[376px]:text-sm font-medium transition-colors hover:bg-muted shrink-0"
         @click="toggleFiltersPanel"
         data-testid="toggle-filters-mobile"
       >
@@ -171,6 +183,7 @@ function toggleFiltersPanel(): void {
           {{ activeFilterCount }}
         </span>
       </button>
+      </div>
     </div>
 
     <!-- Mobile Filters Panel (Overlay) -->

@@ -128,10 +128,23 @@ describe('FaceMissionsListPage — UGC discovery entry point (ugc-disc-1)', () =
     const wrapper = mountPage()
     await flushPromises()
 
-    const cta = wrapper.findComponent(RouterLinkStub)
-    expect(cta.exists()).toBe(true)
-    expect(cta.attributes('data-testid')).toBe('ugc-discovery-cta')
-    expect(cta.props('to')).toEqual({ name: 'face-ugc-missions' })
+    const cta = wrapper
+      .findAllComponents(RouterLinkStub)
+      .find((l) => l.attributes('data-testid') === 'ugc-discovery-cta')
+    expect(cta).toBeDefined()
+    expect(cta!.props('to')).toEqual({ name: 'face-ugc-missions' })
+  })
+
+  it('offers a visible access to « Mes candidatures » at the top of the page (bottom bar has no such tab)', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const link = wrapper
+      .findAllComponents(RouterLinkStub)
+      .find((l) => l.attributes('data-testid') === 'my-candidatures-link')
+    expect(link).toBeDefined()
+    expect(link!.props('to')).toBe('/face/candidatures')
+    expect(link!.text()).toContain('Mes candidatures')
   })
 
   it('keeps the existing mission list rendered — cards + filters unchanged (non-regression)', async () => {
