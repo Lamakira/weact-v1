@@ -31,7 +31,7 @@ const remaining = computed(() => (props.next.deadlineAt ? formatRemaining(props.
         <p v-if="next.text" class="mt-1.5 text-sm text-gray-800" data-testid="booking-next-text">{{ next.text }}</p>
         <p
           v-if="remaining"
-          class="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-sm font-bold text-amber-800 tabular-nums"
+          class="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-sm font-bold text-amber-800"
           data-testid="booking-next-countdown"
         >
           <Clock class="h-3.5 w-3.5" aria-hidden="true" />
