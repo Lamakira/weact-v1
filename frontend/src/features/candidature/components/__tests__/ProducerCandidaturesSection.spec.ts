@@ -4,6 +4,7 @@ import { flushPromises, shallowMount } from '@vue/test-utils'
 import ProducerCandidaturesSection from '../ProducerCandidaturesSection.vue'
 import ProducerCandidatureCard from '../ProducerCandidatureCard.vue'
 import UgcCandidaturePaymentOverlay from '../UgcCandidaturePaymentOverlay.vue'
+import RateFaceDialog from '../RateFaceDialog.vue'
 import { UgcShipmentForm } from '@/components/ugc'
 
 const mockToastSuccess = vi.fn()
@@ -475,6 +476,62 @@ describe('ProducerCandidaturesSection', () => {
       await flushPromises()
 
       expect(wrapper.findComponent(UgcCandidaturePaymentOverlay).exists()).toBe(false)
+    })
+  })
+
+  describe('notation facultative des Faces (lot C8)', () => {
+    const CardStub = {
+      name: 'ProducerCandidatureCard',
+      template: '<div class="producer-candidature-card-stub"></div>',
+      props: ['candidature'],
+      emits: ['rate'],
+      methods: { resetRejecting() {}, resetAccepting() {}, resetReleasing() {} },
+    }
+
+    function mountSection() {
+      return shallowMount(ProducerCandidaturesSection, {
+        props: { missionId: 'mission-uuid-under-test', missionBudget: 90000, missionStatus: 'completed' },
+        global: { stubs: { Teleport: true, ProducerCandidatureCard: CardStub } },
+      })
+    }
+
+    it('ouvre le dialogue de notation pour la Face de la carte, sans appel API tant qu\'on ne note pas', async () => {
+      const wrapper = mountSection()
+      expect(wrapper.findComponent(RateFaceDialog).props('candidatureId')).toBeNull()
+
+      wrapper.findComponent(CardStub).vm.$emit('rate', 'cand-1')
+      await flushPromises()
+
+      const dialog = wrapper.findComponent(RateFaceDialog)
+      expect(dialog.props('candidatureId')).toBe('cand-1')
+      expect(dialog.props('faceName')).toBe('Alice')
+      expect(mockRefresh).not.toHaveBeenCalled()
+    })
+
+    it('une note envoyée ferme le dialogue, rafraîchit la liste et prévient la page', async () => {
+      const wrapper = mountSection()
+      wrapper.findComponent(CardStub).vm.$emit('rate', 'cand-1')
+      await flushPromises()
+
+      wrapper.findComponent(RateFaceDialog).vm.$emit('rated', 'cand-1', { score: 5, comment: null, created_at: null })
+      await flushPromises()
+
+      expect(mockToastSuccess).toHaveBeenCalledWith('Merci, votre note a été enregistrée.')
+      expect(mockRefresh).toHaveBeenCalledTimes(1)
+      expect(wrapper.emitted('rated')).toHaveLength(1)
+      expect(wrapper.findComponent(RateFaceDialog).props('candidatureId')).toBeNull()
+    })
+
+    it('« Plus tard » ferme le dialogue sans rien noter', async () => {
+      const wrapper = mountSection()
+      wrapper.findComponent(CardStub).vm.$emit('rate', 'cand-1')
+      await flushPromises()
+
+      wrapper.findComponent(RateFaceDialog).vm.$emit('close')
+      await flushPromises()
+
+      expect(wrapper.findComponent(RateFaceDialog).props('candidatureId')).toBeNull()
+      expect(wrapper.emitted('rated')).toBeUndefined()
     })
   })
 })

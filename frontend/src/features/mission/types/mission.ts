@@ -143,6 +143,8 @@ export interface MissionSummary {
     retouche_requested: number
   } | null
   completion_blocker: string | null
+  /** Lot C8 : Faces terminées que le Producteur n'a pas encore notées (notation facultative). */
+  faces_to_rate: number
   can_edit: boolean
 }
 

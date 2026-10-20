@@ -109,6 +109,7 @@ export type PrimaryActionKey =
   | 'validate-attendance'
   | 'pay-commission'
   | 'review-deliverables'
+  | 'rate-faces'
 
 export interface PrimaryAction {
   key: PrimaryActionKey
@@ -136,6 +137,17 @@ export function resolvePrimaryAction(ctx: DetailContext): PrimaryAction | null {
   const { mission, summary, payment } = ctx
   const isUgc = isUgcMissionType(mission)
   const state = getMissionActionState(mission, ctx.emailVerified)
+
+  // Lot C8 : mission terminée → noter ses Faces (facultatif) tant qu'il en reste à noter.
+  if (summary.step === 'completed') {
+    const toRate = summary.faces_to_rate
+    if (toRate <= 0) return null
+    return {
+      key: 'rate-faces',
+      label: 'Noter mes Faces',
+      hint: `${toRate} ${plural(toRate, 'Face à noter', 'Faces à noter')} · facultatif`,
+    }
+  }
 
   if (isUgc) {
     if (summary.step === 'commission' && state.canPayCommission) {
@@ -248,6 +260,14 @@ export function buildNextBlock(ctx: DetailContext): NextBlockContent {
   }
 
   if (summary.step === 'completed') {
+    const toRate = summary.faces_to_rate
+    if (toRate > 0) {
+      return block(
+        'Mission terminée',
+        `La mission est terminée. Vous pouvez, si vous le souhaitez, noter ${toRate > 1 ? `vos ${toRate} Faces` : 'votre Face'} : c'est facultatif.`,
+        'Rien d\'obligatoire',
+      )
+    }
     return block('Mission terminée', 'La mission est terminée. Les Faces présentes ont été payées.', 'Rien à faire')
   }
 

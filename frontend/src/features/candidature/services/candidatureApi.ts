@@ -167,6 +167,22 @@ export const candidatureApi = {
   },
 
   /**
+   * Note une Face après une mission terminée (Producteur, lot C8) — facultatif.
+   * Erreurs : RATING_NOT_ALLOWED (403, candidature non terminée), ALREADY_RATED (422).
+   */
+  async rateCandidature(
+    candidatureId: string,
+    score: number,
+    comment?: string,
+  ): Promise<{ data: { score: number; comment: string | null; created_at: string | null }; message: string }> {
+    const response = await apiClient.post(`/producer/candidatures/${candidatureId}/rate`, {
+      score,
+      comment: comment || undefined,
+    })
+    return response.data
+  },
+
+  /**
    * Confirm participation in a mission (Face only)
    * Changes candidature status from "accepted" to "confirmed"
    * @param candidatureId The candidature ID to confirm

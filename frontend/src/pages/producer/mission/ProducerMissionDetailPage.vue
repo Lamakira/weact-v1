@@ -263,6 +263,12 @@ function runPrimary(action: PrimaryAction): void {
     case 'review-deliverables':
       setTab('livrables')
       break
+    case 'rate-faces':
+      // Notation facultative : onglet Candidatures, focus sur le premier bouton « Noter ».
+      setTab('candidatures')
+      void nextTick(() => sectionRef.value?.focusFirstToRate())
+      focusTabs()
+      return
     default:
       // select-faces / reconfirm-selection / replace-freed-place : tout se passe dans l'onglet Candidatures.
       setTab('candidatures')
@@ -581,6 +587,7 @@ function goToEdit(): void {
                   :mission-montant-remuneration="mission.montant_remuneration"
                   :can-replace-freed-place="mission.can_replace_freed_place === true"
                   @freed-place-replaced="fetchMission"
+                  @rated="fetchMission"
                   @selection-confirmed="handleSelectionConfirmed"
                   @selection-failed="handleSelectionFailed"
                 />

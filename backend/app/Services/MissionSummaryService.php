@@ -15,6 +15,7 @@ use App\Models\Candidature;
 use App\Models\Deliverable;
 use App\Models\Mission;
 use App\Models\MissionPayment;
+use App\Models\Producer;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -90,9 +91,33 @@ class MissionSummaryService
             'attendance' => $isPaid ? $this->attendance($mission, $entries) : null,
             'ugc_deliverables' => $isUgc ? $this->ugcDeliverables($mission) : null,
             'completion_blocker' => $blocker[1] ?? null,
+            // Lot C8 : Faces terminées que le Producteur n'a pas (encore) notées — notation facultative.
+            'faces_to_rate' => ($candidatureCounts[CandidatureStatus::Completed->value] ?? 0) > 0
+                ? $this->facesToRate($mission)
+                : 0,
             'can_edit' => ! $isUgc
                 && in_array($mission->status, [MissionStatus::Draft, MissionStatus::Published], true),
         ];
+    }
+
+    /**
+     * Candidatures `completed` sans note du Producteur propriétaire (1 requête). Les notes de la
+     * Face sur le Producteur (même candidature) ne comptent pas : on filtre sur l'auteur.
+     */
+    private function facesToRate(Mission $mission): int
+    {
+        return DB::table('candidatures as c')
+            ->where('c.mission_id', $mission->id)
+            ->where('c.status', CandidatureStatus::Completed->value)
+            ->whereNotExists(function ($query) use ($mission): void {
+                $query->select(DB::raw(1))
+                    ->from('ratings as r')
+                    ->join('users as u', 'u.id', '=', 'r.rater_id')
+                    ->whereColumn('r.candidature_id', 'c.id')
+                    ->where('u.userable_type', (new Producer)->getMorphClass())
+                    ->where('u.userable_id', $mission->producer_id);
+            })
+            ->count();
     }
 
     /**

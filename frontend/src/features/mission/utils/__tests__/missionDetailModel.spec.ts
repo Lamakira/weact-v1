@@ -20,6 +20,7 @@ function makeSummary(step: MissionSummaryStep, overrides: Partial<MissionSummary
     attendance: null,
     ugc_deliverables: null,
     completion_blocker: null,
+    faces_to_rate: 0,
     can_edit: false,
     ...overrides,
   }
@@ -192,8 +193,26 @@ describe('action principale — mission standard', () => {
     expect(resolvePrimaryAction(ctx(mission, makeSummary('attendance', { attendance: attendance(0) })))).toBeNull()
   })
 
-  it('terminée : aucune action (la notation est une autre tranche)', () => {
+  it('terminée sans Face à noter : aucune action', () => {
     expect(resolvePrimaryAction(ctx(makeMission({ status: 'completed' }), makeSummary('completed')))).toBeNull()
+  })
+
+  it('terminée avec des Faces à noter : « Noter mes Faces », facultatif (standard et UGC)', () => {
+    const action = resolvePrimaryAction(
+      ctx(makeMission({ status: 'completed' }), makeSummary('completed', { faces_to_rate: 2 })),
+    )
+    expect(action).toMatchObject({ key: 'rate-faces', label: 'Noter mes Faces' })
+    expect(action?.hint).toContain('2 Faces à noter')
+    expect(action?.hint).toContain('facultatif')
+
+    const ugc = resolvePrimaryAction(
+      ctx(
+        makeMission({ status: 'completed', type_mission: 'ugc' } as Partial<Mission>),
+        makeSummary('completed', { faces_to_rate: 1 }),
+      ),
+    )
+    expect(ugc?.key).toBe('rate-faces')
+    expect(ugc?.hint).toContain('1 Face à noter')
   })
 })
 
@@ -324,6 +343,14 @@ describe('« Et ensuite ? »', () => {
 
   it('terminée', () => {
     expect(buildNextBlock(ctx(makeMission({ status: 'completed' }), makeSummary('completed'))).headline).toBe('Mission terminée')
+  })
+
+  it('terminée avec des Faces à noter : la notation est présentée comme facultative', () => {
+    const block = buildNextBlock(ctx(makeMission({ status: 'completed' }), makeSummary('completed', { faces_to_rate: 3 })))
+    expect(block.headline).toBe('Mission terminée')
+    expect(block.text).toContain('noter vos 3 Faces')
+    expect(block.text).toContain('facultatif')
+    expect(block.who).toBe('Rien d\'obligatoire')
   })
 })
 
