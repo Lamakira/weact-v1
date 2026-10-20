@@ -1,7 +1,12 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
+import { candidatureApi } from '@/features/candidature/services/candidatureApi'
 import FaceMissionHub from '../FaceMissionHub.vue'
 import type { Mission, MissionCandidature } from '@/features/mission/types'
+
+vi.mock('@/features/candidature/services/candidatureApi', () => ({
+  candidatureApi: { rateProducer: vi.fn() },
+}))
 
 function makeMission(overrides: Partial<Mission> = {}): Mission {
   return {
@@ -67,6 +72,7 @@ function mountHub(candidature: MissionCandidature, extra: { isUgc?: boolean; mis
         RatingDisplay: true,
         UgcFaceTrackingCard: true,
         MissionAbsenceContestBlock: true,
+        teleport: true,
       },
     },
   })
@@ -239,5 +245,88 @@ describe('FaceMissionHub — blocs UGC existants', () => {
   it('ne monte pas le bloc de contestation sans attendance_dispute', () => {
     const wrapper = mountHub(makeCandidature({ status: 'confirmed' }))
     expect(wrapper.findComponent({ name: 'MissionAbsenceContestBlock' }).exists()).toBe(false)
+  })
+})
+
+describe('FaceMissionHub — notation du producteur (lot C8)', () => {
+  const completed = (overrides: Partial<MissionCandidature> = {}) =>
+    makeCandidature({ status: 'completed', conversation_id: 'conv-1', can_rate: true, my_rating: null, ...overrides })
+
+  it('candidature terminée non notée : l’action principale devient « Noter le producteur »', () => {
+    const wrapper = mountHub(completed())
+
+    expect(wrapper.get('[data-testid="hub-action-desktop"]').text()).toContain('Noter le producteur')
+    expect(wrapper.get('[data-testid="hub-action-mobile"]').text()).toBe('Noter le producteur')
+    // « Et ensuite ? » : facultatif et utile aux autres Faces
+    const next = wrapper.get('[data-testid="hub-next"]').text()
+    expect(next).toContain('facultatif')
+    expect(next).toContain('aide les autres Faces')
+  })
+
+  it('le clic sur l’action ouvre le dialogue sans émettre « action »', async () => {
+    const wrapper = mountHub(completed())
+    expect(wrapper.find('[data-testid="mission-rating-dialog"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="hub-action-desktop"]').trigger('click')
+
+    expect(wrapper.find('[data-testid="mission-rating-dialog"]').exists()).toBe(true)
+    expect(wrapper.emitted('action')).toBeUndefined()
+  })
+
+  it('envoi : appelle l’API avec note et commentaire, émet « rated » puis affiche l’évaluation en lecture seule', async () => {
+    const rating = { score: 4, comment: 'Très bien organisé', created_at: '2026-10-20T10:00:00+00:00' }
+    vi.mocked(candidatureApi.rateProducer).mockResolvedValueOnce(rating)
+    const wrapper = mountHub(completed())
+
+    await wrapper.get('[data-testid="hub-action-desktop"]').trigger('click')
+    expect(wrapper.get('[data-testid="rating-submit"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('[data-testid="rating-star-4"]').trigger('click')
+    await wrapper.get('[data-testid="rating-comment"]').setValue('Très bien organisé')
+    await wrapper.get('[data-testid="rating-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(candidatureApi.rateProducer).toHaveBeenCalledWith('cand-1', 4, 'Très bien organisé')
+    expect(wrapper.emitted('rated')?.[0]).toEqual([rating])
+    expect(wrapper.find('[data-testid="mission-rating-dialog"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="hub-my-rating-score"]').text()).toBe('4/5')
+    expect(wrapper.get('[data-testid="hub-my-rating-comment"]').text()).toBe('Très bien organisé')
+    // L’action principale n’est plus la notation.
+    expect(wrapper.get('[data-testid="hub-action-desktop"]').text()).not.toContain('Noter le producteur')
+  })
+
+  it('erreur API (ex. déjà évalué) : message affiché, dialogue conservé, pas d’« rated »', async () => {
+    vi.mocked(candidatureApi.rateProducer).mockRejectedValueOnce({
+      response: { status: 422, data: { error: { code: 'ALREADY_RATED', message: 'Vous avez déjà évalué ce producteur pour cette mission' } } },
+    })
+    const wrapper = mountHub(completed())
+
+    await wrapper.get('[data-testid="hub-action-desktop"]').trigger('click')
+    await wrapper.get('[data-testid="rating-star-5"]').trigger('click')
+    await wrapper.get('[data-testid="rating-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="rating-error"]').text().length).toBeGreaterThan(0)
+    expect(wrapper.find('[data-testid="mission-rating-dialog"]').exists()).toBe(true)
+    expect(wrapper.emitted('rated')).toBeUndefined()
+  })
+
+  it('déjà notée (payload) : évaluation en lecture seule, plus de « Noter le producteur »', () => {
+    const wrapper = mountHub(
+      completed({ can_rate: false, my_rating: { score: 5, comment: null, created_at: '2026-10-20T10:00:00+00:00' } }),
+    )
+
+    expect(wrapper.get('[data-testid="hub-my-rating-score"]').text()).toBe('5/5')
+    expect(wrapper.find('[data-testid="hub-my-rating-comment"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="hub-action-desktop"]').text()).not.toContain('Noter le producteur')
+    expect(wrapper.get('[data-testid="hub-next"]').text()).not.toContain('facultatif')
+  })
+
+  it('non terminée ou can_rate absent : aucune notation proposée', () => {
+    const confirmed = mountHub(makeCandidature({ status: 'confirmed', conversation_id: 'conv-1', can_rate: false }))
+    expect(confirmed.get('[data-testid="hub-action-desktop"]').text()).not.toContain('Noter')
+
+    const legacyPayload = mountHub(makeCandidature({ status: 'completed', conversation_id: 'conv-1' }))
+    expect(legacyPayload.get('[data-testid="hub-action-desktop"]').text()).not.toContain('Noter')
+    expect(legacyPayload.find('[data-testid="hub-my-rating"]').exists()).toBe(false)
   })
 })

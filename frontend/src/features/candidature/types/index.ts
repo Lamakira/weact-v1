@@ -151,6 +151,13 @@ export interface AttendanceDispute {
   can_contest: boolean
 }
 
+/** Notation du producteur donnée par la Face à la fin de la mission (lot C8). */
+export interface MissionRating {
+  score: number
+  comment: string | null
+  created_at: string | null
+}
+
 // Face candidature for list view (includes mission and producer summary)
 export interface FaceCandidature {
   id: string
@@ -175,6 +182,10 @@ export interface FaceCandidature {
   reconfirm_deadline?: string | null
   /** Échéance de confirmation (ISO 8601, lot B3) d'une candidature cash `accepted` ; null sinon. */
   confirmation_deadline?: string | null
+  /** La Face peut noter le producteur (candidature terminée, pas encore notée) — lot C8. */
+  can_rate?: boolean
+  /** Sa propre notation du producteur, sinon null — lot C8. */
+  my_rating?: MissionRating | null
   /** Expédition UGC (whenLoaded — clé OMISE hors deal UGC expédié, 3.3 AC8). */
   shipment?: Shipment
 }

@@ -153,6 +153,12 @@ async function handleAbsenceContested(): Promise<void> {
   if (missionId.value) await fetchMission(missionId.value)
 }
 
+// Notation envoyée (lot C8) : le hub affiche déjà l'évaluation ; relecture silencieuse pour resynchroniser.
+async function handleRated(): Promise<void> {
+  toast.success('Merci, votre évaluation a été envoyée.')
+  if (missionId.value) await fetchMission(missionId.value, { silent: true })
+}
+
 // Computed: Can the user apply? (must have verified email)
 const canApply = computed(() => authStore.isEmailVerified)
 
@@ -604,6 +610,7 @@ onMounted(() => {
       @confirm-receipt="openReceiptModal"
       @upload="handleUploadDeliverable"
       @contested="handleAbsenceContested"
+      @rated="handleRated"
     />
 
     <!-- Mission Detail Content (avant candidature) -->

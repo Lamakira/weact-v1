@@ -58,6 +58,8 @@ class CandidatureController extends Controller
                 'shipment.receptionPhotos',
                 'deliverables',
                 'paymentEntry',
+                // Lot C8 : sa propre notation (can_rate / my_rating), 1 requête pour toute la page.
+                'ratings' => fn ($q) => $q->where('rater_id', $request->user()->id),
             ])
             ->latest();
 

@@ -11,7 +11,7 @@ export const FACE_UGC_STEPS = ['Candidature', 'Acceptée', 'Reconfirmée', 'Livr
 
 export type HubTone = 'info' | 'warn' | 'ok' | 'mute'
 
-export type HubActionKey = 'confirm' | 'reconfirm' | 'chat' | 'cancel' | 'browse'
+export type HubActionKey = 'confirm' | 'reconfirm' | 'chat' | 'cancel' | 'browse' | 'rate'
 
 export interface HubAction {
   key: HubActionKey
@@ -245,15 +245,22 @@ export function deriveFaceHubState(
   }
 
   if (status === 'completed') {
+    // Notation du producteur (lot C8) : facultative, proposée seulement tant qu'elle n'a pas été donnée.
+    const canRate = candidature.can_rate === true
+    const paid = net !== null
+      ? `${formatFcfa(net)} ont été versés sur votre portefeuille.`
+      : 'Votre paiement a été versé sur votre portefeuille.'
     return {
       steps, currentStep: steps.length, stopped: false, chatOpen,
       pill: { tone: 'ok', label: isUgc ? 'Terminée' : 'Payée' },
-      action: chatOpen ? { ...chatAction, kind: 'ghost' } : browseAction,
+      action: canRate
+        ? { key: 'rate', label: 'Noter le producteur', sub: 'Facultatif', kind: 'primary' }
+        : chatOpen ? { ...chatAction, kind: 'ghost' } : browseAction,
       next: {
         headline: 'Mission terminée',
-        text: net !== null
-          ? `${formatFcfa(net)} ont été versés sur votre portefeuille.`
-          : 'Votre paiement a été versé sur votre portefeuille.',
+        text: canRate
+          ? `${paid} Noter le producteur est facultatif : votre avis aide les autres Faces à choisir leurs missions.`
+          : paid,
         who: 'Terminé',
         deadline: null,
       },

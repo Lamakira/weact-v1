@@ -10,11 +10,13 @@
  * supprimé ou réduit sous prefers-reduced-motion. Le CSS de mouvement est scopé ici.
  */
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Calendar, MapPin, Wallet, MessageCircle, Lock, Clock, Check, ShieldCheck } from 'lucide-vue-next'
+import { Calendar, MapPin, Wallet, MessageCircle, Lock, Clock, Check, ShieldCheck, Star } from 'lucide-vue-next'
 import { UgcFaceTrackingCard, ProductPhotoGallery } from '@/components/ugc'
 import type { Shipment, UgcUploadProgress } from '@/components/ugc'
 import { UgcMissionStats, UgcDeliverablesPreview } from '@/features/mission/components'
 import MissionAbsenceContestBlock from '@/features/candidature/components/MissionAbsenceContestBlock.vue'
+import MissionRatingDialog from '@/features/candidature/components/MissionRatingDialog.vue'
+import type { MissionRating } from '@/features/candidature/types'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import { formatMissionDurationForDisplay } from '@/features/mission/constants/missionDuration'
 import { deriveFaceHubState, formatRemaining, formatShortDate } from '@/features/candidature/utils/faceMissionHub'
@@ -41,11 +43,36 @@ const emit = defineEmits<{
   'confirm-receipt': []
   upload: [file: File]
   contested: []
+  /** La Face vient de noter le producteur : la page peut relire la mission en silence. */
+  rated: [rating: MissionRating]
 }>()
 
+// Notation donnée dans cette session : prime sur le payload tant que la page n'a pas relu la mission.
+const localRating = ref<MissionRating | null>(null)
+const myRating = computed(() => localRating.value ?? props.candidature.my_rating ?? null)
+const ratingOpen = ref(false)
+
 const hub = computed(() =>
-  deriveFaceHubState(props.mission, props.candidature, { isUgc: props.isUgc, producerName: props.producerName }),
+  deriveFaceHubState(
+    props.mission,
+    localRating.value ? { ...props.candidature, can_rate: false } : props.candidature,
+    { isUgc: props.isUgc, producerName: props.producerName },
+  ),
 )
+
+function onAction(key: HubActionKey): void {
+  if (key === 'rate') {
+    ratingOpen.value = true
+    return
+  }
+  emit('action', key)
+}
+
+function onRated(rating: MissionRating): void {
+  localRating.value = rating
+  ratingOpen.value = false
+  emit('rated', rating)
+}
 
 // Compte à rebours : recalculé chaque minute, sans animation.
 const now = ref(new Date())
@@ -163,7 +190,7 @@ const chatTarget = computed(() =>
           ]"
           :disabled="busy"
           data-testid="hub-action-desktop"
-          @click="emit('action', hub.action.key)"
+          @click="onAction(hub.action.key)"
         >
           <span>{{ hub.action.label }}</span>
           <span v-if="hub.action.sub" class="text-xs font-medium opacity-85">{{ hub.action.sub }}</span>
@@ -306,6 +333,33 @@ const chatTarget = computed(() =>
           :mission-id="mission.id"
           @contested="emit('contested')"
         />
+
+        <!-- Notation donnée au producteur (lot C8) : lecture seule -->
+        <section
+          v-if="myRating"
+          class="hub-rating grid gap-1.5 rounded-[10px] border border-border bg-card p-4"
+          data-testid="hub-my-rating"
+        >
+          <h2 class="text-[15px] font-bold text-foreground">Votre évaluation</h2>
+          <div class="flex items-center gap-1.5">
+            <span class="flex" role="img" :aria-label="`${myRating.score} sur 5`">
+              <Star
+                v-for="star in 5"
+                :key="star"
+                class="h-5 w-5"
+                :class="myRating.score >= star ? 'text-amber-400' : 'text-gray-300'"
+                :fill="myRating.score >= star ? 'currentColor' : 'none'"
+                aria-hidden="true"
+              />
+            </span>
+            <span class="text-sm font-semibold tabular-nums text-foreground" data-testid="hub-my-rating-score">
+              {{ myRating.score }}/5
+            </span>
+          </div>
+          <p v-if="myRating.comment" class="m-0 whitespace-pre-line text-sm text-gray-600" data-testid="hub-my-rating-comment">
+            {{ myRating.comment }}
+          </p>
+        </section>
       </div>
 
       <!-- Aside : « Et ensuite ? » + producteur -->
@@ -377,11 +431,19 @@ const chatTarget = computed(() =>
         ]"
         :disabled="busy"
         data-testid="hub-action-mobile"
-        @click="emit('action', hub.action.key)"
+        @click="onAction(hub.action.key)"
       >
         {{ hub.action.label }}
       </button>
     </div>
+
+    <MissionRatingDialog
+      :open="ratingOpen"
+      :candidature-id="candidature.id"
+      :producer-name="producerName"
+      @close="ratingOpen = false"
+      @rated="onRated"
+    />
   </div>
 </template>
 
@@ -433,7 +495,15 @@ const chatTarget = computed(() =>
   }
 }
 
+/* Apparition de l'évaluation donnée : fondu + léger glissement. */
+.hub-rating {
+  animation: hub-swap-in 240ms var(--hub-ease);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .hub-rating {
+    animation: none;
+  }
   .hub-fill {
     transition: none;
   }

@@ -9,6 +9,7 @@ import type {
   ProducerCandidatureListResponse,
   CandidateFullProfileResponse,
   ReleaseCandidatureResponse,
+  MissionRating,
 } from '../types'
 import type { ConfirmShipmentPayload, ShipmentResponse } from '@/components/ugc'
 
@@ -235,5 +236,18 @@ export const candidatureApi = {
       { message },
     )
     return response.data
+  },
+  /**
+   * Noter le producteur à la fin d'une mission (Face uniquement, facultatif, lot C8).
+   * @param candidatureId UUID de la candidature terminée
+   * @param score Note de 1 à 5
+   * @param comment Commentaire facultatif (1000 caractères max)
+   */
+  async rateProducer(candidatureId: string, score: number, comment?: string): Promise<MissionRating> {
+    const response = await apiClient.post<{ data: MissionRating }>(
+      `/face/candidatures/${candidatureId}/rate`,
+      { score, comment: comment || undefined },
+    )
+    return response.data.data
   },
 }
