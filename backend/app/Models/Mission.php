@@ -35,6 +35,7 @@ use Illuminate\Support\Str;
  * @property \Carbon\CarbonInterface|null $shooting_reminder_sent_at
  * @property \Carbon\CarbonInterface|null $date_limite_candidature
  * @property \Carbon\CarbonInterface|null $candidature_response_reminder_sent_at
+ * @property \Carbon\CarbonInterface|null $candidature_digest_sent_at
  * @property string|null $profil_recherche
  * @property int $budget
  * @property int $nombre_faces_voulu
@@ -138,6 +139,7 @@ class Mission extends Model
      */
     protected $fillable = [
         'candidature_response_reminder_sent_at',
+        'candidature_digest_sent_at',
         'producer_id',
         'titre',
         'description',
@@ -179,6 +181,7 @@ class Mission extends Model
             'shooting_reminder_sent_at' => 'datetime',
             'date_limite_candidature' => 'date',
             'candidature_response_reminder_sent_at' => 'datetime',
+            'candidature_digest_sent_at' => 'datetime',
             'budget' => 'integer',
             'nombre_faces_voulu' => 'integer',
             'status' => MissionStatus::class,
