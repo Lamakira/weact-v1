@@ -29,7 +29,8 @@ class SendCandidatureDigestCommand extends Command
     {
         $sent = 0;
 
-        $this->service->eligibleMissions()->each(function (Mission $mission) use (&$sent): void {
+        // Pagination par identifiant : la boucle modifie la colonne filtrée (candidature_digest_sent_at).
+        $this->service->eligibleMissions()->lazyById(200)->each(function (Mission $mission) use (&$sent): void {
             try {
                 if ($this->service->sendDigest($mission)) {
                     $sent++;

@@ -138,6 +138,25 @@ class SendCandidatureDigestCommandTest extends TestCase
         });
     }
 
+    public function test_hourly_run_started_slightly_before_the_previous_send_time_still_sends(): void
+    {
+        $mission = $this->mission();
+        $this->candidature($mission);
+
+        // Premier passage traité quelques secondes après le début de l'heure.
+        $this->travelTo(now()->addSeconds(40));
+        $this->runDigest();
+        Mail::assertQueuedCount(1);
+
+        // Passage horaire suivant, démarré à l'heure pile : moins de 60 min après l'envoi précédent.
+        $this->travelTo(Carbon::parse('2026-10-19 10:30:00', 'UTC'));
+        $this->candidature($mission, prenom: 'Koffi');
+        $this->travelTo(Carbon::parse('2026-10-19 11:00:00', 'UTC'));
+        $this->runDigest();
+
+        Mail::assertQueuedCount(2);
+    }
+
     public function test_missions_that_are_no_longer_recruiting_are_skipped(): void
     {
         $mission = $this->mission();

@@ -22,8 +22,13 @@ use Illuminate\Support\Facades\Mail;
  */
 class CandidatureDigestService
 {
-    /** Délai minimal entre deux e-mails groupés d'une même mission. */
-    public const MIN_INTERVAL_MINUTES = 60;
+    /**
+     * Délai minimal entre deux e-mails groupés d'une même mission. La commande tourne toutes les
+     * heures et l'horodatage est pris pendant le passage : avec 60 min pile, une mission traitée
+     * quelques secondes après le début du passage serait sautée au suivant (envoi toutes les 2 h).
+     * 55 min garde « au plus un e-mail par heure » sans perdre de passage.
+     */
+    public const MIN_INTERVAL_MINUTES = 55;
 
     /** Nombre maximal de Faces nommées dans l'e-mail. */
     public const MAX_FACES_LISTED = 5;
@@ -64,7 +69,10 @@ class CandidatureDigestService
             ->where('mission_id', $mission->id)
             ->where('status', CandidatureStatus::Pending->value);
 
+        // Fenêtre ]envoi précédent, maintenant] : une candidature créée pendant le passage n'est pas
+        // comptée deux fois (borne haute = l'horodatage enregistré).
         $newQuery = (clone $pending)
+            ->where('created_at', '<=', $now)
             ->when($previous !== null, fn (Builder $query) => $query->where('created_at', '>', $previous));
 
         $newCount = (clone $newQuery)->count();
