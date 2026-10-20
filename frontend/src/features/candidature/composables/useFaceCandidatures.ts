@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { isAxiosError } from 'axios'
-import type { CandidatureStatusType, FaceCandidature } from '../types'
+import type { CandidatureFilterStatus, FaceCandidature } from '../types'
 import { candidatureApi } from '../services/candidatureApi'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
 
@@ -19,7 +19,7 @@ export function useFaceCandidatures() {
   const perPage = ref(15)
 
   // Filter state
-  const statusFilter = ref<CandidatureStatusType | ''>('')
+  const statusFilter = ref<CandidatureFilterStatus>('')
 
   // Request tracking to prevent race conditions
   let currentRequestId = 0
@@ -102,7 +102,7 @@ export function useFaceCandidatures() {
   /**
    * Set status filter and refetch from page 1
    */
-  async function setStatusFilter(status: CandidatureStatusType | ''): Promise<void> {
+  async function setStatusFilter(status: CandidatureFilterStatus): Promise<void> {
     statusFilter.value = status
     await fetchCandidatures(1)
   }

@@ -4,7 +4,7 @@ import type {
   ApplyToMissionData,
   CandidaturePaymentStatusResponse,
   CandidatureResponse,
-  CandidatureStatusType,
+  CandidatureFilterStatus,
   FaceCandidatureListResponse,
   ProducerCandidatureListResponse,
   CandidateFullProfileResponse,
@@ -43,7 +43,7 @@ export const candidatureApi = {
    */
   async getCandidatures(
     page: number = 1,
-    status?: CandidatureStatusType | '',
+    status?: CandidatureFilterStatus,
   ): Promise<FaceCandidatureListResponse> {
     const params = new URLSearchParams()
     params.append('page', String(page))
@@ -67,7 +67,7 @@ export const candidatureApi = {
   async getMissionCandidatures(
     missionId: string,
     page: number = 1,
-    status?: CandidatureStatusType | '',
+    status?: CandidatureFilterStatus,
   ): Promise<ProducerCandidatureListResponse> {
     const params = new URLSearchParams()
     params.append('page', String(page))

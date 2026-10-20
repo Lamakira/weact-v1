@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Concerns\HasRouteUuid;
+use App\Concerns\ScopesBookingsToProcess;
 use App\Enums\BookingStatus;
 use App\Enums\CompensationType;
 use App\Enums\UgcRefundReason;
@@ -76,6 +77,7 @@ class Booking extends Model
 {
     use HasFactory;
     use HasRouteUuid;
+    use ScopesBookingsToProcess;
 
     /** Délai de réponse de la Face à une demande cash, compté depuis sa création (lot B10). */
     public const FACE_RESPONSE_WINDOW_HOURS = 72;

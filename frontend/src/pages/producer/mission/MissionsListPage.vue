@@ -11,7 +11,7 @@ import { missionApi } from '@/features/mission/services/missionApi'
 import { buildListQuery, parseListQuery, type ListQueryState } from '@/components/data-table/listQuery'
 import { useIsDesktop } from '@/composables/useMediaQuery'
 import { UgcPaymentOverlay } from '@/components/ugc'
-import { MissionStatus, MISSION_SORT_KEYS, type MissionStatusType, type MissionSortKey, type MissionListParams } from '@/features/mission/types'
+import { MissionStatus, MISSION_SORT_KEYS, MISSION_TO_PROCESS_FILTER, type MissionFilterStatus, type MissionSortKey, type MissionListParams } from '@/features/mission/types'
 import type { Mission } from '@/features/mission/types'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 import { usePaymentReturn } from '@/composables/usePaymentReturn'
@@ -47,9 +47,9 @@ const view = computed<'table' | 'cards'>(() => (isDesktop.value ? 'table' : 'car
  * Foreign keys (?pay, ?payment_return, ?mission) are preserved by buildListQuery.
  */
 const urlState = computed(() =>
-  parseListQuery(route.query, { sorts: MISSION_SORT_KEYS, statuses: Object.values(MissionStatus) }),
+  parseListQuery(route.query, { sorts: MISSION_SORT_KEYS, statuses: [...Object.values(MissionStatus), MISSION_TO_PROCESS_FILTER] }),
 )
-const statusFilter = computed(() => urlState.value.status as MissionStatusType | '')
+const statusFilter = computed(() => urlState.value.status as MissionFilterStatus)
 const sorting = computed<SortingState>(() =>
   urlState.value.sort ? [{ id: urlState.value.sort, desc: urlState.value.direction === 'desc' }] : [],
 )
@@ -59,7 +59,7 @@ function currentParams(): MissionListParams {
   return {
     page: state.page,
     perPage: state.perPage,
-    status: state.status as MissionStatusType | '',
+    status: state.status as MissionFilterStatus,
     sort: state.sort as MissionSortKey | null,
     direction: state.direction,
   }
@@ -80,7 +80,7 @@ async function navigateList(patch: Partial<ListQueryState>): Promise<void> {
 }
 
 /** Any filter / sort / page size change goes back to page 1. */
-function handleFilterChange(status: MissionStatusType | ''): void {
+function handleFilterChange(status: MissionFilterStatus): void {
   void navigateList({ status, page: 1 })
 }
 function handleSortingChange(next: SortingState): void {
@@ -458,7 +458,7 @@ async function confirmComplete(): Promise<void> {
             </div>
             <h3 class="text-xl font-bold text-foreground">Aucune mission trouvée</h3>
             <p class="mt-3 max-w-sm text-muted-foreground">
-              Aucune mission ne correspond à ce filtre.
+              {{ statusFilter === MISSION_TO_PROCESS_FILTER ? 'Aucune mission à traiter pour le moment.' : 'Aucune mission ne correspond à ce filtre.' }}
             </p>
             <button
               type="button"

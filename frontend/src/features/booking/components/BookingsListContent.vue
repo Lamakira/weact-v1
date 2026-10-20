@@ -114,7 +114,10 @@ const view = computed<'table' | 'cards'>(() =>
           </div>
           <h3 class="text-xl font-bold text-foreground">Pas encore de booking</h3>
           <p class="mt-2 max-w-xs text-muted-foreground">
-            <template v-if="statusFilter">
+            <template v-if="statusFilter === 'to_process'">
+              Aucun booking à traiter pour le moment.
+            </template>
+            <template v-else-if="statusFilter">
               Aucun booking avec le statut "{{ BookingFilterLabel[statusFilter] }}" trouvé.
             </template>
             <template v-else>

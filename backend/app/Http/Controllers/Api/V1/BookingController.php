@@ -19,6 +19,7 @@ use App\Http\Requests\Booking\RefuseBookingRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\Face;
+use App\Models\User;
 use App\Services\BookingService;
 use App\Services\FaceEntitlementService;
 use App\Services\Ugc\UgcCommissionPaymentService;
@@ -38,11 +39,11 @@ class BookingController extends Controller
      * @var array<string, list<BookingStatus>>
      */
     private const STATUS_FILTER_MAP = [
-        'pending' => [BookingStatus::Pending],
+        // Lot D7 : une demande UGC dont la commission est réglée attend la réponse de la Face.
+        'pending' => [BookingStatus::Pending, BookingStatus::CommissionPaid],
         'active' => [
             BookingStatus::Accepted,
             BookingStatus::Paid,
-            BookingStatus::CommissionPaid,
             BookingStatus::ConfirmedByFace,
             BookingStatus::ConfirmedByProducer,
         ],
@@ -55,6 +56,9 @@ class BookingController extends Controller
             BookingStatus::NoShow,
         ],
     ];
+
+    /** Filtre « À traiter » (lot D7) : pas un groupe de statuts, un scope sur Booking. */
+    private const TO_PROCESS_FILTER = 'to_process';
 
     public function __construct(
         private readonly BookingService $bookingService,
@@ -80,11 +84,14 @@ class BookingController extends Controller
                     ->orWhere('producer_id', $user->id);
             });
 
-        $this->applySort($query, $request, $user->userable_type === Face::class);
+        $this->applySort($query, $request, $user);
 
         // Apply status filter group
         $statusFilter = $request->query('status');
-        if ($statusFilter && isset(self::STATUS_FILTER_MAP[$statusFilter])) {
+        if ($statusFilter === self::TO_PROCESS_FILTER) {
+            // Lot D7 : bookings où l'utilisateur doit agir maintenant (scope Booking::toProcess).
+            $query->toProcess($user);
+        } elseif ($statusFilter && isset(self::STATUS_FILTER_MAP[$statusFilter])) {
             $statuses = self::STATUS_FILTER_MAP[$statusFilter];
 
             if ($statusFilter === 'active') {
@@ -108,13 +115,17 @@ class BookingController extends Controller
     /**
      * Tri allowlisté (cf. IndexBookingsRequest::SORT_KEYS). `montant` est une clé
      * publique unique : colonne « reçu » pour la Face, « total payé » pour le Producteur.
-     * Sans `sort` : ordre historique (updated_at desc). Tie-breaker `id` toujours ajouté.
+     * Sans `sort` (lot D7) : « à traiter d'abord » (échéance la plus proche), puis updated_at desc.
+     * Un tri explicite reste prioritaire. Tie-breaker `id` toujours ajouté.
+     *
+     * @param  Builder<Booking>  $query
      */
-    private function applySort(Builder $query, IndexBookingsRequest $request, bool $viewerIsFace): void
+    private function applySort(Builder $query, IndexBookingsRequest $request, User $user): void
     {
+        $viewerIsFace = $user->userable_type === Face::class;
         $sort = $request->validated('sort');
         if ($sort === null) {
-            $query->orderBy('updated_at', 'desc')->orderBy('id', 'desc');
+            $query->orderToProcessFirst($user)->orderBy('updated_at', 'desc')->orderBy('id', 'desc');
 
             return;
         }

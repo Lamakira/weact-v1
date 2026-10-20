@@ -253,11 +253,13 @@ export interface BookingRatingResponse {
 }
 
 // Booking filter status for list view
-export type BookingFilterStatus = '' | 'pending' | 'active' | 'completed' | 'cancelled'
+// `to_process` (lot D7) : bookings où l'utilisateur doit agir maintenant — un scope backend, pas un statut.
+export type BookingFilterStatus = '' | 'to_process' | 'pending' | 'active' | 'completed' | 'cancelled'
 
 // Booking filter label mapping (French)
 export const BookingFilterLabel: Record<BookingFilterStatus, string> = {
   '': 'Tous',
+  to_process: 'À traiter',
   pending: 'En attente',
   active: 'Actifs',
   completed: 'Terminés',

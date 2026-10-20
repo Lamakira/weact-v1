@@ -18,6 +18,12 @@ export const CandidatureStatus = {
 
 export type CandidatureStatusType = (typeof CandidatureStatus)[keyof typeof CandidatureStatus]
 
+// Lot D7 : filtre « À traiter » de « Mes candidatures » (pas un statut : valeur de `status` de l'URL / de l'API)
+export const CANDIDATURE_TO_PROCESS_FILTER = 'to_process'
+
+// Valeur du filtre de la liste : un statut, « À traiter » ou rien (Tous)
+export type CandidatureFilterStatus = CandidatureStatusType | typeof CANDIDATURE_TO_PROCESS_FILTER | ''
+
 // Candidature status labels (French)
 export const CandidatureStatusLabel: Record<CandidatureStatusType, string> = {
   [CandidatureStatus.PENDING]: 'En attente',

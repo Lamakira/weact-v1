@@ -17,14 +17,14 @@ import {
 import { CandidatureCard, StatusFilter } from '@/features/candidature/components'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
-import type { CandidatureStatusType } from '@/features/candidature/types'
-import { CandidatureStatusLabel } from '@/features/candidature/types'
+import type { CandidatureFilterStatus } from '@/features/candidature/types'
+import { CANDIDATURE_TO_PROCESS_FILTER, CandidatureStatusLabel } from '@/features/candidature/types'
 
-const candidatureFilterStatuses = new Set(Object.keys(CandidatureStatusLabel))
+const candidatureFilterStatuses = new Set([...Object.keys(CandidatureStatusLabel), CANDIDATURE_TO_PROCESS_FILTER])
 
-function normalizeStatusQuery(value: unknown): CandidatureStatusType | '' {
+function normalizeStatusQuery(value: unknown): CandidatureFilterStatus {
   return typeof value === 'string' && candidatureFilterStatuses.has(value)
-    ? value as CandidatureStatusType
+    ? value as CandidatureFilterStatus
     : ''
 }
 
@@ -205,7 +205,7 @@ function updateUrl(): void {
 /**
  * Handle filter change
  */
-async function handleFilterChange(status: CandidatureStatusType | ''): Promise<void> {
+async function handleFilterChange(status: CandidatureFilterStatus): Promise<void> {
   await setStatusFilter(status)
   updateUrl()
 }
@@ -292,6 +292,7 @@ watch(
       <div class="mb-6">
         <StatusFilter
           :model-value="statusFilter"
+          with-to-process
           @update:model-value="handleFilterChange"
         />
       </div>
@@ -337,7 +338,12 @@ watch(
         <h3 class="text-xl font-bold text-foreground">Aucune candidature</h3>
         <p class="mt-2 max-w-xs text-muted-foreground">
           <template v-if="statusFilter">
-            Aucune candidature avec le statut "{{ CandidatureStatusLabel[statusFilter] }}" trouvée.
+            <template v-if="statusFilter === CANDIDATURE_TO_PROCESS_FILTER">
+              Aucune candidature à traiter pour le moment.
+            </template>
+            <template v-else>
+              Aucune candidature avec le statut "{{ CandidatureStatusLabel[statusFilter] }}" trouvée.
+            </template>
           </template>
           <template v-else>
             Vous n'avez pas encore postulé à une mission.<br />

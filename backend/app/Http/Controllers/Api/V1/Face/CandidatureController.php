@@ -64,7 +64,10 @@ class CandidatureController extends Controller
             ->latest();
 
         // Optional status filter
-        if ($request->has('status') && $request->status !== '') {
+        if ($request->query('status') === 'to_process') {
+            // Lot D7 : candidatures où la Face doit agir maintenant (Candidature::toProcess).
+            $query->toProcess();
+        } elseif ($request->has('status') && $request->status !== '') {
             $status = CandidatureStatus::tryFrom($request->status);
             if ($status) {
                 $query->where('status', $status);
