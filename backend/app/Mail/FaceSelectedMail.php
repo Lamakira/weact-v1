@@ -59,6 +59,6 @@ final class FaceSelectedMail extends BaseMail
 
     private function buildConfirmUrl(): string
     {
-        return rtrim((string) config('app.frontend_url'), '/').'/face/candidatures';
+        return rtrim((string) config('app.frontend_url'), '/')."/face/missions/{$this->mission->uuid}";
     }
 }
