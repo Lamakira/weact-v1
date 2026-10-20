@@ -27,6 +27,7 @@ class BookingMessageResource extends JsonResource
             'sender_id' => $this->sender_id,
             'sender_name' => $this->resolveSenderName($sender),
             'content' => $this->content,
+            'read_at' => $this->read_at?->toIso8601String(),
             'is_own_message' => $currentUser && $this->sender_id === $currentUser->id,
             'created_at' => $this->created_at->toIso8601String(),
         ];

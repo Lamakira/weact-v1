@@ -9,7 +9,9 @@ use App\Enums\BookingStatus;
 use App\Enums\CompensationType;
 use App\Enums\UgcRefundReason;
 use App\Exceptions\MoneyColumnImmutableException;
+use App\Policies\BookingPolicy;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -67,6 +69,7 @@ use Illuminate\Support\Facades\Auth;
  * @property \Illuminate\Support\Carbon|null $updated_at
  * @property-read \App\Models\User|null $face
  * @property-read \App\Models\User|null $producer
+ * @property-read \App\Models\BookingMessage|null $latestMessage
  * @property-read \App\Models\BookingRating|null $raterBookingRating
  * @property-read \App\Models\Shipment|null $shipment
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Deliverable> $deliverables
@@ -525,6 +528,43 @@ class Booking extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(BookingMessage::class)->orderBy('created_at');
+    }
+
+    /**
+     * Dernier message du chat (aperçu dans la liste « Messages »).
+     */
+    public function latestMessage(): HasOne
+    {
+        return $this->hasOne(BookingMessage::class)->latestOfMany();
+    }
+
+    /**
+     * Pre-load `unread_count` (messages de l'autre partie non lus) pour un utilisateur.
+     *
+     * @param  Builder<static>  $query
+     */
+    public function scopeWithUnreadCountFor(Builder $query, User $user): void
+    {
+        $query->withCount([
+            'messages as unread_count' => fn ($q) => $q->whereNull('read_at')->where('sender_id', '!=', $user->id),
+        ]);
+    }
+
+    /**
+     * Bookings dont $user est partie ET dont le chat est lisible selon BookingPolicy::viewMessages
+     * (statuts via BookingPolicy::chatReadableStatuses : une seule source de vérité).
+     *
+     * @param  Builder<static>  $query
+     */
+    public function scopeChatReadableBy(Builder $query, User $user): void
+    {
+        $query->where(fn ($q) => $q->where('bookings.face_id', $user->id)->orWhere('bookings.producer_id', $user->id))
+            ->where(function ($q): void {
+                $q->where(fn ($ugc) => $ugc->where('bookings.type_contenu', 'UGC')
+                    ->whereIn('bookings.status', BookingPolicy::chatReadableStatuses(true)))
+                    ->orWhere(fn ($cash) => $cash->where(fn ($t) => $t->whereNull('bookings.type_contenu')->orWhere('bookings.type_contenu', '!=', 'UGC'))
+                        ->whereIn('bookings.status', BookingPolicy::chatReadableStatuses(false)));
+            });
     }
 
     /**

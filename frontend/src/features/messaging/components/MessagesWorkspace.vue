@@ -27,6 +27,7 @@ import { messagingApi } from '../services/messagingApi'
 import { applyConversationUpdate, previewContent } from '../utils/conversationList'
 import ConversationContextPanel from './ConversationContextPanel.vue'
 import ConversationListPane from './ConversationListPane.vue'
+import BookingThreadPane from './BookingThreadPane.vue'
 import MessageThread from './MessageThread.vue'
 import type {
   ConversationListItem,
@@ -89,6 +90,8 @@ const newMessageText = ref('')
 const selectedItem = computed(
   () => conversations.value.find((conversation) => conversation.id === selectedId.value) ?? null,
 )
+// Fil de booking : panneau dédié (BookingChat) à la place du fil de conversation
+const selectedBooking = computed(() => (selectedItem.value?.kind === 'booking' ? selectedItem.value : null))
 const participant = computed(
   () => otherParticipant.value ?? selectedItem.value?.other_participant ?? null,
 )
@@ -116,6 +119,11 @@ async function openConversation(id: string): Promise<void> {
   newMessageText.value = ''
   resetSendError()
   resetConversation()
+  if (conversations.value.find((conversation) => conversation.id === id)?.kind === 'booking') {
+    // Le chargement des messages du booking (BookingThreadPane) marque lu côté serveur
+    markListItemRead(id)
+    return
+  }
   const ok = await loadConversation(id)
   if (ok && selectedId.value === id) markListItemRead(id)
 }
@@ -239,7 +247,9 @@ function handleConversationUpdated(update: ConversationUpdatedBroadcast): void {
 
 // Aucun abonnement ni polling pour un fil en erreur (403/404) ou derrière le mur d'e-mail
 const realtimeConversationId = computed(() =>
-  authStore.isEmailVerified && !conversationError.value ? selectedId.value : null,
+  authStore.isEmailVerified && !conversationError.value && selectedBooking.value === null
+    ? selectedId.value
+    : null,
 )
 
 useConversationRealtime(realtimeConversationId, props.role, {
@@ -268,8 +278,14 @@ function goToMissions(): void {
 
 onMounted(() => {
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  void loadConversations()
-  if (selectedId.value) void openConversation(selectedId.value)
+  const listLoaded = loadConversations()
+  if (selectedId.value) {
+    // Le type de fil (mission ou booking) se lit dans la liste : on l'attend avant d'ouvrir
+    // le fil visé par la route.
+    void listLoaded.then(() => {
+      if (selectedId.value) void openConversation(selectedId.value)
+    })
+  }
 })
 
 onBeforeUnmount(() => {
@@ -328,6 +344,15 @@ watch(refreshError, (newError) => {
             Choisissez une conversation dans la liste pour afficher les messages.
           </p>
         </div>
+
+        <BookingThreadPane
+          v-else-if="selectedBooking"
+          :booking-id="selectedBooking.id"
+          :title="selectedBooking.mission_title"
+          :role="role"
+          :compact="!isDesktop"
+          @back="handleBack"
+        />
 
         <template v-else>
           <MessageThread

@@ -23,7 +23,7 @@ const emit = defineEmits<{
   (e: 'empty-action'): void
 }>()
 
-type Filter = string // 'all' | 'unread' | 'mission' | 'ugc'
+type Filter = string // 'all' | 'unread' | 'mission' | 'ugc' | 'booking'
 const filter = ref<Filter>('all')
 
 const unreadCount = computed(() => props.conversations.filter((c) => c.unread_count > 0).length)
@@ -36,13 +36,17 @@ const typeOptions = computed(() => {
     if (context && !seen.has(context.type)) seen.set(context.type, context.type)
   }
   const labels: Record<string, string> = { mission: 'Missions', ugc: 'UGC' }
-  return ['mission', 'ugc']
+  const options: RPillOption[] = ['mission', 'ugc']
     .filter((type) => seen.has(type))
     .map((type) => ({
       value: type,
       label: labels[type] ?? type,
       count: props.conversations.filter((c) => c.context?.type === type).length,
     }))
+  // Fils de booking : pas de contexte de candidature, on filtre sur le discriminant `kind`
+  const bookingCount = props.conversations.filter((c) => c.kind === 'booking').length
+  if (bookingCount > 0) options.push({ value: 'booking', label: 'Bookings', count: bookingCount })
+  return options
 })
 
 const options = computed<RPillOption[]>(() => [
@@ -54,6 +58,7 @@ const options = computed<RPillOption[]>(() => [
 const visible = computed(() => {
   if (filter.value === 'unread') return props.conversations.filter((c) => c.unread_count > 0)
   if (filter.value === 'all') return props.conversations
+  if (filter.value === 'booking') return props.conversations.filter((c) => c.kind === 'booking')
   return props.conversations.filter((c) => c.context?.type === filter.value)
 })
 

@@ -32,6 +32,7 @@ vi.mock('../../services/bookingChatApi', () => ({
   bookingChatApi: {
     fetchMessages: vi.fn(),
     sendMessage: vi.fn(),
+    markRead: vi.fn(),
   },
 }))
 
@@ -213,6 +214,31 @@ describe('useBookingChat', () => {
     const added = result.messages.value.find((m) => m.id === 99)
     expect(added).toBeDefined()
     expect(added!.content).toBe('Hey!')
+  })
+
+  it('marque le fil lu quand un message de l\'autre partie arrive, jamais pour le sien', async () => {
+    vi.mocked(bookingChatApi.markRead).mockResolvedValue(undefined)
+    const { listenCallStart } = await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
+
+    await emitWsPayload(listenCallStart, {
+      id: 60,
+      booking_id: BOOKING_ID,
+      sender_id: CURRENT_USER_ID,
+      sender_name: 'Me',
+      content: 'Mon message',
+      created_at: new Date().toISOString(),
+    })
+    expect(bookingChatApi.markRead).not.toHaveBeenCalled()
+
+    await emitWsPayload(listenCallStart, {
+      id: 61,
+      booking_id: BOOKING_ID,
+      sender_id: 999,
+      sender_name: 'Other',
+      content: 'Leur message',
+      created_at: new Date().toISOString(),
+    })
+    expect(bookingChatApi.markRead).toHaveBeenCalledWith(BOOKING_ID)
   })
 
   it('WS event sets is_own_message=true when sender_id matches currentUserId', async () => {

@@ -117,12 +117,19 @@ export interface LatestMessagePreview {
   created_at: string
 }
 
+export type ConversationKind = 'mission' | 'booking'
+
 // Conversation list item (lightweight, for list view)
 export interface ConversationListItem {
+  /** 'mission' = conversation de candidature ; 'booking' = chat d'un booking (id = UUID du booking) */
+  kind: ConversationKind
   id: string
-  candidature_id: string
+  /** Null pour un fil de booking */
+  candidature_id: string | null
+  /** Titre du fil ; pour un booking : « Booking · {type de contenu} · {date} » */
   mission_title: string
   other_participant: OtherParticipant
+  /** Null pour un fil de booking */
   context: ConversationContextSummary | null
   latest_message: LatestMessagePreview | null
   unread_count: number
@@ -174,6 +181,8 @@ export interface MessagesReadBroadcast {
 
 // `.conversation.updated` sur private-App.Models.User.{id} (unread_count propre au destinataire)
 export interface ConversationUpdatedBroadcast {
+  /** Absent des événements antérieurs au chat de booking : 'mission' par défaut */
+  kind?: ConversationKind
   conversation_id: string
   latest_message: {
     id: number

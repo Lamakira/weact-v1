@@ -225,24 +225,35 @@ class BookingPolicy
     {
         $isParty = $user->id === $booking->face_id || $user->id === $booking->producer_id;
 
-        // UGC (3.1) : le chat ouvre à l'acceptation — coordination de l'adresse de
-        // livraison avant/pendant l'expédition (ferme le defer 2.4). Lecture
-        // d'historique conservée après clôture (parité cash).
-        if ($booking->type_contenu === 'UGC') {
-            return $isParty && in_array($booking->status, [
-                BookingStatus::Accepted,
-                BookingStatus::Completed,
-            ], true);
+        return $isParty && in_array(
+            $booking->status,
+            self::chatReadableStatuses($booking->type_contenu === 'UGC'),
+            true,
+        );
+    }
+
+    /**
+     * Statuts pour lesquels le chat d'un booking est lisible (source unique, partagée avec
+     * Booking::scopeChatReadableBy pour la liste « Messages » et les compteurs de non-lus).
+     *
+     * UGC (3.1) : le chat ouvre à l'acceptation — coordination de l'adresse de livraison
+     * avant/pendant l'expédition (ferme le defer 2.4). Lecture d'historique conservée après
+     * clôture (parité cash).
+     *
+     * @return list<BookingStatus>
+     */
+    public static function chatReadableStatuses(bool $ugc): array
+    {
+        if ($ugc) {
+            return [BookingStatus::Accepted, BookingStatus::Completed];
         }
 
-        $chatEligibleStatuses = [
+        return [
             BookingStatus::Paid,
             BookingStatus::ConfirmedByFace,
             BookingStatus::ConfirmedByProducer,
             BookingStatus::Completed,
         ];
-
-        return $isParty && in_array($booking->status, $chatEligibleStatuses, true);
     }
 
     /**

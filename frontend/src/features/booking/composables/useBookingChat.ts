@@ -65,6 +65,16 @@ export function useBookingChat(
     }
   }
 
+  // Non bloquant : le prochain chargement du fil (GET messages) marque lu de toute façon
+  async function markReadIfVisible(): Promise<void> {
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+    try {
+      await bookingChatApi.markRead(bookingId)
+    } catch {
+      // ignoré
+    }
+  }
+
   async function subscribeToChannel(): Promise<void> {
     try {
       // Echo (pusher-js + laravel-echo) chargé à la demande, hors des chunks de listes
@@ -84,6 +94,8 @@ export function useBookingChat(
               is_own_message: event.sender_id === currentUserId,
             })
           }
+          // Message de l'autre partie reçu fil ouvert : lu côté serveur (badge « Messages » à jour)
+          if (event.sender_id !== currentUserId) void markReadIfVisible()
         })
         .error(() => {
           reverbError.value = true
