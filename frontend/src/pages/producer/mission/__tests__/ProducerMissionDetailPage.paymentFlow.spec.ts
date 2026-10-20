@@ -105,6 +105,7 @@ function makeSummary(status: Mission['status']): MissionSummary {
     ugc_deliverables: null,
     completion_blocker: null,
     faces_to_rate: 0,
+    all_places_refunded: false,
     can_edit: false,
   }
 }

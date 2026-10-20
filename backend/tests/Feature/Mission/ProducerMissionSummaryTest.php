@@ -332,6 +332,38 @@ class ProducerMissionSummaryTest extends TestCase
         $this->assertSame('tunnel', $this->summary($over)['step']);
     }
 
+    public function test_all_places_refunded_is_true_when_every_selected_face_failed(): void
+    {
+        $mission = $this->mission(MissionStatus::Closed);
+        $payment = $this->payment($mission, MissionPaymentStatus::Paid, 2);
+        foreach (range(1, 2) as $i) {
+            $this->entry($payment, $this->candidature($mission, CandidatureStatus::Expired), EscrowStatus::Refunded);
+        }
+
+        $summary = $this->summary($mission);
+
+        $this->assertTrue($summary['all_places_refunded']);
+        // Même source de vérité que le refus de « Terminer » (Mission::completionBlocker).
+        $this->assertSame(Mission::NO_FACE_CONFIRMED_MESSAGE, $summary['completion_blocker']);
+    }
+
+    public function test_all_places_refunded_is_false_while_one_face_is_still_engaged(): void
+    {
+        $mission = $this->mission(MissionStatus::Closed);
+        $payment = $this->payment($mission, MissionPaymentStatus::Paid, 2);
+        $this->entry($payment, $this->candidature($mission, CandidatureStatus::Expired), EscrowStatus::Refunded);
+        $this->entry($payment, $this->candidature($mission, CandidatureStatus::Confirmed));
+
+        $this->assertFalse($this->summary($mission)['all_places_refunded']);
+    }
+
+    public function test_all_places_refunded_is_false_for_a_mission_without_payment_or_still_published(): void
+    {
+        $this->assertFalse($this->summary($this->mission(MissionStatus::Published))['all_places_refunded']);
+        $this->assertFalse($this->summary($this->mission(MissionStatus::Closed))['all_places_refunded']);
+        $this->assertFalse($this->summary($this->ugcMission(MissionStatus::Closed))['all_places_refunded']);
+    }
+
     public function test_faces_to_rate_counts_completed_candidatures_without_a_producer_rating(): void
     {
         $mission = $this->mission(MissionStatus::Completed);

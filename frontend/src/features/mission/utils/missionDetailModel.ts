@@ -110,6 +110,7 @@ export type PrimaryActionKey =
   | 'pay-commission'
   | 'review-deliverables'
   | 'rate-faces'
+  | 'republish'
 
 export interface PrimaryAction {
   key: PrimaryActionKey
@@ -146,6 +147,15 @@ export function resolvePrimaryAction(ctx: DetailContext): PrimaryAction | null {
       key: 'rate-faces',
       label: 'Noter mes Faces',
       hint: `${toRate} ${plural(toRate, 'Face à noter', 'Faces à noter')} · facultatif`,
+    }
+  }
+
+  // Lot C9 : toutes les places remboursées → la seule suite utile est de republier la mission.
+  if (summary.all_places_refunded) {
+    return {
+      key: 'republish',
+      label: 'Republier la mission',
+      hint: 'Mêmes informations, nouvelles dates',
     }
   }
 
@@ -269,6 +279,14 @@ export function buildNextBlock(ctx: DetailContext): NextBlockContent {
       )
     }
     return block('Mission terminée', 'La mission est terminée. Les Faces présentes ont été payées.', 'Rien à faire')
+  }
+
+  if (summary.all_places_refunded) {
+    return block(
+      'Toutes les places ont été remboursées',
+      'Aucune Face n\'a confirmé sa participation : le budget des places est de retour sur votre wallet. Republiez la mission avec de nouvelles dates pour retrouver des Faces ; l\'ancienne mission reste clôturée avec son historique de paiement.',
+      WHO_YOU,
+    )
   }
 
   if (isUgc) {

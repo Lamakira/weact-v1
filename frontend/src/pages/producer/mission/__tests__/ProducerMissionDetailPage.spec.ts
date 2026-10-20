@@ -91,6 +91,7 @@ function makeSummary(step: MissionSummaryStep, overrides: Partial<MissionSummary
     ugc_deliverables: null,
     completion_blocker: null,
     faces_to_rate: 0,
+    all_places_refunded: false,
     can_edit: false,
     ...overrides,
   }
@@ -308,6 +309,28 @@ describe('ProducerMissionDetailPage — action principale par étape', () => {
     await button.trigger('click')
     await flushPromises()
     expect(routeState.focusFirstToRate).toHaveBeenCalledTimes(1)
+  })
+
+  it('toutes les places remboursées : « Republier la mission » ouvre la publication pré-remplie (?from)', async () => {
+    const w = await mountPage(
+      makeMission(
+        { status: 'closed', has_paid_payment: true },
+        makeSummary('confirmations', { all_places_refunded: true, completion_blocker: 'Aucune Face n\'a confirmé…' }),
+      ),
+    )
+
+    const button = primaryAction(w)
+    expect(button.text()).toContain('Republier la mission')
+    expect(w.text()).toContain('Toutes les places ont été remboursées')
+
+    await button.trigger('click')
+    expect(routeState.push).toHaveBeenCalledWith({ name: 'publish-mission', query: { from: 'mission-uuid-under-test' } })
+  })
+
+  it('places non remboursées : aucun bouton « Republier la mission »', async () => {
+    const w = await mountPage(makeMission({ status: 'published' }, makeSummary('recruiting', { all_places_refunded: false })))
+
+    expect(w.text()).not.toContain('Republier la mission')
   })
 
   it('mission terminée dont toutes les Faces sont notées : plus d\'action principale', async () => {
