@@ -84,6 +84,53 @@ export interface MissionProducer {
   updated_at: string
 }
 
+export type MissionSummaryStep =
+  | 'draft'
+  | 'recruiting'
+  | 'payment'
+  | 'confirmations'
+  | 'ready'
+  | 'attendance'
+  | 'commission'
+  | 'tunnel'
+  | 'completed'
+
+// Lot C1 : résumé du cycle de vie (détail Producer uniquement, absent des listes).
+export interface MissionSummary {
+  step: MissionSummaryStep
+  candidatures: Record<
+    'pending' | 'accepted' | 'confirmed' | 'in_progress' | 'completed' | 'rejected' | 'cancelled' | 'expired',
+    number
+  >
+  selection: {
+    faces_wanted: number
+    faces_selected: number
+    faces_confirmed: number
+    freed_places: number
+  }
+  payment: {
+    status: string | null
+    expires_at: string | null
+    paid_at: string | null
+    montant_total_producteur: number | null
+  }
+  attendance: {
+    opens_at: string | null
+    can_mark: boolean
+    pending: number
+    present: number
+    absent: number
+    disputed: number
+  } | null
+  ugc_deliverables: {
+    to_review: number
+    validated: number
+    retouche_requested: number
+  } | null
+  completion_blocker: string | null
+  can_edit: boolean
+}
+
 // Mission data from API
 export interface Mission {
   id: string
@@ -120,6 +167,8 @@ export interface Mission {
   freed_places_count?: number
   can_replace_freed_place?: boolean
   freed_places_refund_at?: string | null
+  // Lot C1 : résumé du cycle de vie (détail Producer uniquement)
+  summary?: MissionSummary
   candidatures_count?: number
   // Photos produit UGC (spec photos produit, `whenLoaded`) — clé OMISE sur les
   // listes, chargée sur les détails. URLs publiques directes (disque public).

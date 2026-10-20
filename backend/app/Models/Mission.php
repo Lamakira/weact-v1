@@ -608,14 +608,22 @@ class Mission extends Model
      */
     public function canBeCompleted(): bool
     {
+        return $this->hasCompletableStatus() && $this->completionBlocker() === null;
+    }
+
+    /**
+     * Status gate of canBeCompleted(), without evaluating completionBlocker() (callers that already
+     * hold the blocker avoid its queries, e.g. the Producer show summary).
+     */
+    public function hasCompletableStatus(): bool
+    {
         // Lot B8 : une mission UGC dont le recrutement est fini peut être encore publiée
         // (date limite passée sans avoir rempli toutes les places).
         $completableStatuses = $this->type_mission === MissionType::Ugc
             ? [MissionStatus::Closed, MissionStatus::Published]
             : [MissionStatus::Closed, MissionStatus::PendingAttendanceValidation];
 
-        return in_array($this->status, $completableStatuses, true)
-            && $this->completionBlocker() === null;
+        return in_array($this->status, $completableStatuses, true);
     }
 
     /**
