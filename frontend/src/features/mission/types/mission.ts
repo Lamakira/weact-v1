@@ -3,6 +3,7 @@
  */
 
 import type { Deliverable, ProductPhoto, Shipment } from '@/components/ugc'
+import type { MissionRating } from '@/features/candidature/types'
 
 // Mission status enum
 export const MissionStatus = {
@@ -178,6 +179,10 @@ export interface MissionCandidature {
   montant_face_recoit?: number | null
   /** UUID de la conversation (chat) — null tant que la candidature n'est pas acceptée (lot C5). */
   conversation_id?: string | null
+  /** La Face peut noter le producteur (candidature terminée, pas encore notée) — lot C8. */
+  can_rate?: boolean
+  /** Sa propre notation du producteur, sinon null — lot C8. */
+  my_rating?: MissionRating | null
   message_motivation: string | null
   created_at: string
   updated_at: string
