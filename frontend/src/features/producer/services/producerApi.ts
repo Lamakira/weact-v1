@@ -129,8 +129,14 @@ export const producerApi = {
 
   /**
    * Liste les livrables in_review du Producteur (booking + candidature agrégés).
+   * `missionId` (uuid) restreint la liste aux livrables de CETTE mission (page détail mission).
    */
-  listDeliverablesToReview(): Promise<DeliverableReviewListResponse> {
+  listDeliverablesToReview(missionId?: string): Promise<DeliverableReviewListResponse> {
+    if (missionId) {
+      return apiClient
+        .get<DeliverableReviewListResponse>('/producer/deliverables', { params: { mission: missionId } })
+        .then((response) => response.data)
+    }
     // Le badge de la sidebar et le module du dashboard la demandent au même instant :
     // une requête déjà en cours est partagée au lieu d'être doublée.
     if (!deliverablesToReviewInFlight) {
