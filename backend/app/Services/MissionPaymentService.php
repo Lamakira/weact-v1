@@ -15,10 +15,12 @@ use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Exceptions\MissionPaymentInitiationException;
 use App\Mail\CandidatureAcceptedMail;
+use App\Mail\CandidatureNotSelectedMail;
 use App\Mail\FaceConfirmationExpiredMail;
 use App\Mail\FaceSelectedMail;
 use App\Mail\MissionCompletedMail;
 use App\Mail\MissionFaceUnconfirmedMail;
+use App\Mail\MissionPaymentConfirmedMail;
 use App\Mail\MissionPlaceFreedMail;
 use App\Mail\MissionSelectionExpiredMail;
 use App\Models\Booking;
@@ -642,6 +644,25 @@ class MissionPaymentService
                 );
             }
 
+            // Lot D5 : e-mail de confirmation au Producer, après commit, non bloquant.
+            if ($producerUser && trim((string) $producerUser->email) !== '') {
+                $producerEmail = trim((string) $producerUser->email);
+                $paidFaceCount = $payment->entries->count();
+                $totalPaid = (int) $payment->montant_total_producteur;
+
+                DB::afterCommit(function () use ($producerEmail, $mission, $paidFaceCount, $totalPaid, $payment): void {
+                    try {
+                        Mail::to($producerEmail)->queue(new MissionPaymentConfirmedMail($mission, $paidFaceCount, $totalPaid));
+                    } catch (\Throwable $e) {
+                        Log::warning('MissionPaymentConfirmedMail queue failed', [
+                            'mission_id' => $mission->id,
+                            'payment_id' => $payment->id,
+                            'error' => $e->getMessage(),
+                        ]);
+                    }
+                });
+            }
+
             // Notify each selected face — ask them to confirm their participation
             foreach ($payment->entries as $entry) {
                 /** @var MissionPaymentCandidature $entry */
@@ -782,6 +803,18 @@ class MissionPaymentService
         }
 
         $this->dispatchSelectionNotifications($notifications);
+
+        // Lot D5 : e-mail « candidature non retenue » aux Faces écartées, après commit (non bloquant).
+        $rejectedFaceIds = $rejectedCandidatures->pluck('face_id')->map(fn (mixed $id): int => (int) $id)->all();
+        if ($rejectedFaceIds !== []) {
+            DB::afterCommit(function () use ($rejectedFaceIds, $missionTitre): void {
+                $emailer = app(CandidatureNotSelectedEmailer::class);
+
+                foreach ($rejectedFaceIds as $faceId) {
+                    $emailer->send($faceId, $missionTitre, CandidatureNotSelectedMail::REASON_SELECTION_MADE);
+                }
+            });
+        }
     }
 
     /**

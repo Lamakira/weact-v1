@@ -7,6 +7,7 @@ namespace App\Services;
 use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
+use App\Mail\CandidatureNotSelectedMail;
 use App\Mail\CandidatureResponseReminderMail;
 use App\Models\Candidature;
 use App\Models\Face;
@@ -90,8 +91,16 @@ class CandidatureResponseDeadlineService
             return count($expiredIds);
         }
 
+        $emailer = app(CandidatureNotSelectedEmailer::class);
+
         foreach ($expiredIds as $candidatureId) {
             $this->notifyFaceOfExpiry($mission, $candidatureId);
+
+            // Lot D5 : même règle que l'in-app (jamais pour l'historique, déjà écarté plus haut).
+            $faceId = Candidature::query()->whereKey($candidatureId)->value('face_id');
+            if ($faceId !== null) {
+                $emailer->send((int) $faceId, (string) $mission->titre, CandidatureNotSelectedMail::REASON_NO_RESPONSE);
+            }
         }
 
         return count($expiredIds);
