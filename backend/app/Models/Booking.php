@@ -560,9 +560,11 @@ class Booking extends Model
     {
         $query->where(fn ($q) => $q->where('bookings.face_id', $user->id)->orWhere('bookings.producer_id', $user->id))
             ->where(function ($q): void {
-                $q->where(fn ($ugc) => $ugc->where('bookings.type_contenu', 'UGC')
+                // BINARY : comparaison sensible à la casse, identique au `=== 'UGC'` strict de BookingPolicy
+                // (la collation _ci de la colonne confondrait « ugc » et « UGC »).
+                $q->where(fn ($ugc) => $ugc->whereRaw("BINARY bookings.type_contenu = 'UGC'")
                     ->whereIn('bookings.status', BookingPolicy::chatReadableStatuses(true)))
-                    ->orWhere(fn ($cash) => $cash->where(fn ($t) => $t->whereNull('bookings.type_contenu')->orWhere('bookings.type_contenu', '!=', 'UGC'))
+                    ->orWhere(fn ($cash) => $cash->whereRaw("NOT (BINARY bookings.type_contenu <=> 'UGC')")
                         ->whereIn('bookings.status', BookingPolicy::chatReadableStatuses(false)));
             });
     }

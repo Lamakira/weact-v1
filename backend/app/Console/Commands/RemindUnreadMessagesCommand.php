@@ -34,6 +34,13 @@ class RemindUnreadMessagesCommand extends Command
     /** Délai minimal entre deux e-mails pour un même fil et un même destinataire. */
     private const COOLDOWN_HOURS = 24;
 
+    /**
+     * Historique pris en compte : seuls les messages non lus créés depuis moins de 72 h comptent.
+     * Évite une vague d'e-mails au déploiement (ou sur de vieux fils jamais ouverts) : un message
+     * non lu plus ancien ne déclenche plus rien.
+     */
+    private const HISTORY_HOURS = 72;
+
     private const TYPE_CONVERSATION = 'conversation';
 
     private const TYPE_BOOKING = 'booking';
@@ -49,40 +56,41 @@ class RemindUnreadMessagesCommand extends Command
     public function handle(): int
     {
         $threshold = now()->subHours(self::UNREAD_AFTER_HOURS);
+        $oldest = now()->subHours(self::HISTORY_HOURS);
 
         Message::query()
             ->whereNull('read_at')
-            ->where('created_at', '<=', $threshold)
+            ->whereBetween('created_at', [$oldest, $threshold])
             ->distinct()
             ->orderBy('conversation_id')
             ->pluck('conversation_id')
             ->chunk(100)
-            ->each(function ($ids) use ($threshold): void {
+            ->each(function ($ids) use ($threshold, $oldest): void {
                 $conversations = Conversation::query()
                     ->whereIn('id', $ids)
                     ->with(['candidature.face.user', 'candidature.mission.producer.user'])
                     ->get();
 
                 foreach ($conversations as $conversation) {
-                    $this->remindConversation($conversation, $threshold);
+                    $this->remindConversation($conversation, $threshold, $oldest);
                 }
             });
 
         BookingMessage::query()
             ->whereNull('read_at')
-            ->where('created_at', '<=', $threshold)
+            ->whereBetween('created_at', [$oldest, $threshold])
             ->distinct()
             ->orderBy('booking_id')
             ->pluck('booking_id')
             ->chunk(100)
-            ->each(function ($ids) use ($threshold): void {
+            ->each(function ($ids) use ($threshold, $oldest): void {
                 $bookings = Booking::query()
                     ->whereIn('id', $ids)
                     ->with(['face.userable', 'producer.userable'])
                     ->get();
 
                 foreach ($bookings as $booking) {
-                    $this->remindBooking($booking, $threshold);
+                    $this->remindBooking($booking, $threshold, $oldest);
                 }
             });
 
@@ -91,20 +99,23 @@ class RemindUnreadMessagesCommand extends Command
         return self::SUCCESS;
     }
 
-    private function remindConversation(Conversation $conversation, \DateTimeInterface $threshold): void
+    private function remindConversation(Conversation $conversation, \DateTimeInterface $threshold, \DateTimeInterface $oldest): void
     {
         $candidature = $conversation->candidature;
         $faceUser = $candidature?->face?->user;
         $producerUser = $candidature?->mission?->producer?->user;
+        // Noms lus sur les profils déjà chargés : aucune requête par destinataire
+        $faceName = $candidature?->face?->display_name;
+        $producerName = $candidature?->mission?->producer?->display_name;
 
-        foreach ([[$faceUser, $producerUser], [$producerUser, $faceUser]] as [$recipient, $sender]) {
+        foreach ([[$faceUser, $producerUser, $producerName], [$producerUser, $faceUser, $faceName]] as [$recipient, $sender, $senderName]) {
             if ($recipient === null || $sender === null) {
                 continue;
             }
 
-            // Accès au fil (ConversationPolicy::view) et e-mail vérifié (le mur de vérification
+            // Compte actif, accès au fil (ConversationPolicy::view) et e-mail vérifié (le mur de vérification
             // empêche de toute façon de lire la messagerie avant).
-            if (! $recipient->hasVerifiedEmail() || ! Gate::forUser($recipient)->allows('view', $conversation)) {
+            if (! $recipient->is_active || ! $recipient->hasVerifiedEmail() || ! Gate::forUser($recipient)->allows('view', $conversation)) {
                 continue;
             }
 
@@ -112,33 +123,33 @@ class RemindUnreadMessagesCommand extends Command
                 ->where('conversation_id', $conversation->id)
                 ->whereNull('read_at')
                 ->where('sender_id', '!=', $recipient->id)
+                ->where('created_at', '>=', $oldest)
                 ->pluck('created_at');
-
-            if (! $unread->contains(fn ($createdAt) => $createdAt <= $threshold)) {
-                continue;
-            }
 
             $this->remind(
                 $recipient,
-                $sender,
+                $senderName,
                 self::TYPE_CONVERSATION,
                 $conversation->id,
-                $unread->count(),
+                $unread,
+                $threshold,
                 (string) $candidature->mission?->titre,
                 $conversation->uuid,
             );
         }
     }
 
-    private function remindBooking(Booking $booking, \DateTimeInterface $threshold): void
+    private function remindBooking(Booking $booking, \DateTimeInterface $threshold, \DateTimeInterface $oldest): void
     {
         foreach ([[$booking->face, $booking->producer], [$booking->producer, $booking->face]] as [$recipient, $sender]) {
             if ($recipient === null || $sender === null) {
                 continue;
             }
 
+            $senderName = data_get($sender, 'userable.display_name');
+
             // Accès au chat selon BookingPolicy::viewMessages (statut + partie du booking)
-            if (! $recipient->hasVerifiedEmail() || ! Gate::forUser($recipient)->allows('viewMessages', $booking)) {
+            if (! $recipient->is_active || ! $recipient->hasVerifiedEmail() || ! Gate::forUser($recipient)->allows('viewMessages', $booking)) {
                 continue;
             }
 
@@ -146,31 +157,41 @@ class RemindUnreadMessagesCommand extends Command
                 ->where('booking_id', $booking->id)
                 ->whereNull('read_at')
                 ->where('sender_id', '!=', $recipient->id)
+                ->where('created_at', '>=', $oldest)
                 ->pluck('created_at');
-
-            if (! $unread->contains(fn ($createdAt) => $createdAt <= $threshold)) {
-                continue;
-            }
 
             $this->remind(
                 $recipient,
-                $sender,
+                $senderName,
                 self::TYPE_BOOKING,
                 $booking->id,
-                $unread->count(),
+                $unread,
+                $threshold,
                 BookingThreadListResource::title($booking),
                 $booking->uuid,
             );
         }
     }
 
-    private function remind(User $recipient, User $sender, string $type, int $threadId, int $unreadCount, string $contextLabel, string $threadUuid): void
+    /**
+     * @param  \Illuminate\Support\Collection<int, \Illuminate\Support\Carbon>  $unread  dates des non lus de l'autre partie (fenêtre de 72 h)
+     */
+    private function remind(User $recipient, mixed $senderName, string $type, int $threadId, \Illuminate\Support\Collection $unread, \DateTimeInterface $threshold, string $contextLabel, string $threadUuid): void
     {
         $email = trim((string) $recipient->email);
         if ($email === '') {
             return;
         }
 
+        // Un e-mail n'est dû que pour un message non lu, assez ancien, ET postérieur au dernier
+        // e-mail de ce fil : sans nouveau message, un fil jamais ouvert ne relance pas.
+        $lastSent = $this->lastSentAt($recipient->id, $type, $threadId);
+        $qualifying = $unread->filter(fn ($createdAt) => $createdAt <= $threshold && ($lastSent === null || $createdAt > $lastSent));
+        if ($qualifying->isEmpty()) {
+            return;
+        }
+
+        $unreadCount = $unread->count();
         $claim = $this->claim($recipient->id, $type, $threadId);
         if ($claim === null) {
             return; // déjà relancé dans les dernières 24 h
@@ -178,13 +199,12 @@ class RemindUnreadMessagesCommand extends Command
 
         try {
             $role = $recipient->userable_type === Face::class ? 'face' : 'producer';
-            $senderName = data_get($sender, 'userable.display_name');
 
             Mail::to($email)->queue(new UnreadMessagesMail(
                 is_string($senderName) && $senderName !== '' ? $senderName : 'Votre interlocuteur',
                 $unreadCount,
                 $contextLabel,
-                rtrim((string) config('app.frontend_url'), '/')."/{$role}/conversations/{$threadUuid}",
+                rtrim((string) config('app.frontend_url'), '/')."/{$role}/conversations/{$threadUuid}".($type === self::TYPE_BOOKING ? '?kind=booking' : ''),
             ));
 
             $this->sent++;
@@ -199,6 +219,15 @@ class RemindUnreadMessagesCommand extends Command
             ]);
             $this->failed++;
         }
+    }
+
+    private function lastSentAt(int $userId, string $type, int $threadId): ?\Illuminate\Support\Carbon
+    {
+        $value = DB::table('message_unread_email_logs')
+            ->where(['user_id' => $userId, 'thread_type' => $type, 'thread_id' => $threadId])
+            ->value('sent_at');
+
+        return $value === null ? null : \Illuminate\Support\Carbon::parse($value);
     }
 
     /**

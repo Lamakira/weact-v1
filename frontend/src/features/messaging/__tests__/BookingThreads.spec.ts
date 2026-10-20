@@ -156,6 +156,41 @@ describe('Page Messages — ouverture d’un fil de booking', () => {
     expect(wrapper.find('[data-testid="unread-badge"]').exists()).toBe(false)
   })
 
+  it('lien profond ?kind=booking hors de la liste chargée : ouvre directement le chat du booking', async () => {
+    api.getConversations.mockResolvedValue({
+      data: [makeListItem({ id: 'conv-2' })],
+      meta: { current_page: 1, last_page: 2, per_page: 15, total: 20 },
+    })
+    bookingsApi.fetchBooking.mockResolvedValue({ data: { id: 'far-booking', status: 'paid' } } as never)
+    const router = makeRouter()
+    await router.push('/face/conversations/far-booking?kind=booking')
+    await router.isReady()
+    const wrapper = mount(MessagesWorkspace, { props: { role: 'face' }, global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(api.getConversation).not.toHaveBeenCalled()
+    expect(bookingsApi.fetchBooking).toHaveBeenCalledWith('far-booking')
+    expect(wrapper.find('[data-testid="booking-chat-stub"]').text()).toBe('far-booking|7')
+  })
+
+  it('lien profond sans kind hors liste : essaie la mission, puis le booking sur 404', async () => {
+    api.getConversations.mockResolvedValue({
+      data: [makeListItem({ id: 'conv-2' })],
+      meta: { current_page: 1, last_page: 2, per_page: 15, total: 20 },
+    })
+    api.getConversation.mockRejectedValue({ response: { status: 404 } })
+    bookingsApi.fetchBooking.mockResolvedValue({ data: { id: 'far-booking', status: 'paid' } } as never)
+    const router = makeRouter()
+    await router.push('/face/conversations/far-booking')
+    await router.isReady()
+    const wrapper = mount(MessagesWorkspace, { props: { role: 'face' }, global: { plugins: [router] } })
+    await flushPromises()
+
+    expect(api.getConversation).toHaveBeenCalledWith('far-booking')
+    expect(bookingsApi.fetchBooking).toHaveBeenCalledWith('far-booking')
+    expect(wrapper.find('[data-testid="booking-chat-stub"]').exists()).toBe(true)
+  })
+
   it('deep link vers un fil de booking : ouvre le chat après le chargement de la liste', async () => {
     const wrapper = await mountWorkspace('/face/conversations/booking-uuid')
     expect(api.getConversation).not.toHaveBeenCalled()

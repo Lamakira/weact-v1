@@ -170,7 +170,7 @@ class RemindUnreadMessagesCommandTest extends TestCase
         Mail::assertQueued(UnreadMessagesMail::class, fn (UnreadMessagesMail $mail): bool => $mail->hasTo($this->producerUser->email)
             && $mail->unreadCount === 1
             && str_starts_with($mail->contextLabel, 'Booking · Clip musical · ')
-            && $mail->threadUrl === rtrim((string) config('app.frontend_url'), '/')."/producer/conversations/{$booking->uuid}");
+            && $mail->threadUrl === rtrim((string) config('app.frontend_url'), '/')."/producer/conversations/{$booking->uuid}?kind=booking");
     }
 
     public function test_at_most_one_email_per_thread_and_recipient_per_24_hours(): void
@@ -193,6 +193,54 @@ class RemindUnreadMessagesCommandTest extends TestCase
         $this->runCommand();
         $this->runCommand();
         $this->assertSame(2, $this->queuedFor($this->faceUser));
+    }
+
+    public function test_a_thread_never_opened_does_not_trigger_endless_reminders(): void
+    {
+        $conversation = $this->conversation();
+        $this->message($conversation, $this->producerUser, 90);
+
+        $this->runCommand();
+        $this->assertSame(1, $this->queuedFor($this->faceUser));
+
+        // Aucun nouveau message : ni à +25 h, ni à +49 h
+        Carbon::setTestNow(now()->addHours(25));
+        $this->runCommand();
+        Carbon::setTestNow(now()->addHours(24));
+        $this->runCommand();
+        $this->assertSame(1, $this->queuedFor($this->faceUser));
+
+        // Nouveau message à +30 h (depuis le premier envoi) : un e-mail une fois qu'il a plus d'1 h (+31 h)
+        Carbon::setTestNow(Carbon::parse('2030-10-10 12:00:00')->addHours(30));
+        $this->message($conversation, $this->producerUser, 0);
+        $this->runCommand();
+        $this->assertSame(1, $this->queuedFor($this->faceUser));
+
+        Carbon::setTestNow(Carbon::parse('2030-10-10 12:00:00')->addHours(31)->addMinute());
+        $this->runCommand();
+        $this->assertSame(2, $this->queuedFor($this->faceUser));
+    }
+
+    public function test_unread_messages_older_than_72_hours_are_ignored(): void
+    {
+        $conversation = $this->conversation();
+        $this->message($conversation, $this->producerUser, 4 * 24 * 60);
+        $booking = $this->booking();
+        $this->bookingMessage($booking, $this->faceUser, 4 * 24 * 60);
+
+        $this->runCommand();
+
+        Mail::assertNothingQueued();
+    }
+
+    public function test_no_email_to_an_inactive_account(): void
+    {
+        $this->faceUser->forceFill(['is_active' => false])->save();
+        $this->message($this->conversation(), $this->producerUser, 120);
+
+        $this->runCommand();
+
+        Mail::assertNothingQueued();
     }
 
     public function test_cooldown_is_per_thread_and_per_recipient(): void

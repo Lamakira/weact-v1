@@ -36,6 +36,6 @@ describe('UnreadMessagesPanel — fils de booking', () => {
 
     const row = wrapper.find('[data-testid="unread-message-row"]')
     expect(row.text()).toContain('Booking · Clip musical · 05/12/2030')
-    expect(row.find('a').attributes('href')).toBe('/producer/conversations/booking-uuid')
+    expect(row.find('a').attributes('href')).toBe('/producer/conversations/booking-uuid?kind=booking')
   })
 })

@@ -116,19 +116,45 @@ class BookingThreadsTest extends TestCase
         );
     }
 
-    public function test_opening_the_thread_marks_the_other_partys_messages_as_read(): void
+    public function test_getting_the_messages_does_not_mark_them_read(): void
     {
         $booking = $this->booking();
         $fromProducer = $this->bookingMessage($booking, $this->producerUser);
-        $own = $this->bookingMessage($booking, $this->faceUser);
 
         $this->actingAs($this->faceUser)
             ->getJson("/api/v1/bookings/{$booking->uuid}/messages")
             ->assertOk();
 
+        // Le marquage lu passe uniquement par POST .../messages/read (fil réellement visible)
+        $this->assertNull($fromProducer->fresh()->read_at);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/messages/read")
+            ->assertOk()
+            ->assertJsonPath('data.marked', 1);
         $this->assertNotNull($fromProducer->fresh()->read_at);
-        // Le message de l'autre partie (le Producer) reste lisible côté expéditeur : non lu pour lui
-        $this->assertNull($own->fresh()->read_at);
+    }
+
+    public function test_type_contenu_comparison_is_case_sensitive_like_the_policy(): void
+    {
+        // Booking cash dont le type vaut « ugc » (minuscules) : pour BookingPolicy ce n'est PAS de l'UGC.
+        // Accepted n'est lisible que pour l'UGC : le fil ne doit être ni compté ni listé.
+        $lower = $this->booking(BookingStatus::Accepted, ['type_contenu' => 'ugc']);
+        $this->bookingMessage($lower, $this->producerUser);
+        // Même type en minuscules mais payé : lisible comme un booking cash.
+        $paid = $this->booking(BookingStatus::Paid, ['type_contenu' => 'ugc']);
+        $this->bookingMessage($paid, $this->producerUser);
+
+        $this->actingAs($this->faceUser)->getJson("/api/v1/bookings/{$lower->uuid}/messages")->assertForbidden();
+        $this->actingAs($this->faceUser)->getJson("/api/v1/bookings/{$paid->uuid}/messages")->assertOk();
+
+        $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/conversations/unread-count')
+            ->assertJsonPath('data.count', 1);
+        $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/conversations')
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $paid->uuid);
     }
 
     public function test_mark_read_route_is_idempotent_and_returns_the_new_total(): void

@@ -25,14 +25,14 @@ class BookingMessageController extends Controller
      * Requires: booking is in a chat-eligible status (paid or beyond).
      * Both parties (face and producer) can read messages.
      */
-    public function index(Request $request, Booking $booking, BookingChatRealtime $realtime): AnonymousResourceCollection|JsonResponse
+    public function index(Booking $booking): AnonymousResourceCollection|JsonResponse
     {
         if (Gate::denies('viewMessages', $booking)) {
             return $this->chatLockedResponse();
         }
 
-        // Ouvrir le fil = lire les messages de l'autre partie (+ badge Messages mis à jour en direct)
-        $realtime->markRead($booking, $request->user());
+        // Lecture sans effet de bord : le marquage « lu » passe par POST .../messages/read, appelé
+        // par le frontend seulement quand le fil est réellement visible.
 
         $messages = $booking->messages()
             ->reorder()

@@ -219,6 +219,7 @@ describe('useBookingChat', () => {
   it('marque le fil lu quand un message de l\'autre partie arrive, jamais pour le sien', async () => {
     vi.mocked(bookingChatApi.markRead).mockResolvedValue(undefined)
     const { listenCallStart } = await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
+    vi.mocked(bookingChatApi.markRead).mockClear()
 
     await emitWsPayload(listenCallStart, {
       id: 60,
@@ -239,6 +240,34 @@ describe('useBookingChat', () => {
       created_at: new Date().toISOString(),
     })
     expect(bookingChatApi.markRead).toHaveBeenCalledWith(BOOKING_ID)
+  })
+
+  it('à l\'ouverture, marque lu seulement s\'il y a des messages non lus de l\'autre partie et le fil est visible', async () => {
+    vi.mocked(bookingChatApi.markRead).mockResolvedValue(undefined)
+    vi.mocked(bookingChatApi.fetchMessages).mockResolvedValue(
+      makeListResponse([makeMessage({ id: 1, sender_id: 99, is_own_message: false, read_at: null })]),
+    )
+
+    await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
+    expect(bookingChatApi.markRead).toHaveBeenCalledTimes(1)
+  })
+
+  it('onglet masqué : ni marquage à l\'ouverture, puis marquage au retour sur l\'onglet', async () => {
+    vi.mocked(bookingChatApi.markRead).mockResolvedValue(undefined)
+    vi.mocked(bookingChatApi.fetchMessages).mockResolvedValue(
+      makeListResponse([makeMessage({ id: 1, sender_id: 99, is_own_message: false, read_at: null })]),
+    )
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden')
+
+    await mountComposable(BOOKING_ID, REALTIME_CHANNEL_KEY, CURRENT_USER_ID)
+    expect(bookingChatApi.markRead).not.toHaveBeenCalled()
+
+    visibility.mockReturnValue('visible')
+    document.dispatchEvent(new Event('visibilitychange'))
+    await flushPromises()
+    expect(bookingChatApi.markRead).toHaveBeenCalledTimes(1)
+
+    visibility.mockRestore()
   })
 
   it('WS event sets is_own_message=true when sender_id matches currentUserId', async () => {
