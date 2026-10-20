@@ -34,6 +34,14 @@ class CandidatureResource extends JsonResource
             // Échéance de confirmation (lot B3) : non-null seulement pour une candidature cash `accepted`
             // non encore confirmée ; null si la mission n'est pas chargée (pas de lazy-load en liste).
             'confirmation_deadline' => $this->relationLoaded('mission') ? $this->confirmationDeadline()?->toIso8601String() : null,
+            // Date-limite de reconfirmation UGC (source unique : config ugc.reconfirm_window_hours).
+            'reconfirm_deadline' => $this->reconfirmDeadline()?->toIso8601String(),
+            // Net reçu par la Face une fois sa place payée (entrée d'escrow) ; null avant sélection payée.
+            'montant_face_recoit' => $this->when(
+                $this->relationLoaded('paymentEntry'),
+                fn () => $this->paymentEntry?->montant_face_recoit !== null ? (int) $this->paymentEntry->montant_face_recoit : null,
+            ),
+            'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->uuid),
             'message_motivation' => $this->message_motivation,
             'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
             'deliverables' => DeliverableResource::collection($this->whenLoaded('deliverables')),

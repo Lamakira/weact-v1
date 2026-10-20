@@ -87,8 +87,16 @@ const mockCancelError = ref<string | null>(null)
 const mockCancelSuccessMessage = ref<string | null>(null)
 const mockCancelCandidature = vi.fn()
 const mockResetCancel = vi.fn()
+const mockIsConfirming = ref(false)
+const mockConfirmError = ref<string | null>(null)
+const mockConfirmCandidature = vi.fn()
 
 vi.mock('@/features/candidature/composables', () => ({
+  useConfirmCandidature: () => ({
+    isConfirming: mockIsConfirming,
+    error: mockConfirmError,
+    confirmCandidature: mockConfirmCandidature,
+  }),
   useReconfirmCandidature: () => ({
     isReconfirming: mockIsReconfirming,
     error: mockReconfirmError,
@@ -237,6 +245,9 @@ describe('FaceMissionDetailPage', () => {
     mockCancelSuccessMessage.value = null
     mockCancelCandidature.mockClear()
     mockResetCancel.mockClear()
+    mockIsConfirming.value = false
+    mockConfirmError.value = null
+    mockConfirmCandidature.mockReset()
     mockRouter.push.mockClear()
     mockRouter.back.mockClear()
     mockRouter.replace.mockClear()
@@ -996,10 +1007,12 @@ describe('FaceMissionDetailPage', () => {
       await flushPromises()
       mockFetchMission.mockClear()
 
-      const btn = wrapper.find('[data-testid="ugc-reconfirm-btn"]')
+      // Lot C5 : l'action principale unique du hub (en-tête desktop) porte la reconfirmation.
+      const btn = wrapper.find('[data-testid="hub-action-desktop"]')
       expect(btn.exists()).toBe(true)
-      // Pas de bouton Annuler (pending-only) ni de sticky auto-accept.
-      expect(wrapper.text()).not.toContain('Annuler ma candidature')
+      expect(btn.text()).toContain('Reconfirmer ma participation')
+      // Pas de bouton Retirer (pending-only) ni de sticky auto-accept.
+      expect(wrapper.text()).not.toContain('Retirer ma candidature')
       expect(wrapper.find('[data-testid="ugc-accept-sticky"]').exists()).toBe(false)
 
       await btn.trigger('click')
@@ -1012,29 +1025,29 @@ describe('FaceMissionDetailPage', () => {
       expect(mockFetchMission).toHaveBeenCalledWith('1')
     })
 
-    it('renders the engaged banner without CTA nor cancel for a confirmed candidature', async () => {
+    it('renders the hub « Et ensuite ? » without cancel for a confirmed UGC candidature', async () => {
       mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
       mockCandidature.value = makeCandidature({ status: 'confirmed', status_label: 'Confirmée' })
 
       const wrapper = mountEligiblePage()
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="ugc-engaged-banner"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="hub-next-headline"]').text()).toBe('Le producteur prépare l’envoi')
       expect(wrapper.find('[data-testid="ugc-accept-sticky"]').exists()).toBe(false)
-      expect(wrapper.text()).not.toContain('Annuler ma candidature')
+      expect(wrapper.text()).not.toContain('Retirer ma candidature')
     })
 
-    it('shows "Candidature envoyée" + cancel (no sticky, no reconfirm) for a pending UGC candidature', async () => {
+    it('shows the « Candidature envoyée » pill + withdraw action (no sticky, no reconfirm) for a pending UGC candidature', async () => {
       mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
       mockCandidature.value = makeCandidature({ status: 'pending', status_label: 'En attente' })
 
       const wrapper = mountEligiblePage()
       await flushPromises()
 
-      expect(wrapper.text()).toContain('Candidature envoyée')
-      expect(wrapper.text()).toContain('Annuler ma candidature')
+      expect(wrapper.find('[data-testid="hub-pill"]').text()).toBe('Candidature envoyée')
+      expect(wrapper.find('[data-testid="hub-action-desktop"]').text()).toContain('Retirer ma candidature')
       expect(wrapper.find('[data-testid="ugc-accept-sticky"]').exists()).toBe(false)
-      expect(wrapper.find('[data-testid="ugc-reconfirm-btn"]').exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('Reconfirmer ma participation')
     })
 
   })
@@ -1138,7 +1151,7 @@ describe('FaceMissionDetailPage', () => {
       })
     }
 
-    it('shows the Face tracking card instead of the engaged banner once shipped', async () => {
+    it('shows the Face tracking card and the « Suivez votre livraison » step once shipped', async () => {
       mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
       mockCandidature.value = makeEngagedCandidature({
         shipment: makeShipment() as unknown as MissionCandidature['shipment'],
@@ -1151,17 +1164,17 @@ describe('FaceMissionDetailPage', () => {
       expect(card.exists()).toBe(true)
       // Step dérivé par ugcCandidatureTunnelStep : shipped → 4.
       expect(card.attributes('data-current')).toBe('4')
-      expect(wrapper.find('[data-testid="ugc-engaged-banner"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="hub-next-headline"]').text()).toBe('Suivez votre livraison et vos vidéos')
     })
 
-    it('keeps the engaged banner while the candidature has no shipment', async () => {
+    it('shows the « producteur prépare l’envoi » step while the candidature has no shipment', async () => {
       mockMission.value = createUgcMission({ genre_voulu: 'tous', genre_voulu_label: 'Homme et Femme' })
       mockCandidature.value = makeEngagedCandidature()
 
       const wrapper = mountTrackingPage()
       await flushPromises()
 
-      expect(wrapper.find('[data-testid="ugc-engaged-banner"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="hub-next-headline"]').text()).toBe('Le producteur prépare l’envoi')
       expect(wrapper.find('[data-testid="face-tracking-card-stub"]').exists()).toBe(false)
     })
 
@@ -1517,6 +1530,160 @@ describe('FaceMissionDetailPage', () => {
 
       expect(wrapper.find('[data-testid="subscription-required-block"]').exists()).toBe(false)
       expect(wrapper.text()).toContain('Candidature envoyée')
+    })
+  })
+
+  describe('page mission point central — confirmation de participation (lot C5)', () => {
+    function acceptedCandidature(overrides: Partial<MissionCandidature> = {}): MissionCandidature {
+      return {
+        id: 'cand-accepted',
+        mission_id: 'mission-uuid-1',
+        face_id: 'face-1',
+        status: 'accepted',
+        status_label: 'Acceptée',
+        confirmation_deadline: new Date(Date.now() + 30 * 3600_000).toISOString(),
+        conversation_id: 'conv-9',
+        message_motivation: null,
+        created_at: '2026-10-01T00:00:00Z',
+        updated_at: '2026-10-01T00:00:00Z',
+        ...overrides,
+      }
+    }
+
+    function mountHubPage() {
+      return mount(FaceMissionDetailPage, {
+        global: {
+          plugins: [
+            createTestingPinia({
+              initialState: {
+                auth: {
+                  user: {
+                    id: 1,
+                    email: 'face@test.com',
+                    email_verified: true,
+                    email_verified_at: '2026-01-01',
+                    userable_type: 'Face',
+                    userable: { sexe: 'femme' },
+                  },
+                  token: 'fake-token',
+                },
+              },
+              stubActions: false,
+            }),
+          ],
+          stubs: {
+            ApplyToMissionModal: true,
+            RatingDisplay: true,
+            ConfirmModal: {
+              name: 'ConfirmModal',
+              props: ['isOpen', 'title', 'message', 'confirmText'],
+              emits: ['confirm', 'cancel'],
+              template: '<div v-if="isOpen" data-testid="confirm-modal-stub">{{ title }}|{{ message }}|{{ confirmText }}</div>',
+            },
+            RouterLink: { template: '<a><slot /></a>', props: ['to'] },
+          },
+        },
+      })
+    }
+
+    it('confirme la participation depuis la page : modale, appel du endpoint, toast, relecture silencieuse', async () => {
+      mockMission.value = createMission({ genre_voulu: 'tous' })
+      mockCandidature.value = acceptedCandidature()
+      mockConfirmCandidature.mockResolvedValueOnce({ message: 'Participation confirmée' })
+
+      const wrapper = mountHubPage()
+      await flushPromises()
+      mockFetchMission.mockClear()
+
+      await wrapper.get('[data-testid="hub-action-desktop"]').trigger('click')
+      const modal = wrapper.get('[data-testid="confirm-modal-stub"]')
+      expect(modal.text()).toContain('Confirmer votre participation ?')
+      expect(modal.text()).toContain('Vous vous engagez à être au tournage')
+      expect(modal.text()).toContain('Je confirme')
+      expect(mockConfirmCandidature).not.toHaveBeenCalled()
+
+      wrapper.findComponent({ name: 'ConfirmModal' }).vm.$emit('confirm')
+      await flushPromises()
+
+      expect(mockConfirmCandidature).toHaveBeenCalledWith('cand-accepted')
+      expect(mockToast.success).toHaveBeenCalledWith('Participation confirmée. Le chat est ouvert.')
+      expect(mockFetchMission).toHaveBeenCalledWith('1', { silent: true })
+    })
+
+    it('affiche l’erreur serveur sans toast de succès quand la confirmation échoue, puis relit la mission', async () => {
+      mockMission.value = createMission({ genre_voulu: 'tous' })
+      mockCandidature.value = acceptedCandidature()
+      mockConfirmCandidature.mockResolvedValueOnce(null)
+      mockConfirmError.value = 'Cette candidature ne peut pas être confirmée'
+
+      const wrapper = mountHubPage()
+      await flushPromises()
+      mockFetchMission.mockClear()
+
+      await wrapper.get('[data-testid="hub-action-desktop"]').trigger('click')
+      wrapper.findComponent({ name: 'ConfirmModal' }).vm.$emit('confirm')
+      await flushPromises()
+
+      expect(mockToast.success).not.toHaveBeenCalled()
+      expect(mockToast.error).toHaveBeenCalledWith('Cette candidature ne peut pas être confirmée')
+      expect(mockFetchMission).toHaveBeenCalledWith('1', { silent: true })
+    })
+
+    it('annuler la modale ne confirme rien', async () => {
+      mockMission.value = createMission({ genre_voulu: 'tous' })
+      mockCandidature.value = acceptedCandidature()
+
+      const wrapper = mountHubPage()
+      await flushPromises()
+
+      await wrapper.get('[data-testid="hub-action-desktop"]').trigger('click')
+      wrapper.findComponent({ name: 'ConfirmModal' }).vm.$emit('cancel')
+      await flushPromises()
+
+      expect(mockConfirmCandidature).not.toHaveBeenCalled()
+      expect(wrapper.find('[data-testid="confirm-modal-stub"]').exists()).toBe(false)
+    })
+
+    it('ouvre le chat depuis l’action principale d’une candidature confirmée', async () => {
+      mockMission.value = createMission({ genre_voulu: 'tous' })
+      mockCandidature.value = acceptedCandidature({ status: 'confirmed', status_label: 'Confirmée', confirmation_deadline: null })
+
+      const wrapper = mountHubPage()
+      await flushPromises()
+
+      await wrapper.get('[data-testid="hub-action-desktop"]').trigger('click')
+      expect(mockRouter.push).toHaveBeenCalledWith({ name: 'face-conversation', params: { conversationId: 'conv-9' } })
+    })
+
+    it('retire la candidature via la modale d’annulation existante', async () => {
+      mockMission.value = createMission({ genre_voulu: 'tous' })
+      mockCandidature.value = acceptedCandidature({ status: 'pending', status_label: 'En attente', confirmation_deadline: null, conversation_id: null })
+      mockCancelCandidature.mockResolvedValueOnce(true)
+
+      const wrapper = mountHubPage()
+      await flushPromises()
+
+      await wrapper.get('[data-testid="hub-action-desktop"]').trigger('click')
+      const modals = wrapper.findAllComponents({ name: 'ConfirmModal' })
+      const cancelModal = modals.find((m) => m.props('title') === 'Annuler cette candidature ?')
+      expect(cancelModal?.props('isOpen')).toBe(true)
+    })
+
+    it('renvoie une candidature refusée vers la liste des missions, sans chat', async () => {
+      mockMission.value = createMission({ genre_voulu: 'tous' })
+      mockCandidature.value = acceptedCandidature({
+        status: 'rejected',
+        status_label: 'Refusée',
+        confirmation_deadline: null,
+        conversation_id: null,
+      })
+
+      const wrapper = mountHubPage()
+      await flushPromises()
+
+      expect(wrapper.get('[data-testid="hub-pill"]').text()).toBe('Non retenue')
+      await wrapper.get('[data-testid="hub-action-desktop"]').trigger('click')
+      expect(mockRouter.push).toHaveBeenCalledWith({ name: 'face-missions' })
     })
   })
 })

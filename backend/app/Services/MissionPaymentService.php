@@ -651,7 +651,7 @@ class MissionPaymentService
                     data: [
                         'message' => 'Vous avez été sélectionné(e) pour la mission "'.$mission->titre.'". Confirmez votre participation.',
                         'mission_id' => $mission->id,
-                        'url' => '/face/candidatures',
+                        'url' => "/face/missions/{$mission->uuid}",
                     ]
                 );
             }
@@ -908,7 +908,7 @@ class MissionPaymentService
                 'message' => "La mission \"{$mission->titre}\" est terminée. Votre portefeuille a été crédité de {$entry->montant_face_recoit} XOF.",
                 'mission_id' => $mission->id,
                 'amount' => $entry->montant_face_recoit,
-                'url' => '/face/candidatures',
+                'url' => "/face/missions/{$mission->uuid}",
             ]
         );
 
@@ -1136,7 +1136,7 @@ class MissionPaymentService
                 'message' => "Vous n'avez pas confirmé votre participation à « {$mission->titre} » dans les délais : votre place a été libérée.",
                 'mission_id' => $mission->id,
                 'candidature_id' => $result['candidature_id'],
-                'url' => '/face/candidatures',
+                'url' => "/face/missions/{$mission->uuid}",
                 'reason' => $reason,
             ],
         );
@@ -1484,7 +1484,7 @@ class MissionPaymentService
                     'mission_title' => $accepted->mission?->titre,
                     'candidature_id' => $accepted->id,
                     'message' => 'Votre candidature a été acceptée — confirmez votre participation.',
-                    'url' => '/face/candidatures',
+                    'url' => "/face/missions/{$accepted->mission?->uuid}",
                 ],
             ]);
         } catch (\Throwable) {
@@ -1498,7 +1498,7 @@ class MissionPaymentService
                     faceName: (string) $accepted->face?->prenom,
                     missionTitle: (string) $accepted->mission?->titre,
                     productName: (string) $accepted->mission?->nom_produit,
-                    reconfirmUrl: rtrim((string) config('app.frontend_url'), '/').'/face/candidatures',
+                    reconfirmUrl: rtrim((string) config('app.frontend_url'), '/')."/face/missions/{$accepted->mission?->uuid}",
                     reconfirmDeadline: $accepted->reconfirmDeadline(),
                 ));
             }
@@ -1815,7 +1815,7 @@ class MissionPaymentService
                     'message' => 'Votre place sur la mission a été libérée.',
                     'mission_id' => $lockedMission->id,
                     'candidature_id' => $locked->id,
-                    'url' => '/face/candidatures',
+                    'url' => "/face/missions/{$lockedMission->uuid}",
                     'reason' => $reason,
                 ],
             );

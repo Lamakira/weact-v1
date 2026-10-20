@@ -133,6 +133,7 @@ class ExpireUnconfirmedFacesCommandTest extends TestCase
         $faceNotification = Notification::where('user_id', $faces[0]['faceUser']->id)->where('type', 'mission_confirmation_expired')->first();
         $this->assertNotNull($faceNotification);
         $this->assertSame("Vous n'avez pas confirmé votre participation à « {$mission->titre} » dans les délais : votre place a été libérée.", $faceNotification->data['message']);
+        $this->assertSame("/face/missions/{$mission->uuid}", $faceNotification->data['url']);
 
         $producerNotification = Notification::where('user_id', $this->producerUser->id)->where('type', 'mission_face_confirmation_expired')->first();
         $this->assertNotNull($producerNotification);

@@ -67,6 +67,10 @@ class UgcReconfirmDeadlineSweepTest extends TestCase
             'user_id' => $producerUser->id,
             'type' => 'mission_candidature_refunded',
         ]);
+
+        // La notif « place libérée » renvoie vers la page mission de la Face.
+        $released = \App\Models\Notification::where('user_id', $faceUser->id)->where('type', 'mission_candidature_slot_released')->firstOrFail();
+        $this->assertSame("/face/missions/{$mission->uuid}", $released->data['url']);
     }
 
     public function test_sweep_exits_failure_when_a_candidature_unwind_throws(): void

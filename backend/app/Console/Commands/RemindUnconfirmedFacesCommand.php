@@ -139,7 +139,7 @@ class RemindUnconfirmedFacesCommand extends Command
                     'message' => "Confirmez votre participation à « {$mission->titre} » avant le {$deadline}, sinon votre place sera libérée.",
                     'mission_id' => $mission->id,
                     'candidature_id' => $candidature->id,
-                    'url' => '/face/candidatures',
+                    'url' => "/face/missions/{$mission->uuid}",
                 ],
             ]);
             $notified = true;
