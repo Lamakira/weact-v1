@@ -145,6 +145,8 @@ export interface MissionSummary {
   completion_blocker: string | null
   /** Lot C8 : Faces terminées que le Producteur n'a pas encore notées (notation facultative). */
   faces_to_rate: number
+  /** Lot C9 : toutes les Faces sélectionnées ont échoué (places remboursées) — la mission peut être republiée. */
+  all_places_refunded: boolean
   can_edit: boolean
 }
 

@@ -263,6 +263,10 @@ function runPrimary(action: PrimaryAction): void {
     case 'review-deliverables':
       setTab('livrables')
       break
+    case 'republish':
+      // Nouvelle mission pré-remplie avec le brief de celle-ci (dates vides) ; l'ancienne reste clôturée.
+      if (mission.value) void router.push({ name: 'publish-mission', query: { from: mission.value.id } })
+      return
     case 'rate-faces':
       // Notation facultative : onglet Candidatures, focus sur le premier bouton « Noter ».
       setTab('candidatures')

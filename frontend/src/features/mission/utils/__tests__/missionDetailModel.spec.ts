@@ -21,6 +21,7 @@ function makeSummary(step: MissionSummaryStep, overrides: Partial<MissionSummary
     ugc_deliverables: null,
     completion_blocker: null,
     faces_to_rate: 0,
+    all_places_refunded: false,
     can_edit: false,
     ...overrides,
   }
@@ -193,6 +194,20 @@ describe('action principale — mission standard', () => {
     expect(resolvePrimaryAction(ctx(mission, makeSummary('attendance', { attendance: attendance(0) })))).toBeNull()
   })
 
+  it('toutes les places remboursées : « Republier la mission » (standard)', () => {
+    const action = resolvePrimaryAction(
+      ctx(makeMission({ status: 'closed', has_paid_payment: true }), makeSummary('confirmations', { all_places_refunded: true })),
+    )
+    expect(action).toMatchObject({ key: 'republish', label: 'Republier la mission' })
+  })
+
+  it('places non remboursées : pas de republication', () => {
+    const action = resolvePrimaryAction(
+      ctx(makeMission({ status: 'closed', has_paid_payment: true }), makeSummary('confirmations', { all_places_refunded: false })),
+    )
+    expect(action?.key).not.toBe('republish')
+  })
+
   it('terminée sans Face à noter : aucune action', () => {
     expect(resolvePrimaryAction(ctx(makeMission({ status: 'completed' }), makeSummary('completed')))).toBeNull()
   })
@@ -343,6 +358,15 @@ describe('« Et ensuite ? »', () => {
 
   it('terminée', () => {
     expect(buildNextBlock(ctx(makeMission({ status: 'completed' }), makeSummary('completed'))).headline).toBe('Mission terminée')
+  })
+
+  it('toutes les places remboursées : « Et ensuite ? » l\'annonce et suggère de republier', () => {
+    const block = buildNextBlock(
+      ctx(makeMission({ status: 'closed', has_paid_payment: true }), makeSummary('confirmations', { all_places_refunded: true })),
+    )
+    expect(block.headline).toBe('Toutes les places ont été remboursées')
+    expect(block.text).toContain('Republiez la mission')
+    expect(block.who).toBe('À vous d\'agir')
   })
 
   it('terminée avec des Faces à noter : la notation est présentée comme facultative', () => {

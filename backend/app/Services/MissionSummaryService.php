@@ -91,6 +91,9 @@ class MissionSummaryService
             'attendance' => $isPaid ? $this->attendance($mission, $entries) : null,
             'ugc_deliverables' => $isUgc ? $this->ugcDeliverables($mission) : null,
             'completion_blocker' => $blocker[1] ?? null,
+            // Lot C9 : toutes les Faces sélectionnées ont échoué et leurs places sont remboursées — la mission
+            // reste clôturée et peut être republiée. Même source de vérité que le refus de « Terminer ».
+            'all_places_refunded' => ($blocker[1] ?? null) === Mission::NO_FACE_CONFIRMED_MESSAGE,
             // Lot C8 : Faces terminées que le Producteur n'a pas (encore) notées — notation facultative.
             'faces_to_rate' => ($candidatureCounts[CandidatureStatus::Completed->value] ?? 0) > 0
                 ? $this->facesToRate($mission)
