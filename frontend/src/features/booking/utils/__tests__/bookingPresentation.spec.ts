@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Booking } from '../../types'
 import {
   bookingListSubtitle,
@@ -105,6 +105,30 @@ describe('buildBookingView — étapes', () => {
     const expiredUnpaid = buildBookingView(makeBooking({ status: 'expired', accepted_at: '2026-10-19T10:00:00Z' }), 'face').steps
     expect(expiredUnpaid.halted).toBe(true)
     expect(expiredUnpaid.current).toBe(2)
+  })
+})
+
+describe('buildBookingView — « Et ensuite ? » d’un booking payé selon la date du tournage', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('avant le tournage : rendez-vous, prochaine étape le tournage', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-20T10:00:00Z'))
+    const next = buildBookingView(makeBooking({ status: 'paid' }), 'producer').next
+    expect(next.headline).toMatch(/^Rendez-vous /)
+    expect(next.who).toBe('Prochaine étape : le tournage')
+  })
+
+  it('tournage commencé ou passé : plus de « rendez-vous », il faut confirmer la réalisation', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-24T10:00:00Z'))
+    const producer = buildBookingView(makeBooking({ status: 'paid' }), 'producer').next
+    expect(producer.headline).toMatch(/^Tournage du .* : confirmez qu'il a eu lieu$/)
+    expect(producer.who).toBe("À vous d'agir")
+    const face = buildBookingView(makeBooking({ status: 'paid' }), 'face').next
+    expect(face.text).toMatch(/^Confirmez la réalisation pour recevoir /)
   })
 })
 

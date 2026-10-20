@@ -335,19 +335,30 @@ function nextFor(booking: Booking, role: BookingRole): BookingNext {
     case BookingStatus.IN_PROGRESS: {
       const deadlineAt = booking.auto_completion_at ?? null
       const auto = deadlineAt ? ` Sans action de votre part, la clôture est automatique le ${formatShortDate(deadlineAt)}.` : ''
-      const headline = booking.date_debut ? `Rendez-vous ${formatShortDate(booking.date_debut)}` : 'Booking confirmé'
+      // Tournage commencé (jour J ou passé) : on ne promet plus un « rendez-vous », on demande la confirmation.
+      const shootStarted = booking.date_debut ? new Date(booking.date_debut).getTime() <= Date.now() : false
+      const headline = !booking.date_debut
+        ? 'Booking confirmé'
+        : shootStarted
+          ? `Tournage du ${formatShortDate(booking.date_debut)} : confirmez qu'il a eu lieu`
+          : `Rendez-vous ${formatShortDate(booking.date_debut)}`
+      const who = shootStarted ? YOU_ACT : 'Prochaine étape : le tournage'
       if (producer) {
         return {
           headline,
-          text: `Après le tournage, confirmez qu'il a eu lieu : le paiement est alors versé à ${other}.${auto}`,
-          who: 'Prochaine étape : le tournage',
+          text: shootStarted
+            ? `Confirmez la réalisation : le paiement est alors versé à ${other}. En cas d'absence, signalez-la.${auto}`
+            : `Après le tournage, confirmez qu'il a eu lieu : le paiement est alors versé à ${other}.${auto}`,
+          who,
           deadlineAt,
         }
       }
       return {
         headline,
-        text: `${formatFcfa(booking.montant_face_recoit)} sont bloqués en séquestre pour vous. Après le tournage, ils sont versés sur votre portefeuille.${auto}`,
-        who: 'Prochaine étape : le tournage',
+        text: shootStarted
+          ? `Confirmez la réalisation pour recevoir ${formatFcfa(booking.montant_face_recoit)} sur votre portefeuille.${auto}`
+          : `${formatFcfa(booking.montant_face_recoit)} sont bloqués en séquestre pour vous. Après le tournage, ils sont versés sur votre portefeuille.${auto}`,
+        who,
         deadlineAt,
       }
     }
