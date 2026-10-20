@@ -21,7 +21,7 @@ export interface SidebarItem {
   badgeMax?: number
   /**
    * Nature du badge, pour le libellé accessible : « N actions en attente » (défaut)
-   * ou « N messages non lus ».
+   * ou « N conversations non lues ».
    */
   badgeKind?: 'actions' | 'messages'
   /** Autres préfixes de route qui appartiennent à cet item (ex. /face/conversations pour Messages). */

@@ -278,11 +278,24 @@ class Candidature extends Model
      * maintenant, c'est-à-dire sélectionnées (Accepted) avec un délai encore ouvert :
      *  - reconfirmation UGC : accepted_at + ugc.reconfirm_window_hours (reconfirmDeadline) ;
      *  - participation à confirmer, mission standard : confirmationDeadline() = max(min(accepted_at + 48 h,
-     *    début du tournage), accepted_at + 12 h).
+     *    début du tournage) ;
+     *  - vidéo UGC à envoyer (scopeAwaitingFaceVideo), candidature déjà confirmée.
      *
      * @param  Builder<Candidature>  $query
      */
     public function scopeToProcess(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $root) => $root
+            ->where(fn (Builder $b) => $b->toProcessSelection())
+            ->orWhere(fn (Builder $b) => $b->awaitingFaceVideo()));
+    }
+
+    /**
+     * Sélection acceptée dont le délai de (re)confirmation est encore ouvert (voir scopeToProcess).
+     *
+     * @param  Builder<Candidature>  $query
+     */
+    public function scopeToProcessSelection(Builder $query): Builder
     {
         $now = now();
         $ugc = MissionType::Ugc->value;
@@ -311,14 +324,17 @@ class Candidature extends Model
 
     /**
      * Candidatures UGC engagées (Confirmed) où la Face a une vidéo à envoyer : même règle de tunnel que
-     * Booking::awaitingFaceVideo (Unboxing après réception, Avis attendu). Source du compteur « livrables ».
+     * Booking::awaitingFaceVideo (Unboxing après réception, Avis attendu). Source du compteur « livrables » et du filtre « À traiter ».
      *
      * @param  Builder<Candidature>  $query
      */
     public function scopeAwaitingFaceVideo(Builder $query): Builder
     {
         return $query->where('status', CandidatureStatus::Confirmed->value)
-            ->whereHas('mission', fn (Builder $m) => $m->where('type_mission', MissionType::Ugc->value))
+            // Garde de remboursement de UgcDeliverableService::guardCandidature : pas d'upload pendant / après un remboursement.
+            ->whereHas('mission', fn (Builder $m) => $m->where('type_mission', MissionType::Ugc->value)
+                ->whereNull('commission_refund_requested_at')
+                ->whereNull('commission_refunded_at'))
             ->whereHas('shipment', fn (Builder $s) => $s->whereIn('tunnel_status', [
                 UgcTunnelStatus::Received->value,
                 UgcTunnelStatus::AvisPending->value,

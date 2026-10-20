@@ -225,7 +225,8 @@ class ActionCountsTest extends TestCase
 
         $this->assertSame(['bookings', 'candidatures', 'livrables', 'messages'], array_keys($response->json('data')));
         $this->assertSame(2, $bookingsTotal);
-        $this->assertSame(1, $candidaturesTotal);
+        // Reconfirmation à faire + candidature UGC dont la vidéo est à envoyer.
+        $this->assertSame(2, $candidaturesTotal);
         $this->assertSame(1, $unread);
         $response->assertJsonPath('data.bookings', $bookingsTotal)
             ->assertJsonPath('data.candidatures', $candidaturesTotal)

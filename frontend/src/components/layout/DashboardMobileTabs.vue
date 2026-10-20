@@ -30,7 +30,7 @@ function accessibleName(tab: SidebarItem): string | undefined {
   if (!tab.badge || tab.badge <= 0) return undefined
   const n = tab.badge
   const detail = tab.badgeKind === 'messages'
-    ? `${n} ${n > 1 ? 'messages non lus' : 'message non lu'}`
+    ? `${n} ${n > 1 ? 'conversations non lues' : 'conversation non lue'}`
     : `${n} ${n > 1 ? 'actions' : 'action'} en attente`
   return `${tab.label}, ${detail}`
 }

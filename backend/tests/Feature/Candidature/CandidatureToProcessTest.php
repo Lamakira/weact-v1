@@ -7,6 +7,7 @@ namespace Tests\Feature\Candidature;
 use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
+use App\Enums\UgcTunnelStatus;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
@@ -142,6 +143,37 @@ class CandidatureToProcessTest extends TestCase
 
             $this->assertFalse($this->inProcess($candidature), "Statut {$status->value} ne doit pas être à traiter.");
         }
+    }
+
+    public function test_ugc_video_to_send_is_to_process(): void
+    {
+        $ugc = ['type_mission' => MissionType::Ugc, 'date_tournage' => null];
+        $make = function (UgcTunnelStatus $tunnel, array $mission = []) use ($ugc): Candidature {
+            $candidature = $this->candidature(CandidatureStatus::Confirmed, now()->subDays(3), array_merge($ugc, $mission));
+            $candidature->shipment()->create([
+                'transporteur' => 'DHL',
+                'numero_suivi' => 'TRK123',
+                'tunnel_status' => $tunnel,
+                'shipped_at' => now()->subDay(),
+                'destinataire_nom' => 'Face Test',
+            ]);
+
+            return $candidature;
+        };
+
+        $unboxing = $make(UgcTunnelStatus::Received);
+        $avis = $make(UgcTunnelStatus::AvisPending);
+        $shipped = $make(UgcTunnelStatus::Shipped);
+        $inReview = $make(UgcTunnelStatus::UnboxingInReview);
+        $refundRequested = $make(UgcTunnelStatus::Received, ['commission_refund_requested_at' => now()->subHour()]);
+        $refunded = $make(UgcTunnelStatus::AvisPending, ['commission_refunded_at' => now()->subHour()]);
+
+        $this->assertTrue($this->inProcess($unboxing));
+        $this->assertTrue($this->inProcess($avis));
+        $this->assertFalse($this->inProcess($shipped));
+        $this->assertFalse($this->inProcess($inReview));
+        $this->assertFalse($this->inProcess($refundRequested));
+        $this->assertFalse($this->inProcess($refunded));
     }
 
     public function test_accepted_candidature_without_accepted_at_is_ignored(): void

@@ -72,7 +72,7 @@ describe('DashboardMobileTabs', () => {
     const wrapper = mountTabs()
     const messages = wrapper.find('[data-testid="mobile-tab-messages"]')
     expect(messages.find('[data-testid="mobile-tab-badge"]').text()).toBe('3')
-    expect(messages.attributes('aria-label')).toBe('Messages, 3 messages non lus')
+    expect(messages.attributes('aria-label')).toBe('Messages, 3 conversations non lues')
     expect(wrapper.find('[data-testid="mobile-tab-profil"]').attributes('aria-label')).toBeUndefined()
   })
 
@@ -87,7 +87,7 @@ describe('DashboardMobileTabs', () => {
     })
     expect(wrapper.find('[data-testid="mobile-tab-missions"]').attributes('aria-label')).toBe('Missions, 3 actions en attente')
     expect(wrapper.find('[data-testid="mobile-tab-bookings"]').attributes('aria-label')).toBe('Bookings, 1 action en attente')
-    expect(wrapper.find('[data-testid="mobile-tab-messages"]').attributes('aria-label')).toBe('Messages, 1 message non lu')
+    expect(wrapper.find('[data-testid="mobile-tab-messages"]').attributes('aria-label')).toBe('Messages, 1 conversation non lue')
     expect(wrapper.find('[data-testid="mobile-tab-livrables"]').attributes('aria-label')).toBe('Livrables, 2 actions en attente')
   })
 
