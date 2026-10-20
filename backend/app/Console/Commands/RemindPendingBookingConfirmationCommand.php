@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Console\Commands;
 
 use App\Enums\BookingStatus;
+use App\Mail\BookingCompletionReminderFaceMail;
 use App\Mail\BookingCompletionReminderMail;
 use App\Models\Booking;
 use App\Models\Notification;
@@ -164,6 +165,20 @@ class RemindPendingBookingConfirmationCommand extends Command
             ]);
         } catch (\Throwable $e) {
             Log::warning('Booking completion reminder (Face) notification failed', [
+                'booking_id' => $booking->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // E-mail Face : même claim `completion_reminder_sent_at` que le reste de la relance (un seul envoi par booking).
+        try {
+            $faceEmail = trim((string) $booking->face?->email);
+
+            if ($faceEmail !== '') {
+                Mail::to($faceEmail)->queue(new BookingCompletionReminderFaceMail($booking, $autoDate));
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Booking completion reminder (Face) email queue failed', [
                 'booking_id' => $booking->id,
                 'error' => $e->getMessage(),
             ]);

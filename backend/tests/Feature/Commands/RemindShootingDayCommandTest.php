@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Commands;
 
+use App\Enums\BookingStatus;
 use App\Enums\CandidatureStatus;
+use App\Mail\BookingShootingReminderMail;
+use App\Mail\MissionShootingReminderMail;
+use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\Mission;
@@ -12,11 +16,19 @@ use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class RemindShootingDayCommandTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Mail::fake();
+    }
 
     public function test_command_notifies_producer_and_only_confirmed_or_in_progress_faces(): void
     {
@@ -90,6 +102,141 @@ class RemindShootingDayCommandTest extends TestCase
 
         $this->assertNull(Notification::where('user_id', $acceptedUser->id)->first());
         $this->assertSame(CandidatureStatus::Accepted, $acceptedCandidature->fresh()->status);
+
+        // Lot D6 : l'e-mail suit exactement les destinataires de l'in-app.
+        Mail::assertQueued(MissionShootingReminderMail::class, 2);
+        Mail::assertQueued(MissionShootingReminderMail::class, fn (MissionShootingReminderMail $mail): bool => $mail->forProducer && $mail->hasTo($producerUser->email));
+        Mail::assertQueued(MissionShootingReminderMail::class, fn (MissionShootingReminderMail $mail): bool => ! $mail->forProducer && $mail->hasTo($confirmedUser->email));
+        Mail::assertNotQueued(MissionShootingReminderMail::class, fn (MissionShootingReminderMail $mail): bool => $mail->hasTo($acceptedUser->email));
+
+        // Second passage : marqueur posé, aucun nouvel e-mail.
+        $this->artisan('missions:remind-shooting')->assertExitCode(0);
+        Mail::assertQueued(MissionShootingReminderMail::class, 2);
+    }
+
+    public function test_mission_reminder_email_failure_does_not_block_the_in_app_reminder_nor_the_marker(): void
+    {
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('smtp down'));
+
+        $producer = Producer::factory()->create();
+        $producerUser = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => $producer->id,
+        ]);
+        $mission = Mission::factory()->published()->create([
+            'producer_id' => $producer->id,
+            'date_tournage' => now()->addDay()->format('Y-m-d'),
+            'shooting_reminder_sent_at' => null,
+        ]);
+
+        $this->artisan('missions:remind-shooting')->assertExitCode(0);
+
+        $this->assertDatabaseHas('notifications', ['user_id' => $producerUser->id, 'type' => 'shooting_day_reminder']);
+        $this->assertNotNull($mission->fresh()->shooting_reminder_sent_at);
+    }
+
+    // ------------------------------------------------------------------
+    // Lot D6 : bookings cash payés, rappel la veille du tournage
+    // ------------------------------------------------------------------
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function paidBooking(array $attributes = []): Booking
+    {
+        return Booking::factory()->create(array_merge([
+            'status' => BookingStatus::Paid,
+            'type_contenu' => 'Publicité',
+            'lieu' => 'Cotonou, Haie Vive',
+            'duree_heures' => 6,
+            // Demain 14 h, fuseau métier.
+            'date_debut' => now()->setTimezone((string) config('app.business_timezone'))->addDay()->setTime(14, 0)->utc(),
+        ], $attributes));
+    }
+
+    public function test_booking_reminder_notifies_and_emails_both_parties_the_day_before(): void
+    {
+        $booking = $this->paidBooking();
+
+        $this->artisan('missions:remind-shooting')->assertExitCode(0);
+
+        foreach ([$booking->producer_id => '/producer', $booking->face_id => '/face'] as $userId => $prefix) {
+            $notification = Notification::where('user_id', $userId)->where('type', 'shooting_day_reminder')->firstOrFail();
+            $this->assertSame("{$prefix}/bookings/{$booking->uuid}", $notification->data['url']);
+            $this->assertSame($booking->id, $notification->data['booking_id']);
+        }
+
+        Mail::assertQueued(BookingShootingReminderMail::class, 2);
+        Mail::assertQueued(BookingShootingReminderMail::class, fn (BookingShootingReminderMail $mail): bool => $mail->forProducer && $mail->hasTo($booking->producer->email));
+        Mail::assertQueued(BookingShootingReminderMail::class, fn (BookingShootingReminderMail $mail): bool => ! $mail->forProducer && $mail->hasTo($booking->face->email));
+        $this->assertNotNull($booking->fresh()->shooting_reminder_sent_at);
+
+        // Contenu : date, lieu, durée.
+        $html = (new BookingShootingReminderMail($booking->load('face.userable', 'producer.userable'), true))->render();
+        $this->assertStringContainsString('Cotonou, Haie Vive', $html);
+        $this->assertStringContainsString('6 heures', $html);
+    }
+
+    public function test_booking_reminder_is_idempotent(): void
+    {
+        $booking = $this->paidBooking();
+
+        $this->artisan('missions:remind-shooting')->assertExitCode(0);
+        $this->artisan('missions:remind-shooting')->assertExitCode(0);
+
+        Mail::assertQueued(BookingShootingReminderMail::class, 2);
+        $this->assertSame(2, Notification::where('type', 'shooting_day_reminder')->where('data->booking_id', $booking->id)->count());
+    }
+
+    public function test_booking_reminder_uses_the_business_day_not_the_utc_day(): void
+    {
+        // Demain 00 h 30 à Porto-Novo = aujourd'hui 23 h 30 UTC : c'est bien « demain » pour les utilisateurs.
+        $tomorrowEarly = $this->paidBooking([
+            'date_debut' => now()->setTimezone((string) config('app.business_timezone'))->addDay()->startOfDay()->addMinutes(30)->utc(),
+        ]);
+        $today = $this->paidBooking([
+            'date_debut' => now()->setTimezone((string) config('app.business_timezone'))->setTime(16, 0)->utc(),
+        ]);
+        $dayAfter = $this->paidBooking([
+            'date_debut' => now()->setTimezone((string) config('app.business_timezone'))->addDays(2)->setTime(10, 0)->utc(),
+        ]);
+
+        $this->artisan('missions:remind-shooting')->assertExitCode(0);
+
+        $this->assertNotNull($tomorrowEarly->fresh()->shooting_reminder_sent_at);
+        $this->assertNull($today->fresh()->shooting_reminder_sent_at);
+        $this->assertNull($dayAfter->fresh()->shooting_reminder_sent_at);
+    }
+
+    public function test_booking_reminder_skips_unpaid_cancelled_and_ugc_bookings(): void
+    {
+        $skipped = [
+            $this->paidBooking(['status' => BookingStatus::Accepted]),
+            $this->paidBooking(['status' => BookingStatus::CancelledByFace]),
+            $this->paidBooking(['status' => BookingStatus::CancelledByProducer]),
+            $this->paidBooking(['status' => BookingStatus::Expired]),
+            $this->paidBooking(['status' => BookingStatus::CommissionPaid, 'type_contenu' => 'UGC']),
+            $this->paidBooking(['type_contenu' => 'UGC']),
+        ];
+
+        $this->artisan('missions:remind-shooting')->assertExitCode(0);
+
+        Mail::assertNothingQueued();
+        foreach ($skipped as $booking) {
+            $this->assertNull($booking->fresh()->shooting_reminder_sent_at);
+        }
+    }
+
+    public function test_booking_reminder_email_failure_does_not_block_in_app_nor_marker(): void
+    {
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('smtp down'));
+
+        $booking = $this->paidBooking();
+
+        $this->artisan('missions:remind-shooting')->assertExitCode(0);
+
+        $this->assertSame(2, Notification::where('type', 'shooting_day_reminder')->where('data->booking_id', $booking->id)->count());
+        $this->assertNotNull($booking->fresh()->shooting_reminder_sent_at);
     }
 
     public function test_command_ignores_ugc_missions(): void

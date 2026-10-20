@@ -28,6 +28,7 @@ use Illuminate\Support\Facades\Auth;
  * @property \Carbon\CarbonInterface|null $accepted_at
  * @property \Carbon\CarbonInterface|null $payment_reminder_sent_at
  * @property \Carbon\CarbonInterface|null $response_reminder_sent_at
+ * @property \Carbon\CarbonInterface|null $shooting_reminder_sent_at
  * @property \Carbon\CarbonInterface|null $date_debut
  * @property \Carbon\CarbonInterface|null $date_fin
  * @property int $face_id
@@ -113,6 +114,7 @@ class Booking extends Model
         'accepted_at',
         'payment_reminder_sent_at',
         'response_reminder_sent_at',
+        'shooting_reminder_sent_at',
         'date_debut',
         'date_fin',
         'duree_heures',
@@ -192,6 +194,7 @@ class Booking extends Model
             'accepted_at' => 'datetime',
             'payment_reminder_sent_at' => 'datetime',
             'response_reminder_sent_at' => 'datetime',
+            'shooting_reminder_sent_at' => 'datetime',
             'date_debut' => 'datetime',
             'date_fin' => 'datetime',
             'duree_heures' => 'integer',
