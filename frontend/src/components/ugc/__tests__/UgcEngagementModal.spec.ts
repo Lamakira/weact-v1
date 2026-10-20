@@ -103,4 +103,37 @@ describe('UgcEngagementModal', () => {
 
     expect(wrapper.emitted('cancel')).toBeUndefined()
   })
+
+  it('shows the net cash amount for a hybrid deal (lot D9)', () => {
+    const wrapper = mountModal({
+      typeCompensation: 'hybrid',
+      montantFaceRecoit: 8500,
+      nomProduit: 'Tenue Shade Fit',
+    })
+
+    const money = wrapper.find('[data-testid="ugc-engagement-money"]')
+    expect(money.exists()).toBe(true)
+    expect(wrapper.find('[data-testid="ugc-engagement-money-amount"]').text().replace(/\s/g, ' ')).toContain('8')
+    expect(wrapper.find('[data-testid="ugc-engagement-money-amount"]').text()).toContain('FCFA')
+    expect(wrapper.find('[data-testid="ugc-engagement-money-product-only"]').exists()).toBe(false)
+  })
+
+  it('shows « Produit seul » with the product for a product-only deal (lot D9)', () => {
+    const wrapper = mountModal({
+      typeCompensation: 'product',
+      montantFaceRecoit: 0,
+      nomProduit: 'Tenue Shade Fit',
+    })
+
+    const productOnly = wrapper.find('[data-testid="ugc-engagement-money-product-only"]')
+    expect(productOnly.text()).toBe('Produit seul')
+    expect(wrapper.find('[data-testid="ugc-engagement-money"]').text()).toContain('Tenue Shade Fit')
+    expect(wrapper.find('[data-testid="ugc-engagement-money-amount"]').exists()).toBe(false)
+  })
+
+  it('shows no money recap when the compensation type is not provided (mission usage unchanged)', () => {
+    const wrapper = mountModal({ nomProduit: 'Tenue Shade Fit' })
+
+    expect(wrapper.find('[data-testid="ugc-engagement-money"]').exists()).toBe(false)
+  })
 })

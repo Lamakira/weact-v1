@@ -12,15 +12,27 @@ const props = withDefaults(
     isOpen: boolean
     nombreVideos: number | null
     nomProduit?: string | null
+    // Récapitulatif d'argent (lot D9) : affiché seulement si `typeCompensation` est fourni.
+    // Hybride → montant cash NET reçu par la Face ; sinon « Produit seul ».
+    typeCompensation?: string | null
+    montantFaceRecoit?: number | null
     isSubmitting?: boolean
   }>(),
-  { nomProduit: null, isSubmitting: false },
+  { nomProduit: null, typeCompensation: null, montantFaceRecoit: null, isSubmitting: false },
 )
 
 const emit = defineEmits<{
   (e: 'confirm'): void
   (e: 'cancel'): void
 }>()
+
+const isHybrid = computed(() => props.typeCompensation === 'hybrid')
+const showMoneyRecap = computed(
+  () => props.typeCompensation !== null && (!isHybrid.value || props.montantFaceRecoit !== null),
+)
+const montantLabel = computed(
+  () => `${(props.montantFaceRecoit ?? 0).toLocaleString('fr-FR')} FCFA`,
+)
 
 const extraVideos = computed(() => Math.max(0, (props.nombreVideos ?? 0) - 2))
 
@@ -95,6 +107,27 @@ onUnmounted(() => {
               <p v-if="nomProduit" class="mt-1 text-sm text-gray-500">
                 Produit : {{ nomProduit }}
               </p>
+
+              <!-- Récapitulatif d'argent (lot D9) -->
+              <div
+                v-if="showMoneyRecap"
+                class="mt-4 rounded-xl bg-gray-50 p-4 text-sm"
+                data-testid="ugc-engagement-money"
+              >
+                <template v-if="isHybrid">
+                  <p class="text-gray-500">Montant net que vous recevrez</p>
+                  <p class="mt-0.5 font-semibold text-gray-900" data-testid="ugc-engagement-money-amount">
+                    {{ montantLabel }}
+                  </p>
+                  <p v-if="nomProduit" class="mt-1 text-xs text-gray-500">en plus du produit : {{ nomProduit }}</p>
+                </template>
+                <template v-else>
+                  <p class="font-semibold text-gray-900" data-testid="ugc-engagement-money-product-only">Produit seul</p>
+                  <p class="mt-0.5 text-xs text-gray-500">
+                    Aucun montant en argent : vous recevez le produit<template v-if="nomProduit"> ({{ nomProduit }})</template>.
+                  </p>
+                </template>
+              </div>
 
               <!-- Engagement : expédition + déclencheur des chronos -->
               <ul class="mt-5 space-y-3 text-sm text-gray-600">
