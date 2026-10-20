@@ -5,6 +5,7 @@ import { Calendar, Clock, MapPin, Wallet } from 'lucide-vue-next'
 import type { Booking, BookingFaceUserable, BookingProducerUserable } from '../types'
 import BookingStatusBadge from './BookingStatusBadge.vue'
 import { useAuthStore } from '@/stores/auth'
+import { bookingListSubtitle } from '../utils/bookingPresentation'
 
 const props = defineProps<{
   booking: Booking
@@ -38,6 +39,9 @@ const counterpartAvatar = computed(() => {
   const userable = user.userable as BookingFaceUserable | BookingProducerUserable
   return userable.thumbnail_url || userable.profile_photo_url || null
 })
+
+/** Sous-titre court selon le statut et le rôle (plus de « Demande de booking » figé). */
+const subtitle = computed(() => bookingListSubtitle(props.booking, isFace.value ? 'face' : 'producer'))
 
 const counterpartInitials = computed(() => counterpartName.value.charAt(0).toUpperCase())
 
@@ -121,8 +125,8 @@ const formattedDateRange = computed(() => {
         <p class="text-sm font-semibold text-foreground truncate">
           {{ counterpartName }}
         </p>
-        <p class="text-xs text-muted-foreground">
-          Demande de booking
+        <p class="text-xs text-muted-foreground" data-testid="booking-card-subtitle">
+          {{ subtitle }}
         </p>
       </div>
     </div>

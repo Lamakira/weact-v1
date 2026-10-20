@@ -27,6 +27,16 @@ vi.mock('@/features/booking/services/bookingApi', () => ({
   bookingApi: { checkPaymentStatus: vi.fn(), checkCommissionStatus: vi.fn() },
 }))
 
+// Temps réel (lot C6) : la page s'abonne au canal du booking ; ici un canal inerte.
+vi.mock('@/plugins/echo', () => ({
+  echo: {
+    private: () => {
+      const channel = { listen: vi.fn(() => channel), stopListening: vi.fn(() => channel) }
+      return channel
+    },
+  },
+}))
+
 vi.mock('@/features/booking/composables', () => ({
   useBookingDetail: () => ({
     booking: mockBooking,
@@ -406,11 +416,12 @@ describe('FaceBookingDetailPage — shooting date guard', () => {
     expect(wrapper.text()).not.toContain("La confirmation n'est possible qu'à partir du jour du tournage")
   })
 
-  it('shows a generic booking heading without exposing the booking id', async () => {
+  it('shows a status-aware heading without exposing the booking id', async () => {
     const wrapper = await mountPage(makeBooking({ id: 42 }))
 
-    expect(wrapper.text()).toContain('Demande de booking')
-    expect(wrapper.text()).not.toContain('Demande de booking #42')
+    expect(wrapper.find('[data-testid="booking-title"]').text()).toContain('Booking confirmé avec')
+    expect(wrapper.find('[data-testid="booking-title"]').text()).not.toContain('42')
+    expect(wrapper.text()).not.toContain('Demande de booking')
   })
 
   it('re-enables confirm button when the shooting time passes while the page stays open', async () => {
@@ -854,10 +865,10 @@ describe('FaceBookingDetailPage — UGC shipment & timeline (story 3.2)', () => 
     expect(wrapper.find('[data-testid="cash-timeline-stub"]').exists()).toBe(false)
   })
 
-  it('keeps the cash timeline for non-UGC bookings', async () => {
+  it('shows the cash step bar (not the UGC timeline) for non-UGC bookings', async () => {
     const wrapper = await mountPage(makeBooking())
 
-    expect(wrapper.find('[data-testid="cash-timeline-stub"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="booking-steps"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="ugc-booking-timeline-card"]').exists()).toBe(false)
   })
 
@@ -1565,7 +1576,7 @@ describe('FaceBookingDetailPage — paiement du booking sous 24 h (lot B11)', ()
     wrapper.unmount()
   })
 
-  it('le bouton « Payer maintenant » reste visible jusqu\'à l\'échéance exacte puis disparaît', async () => {
+  it('le bouton « Payer » reste visible jusqu\'à l\'échéance exacte puis disparaît', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date'] })
     try {
       vi.setSystemTime(new Date('2026-10-21T11:59:30Z'))
@@ -1578,14 +1589,14 @@ describe('FaceBookingDetailPage — paiement du booking sous 24 h (lot B11)', ()
         }),
       )
 
-      expect(wrapper.text()).toContain('Payer maintenant')
+      expect(wrapper.text()).toMatch(/Payer\s+57/)
       expect(wrapper.find('[data-testid="payment-deadline"]').text()).toContain('Paiement requis avant le 21/10 à 13:00')
 
       await vi.advanceTimersByTimeAsync(29000)
-      expect(wrapper.text()).toContain('Payer maintenant')
+      expect(wrapper.text()).toMatch(/Payer\s+57/)
 
       await vi.advanceTimersByTimeAsync(1000)
-      expect(wrapper.text()).not.toContain('Payer maintenant')
+      expect(wrapper.text()).not.toMatch(/Payer\s+57/)
       expect(wrapper.find('[data-testid="payment-deadline"]').text()).toContain('Délai expiré')
       wrapper.unmount()
     } finally {

@@ -2,6 +2,7 @@
  * Booking feature types
  */
 
+import type { Component } from 'vue'
 import type { Deliverable, ProductPhoto, Shipment } from '@/components/ugc'
 
 // Booking status enum
@@ -106,12 +107,17 @@ export interface BookingFaceUserable {
   thumbnail_url: string | null
   average_rating: number | null
   ratings_count: number
+  // Lot C6 : carte « autre partie » (le Producteur voit la Face)
+  ville?: string | null
+  has_elite_badge?: boolean
 }
 
 // Producer userable data nested in BookingUser
 export interface BookingProducerUserable {
   id: string
   display_name: string
+  // 'agency' | 'particulier' (lot C6 : carte « autre partie » côté Face)
+  type?: string | null
   profile_photo_url: string | null
   thumbnail_url: string | null
   average_rating: number | null
@@ -147,6 +153,8 @@ export interface Booking {
   ugc_commission_payment_deadline?: string | null
   // Lot B11 : échéance de paiement (accepted_at + 24 h) d'un booking cash accepté ; null sinon
   payment_deadline?: string | null
+  // Lot C6 : date de clôture automatique (payé relancé / confirmé par la Face seule) ; null sinon
+  auto_completion_at?: string | null
   date_fin: string | null
   duree_heures: number | null
   type_contenu: string
@@ -197,6 +205,20 @@ export interface Booking {
   product_photos?: ProductPhoto[]
   created_at: string
   updated_at: string
+}
+
+// Action principale de la page booking (lot C6) : une seule par état, en haut à droite
+// sur ordinateur et dans la barre collée en bas sur téléphone.
+export interface BookingPrimaryActionModel {
+  /** Identifie l'action : un changement de clé déclenche le fondu. */
+  key: string
+  label: string
+  /** 'ghost' : action de repli (annuler) quand rien d'autre n'est à faire. */
+  kind?: 'primary' | 'ghost'
+  icon?: Component
+  disabled?: boolean
+  loading?: boolean
+  testid?: string
 }
 
 // Data for creating a new booking
