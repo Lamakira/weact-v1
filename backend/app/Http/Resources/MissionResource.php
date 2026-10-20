@@ -61,7 +61,9 @@ class MissionResource extends JsonResource
                 ? (bool) $this->resource->getAttribute('has_paid_payment')
                 : \App\Models\MissionPayment::where('mission_id', $this->id)->where('status', 'paid')->exists(),
             // Owner-only: mirrors the exact rules of POST /producer/missions/{mission}/complete.
-            'can_complete' => $this->when(! $requesterIsFace, fn () => $this->resource->canBeCompleted()),
+            'can_complete' => $this->when(! $requesterIsFace, fn () => array_key_exists('can_complete', $this->resource->getAttributes())
+                ? (bool) $this->resource->getAttribute('can_complete')
+                : $this->resource->canBeCompleted()),
             // Lot B4 : places libérées (détail Producer uniquement, posé par MissionController::show).
             'freed_places_count' => $this->when(
                 ! $requesterIsFace && array_key_exists('freed_places_count', $this->resource->getAttributes()),
@@ -76,6 +78,11 @@ class MissionResource extends JsonResource
                 fn () => (int) $this->resource->getAttribute('freed_places_count') > 0
                     ? $this->resource->shootingDayStartsAt()?->toIso8601String()
                     : null,
+            ),
+            // Lot C1 : résumé du cycle de vie (détail Producer uniquement, posé par MissionController::show).
+            'summary' => $this->when(
+                ! $requesterIsFace && array_key_exists('summary', $this->resource->getAttributes()),
+                fn () => $this->resource->getAttribute('summary'),
             ),
             'candidatures_count' => $this->candidatures_count ?? ($this->whenLoaded('candidatures') ? $this->candidatures->count() : 0),
             'producer' => new ProducerResource($this->whenLoaded('producer')),
