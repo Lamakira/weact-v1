@@ -933,6 +933,12 @@ class MissionPaymentService
             ->whereIn('status', [CandidatureStatus::InProgress->value, CandidatureStatus::Confirmed->value])
             ->update(['status' => CandidatureStatus::Completed->value]);
 
+        // Lot D5 : l'issue d'une contestation est notifiée par MissionAttendanceDisputeNotifier
+        // (in-app + e-mail aux deux parties) : ni avis ni e-mail génériques de fin de mission ici.
+        if ($reason === 'disputed_resolved_face') {
+            return;
+        }
+
         // Notify face: wallet credited + mission completed
         $this->notifySafely(
             userId: $userId,
