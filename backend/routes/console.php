@@ -30,6 +30,7 @@ use App\Console\Commands\RemindPendingBookingConfirmationCommand;
 use App\Console\Commands\RemindShootingDayCommand;
 use App\Console\Commands\RemindUnconfirmedFacesCommand;
 use App\Console\Commands\RemindUnpaidMissionSelectionsCommand;
+use App\Console\Commands\RemindUnreadMessagesCommand;
 use App\Console\Commands\RotateFaceListingRanksCommand;
 use App\Console\Commands\SettleBookingDisputesCommand;
 use App\Console\Commands\SettleDisputedMissionAttendanceCommand;
@@ -43,6 +44,8 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // Register scheduled commands
+// Messagerie : e-mail quand un message reste non lu plus d'1 h (au plus 1 e-mail / fil / destinataire / 24 h).
+app(Schedule::class)->command(RemindUnreadMessagesCommand::class)->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
 app(Schedule::class)->command(AutoCompleteBookingsCommand::class)->hourly();
 app(Schedule::class)->command(SettleBookingDisputesCommand::class)->hourly()->withoutOverlapping();
 app(Schedule::class)->command(RemindPendingBookingConfirmationCommand::class)->hourly()->withoutOverlapping();
