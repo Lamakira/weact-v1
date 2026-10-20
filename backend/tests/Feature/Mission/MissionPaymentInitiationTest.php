@@ -453,7 +453,7 @@ class MissionPaymentInitiationTest extends TestCase
                 rtrim(
                     (string) config('app.frontend_url', (string) config('app.url', '')),
                     '/'
-                )."/producer/missions/{$this->mission->uuid}/candidatures?payment=confirmed"
+                )."/producer/missions/{$this->mission->uuid}?tab=candidatures&payment=confirmed"
             );
 
         $this->assertSame(MissionStatus::Closed, $this->mission->fresh()->status);

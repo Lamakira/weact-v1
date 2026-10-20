@@ -132,7 +132,7 @@ describe('MissionsListPage — viewAttendance route handoff (FIX-26.7)', () => {
     document.body.innerHTML = ''
   })
 
-  it('routes to producer-mission-attendance with mission id when MissionCard emits view-attendance', async () => {
+  it('routes to producer-mission-detail ?tab=presences with mission id when MissionCard emits view-attendance', async () => {
     const wrapper = mount(MissionsListPage, { attachTo: document.body })
     await flushPromises()
 
@@ -141,8 +141,9 @@ describe('MissionsListPage — viewAttendance route handoff (FIX-26.7)', () => {
       .trigger('click')
 
     expect(routerPushSpy).toHaveBeenCalledWith({
-      name: 'producer-mission-attendance',
+      name: 'producer-mission-detail',
       params: { id: 'mission-uuid-handoff' },
+      query: { tab: 'presences' },
     })
   })
 })

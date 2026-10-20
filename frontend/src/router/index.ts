@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { useAuthStore } from '@/stores/auth'
 import { useAdminAuthStore } from '@/stores/adminAuth'
@@ -24,6 +24,19 @@ const LISTING_RETURN_SOURCES: Record<string, string> = {
   'ressources-list': 'ressources-detail',
 }
 const publicListingScrollPositions = new Map<string, number>()
+
+/** Redirection d'une ancienne URL de mission vers le détail, onglet ciblé, query et hash préservés. */
+function missionDetailRedirect(
+  to: Pick<RouteLocationNormalized, 'params' | 'query' | 'hash'>,
+  tab: 'candidatures' | 'presences',
+) {
+  return {
+    name: 'producer-mission-detail',
+    params: { id: to.params.id },
+    query: { ...to.query, tab },
+    hash: to.hash,
+  }
+}
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -338,8 +351,12 @@ const router = createRouter({
           component: () => import('../pages/producer/mission/PublishMissionPage.vue'),
         },
         {
+          // Lot C2 : page détail mission. Pas de meta.keepAlive : le cache de
+          // KeepAliveRouterView est indexé par nom de route, toutes les missions
+          // partageraient la même page en cache.
           path: 'missions/:id',
-          redirect: (to) => ({ name: 'edit-mission', params: { id: to.params.id } }),
+          name: 'producer-mission-detail',
+          component: () => import('../pages/producer/mission/ProducerMissionDetailPage.vue'),
         },
         {
           path: 'missions/:id/edit',
@@ -347,16 +364,16 @@ const router = createRouter({
           component: () => import('../pages/producer/mission/EditMissionPage.vue'),
         },
         {
+          // Anciennes URLs (e-mails déjà envoyés, retours FedaPay) : redirigent vers l'onglet
+          // du détail mission en conservant toute la query (payment_return, candidature, pay…).
           path: 'missions/:id/candidatures',
           name: 'producer-mission-candidatures',
-          component: () =>
-            import('../pages/producer/candidature/ProducerMissionCandidaturesPage.vue'),
+          redirect: (to) => missionDetailRedirect(to, 'candidatures'),
         },
         {
           path: 'missions/:id/attendance',
           name: 'producer-mission-attendance',
-          component: () =>
-            import('../pages/producer/mission/AttendanceValidationPage.vue'),
+          redirect: (to) => missionDetailRedirect(to, 'presences'),
         },
         {
           path: 'candidates/:id',

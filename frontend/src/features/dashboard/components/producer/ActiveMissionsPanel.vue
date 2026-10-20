@@ -33,8 +33,9 @@ function tone(mission: ProducerActiveMission): StatusTone {
   return mission.status === 'published' ? 'success' : 'progress'
 }
 
+// Libellé véridique fourni par le serveur (ex. « Payée, en préparation », « Présences à valider »).
 function label(mission: ProducerActiveMission): string {
-  return mission.status === 'published' ? 'Publiée' : 'En cours'
+  return mission.display_status_label ?? (mission.status === 'published' ? 'Publiée' : 'En cours')
 }
 
 function hasFacesTarget(mission: ProducerActiveMission): boolean {
@@ -131,7 +132,7 @@ function candidaturesText(mission: ProducerActiveMission): string {
             </template>
           </p>
           <RouterLink
-            :to="{ name: 'producer-mission-candidatures', params: { id: mission.id } }"
+            :to="{ name: 'producer-mission-detail', params: { id: mission.id } }"
             class="font-semibold text-weact-700 hover:underline"
             :aria-label="`Voir la mission ${mission.titre}`"
           >Voir</RouterLink>

@@ -364,6 +364,81 @@ class UgcDeliverableReviewTest extends TestCase
         $this->assertSame('Tenue Shade Fit', $data[0]['product_name']);
     }
 
+    public function test_mission_filter_returns_only_that_missions_deliverables(): void
+    {
+        [$missionA, , , $delA] = $this->makeUnboxingInReviewCandidature();
+        [, , , $delB] = $this->makeUnboxingInReviewCandidature();
+        $this->makeUnboxingInReviewBooking(); // un livrable booking : jamais dans une mission
+
+        $data = $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/deliverables?mission='.$missionA->uuid)
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->json('data');
+
+        $this->assertSame($delA->uuid, $data[0]['id']);
+        $this->assertNotSame($delB->uuid, $data[0]['id']);
+
+        // Sans filtre : comportement inchangé (3 livrables).
+        $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/deliverables')
+            ->assertOk()
+            ->assertJsonCount(3, 'data');
+    }
+
+    public function test_mission_filter_keeps_owner_scoping(): void
+    {
+        // Mission d'un AUTRE producteur : son uuid ne doit rien révéler.
+        $otherProducer = Producer::factory()->create();
+        $otherMission = $otherProducer->missions()->create([
+            'titre' => 'Mission concurrente',
+            'description' => 'Brief',
+            'date_tournage' => now()->addMonth(),
+            'profil_recherche' => 'Créatrices',
+            'budget' => 0,
+            'date_limite_candidature' => now()->addWeeks(2),
+            'nombre_faces_voulu' => 1,
+            'type_mission' => 'ugc',
+            'genre_voulu' => 'tous',
+            'lieu' => 'Cotonou',
+            'duree' => 'Livrables vidéo',
+            'status' => MissionStatus::Published,
+            'commission_paid_at' => now(),
+            'type_compensation' => 'product',
+            'nom_produit' => 'Produit concurrent',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 1,
+            'commission_ugc' => 2500,
+        ]);
+        $foreign = Candidature::create([
+            'face_id' => $this->face->id,
+            'mission_id' => $otherMission->id,
+            'status' => CandidatureStatus::Confirmed,
+        ]);
+        $foreign->deliverables()->create([
+            'kind' => DeliverableKind::Unboxing,
+            'validation_status' => DeliverableValidationStatus::InReview,
+            'chrono_started_at' => now()->subDay(),
+            'deadline_at' => now()->addDays(6),
+            'submitted_at' => now(),
+            'video_path' => 'ugc/deliverables/unboxing/seed.mp4',
+            'duree_seconds' => 40,
+        ]);
+        $this->makeUnboxingInReviewCandidature();
+
+        $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/deliverables?mission='.$otherMission->uuid)
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
+    }
+
+    public function test_mission_filter_rejects_a_non_uuid_value(): void
+    {
+        $this->actingAs($this->producerUser)
+            ->getJson('/api/v1/producer/deliverables?mission=abc')
+            ->assertStatus(422);
+    }
+
     public function test_orders_by_submitted_at(): void
     {
         [, , $older] = $this->makeUnboxingInReviewBooking();

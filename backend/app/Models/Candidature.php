@@ -356,6 +356,8 @@ class Candidature extends Model
 
     /**
      * Get the ratings associated with this candidature.
+     *
+     * @return HasMany<Rating, $this>
      */
     public function ratings(): HasMany
     {

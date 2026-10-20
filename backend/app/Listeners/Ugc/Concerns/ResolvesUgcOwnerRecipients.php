@@ -186,7 +186,7 @@ trait ResolvesUgcOwnerRecipients
             $owner->loadMissing('mission');
             $mission = $owner->mission;
 
-            return $base.'/producer/missions/'.($mission !== null ? $mission->uuid : '').'/candidatures';
+            return $base.'/producer/missions/'.($mission !== null ? $mission->uuid : '').'?tab=candidatures';
         }
 
         return $base;

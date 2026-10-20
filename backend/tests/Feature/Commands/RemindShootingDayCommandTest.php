@@ -81,6 +81,10 @@ class RemindShootingDayCommandTest extends TestCase
         $mission->refresh();
         $this->assertNotNull($mission->shooting_reminder_sent_at);
 
+        // Lot C4 : le Producteur arrive directement sur l'onglet Présences de la page détail.
+        $producerNotification = Notification::where('user_id', $producerUser->id)->where('type', 'shooting_day_reminder')->firstOrFail();
+        $this->assertSame("/producer/missions/{$mission->uuid}?tab=presences", $producerNotification->data['url']);
+
         $confirmedNotification = Notification::where('user_id', $confirmedUser->id)->first();
         $this->assertSame($confirmedCandidature->id, $confirmedNotification->data['candidature_id']);
 

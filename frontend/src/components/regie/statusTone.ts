@@ -9,8 +9,10 @@ import {
   type BookingStatusType,
 } from '@/features/booking/types/booking'
 import {
+  MissionDisplayStatus,
   MissionStatus,
   MissionStatusLabel,
+  type MissionDisplayStatusType,
   type MissionStatusType,
 } from '@/features/mission/types/mission'
 import {
@@ -51,6 +53,18 @@ export const missionTones: Record<MissionStatusType, StatusTone> = {
   [MissionStatus.COMPLETED]: 'done',
 }
 
+export const missionDisplayTones: Record<MissionDisplayStatusType, StatusTone> = {
+  [MissionDisplayStatus.DRAFT]: 'neutral',
+  [MissionDisplayStatus.PUBLISHED]: 'success',
+  [MissionDisplayStatus.PAYMENT_IN_PROGRESS]: 'pending',
+  [MissionDisplayStatus.COMMISSION_DUE]: 'pending',
+  [MissionDisplayStatus.PAID_PREPARING]: 'progress',
+  [MissionDisplayStatus.CLOSED]: 'pending',
+  [MissionDisplayStatus.IN_PROGRESS]: 'progress',
+  [MissionDisplayStatus.ATTENDANCE_PENDING]: 'progress',
+  [MissionDisplayStatus.COMPLETED]: 'done',
+}
+
 export const candidatureTones: Record<CandidatureStatusType, StatusTone> = {
   [CandidatureStatus.PENDING]: 'pending',
   [CandidatureStatus.ACCEPTED]: 'success',
@@ -68,6 +82,24 @@ export function bookingStatusDot(status: BookingStatusType): StatusDot {
 
 export function missionStatusDot(status: MissionStatusType): StatusDot {
   return { tone: missionTones[status] ?? 'neutral', label: MissionStatusLabel[status] ?? status }
+}
+
+/**
+ * Point d'état d'une mission côté Producteur : le libellé vient du serveur
+ * (`display_status_label`), repli sur le statut stocké pour les payloads anciens.
+ */
+export function missionDisplayStatusDot(mission: {
+  status: MissionStatusType
+  display_status?: MissionDisplayStatusType
+  display_status_label?: string
+}): StatusDot {
+  if (mission.display_status && mission.display_status_label) {
+    return {
+      tone: missionDisplayTones[mission.display_status] ?? 'neutral',
+      label: mission.display_status_label,
+    }
+  }
+  return missionStatusDot(mission.status)
 }
 
 export function candidatureStatusDot(status: CandidatureStatusType): StatusDot {

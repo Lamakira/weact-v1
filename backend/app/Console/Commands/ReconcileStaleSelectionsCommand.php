@@ -403,7 +403,7 @@ class ReconcileStaleSelectionsCommand extends Command
                 'message' => 'Le paiement de votre sélection pour la mission « '.$missionTitre.' » n\'a pas abouti. La mission est de nouveau ouverte aux candidatures — vous pouvez relancer votre sélection depuis la page de la mission.',
                 'mission_id' => $missionId,
                 'mission_titre' => $missionTitre,
-                'url' => '/producer/missions/'.$missionUuid.'/candidatures',
+                'url' => '/producer/missions/'.$missionUuid.'?tab=candidatures',
             ],
         ];
 

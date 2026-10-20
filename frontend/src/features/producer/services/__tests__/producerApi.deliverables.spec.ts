@@ -43,4 +43,14 @@ describe('producerApi.listDeliverablesToReview', () => {
     await expect(producerApi.listDeliverablesToReview()).resolves.toEqual({ data: [] })
     expect(mockGet).toHaveBeenCalledTimes(2)
   })
+
+  it('passes the mission uuid as a query filter and never shares that request', async () => {
+    mockGet.mockResolvedValue({ data: { data: [] } })
+
+    await producerApi.listDeliverablesToReview('mission-uuid')
+    await producerApi.listDeliverablesToReview('mission-uuid')
+
+    expect(mockGet).toHaveBeenCalledTimes(2)
+    expect(mockGet).toHaveBeenCalledWith('/producer/deliverables', { params: { mission: 'mission-uuid' } })
+  })
 })

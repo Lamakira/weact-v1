@@ -25,7 +25,7 @@ final class MissionSelectionExpiredMail extends BaseMail
             view: 'emails.mission-selection-expired',
             with: [
                 'missionTitle' => $this->mission->titre,
-                'candidaturesUrl' => rtrim((string) config('app.frontend_url'), '/')."/producer/missions/{$this->mission->uuid}/candidatures",
+                'candidaturesUrl' => rtrim((string) config('app.frontend_url'), '/')."/producer/missions/{$this->mission->uuid}?tab=candidatures",
             ],
         );
     }
