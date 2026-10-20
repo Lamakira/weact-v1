@@ -6,10 +6,10 @@ import {
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
+  ChevronDown,
   Coins,
   Loader2,
   MapPin,
-  MoreHorizontal,
   Pencil,
   RefreshCw,
   Trash2,
@@ -438,7 +438,7 @@ function goToEdit(): void {
             Modifier la sélection
           </Button>
 
-          <!-- Menu « Plus » -->
+          <!-- Menu « Gérer la mission » -->
           <DropdownMenu v-if="hasMenu">
             <DropdownMenuTrigger as-child>
               <Button
@@ -446,10 +446,9 @@ function goToEdit(): void {
                 variant="outline"
                 class="press h-10"
                 data-testid="mission-more-menu-trigger"
-                aria-label="Plus d'actions"
               >
-                <MoreHorizontal aria-hidden="true" />
-                <span class="hidden sm:inline">Plus</span>
+                Gérer la mission
+                <ChevronDown class="menu-chevron" aria-hidden="true" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" class="min-w-52" data-testid="mission-more-menu">
@@ -841,5 +840,16 @@ function goToEdit(): void {
   .press:active:not(:disabled) {
     transform: none;
   }
+  .menu-chevron {
+    transition: none;
+  }
+}
+
+/* Le chevron du menu « Gérer la mission » pivote à l'ouverture. */
+.menu-chevron {
+  transition: transform 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+[data-state='open'] > .menu-chevron {
+  transform: rotate(180deg);
 }
 </style>
