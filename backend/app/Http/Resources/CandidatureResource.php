@@ -42,6 +42,15 @@ class CandidatureResource extends JsonResource
                 fn () => $this->paymentEntry?->montant_face_recoit !== null ? (int) $this->paymentEntry->montant_face_recoit : null,
             ),
             'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->uuid),
+            // Notation côté Face (lot C8) : clés présentes seulement si `ratings` est préchargée.
+            'can_rate' => $this->when(
+                $this->relationLoaded('ratings'),
+                fn () => $this->raterRatingPayload($request->user()?->id)['can_rate'],
+            ),
+            'my_rating' => $this->when(
+                $this->relationLoaded('ratings'),
+                fn () => $this->raterRatingPayload($request->user()?->id)['my_rating'],
+            ),
             'message_motivation' => $this->message_motivation,
             'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
             'deliverables' => DeliverableResource::collection($this->whenLoaded('deliverables')),

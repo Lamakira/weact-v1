@@ -64,7 +64,14 @@ class MissionController extends Controller
         // expose `shipment` via whenLoaded depuis 3.1, il suffit de le charger.
         // Page mission Face (lot C5) : `conversation` pour le bouton chat ; la mission déjà chargée est
         // rattachée à la candidature (confirmation_deadline en dépend, sans requête supplémentaire).
-        $candidature?->loadMissing(['shipment.receptionPhotos', 'deliverables', 'paymentEntry', 'conversation']);
+        // Lot C8 : sa propre notation du producteur (can_rate / my_rating), contrainte au rater.
+        $candidature?->loadMissing([
+            'shipment.receptionPhotos',
+            'deliverables',
+            'paymentEntry',
+            'conversation',
+            'ratings' => fn ($q) => $q->where('rater_id', $request->user()->id),
+        ]);
         $candidature?->setRelation('mission', $mission);
 
         return response()->json([
