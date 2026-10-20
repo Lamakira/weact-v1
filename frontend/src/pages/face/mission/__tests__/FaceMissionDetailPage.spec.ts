@@ -29,6 +29,7 @@ vi.mock('@/features/auth/services/authApi', () => ({
 // Mock vue-router
 const mockRoute = {
   params: { id: '1' },
+  fullPath: '/face/missions/1',
 }
 const mockRouter = {
   push: vi.fn(),
@@ -1410,7 +1411,7 @@ describe('FaceMissionDetailPage', () => {
       expect(mockToast.info).toHaveBeenCalledWith(
         "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.",
       )
-      expect(mockRouter.replace).toHaveBeenCalledWith({ name: 'pricing' })
+      expect(mockRouter.replace).toHaveBeenCalledWith({ name: 'pricing', query: { redirect: '/face/missions/1' } })
     })
   })
 
@@ -1460,7 +1461,7 @@ describe('FaceMissionDetailPage', () => {
       expect(wrapper.text()).not.toContain('Postuler à cette mission')
 
       await wrapper.find('[data-testid="view-pricing-button"]').trigger('click')
-      expect(mockRouter.push).toHaveBeenCalledWith({ name: 'pricing' })
+      expect(mockRouter.push).toHaveBeenCalledWith({ name: 'pricing', query: { redirect: '/face/missions/1' } })
     })
 
     it('does not flash the paywall while the subscription status is unknown', async () => {

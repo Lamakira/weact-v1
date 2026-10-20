@@ -3,6 +3,7 @@ import { mount, RouterLinkStub, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import { Check, Crown, Minus } from 'lucide-vue-next'
 import PricingView from '../PricingView.vue'
+import { SUBSCRIPTION_RETURN_KEY } from '@/features/face/subscriptionReturn'
 import type {
   FaceSubscriptionTier,
   SubscriptionCurrent,
@@ -729,6 +730,32 @@ describe('auth-aware behavior (FP-2.13.1)', () => {
 
     expect(ctx.payment.initiatePayment).toHaveBeenCalledWith('elite')
     expect(ctx.payment.initiatePayment).toHaveBeenCalledTimes(1)
+  })
+
+  describe('retour après abonnement (lot C7)', () => {
+    beforeEach(() => sessionStorage.clear())
+
+    async function confirmElite(): Promise<void> {
+      const wrapper = mountAuth()
+      await flushPromises()
+      await wrapper.get('[data-testid="cta-tier-elite"]').trigger('click')
+      await flushPromises()
+      await wrapper.get('[data-testid="modal-confirm"]').trigger('click')
+      await flushPromises()
+    }
+
+    it('mémorise le ?redirect= interne avant le checkout', async () => {
+      ctx.route.query = { redirect: '/face/missions/abc' }
+      await confirmElite()
+      expect(sessionStorage.getItem(SUBSCRIPTION_RETURN_KEY)).toBe('/face/missions/abc')
+    })
+
+    it('ignore un ?redirect= invalide (open redirect) et efface une origine précédente', async () => {
+      sessionStorage.setItem(SUBSCRIPTION_RETURN_KEY, '/face/missions/old')
+      ctx.route.query = { redirect: 'https://evil.com' }
+      await confirmElite()
+      expect(sessionStorage.getItem(SUBSCRIPTION_RETURN_KEY)).toBeNull()
+    })
   })
 
   it('disables all tier CTAs and shows the email-not-verified note when email is unverified', async () => {

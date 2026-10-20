@@ -475,9 +475,13 @@ describe('PublicFaceProfileView — UGC booking redirect (story 1.6)', () => {
     })
   })
 
-  it('keeps the existing redirect for a cash booking', async () => {
+  it('redirects a cash booking to its detail page (not the dashboard)', async () => {
     await emitBookingSuccess('Publicité')
-    expect(mockRouter.push).toHaveBeenCalledWith('/producer')
+    expect(mockRouter.push).toHaveBeenCalledWith({
+      name: 'producer-booking-detail',
+      params: { id: 'booking-uuid-1' },
+    })
+    expect(mockRouter.push).not.toHaveBeenCalledWith('/producer')
   })
 
   it('affiche le nom complet fourni par l\'API pour un Producer connecté, le prénom seul pour un invité (lot B13)', async () => {

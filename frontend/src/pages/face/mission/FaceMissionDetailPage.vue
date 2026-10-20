@@ -54,7 +54,7 @@ watch(
       toast.info(
         ugcPaywallMessage.value || "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.",
       )
-      router.replace({ name: 'pricing' })
+      router.replace({ name: 'pricing', query: { redirect: route.fullPath } })
     }
   },
   { immediate: true },
@@ -176,7 +176,7 @@ const isSubscriptionGated = computed(
 )
 
 function goToPricing(): void {
-  router.push({ name: 'pricing' })
+  router.push({ name: 'pricing', query: { redirect: route.fullPath } })
 }
 
 function handleSubscriptionRequired(message: string): void {
