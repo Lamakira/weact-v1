@@ -485,7 +485,7 @@ async function doAccept(): Promise<void> {
   // Paywall FR5 (2.4) : Face non éligible → invitation à s'abonner.
   if (actionErrorCode.value === 'UGC_SUBSCRIPTION_REQUIRED') {
     toast.info(actionError.value || "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.")
-    router.push({ name: 'pricing' })
+    router.push({ name: 'pricing', query: { redirect: route.fullPath } })
     return
   }
 

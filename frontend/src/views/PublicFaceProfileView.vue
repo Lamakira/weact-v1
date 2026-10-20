@@ -208,7 +208,7 @@ function handleBookingClick(): void {
 function handleBookingSuccess(booking: Booking): void {
   isBookingSheetOpen.value = false
   // UGC booking: route to its detail page where the commission payment tunnel
-  // lives (auto-opens via ?pay=1). Cash bookings keep the existing behaviour.
+  // lives (auto-opens via ?pay=1).
   if (booking.type_contenu === 'UGC') {
     router.push({
       name: 'producer-booking-detail',
@@ -217,7 +217,8 @@ function handleBookingSuccess(booking: Booking): void {
     })
     return
   }
-  router.push('/producer')
+  // Cash booking: land on its detail page (like UGC), not on the dashboard.
+  router.push({ name: 'producer-booking-detail', params: { id: booking.id } })
 }
 
 

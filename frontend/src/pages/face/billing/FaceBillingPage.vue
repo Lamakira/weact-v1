@@ -16,7 +16,7 @@
  *  - useSubscriptionPayment  → flux de paiement en attente (resume / verify / cancel)
  *  - faceBillingApi.getHistory → GET /face/subscriptions/history (historique)
  */
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CreditCard, Calendar, Check, Receipt, ChevronDown, AlertTriangle, Loader2 } from 'lucide-vue-next'
 import { CollapsibleContent, CollapsibleRoot, CollapsibleTrigger } from 'reka-ui'
@@ -27,6 +27,7 @@ import { useSubscriptionStatus } from '@/features/face/composables/useSubscripti
 import { useSubscriptionPayment } from '@/features/face/composables/useSubscriptionPayment'
 import { useToast } from '@/composables/useToast'
 import { usePaymentReturn } from '@/composables/usePaymentReturn'
+import { consumeSubscriptionReturn } from '@/features/face/subscriptionReturn'
 import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
 
@@ -91,6 +92,12 @@ async function load(force = false): Promise<void> {
   }
 }
 
+const RETURN_DELAY_MS = 2000
+let returnTimer: ReturnType<typeof setTimeout> | null = null
+onBeforeUnmount(() => {
+  if (returnTimer !== null) clearTimeout(returnTimer)
+})
+
 // Return from the same-tab FedaPay checkout (?payment_return=subscription): the
 // composable runs verify-payment then refreshes the status; here we only refresh
 // the history. Retry → back to the plans (a failed row cannot be resumed).
@@ -101,6 +108,18 @@ const paymentReturn = usePaymentReturn({
   },
   onRetry: () => {
     router.push({ name: 'pricing' })
+  },
+  // Abonnement confirmé depuis un paywall (mission, booking…) : retour auto vers la
+  // page d'origine après un court délai, le temps de lire le toast de succès.
+  // Échec / timeout : on reste ici et l'origine mémorisée est conservée pour « Réessayer ».
+  onFinished: (_kind, outcome) => {
+    if (outcome !== 'confirmed') return
+    const target = consumeSubscriptionReturn()
+    if (target === null) return
+    returnTimer = setTimeout(() => {
+      returnTimer = null
+      void router.push(target)
+    }, RETURN_DELAY_MS)
   },
 })
 
