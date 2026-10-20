@@ -335,7 +335,7 @@ function goToEdit(): void {
 </script>
 
 <template>
-  <div class="mission-detail grid gap-4 pb-6" data-testid="producer-mission-detail">
+  <div class="mission-detail grid grid-cols-[minmax(0,1fr)] gap-4 pb-6" data-testid="producer-mission-detail">
     <!-- Retour -->
     <button
       type="button"
