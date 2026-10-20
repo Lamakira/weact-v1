@@ -9,6 +9,7 @@ use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\CompensationType;
 use App\Enums\EscrowStatus;
+use App\Enums\MissionDisplayStatus;
 use App\Enums\MissionGender;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
@@ -61,6 +62,7 @@ use Illuminate\Support\Str;
  * @property int|null $candidatures_count
  * @property int|null $new_candidatures_count Candidatures created in the last 24 h (ProducerDashboardService::activeMissions)
  * @property int|null $confirmed_count Confirmed / in-progress / completed candidatures (ProducerDashboardService::activeMissions)
+ * @property bool|null $has_paid_payment Pre-loaded by scopeWithPaidPaymentFlag (MissionResource, ProducerDashboardService::activeMissions)
  * @property-read \App\Models\Producer|null $producer
  * @property-read \App\Models\MissionPayment|null $payment
  * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Candidature> $candidatures
@@ -459,6 +461,31 @@ class Mission extends Model
         return $this->producer()
             ->whereHas('user', fn ($u) => $u->where('is_active', true))
             ->exists();
+    }
+
+    /**
+     * Lot C3 : statut affiché (le statut stocké reste inchangé).
+     *  - pending_payment : UGC => « Commission à payer », standard => « Paiement en cours »
+     *  - closed          : UGC => « En cours » (recrutement clos, tunnel actif) ; standard payée =>
+     *                      « Payée, en préparation » ; standard sans paiement (clôture manuelle) => « Clôturée »
+     *  - autres          : libellé du statut stocké.
+     */
+    public function displayStatus(bool $hasPaidPayment): MissionDisplayStatus
+    {
+        $isUgc = $this->type_mission === MissionType::Ugc;
+
+        return match ($this->status) {
+            MissionStatus::Draft => MissionDisplayStatus::Draft,
+            MissionStatus::Published => MissionDisplayStatus::Published,
+            MissionStatus::PendingPayment => $isUgc ? MissionDisplayStatus::CommissionDue : MissionDisplayStatus::PaymentInProgress,
+            MissionStatus::Closed => match (true) {
+                $isUgc => MissionDisplayStatus::InProgress,
+                $hasPaidPayment => MissionDisplayStatus::PaidPreparing,
+                default => MissionDisplayStatus::Closed,
+            },
+            MissionStatus::PendingAttendanceValidation => MissionDisplayStatus::AttendancePending,
+            MissionStatus::Completed => MissionDisplayStatus::Completed,
+        };
     }
 
     /**

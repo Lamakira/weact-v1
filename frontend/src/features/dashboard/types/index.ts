@@ -194,6 +194,9 @@ export interface ProducerActiveMission {
   type_mission: string | null
   status: string
   status_label: string
+  // Lot C3 : statut véridique pour l'affichage
+  display_status?: string
+  display_status_label?: string
   candidatures_count: number
   new_candidatures_count: number
   confirmed_count: number

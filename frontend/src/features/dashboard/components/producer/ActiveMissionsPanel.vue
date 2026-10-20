@@ -33,8 +33,9 @@ function tone(mission: ProducerActiveMission): StatusTone {
   return mission.status === 'published' ? 'success' : 'progress'
 }
 
+// Libellé véridique fourni par le serveur (ex. « Payée, en préparation », « Présences à valider »).
 function label(mission: ProducerActiveMission): string {
-  return mission.status === 'published' ? 'Publiée' : 'En cours'
+  return mission.display_status_label ?? (mission.status === 'published' ? 'Publiée' : 'En cours')
 }
 
 function hasFacesTarget(mission: ProducerActiveMission): boolean {

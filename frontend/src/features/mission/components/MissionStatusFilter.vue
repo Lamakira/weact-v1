@@ -23,7 +23,7 @@ const emit = defineEmits<{
 const filterOptions = computed(() => [
   { value: '' as const, label: 'Tous' },
   { value: MissionStatus.PUBLISHED, label: MissionStatusLabel[MissionStatus.PUBLISHED] },
-  { value: MissionStatus.CLOSED, label: MissionStatusLabel[MissionStatus.CLOSED] },
+  { value: MissionStatus.CLOSED, label: 'Recrutement clos' },
   { value: MissionStatus.COMPLETED, label: MissionStatusLabel[MissionStatus.COMPLETED] },
 ])
 

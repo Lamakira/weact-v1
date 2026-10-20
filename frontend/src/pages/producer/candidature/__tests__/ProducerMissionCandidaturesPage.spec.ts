@@ -294,7 +294,12 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
         message: 'ok',
       })
       .mockResolvedValueOnce({
-        data: makePendingPaymentMission({ status: 'closed', status_label: 'Clôturée' }),
+        data: makePendingPaymentMission({
+          status: 'closed',
+          status_label: 'Clôturée',
+          display_status: 'paid_preparing',
+          display_status_label: 'Payée, en préparation',
+        }),
         message: 'ok',
       })
     vi.mocked(missionApi.getPaymentStatus).mockResolvedValueOnce({
@@ -318,7 +323,27 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
     expect(missionApi.getMission).toHaveBeenCalledTimes(2)
     expect(startPollingSpy).not.toHaveBeenCalled()
     expect(wrapper.find('[data-testid="mission-payment-success-banner"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="mission-payment-success-banner"]').text()).toBe(
+      'Paiement confirmé : les Faces sélectionnées doivent maintenant confirmer leur participation.',
+    )
+    // Lot C3 : la pastille d'en-tête affiche le libellé véridique, pas « Clôturée »
+    expect(wrapper.get('[data-testid="mission-status-pill"]').text()).toBe('Payée, en préparation')
     expect(wrapper.find('[data-testid="mission-payment-init-failed-banner"]').exists()).toBe(false)
+  })
+
+  it('falls back to status_label in the header pill when display_status_label is absent', async () => {
+    vi.mocked(missionApi.getMission).mockResolvedValueOnce({
+      data: makePendingPaymentMission({ status: 'pending_attendance_validation', status_label: 'En attente de validation des présences' }),
+      message: 'ok',
+    })
+
+    const wrapper = mount(ProducerMissionCandidaturesPage)
+    await flushPromises()
+    await flushPromises()
+
+    const pill = wrapper.get('[data-testid="mission-status-pill"]')
+    expect(pill.text()).toBe('En attente de validation des présences')
+    expect(pill.classes()).toContain('bg-violet-100')
   })
 
   it('shows a generic status-unavailable banner when payment-status cannot be fetched', async () => {

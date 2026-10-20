@@ -3,7 +3,7 @@ import { formatXof } from '@/lib/formatCurrency'
 import { computed } from 'vue'
 import { Calendar, Users, Wallet } from 'lucide-vue-next'
 import RStatusDot from '@/components/regie/RStatusDot.vue'
-import { missionStatusDot } from '@/components/regie/statusTone'
+import { missionDisplayStatusDot } from '@/components/regie/statusTone'
 import type { SortingState } from '@tanstack/vue-table'
 import DataTable from '@/components/data-table/DataTable.vue'
 import type { DataTableColumn } from '@/components/data-table/dataTableFeatures'
@@ -140,7 +140,7 @@ function onRowClick(mission: Mission): void {
     </template>
 
     <template #cell-status="{ row }">
-      <RStatusDot v-bind="missionStatusDot(row.status)" class="text-[13px] text-ink" />
+      <RStatusDot v-bind="missionDisplayStatusDot(row)" class="text-[13px] text-ink" />
     </template>
 
     <template #cell-date_limite_candidature="{ row }">
@@ -187,7 +187,7 @@ function onRowClick(mission: Mission): void {
       >
         <div class="flex items-start justify-between gap-3">
           <h3 class="min-w-0 text-base font-bold leading-tight text-foreground">{{ row.titre }}</h3>
-          <RStatusDot v-bind="missionStatusDot(row.status)" class="shrink-0 text-[13px] text-ink" />
+          <RStatusDot v-bind="missionDisplayStatusDot(row)" class="shrink-0 text-[13px] text-ink" />
         </div>
 
         <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">

@@ -397,13 +397,16 @@ onUnmounted(() => {
             <span
               class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
               :class="{
+                'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300': mission.status === 'draft',
                 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400': mission.status === 'published',
                 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400': mission.status === 'pending_payment',
                 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400': mission.status === 'closed',
+                'bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400': mission.status === 'pending_attendance_validation',
                 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400': mission.status === 'completed',
               }"
+              data-testid="mission-status-pill"
             >
-              {{ mission.status_label }}
+              {{ mission.display_status_label ?? mission.status_label }}
             </span>
           </div>
           <p class="mt-1 text-muted-foreground">
@@ -424,7 +427,7 @@ onUnmounted(() => {
             class="mt-3 flex items-center gap-2 rounded-lg bg-green-50 px-4 py-2.5 text-sm text-green-800 dark:bg-green-900/20 dark:text-green-400"
           >
             <CheckCircle class="h-4 w-4 shrink-0" />
-            Paiement confirmé ! Les fonds sont sécurisés en escrow. La mission est maintenant clôturée.
+            Paiement confirmé : les Faces sélectionnées doivent maintenant confirmer leur participation.
           </div>
           <!--
             Payment initialization failed banner (FIX-19.3 AC #4).
