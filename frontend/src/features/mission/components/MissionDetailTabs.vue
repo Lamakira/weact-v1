@@ -74,7 +74,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 </script>
 
 <template>
-  <div class="relative flex gap-1 overflow-x-auto border-b border-border px-2" role="tablist" aria-label="Sections de la mission">
+  <div class="tabs-bar relative flex gap-1 overflow-x-auto overflow-y-hidden border-b border-border px-2" role="tablist" aria-label="Sections de la mission">
     <button
       v-for="(tab, index) in tabs"
       :id="`mission-tab-${tab.id}`"
@@ -109,9 +109,16 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
 </template>
 
 <style scoped>
+/* Défilement horizontal possible sur téléphone, sans barre de défilement visible. */
+.tabs-bar {
+  scrollbar-width: none;
+}
+.tabs-bar::-webkit-scrollbar {
+  display: none;
+}
 .tabs-ink {
   position: absolute;
-  bottom: -1px;
+  bottom: 0;
   left: 0;
   height: 2px;
   border-radius: 2px;
