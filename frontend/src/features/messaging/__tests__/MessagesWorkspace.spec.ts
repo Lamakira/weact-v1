@@ -48,11 +48,7 @@ function makeRouter(): Router {
       { path: '/producer/messages', name: 'producer-messages', component: stub },
       { path: '/producer/conversations/:conversationId', name: 'producer-conversation', component: stub },
       { path: '/producer/missions', name: 'producer-missions', component: stub },
-      {
-        path: '/producer/missions/:id/candidatures',
-        name: 'producer-mission-candidatures',
-        component: stub,
-      },
+      { path: '/producer/missions/:id', name: 'producer-mission-detail', component: stub },
     ],
   })
 }

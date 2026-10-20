@@ -70,7 +70,7 @@ final class FaceConfirmedMailTest extends TestCase
         $this->assertStringContainsString('Marie Dupont', $rendered);
         $this->assertStringContainsString('Pub TV Printemps 2026', $rendered);
         $this->assertStringContainsString('mai 2026', $rendered);
-        $this->assertStringContainsString('/producer/missions/'.$mission->uuid.'/candidatures', $rendered);
+        $this->assertStringContainsString('/producer/missions/'.$mission->uuid.'?tab=candidatures', $rendered);
         $this->assertStringContainsString('Voir les candidatures', $rendered);
         $this->assertStringContainsString('#198496', $rendered);
         $this->assertStringContainsString('/mentions-legales', $rendered);

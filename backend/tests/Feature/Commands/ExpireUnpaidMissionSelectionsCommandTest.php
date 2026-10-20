@@ -49,7 +49,7 @@ class ExpireUnpaidMissionSelectionsCommandTest extends TestCase
             ->first();
         $this->assertNotNull($notification);
         $this->assertSame('selection_payment_expired', $notification->data['reason']);
-        $this->assertSame("/producer/missions/{$mission->uuid}/candidatures", $notification->data['url']);
+        $this->assertSame("/producer/missions/{$mission->uuid}?tab=candidatures", $notification->data['url']);
         $this->assertStringContainsString('Le délai de 24 h pour payer votre sélection', $notification->data['message']);
 
         Mail::assertQueued(MissionSelectionExpiredMail::class, fn (MissionSelectionExpiredMail $m): bool => $m->hasTo($this->producerUser->email));

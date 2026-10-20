@@ -132,7 +132,7 @@ function candidaturesText(mission: ProducerActiveMission): string {
             </template>
           </p>
           <RouterLink
-            :to="{ name: 'producer-mission-candidatures', params: { id: mission.id } }"
+            :to="{ name: 'producer-mission-detail', params: { id: mission.id } }"
             class="font-semibold text-weact-700 hover:underline"
             :aria-label="`Voir la mission ${mission.titre}`"
           >Voir</RouterLink>

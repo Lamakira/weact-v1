@@ -531,7 +531,7 @@ class MissionService
                 'data' => [
                     'message' => "La mission \"{$mission->titre}\" est terminée.",
                     'mission_id' => $mission->id,
-                    'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                    'url' => "/producer/missions/{$mission->uuid}?tab=candidatures",
                 ],
             ]);
         } catch (\Throwable $e) {

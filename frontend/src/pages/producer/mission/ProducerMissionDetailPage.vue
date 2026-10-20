@@ -229,6 +229,22 @@ watch(activeTab, (id) => visitedTabs.add(id), { immediate: true })
 // ---------------------------------------------------------------------------
 const isUgcPayOpen = ref(false)
 
+// Arrivée depuis la publication d'une mission UGC (?pay={id}) : ouvre le tunnel de commission
+// puis consomme le paramètre (un retour arrière ne doit pas rouvrir le tunnel). Jamais en
+// même temps qu'un retour de paiement en cours de vérification.
+watch(
+  mission,
+  (m) => {
+    if (!m || route.query.pay === undefined || route.query.payment_return !== undefined) return
+    if (route.query.pay !== m.id) return
+    const query = { ...route.query }
+    delete query.pay
+    void router.replace({ query })
+    if (isUgcMissionType(m) && m.status === 'pending_payment') isUgcPayOpen.value = true
+  },
+  { immediate: true },
+)
+
 function focusTabs(): void {
   void nextTick(() => document.getElementById('mission-tabs')?.scrollIntoView?.({ block: 'start' }))
 }

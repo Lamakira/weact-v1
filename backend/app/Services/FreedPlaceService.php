@@ -272,7 +272,7 @@ class FreedPlaceService
                     ." pour la place libérée sur « {$mission->titre} » : {$formattedAmount} FCFA ont été crédités sur votre wallet.",
                 'mission_id' => $mission->id,
                 'montant' => $result['amount'],
-                'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                'url' => "/producer/missions/{$mission->uuid}?tab=candidatures",
             ],
         ]), $this->producerUserId($mission));
 

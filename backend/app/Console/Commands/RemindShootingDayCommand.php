@@ -91,7 +91,7 @@ class RemindShootingDayCommand extends Command
                 'data' => [
                     'message' => "Rappel : le tournage de votre mission \"{$mission->titre}\" a lieu demain.",
                     'mission_id' => $mission->id,
-                    'url' => "/producer/missions/{$mission->uuid}/edit",
+                    'url' => "/producer/missions/{$mission->uuid}?tab=presences",
                 ],
             ]);
         }

@@ -805,7 +805,7 @@ class UgcDeliverableUploadTest extends TestCase
             ->first();
 
         $this->assertNotNull($notification);
-        $this->assertSame("/producer/missions/{$mission->uuid}/candidatures", data_get($notification->data, 'url'));
+        $this->assertSame("/producer/missions/{$mission->uuid}?tab=livrables", data_get($notification->data, 'url'));
     }
 
     // ===================================================================

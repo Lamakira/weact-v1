@@ -45,23 +45,27 @@ describe('PublishMissionPage — toast honnête', () => {
     pushSpy.mockClear()
   })
 
-  it('1. mission pending_payment → toast UGC honnête + navigation avec ?pay pour ouvrir le tunnel', async () => {
+  it('1. mission pending_payment → toast UGC honnête + page détail avec ?pay pour ouvrir le tunnel', async () => {
     const wrapper = mountPage()
 
     wrapper.findComponent(MissionFormStub).vm.$emit('success', { status: 'pending_payment', id: 'm-1' })
     await nextTick()
 
     expect(successSpy).toHaveBeenCalledWith('Mission UGC créée. Réglez la commission pour la publier.')
-    expect(pushSpy).toHaveBeenCalledWith({ name: 'producer-missions', query: { pay: 'm-1' } })
+    expect(pushSpy).toHaveBeenCalledWith({
+      name: 'producer-mission-detail',
+      params: { id: 'm-1' },
+      query: { pay: 'm-1' },
+    })
   })
 
-  it('2. mission published → toast standard + navigation', async () => {
+  it('2. mission published → toast standard + page détail de la mission', async () => {
     const wrapper = mountPage()
 
-    wrapper.findComponent(MissionFormStub).vm.$emit('success', { status: 'published' })
+    wrapper.findComponent(MissionFormStub).vm.$emit('success', { status: 'published', id: 'm-2' })
     await nextTick()
 
     expect(successSpy).toHaveBeenCalledWith('Mission publiée avec succès!')
-    expect(pushSpy).toHaveBeenCalledWith({ name: 'producer-missions' })
+    expect(pushSpy).toHaveBeenCalledWith({ name: 'producer-mission-detail', params: { id: 'm-2' } })
   })
 })
