@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X, Loader2, CheckSquare, Square, Truck, Check, UserMinus } from 'lucide-vue-next'
+import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X, Loader2, CheckSquare, Square, Truck, Check, UserMinus, Star } from 'lucide-vue-next'
 import type { ProducerCandidature } from '../types'
 import { CandidatureStatusColor } from '../types'
 import { formatConfirmationDeadline } from '../utils/formatConfirmationDeadline'
@@ -31,6 +31,7 @@ const emit = defineEmits<{
   'toggle-selection': [candidatureId: string]
   'confirm-shipment': []
   'offer-freed-place': [candidatureId: string]
+  rate: [candidatureId: string]
 }>()
 
 /**
@@ -99,6 +100,12 @@ const releaseDialogConsequence = computed(() =>
     ? 'Libérer sa place annulera sa candidature, vous remboursera le règlement séquestré et rouvrira la mission aux autres Faces.'
     : 'Libérer sa place annulera sa candidature et rouvrira la mission aux autres Faces.',
 )
+
+/**
+ * Computed: Can show the « Noter » button (lot C8) — completed candidature the Producer has
+ * not rated yet; the server decides (`can_rate`), rating stays optional.
+ */
+const canRate = computed(() => props.candidature.can_rate === true)
 
 /**
  * Show reject confirmation dialog
@@ -471,7 +478,7 @@ const categoryLabel = computed(() => {
         </button>
       </div>
 
-      <div v-else-if="canChat || canConfirmShipment || canRelease" class="flex flex-wrap gap-2">
+      <div v-else-if="canChat || canConfirmShipment || canRelease || canRate" class="flex flex-wrap gap-2">
         <RouterLink
           v-if="canChat"
           :to="{ name: 'producer-conversation', params: { conversationId: candidature.conversation_id } }"
@@ -489,6 +496,16 @@ const categoryLabel = computed(() => {
         >
           <Truck class="h-4 w-4" />
           Confirmer l'envoi
+        </button>
+        <button
+          v-if="canRate"
+          type="button"
+          data-testid="rate-candidature-btn"
+          class="inline-flex items-center gap-2 rounded-lg bg-weact px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-weact/90"
+          @click="emit('rate', candidature.id)"
+        >
+          <Star class="h-4 w-4" />
+          Noter
         </button>
         <button
           v-if="canRelease"
@@ -513,6 +530,30 @@ const categoryLabel = computed(() => {
         Voir le profil complet
         <ArrowUpRight class="h-3 w-3" />
       </RouterLink>
+    </div>
+
+    <!-- Note donnée par le Producteur (lot C8) -->
+    <div
+      v-if="candidature.my_rating"
+      class="mt-3 border-t border-border/50 pt-3 text-sm"
+      data-testid="candidature-my-rating"
+    >
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-medium text-muted-foreground">Votre note</span>
+        <span class="inline-flex" :aria-label="`${candidature.my_rating.score} sur 5`">
+          <Star
+            v-for="star in 5"
+            :key="star"
+            class="h-4 w-4"
+            :class="candidature.my_rating.score >= star ? 'text-amber-400' : 'text-gray-300'"
+            :fill="candidature.my_rating.score >= star ? 'currentColor' : 'none'"
+            aria-hidden="true"
+          />
+        </span>
+      </div>
+      <p v-if="candidature.my_rating.comment" class="mt-1 text-xs italic text-muted-foreground">
+        « {{ candidature.my_rating.comment }} »
+      </p>
     </div>
 
     <!-- Compact shipment tracking (UGC, post-confirmation — story 3.2) -->

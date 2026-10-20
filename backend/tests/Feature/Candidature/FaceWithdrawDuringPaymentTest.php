@@ -79,7 +79,7 @@ class FaceWithdrawDuringPaymentTest extends TestCase
             ->firstOrFail();
         $this->assertSame('face_withdrew_during_payment', $notification->data['reason']);
         $this->assertStringContainsString('Une Face a retiré sa candidature pendant le paiement', $notification->data['message']);
-        $this->assertSame("/producer/missions/{$mission->uuid}/candidatures", $notification->data['url']);
+        $this->assertSame("/producer/missions/{$mission->uuid}?tab=candidatures", $notification->data['url']);
     }
 
     public function test_payment_reminder_is_not_mistaken_for_a_recently_resumed_checkout(): void

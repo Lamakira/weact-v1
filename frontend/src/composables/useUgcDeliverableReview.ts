@@ -20,8 +20,9 @@ interface UseUgcDeliverableReviewReturn {
  * Inbox de validation Producteur (5A, 4.4). Liste les livrables in_review +
  * statue (valider/rejeter/retouche). Routing d'erreur par code d'envelope
  * (INVALID_STATUS), calque useUgcShipment/useUgcDeliverable.
+ * `missionId` (uuid) restreint l'inbox à une mission (onglet Livrables du détail mission).
  */
-export function useUgcDeliverableReview(): UseUgcDeliverableReviewReturn {
+export function useUgcDeliverableReview(missionId?: string): UseUgcDeliverableReviewReturn {
   const items = ref<DeliverableReviewItem[]>([])
   const isLoading = ref(false)
   const isSubmitting = ref(false)
@@ -39,7 +40,7 @@ export function useUgcDeliverableReview(): UseUgcDeliverableReviewReturn {
     error.value = null
     errorCode.value = null
     try {
-      const response = await producerApi.listDeliverablesToReview()
+      const response = await producerApi.listDeliverablesToReview(missionId)
       items.value = response.data
     } catch (err) {
       error.value = getApiErrorMessage(err)

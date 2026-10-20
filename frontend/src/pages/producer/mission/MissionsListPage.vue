@@ -182,16 +182,20 @@ function navigateToPublish(): void {
   router.push({ name: 'publish-mission' })
 }
 
+function handleOpen(id: string): void {
+  router.push({ name: 'producer-mission-detail', params: { id } })
+}
+
 function handleEdit(id: string): void {
   router.push({ name: 'edit-mission', params: { id } })
 }
 
 function handleViewCandidatures(id: string): void {
-  router.push({ name: 'producer-mission-candidatures', params: { id } })
+  router.push({ name: 'producer-mission-detail', params: { id }, query: { tab: 'candidatures' } })
 }
 
 function handleViewAttendance(id: string): void {
-  router.push({ name: 'producer-mission-attendance', params: { id } })
+  router.push({ name: 'producer-mission-detail', params: { id }, query: { tab: 'presences' } })
 }
 
 type PayResolution = 'opened' | 'not-payable' | 'not-found'
@@ -404,6 +408,7 @@ async function confirmComplete(): Promise<void> {
         @page-change="handlePageChange"
         @page-size-change="handlePageSizeChange"
         @retry="retryMissions"
+        @open="handleOpen"
         @edit="handleEdit"
         @delete="handleDeleteClick"
         @close="handleCloseClick"

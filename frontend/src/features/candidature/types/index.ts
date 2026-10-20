@@ -234,6 +234,13 @@ export interface FaceSummary {
   has_elite_badge: boolean
 }
 
+// Note donnée par le Producteur à une Face (lot C8)
+export interface ProducerCandidatureRating {
+  score: number
+  comment: string | null
+  created_at: string | null
+}
+
 // Producer candidature for list view (includes face summary)
 export interface ProducerCandidature {
   id: string
@@ -244,6 +251,10 @@ export interface ProducerCandidature {
   confirmation_deadline?: string | null
   /** Lot B4 : cette candidature non retenue peut reprendre une place libérée (éligibilité calculée côté serveur). */
   can_replace_freed_place?: boolean
+  /** Lot C8 : le Producteur peut noter cette Face (candidature terminée, pas encore notée). */
+  can_rate?: boolean
+  /** Lot C8 : la note donnée par le Producteur à cette Face, sinon null. */
+  my_rating?: ProducerCandidatureRating | null
   created_at: string
   conversation_id: string | null
   face: FaceSummary

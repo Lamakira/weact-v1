@@ -29,7 +29,7 @@ final class MissionFaceUnconfirmedMail extends BaseMail
                 'missionTitle' => $this->mission->titre,
                 'faceName' => $this->faceName,
                 'formattedAmount' => number_format($this->refundedAmount, 0, ',', ' ').' FCFA',
-                'candidaturesUrl' => rtrim((string) config('app.frontend_url'), '/')."/producer/missions/{$this->mission->uuid}/candidatures",
+                'candidaturesUrl' => rtrim((string) config('app.frontend_url'), '/')."/producer/missions/{$this->mission->uuid}?tab=candidatures",
             ],
         );
     }

@@ -9,7 +9,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { useToast } from '@/composables/useToast'
 import { MissionForm, DeleteMissionDialog } from '@/features/mission/components'
 import { useMissionEdit, useDeleteMission } from '@/features/mission/composables'
-import { isUgcMission, type CreateMissionData } from '@/features/mission/types'
+import type { CreateMissionData } from '@/features/mission/types'
+import { getMissionActionState } from '@/features/mission/composables/missionActionState'
 import { Loader2, AlertCircle, Trash2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 
@@ -23,8 +24,8 @@ const isDeleteDialogOpen = ref(false)
 
 const missionId = computed(() => route.params.id as string)
 
-// Les missions UGC ne sont pas modifiables (garde backend UpdateMissionRequest) → on bloque l'édition côté front (ugc-3-5).
-const isUgc = computed(() => (mission.value ? isUgcMission(mission.value) : false))
+// Règle serveur `summary.can_edit` (UGC, clôturée, payée… non modifiables) ; le formulaire n'est jamais montré sinon.
+const isEditable = computed(() => (mission.value ? getMissionActionState(mission.value, true).canEdit : false))
 
 /**
  * Parse ISO date string to YYYY-MM-DD format for date inputs
@@ -55,6 +56,11 @@ const initialValues = computed(() => {
 
 onMounted(async () => {
   await loadMission(missionId.value)
+  // Lot C4 : mission non modifiable → retour à la page détail avec une explication.
+  if (mission.value && !isEditable.value) {
+    toastError('Cette mission ne peut plus être modifiée.')
+    await router.replace({ name: 'producer-mission-detail', params: { id: missionId.value } })
+  }
 })
 
 async function handleSubmit(data: CreateMissionData): Promise<void> {
@@ -116,25 +122,8 @@ async function handleDeleteConfirm(): Promise<void> {
       </Button>
     </div>
 
-    <!-- UGC mission: édition bloquée (miroir de la garde backend UpdateMissionRequest, ugc-3-5) -->
-    <template v-else-if="mission && isUgc">
-      <div class="flex flex-col items-center justify-center py-20 text-center">
-        <div class="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mb-4">
-          <AlertCircle class="w-8 h-8 text-amber-500" />
-        </div>
-        <h2 class="text-lg font-semibold text-slate-800 mb-2">Mission UGC non modifiable</h2>
-        <p class="text-slate-500 mb-4 max-w-md">
-          Les missions UGC ne peuvent pas être modifiées après leur création. Pour changer la
-          dotation, clôturez cette mission puis créez-en une nouvelle.
-        </p>
-        <Button variant="outline" @click="router.push({ name: 'producer-missions' })">
-          Retour aux missions
-        </Button>
-      </div>
-    </template>
-
-    <!-- Form with delete action -->
-    <template v-else-if="mission && initialValues">
+    <!-- Form with delete action (jamais pour une mission non modifiable : redirigée vers le détail) -->
+    <template v-else-if="mission && initialValues && isEditable">
       <!-- Delete action bar -->
       <div class="flex justify-end mb-6">
         <Button

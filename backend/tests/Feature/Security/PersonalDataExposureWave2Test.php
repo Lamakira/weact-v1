@@ -89,7 +89,7 @@ class PersonalDataExposureWave2Test extends TestCase
             ->assertCreated();
 
         $notification = Notification::query()->where('user_id', $this->producerUser->id)->where('type', 'new_candidature')->firstOrFail();
-        $this->assertSame("/producer/missions/{$mission->uuid}/candidatures", $notification->data['url']);
+        $this->assertSame("/producer/missions/{$mission->uuid}?tab=candidatures", $notification->data['url']);
     }
 
     public function test_ugc_deal_accepted_notification_url_uses_the_mission_uuid(): void
@@ -100,7 +100,7 @@ class PersonalDataExposureWave2Test extends TestCase
         event(new UgcMissionDealAccepted($candidature));
 
         $notification = Notification::query()->where('type', 'ugc_deal_accepted')->firstOrFail();
-        $this->assertSame("/producer/missions/{$mission->uuid}/candidatures", $notification->data['url']);
+        $this->assertSame("/producer/missions/{$mission->uuid}?tab=candidatures", $notification->data['url']);
     }
 
     public function test_admin_dashboard_links_use_uuids(): void

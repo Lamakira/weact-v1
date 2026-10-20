@@ -67,7 +67,7 @@ async function mountOpenThread(role: 'face' | 'producer' = 'face', index = 0) {
       { path: '/face/messages', name: 'face-messages', component: stub },
       { path: '/face/conversations/:conversationId', name: 'face-conversation', component: stub },
       { path: '/face/missions/:id', name: 'face-mission-detail', component: stub },
-      { path: '/producer/missions/:id/candidatures', name: 'producer-mission-candidatures', component: stub },
+      { path: '/producer/missions/:id', name: 'producer-mission-detail', component: stub },
       { path: '/producer/messages', name: 'producer-messages', component: stub },
       { path: '/producer/conversations/:conversationId', name: 'producer-conversation', component: stub },
     ],

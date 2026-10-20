@@ -138,7 +138,7 @@ class ExpireUnconfirmedFacesCommandTest extends TestCase
         $producerNotification = Notification::where('user_id', $this->producerUser->id)->where('type', 'mission_face_confirmation_expired')->first();
         $this->assertNotNull($producerNotification);
         $this->assertStringContainsString('100 000 FCFA ont été crédités sur votre wallet', $producerNotification->data['message']);
-        $this->assertSame("/producer/missions/{$mission->uuid}/candidatures", $producerNotification->data['url']);
+        $this->assertSame("/producer/missions/{$mission->uuid}?tab=candidatures", $producerNotification->data['url']);
 
         Mail::assertQueued(FaceConfirmationExpiredMail::class, fn (FaceConfirmationExpiredMail $m): bool => $m->hasTo($faces[0]['faceUser']->email));
         Mail::assertQueued(MissionFaceUnconfirmedMail::class, fn (MissionFaceUnconfirmedMail $m): bool => $m->hasTo($this->producerUser->email));
