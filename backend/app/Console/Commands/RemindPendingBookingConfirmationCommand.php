@@ -175,7 +175,7 @@ class RemindPendingBookingConfirmationCommand extends Command
             $faceEmail = trim((string) $booking->face?->email);
 
             if ($faceEmail !== '') {
-                Mail::to($faceEmail)->queue(new BookingCompletionReminderFaceMail($booking, $autoDate));
+                Mail::to($faceEmail)->queue(new BookingCompletionReminderFaceMail($booking));
             }
         } catch (\Throwable $e) {
             Log::warning('Booking completion reminder (Face) email queue failed', [

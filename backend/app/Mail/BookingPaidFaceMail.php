@@ -29,7 +29,6 @@ final class BookingPaidFaceMail extends BaseMail
             with: [
                 'producerName' => $this->producerName(),
                 'bookingDate' => $this->bookingDateLabel(),
-                'startTime' => $this->startTimeLabel(),
                 'bookingLocation' => $this->booking->lieu,
                 'formattedAmount' => $this->formatMoney((int) $this->booking->montant_face_recoit),
                 'bookingUrl' => $this->bookingUrl(false),

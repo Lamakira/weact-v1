@@ -18,7 +18,7 @@
                     @if($bookingDate)
                         <tr>
                             <td style="padding: 0 0 10px; color: #6b7280; font-size: 13px;">Date du tournage</td>
-                            <td style="padding: 0 0 10px; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{ $bookingDate }}@if($startTime) à {{ $startTime }}@endif</td>
+                            <td style="padding: 0 0 10px; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{ $bookingDate }}</td>
                         </tr>
                     @endif
                     @if($bookingLocation)

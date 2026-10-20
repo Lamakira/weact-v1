@@ -8,11 +8,7 @@
     </h2>
     <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
         Ton tournage avec {{ $producerName }} est terminé, mais la prestation n'a pas encore été confirmée.
-        Confirme-la pour être payé(e).
-    </p>
-
-    <p style="margin: 0 0 24px; padding: 12px 16px; background-color: #fffbeb; border-radius: 6px; color: #92400e; font-size: 14px; line-height: 1.5;">
-        Sans action de ta part, tu seras payé(e) automatiquement au plus tard le <strong>{{ $autoCompletionDate }}</strong>.
+        Confirme la fin de ta prestation : ton paiement sera libéré une fois le booking clôturé.
     </p>
 
     <table width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;">

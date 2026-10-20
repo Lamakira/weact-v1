@@ -24,12 +24,6 @@
                             <td style="padding: 0 0 10px; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{ $bookingDate }}</td>
                         </tr>
                     @endif
-                    @if($startTime)
-                        <tr>
-                            <td style="padding: 0 0 10px; color: #6b7280; font-size: 13px;">Heure de début</td>
-                            <td style="padding: 0 0 10px; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{ $startTime }}</td>
-                        </tr>
-                    @endif
                     @if($dureeHeures)
                         <tr>
                             <td style="padding: 0 0 10px; color: #6b7280; font-size: 13px;">Durée estimée</td>

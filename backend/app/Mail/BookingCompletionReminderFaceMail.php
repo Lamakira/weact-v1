@@ -15,7 +15,6 @@ final class BookingCompletionReminderFaceMail extends BaseMail
 
     public function __construct(
         public readonly Booking $booking,
-        public readonly string $autoCompletionDate,
     ) {}
 
     protected function subjectLine(): string
@@ -29,7 +28,6 @@ final class BookingCompletionReminderFaceMail extends BaseMail
             view: 'emails.booking-completion-reminder-face',
             with: [
                 'producerName' => $this->producerName(),
-                'autoCompletionDate' => $this->autoCompletionDate,
                 'bookingUrl' => $this->bookingUrl(false),
             ],
         );

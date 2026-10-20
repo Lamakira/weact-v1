@@ -10,7 +10,7 @@ use Illuminate\Mail\Mailables\Content;
 
 /**
  * Email Face (tutoiement) : le Producteur a confirmé la fin de la prestation en premier.
- * `$dueAt` = échéance de paiement automatique sans action de sa part (d/m/Y H:i, fuseau métier),
+ * `$dueAt` = échéance de paiement automatique sans action de sa part (d/m/Y),
  * null si elle est déjà passée (le paiement suit au prochain passage du traitement horaire).
  */
 final class BookingProducerConfirmedMail extends BaseMail

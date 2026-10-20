@@ -39,6 +39,10 @@ final class SendBookingExpiredEmails
 
         foreach ([true, false] as $forProducer) {
             try {
+                if ($forProducer && $event->producerCredited) {
+                    continue; // déjà prévenu par WalletCreditedMail (paiement tardif)
+                }
+
                 $email = trim((string) ($forProducer ? $booking->producer?->email : $booking->face?->email));
                 if ($email === '') {
                     continue;

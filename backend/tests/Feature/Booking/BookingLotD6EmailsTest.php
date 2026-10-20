@@ -80,8 +80,9 @@ class BookingLotD6EmailsTest extends TestCase
             'producer_id' => $this->producerUser->id,
             'status' => $status,
             'type_contenu' => 'Publicité',
-            'date_debut' => now()->addDays(5),
-            'date_fin' => now()->addDays(5),
+            // Forme réelle : dates calendaires à minuit.
+            'date_debut' => now()->addDays(5)->startOfDay(),
+            'date_fin' => now()->addDays(5)->startOfDay(),
             'lieu' => 'Cotonou',
             'tarif_base' => 100000,
             'montant_total_producteur' => 110000,
@@ -120,6 +121,48 @@ class BookingLotD6EmailsTest extends TestCase
         $producerHtml = (new BookingPaidProducerMail($booking->fresh()->load('face.userable', 'producer.userable')))->render();
         $this->assertStringContainsString('110 000 XOF', $producerHtml);
         $this->assertStringContainsString("/producer/bookings/{$booking->uuid}", $producerHtml);
+    }
+
+    public function test_paid_email_shows_the_calendar_date_and_never_an_hour(): void
+    {
+        $booking = $this->booking(BookingStatus::Paid)->load('face.userable', 'producer.userable');
+
+        $html = (new BookingPaidFaceMail($booking))->render();
+
+        $this->assertStringContainsString(now()->addDays(5)->locale('fr')->translatedFormat('l d F Y'), $html);
+        $this->assertStringNotContainsString('01h00', $html);
+        $this->assertStringNotContainsString(' à ', strip_tags(explode('Date du tournage', $html)[1] ?? ''));
+    }
+
+    public function test_replaying_mark_as_paid_sends_no_duplicate_emails(): void
+    {
+        Mail::fake();
+
+        $booking = $this->booking(BookingStatus::Accepted, ['accepted_at' => now()]);
+
+        app(BookingService::class)->markAsPaid($booking, 'ref-replay');
+        app(BookingService::class)->markAsPaid($booking->fresh(), 'ref-replay');
+
+        Mail::assertQueued(BookingPaidFaceMail::class, 1);
+        Mail::assertQueued(BookingPaidProducerMail::class, 1);
+    }
+
+    public function test_payment_that_expires_the_booking_emails_the_face_but_not_the_producer_the_expiry(): void
+    {
+        Mail::fake();
+
+        // Accepté il y a plus de 24 h, cron pas passé : markAsPaid l'expire puis crédite le wallet.
+        $booking = $this->booking(BookingStatus::Accepted, ['accepted_at' => now()->subHours(30)]);
+
+        app(BookingService::class)->markAsPaid($booking, 'ref-expire-here');
+
+        $this->assertSame(BookingStatus::Expired, $booking->fresh()->status);
+        Mail::assertQueued(WalletCreditedMail::class, 1);
+        Mail::assertQueued(BookingExpiredMail::class, 1);
+        Mail::assertQueued(BookingExpiredMail::class, fn (BookingExpiredMail $mail): bool => ! $mail->forProducer && $mail->hasTo('face@example.test'));
+        Mail::assertNotQueued(BookingExpiredMail::class, fn (BookingExpiredMail $mail): bool => $mail->forProducer);
+        // L'in-app Producteur reste inchangée.
+        $this->assertDatabaseHas('notifications', ['user_id' => $this->producerUser->id, 'type' => 'booking_expired']);
     }
 
     public function test_late_payment_credited_to_the_wallet_does_not_send_the_paid_emails(): void
@@ -233,20 +276,20 @@ class BookingLotD6EmailsTest extends TestCase
         Mail::fake();
 
         $booking = $this->booking(BookingStatus::ConfirmedByProducer, [
-            'date_debut' => now()->subHours(5),
-            'date_fin' => now()->subHour(),
+            'date_debut' => now()->startOfDay(),
+            'date_fin' => now()->startOfDay(),
         ]);
 
         BookingPartiallyConfirmed::dispatch($booking, $this->producerUser);
 
-        // date_fin + 72 h = 2026-10-13 11:00 UTC = 12:00 à Porto-Novo.
+        // date_fin (10/10, minuit) + 72 h = 13/10.
         Mail::assertQueued(BookingProducerConfirmedMail::class, 1);
         Mail::assertQueued(
             BookingProducerConfirmedMail::class,
-            fn (BookingProducerConfirmedMail $mail): bool => $mail->hasTo('face@example.test') && $mail->dueAt === '13/10/2026 12:00',
+            fn (BookingProducerConfirmedMail $mail): bool => $mail->hasTo('face@example.test') && $mail->dueAt === '13/10/2026',
         );
-        $html = (new BookingProducerConfirmedMail($booking->load('producer.userable'), '13/10/2026 12:00'))->render();
-        $this->assertStringContainsString('13/10/2026 12:00', $html);
+        $html = (new BookingProducerConfirmedMail($booking->load('producer.userable'), '13/10/2026'))->render();
+        $this->assertStringContainsString('13/10/2026', $html);
         $this->assertStringContainsString("/face/bookings/{$booking->uuid}", $html);
     }
 
@@ -255,8 +298,8 @@ class BookingLotD6EmailsTest extends TestCase
         Mail::fake();
 
         $booking = $this->booking(BookingStatus::ConfirmedByProducer, [
-            'date_debut' => now()->subDays(6),
-            'date_fin' => now()->subDays(5),
+            'date_debut' => now()->subDays(6)->startOfDay(),
+            'date_fin' => now()->subDays(5)->startOfDay(),
         ]);
 
         BookingPartiallyConfirmed::dispatch($booking, $this->producerUser);
@@ -269,8 +312,8 @@ class BookingLotD6EmailsTest extends TestCase
         Mail::fake();
 
         $booking = $this->booking(BookingStatus::ConfirmedByFace, [
-            'date_debut' => now()->subHours(5),
-            'date_fin' => now()->subHour(),
+            'date_debut' => now()->startOfDay(),
+            'date_fin' => now()->startOfDay(),
             'face_confirmed_at' => now(),
         ]);
 
@@ -284,8 +327,8 @@ class BookingLotD6EmailsTest extends TestCase
         Mail::shouldReceive('to')->andThrow(new \RuntimeException('smtp down'));
 
         $booking = $this->booking(BookingStatus::Paid, [
-            'date_debut' => now()->subHours(5),
-            'date_fin' => now()->subHour(),
+            'date_debut' => now()->startOfDay(),
+            'date_fin' => now()->startOfDay(),
         ]);
 
         $confirmed = app(BookingService::class)->confirm($booking, $this->producerUser);
@@ -318,8 +361,8 @@ class BookingLotD6EmailsTest extends TestCase
     private function disputedBooking(BookingStatus $status, array $attributes = []): Booking
     {
         $booking = $this->booking($status, array_merge([
-            'date_debut' => now()->subDay(),
-            'date_fin' => now()->subDay(),
+            'date_debut' => now()->subDay()->startOfDay(),
+            'date_fin' => now()->subDay()->startOfDay(),
             'settlement_due_at' => now()->subHour(),
         ], $attributes));
 
@@ -418,6 +461,21 @@ class BookingLotD6EmailsTest extends TestCase
         $this->assertSame(1, $this->disputeMailsTo('studio@example.test'));
         $this->assertSame(1, $this->disputeMailsTo('face@example.test'));
         Mail::assertNotQueued(WalletCreditedMail::class);
+    }
+
+    public function test_favor_face_no_show_with_zero_amount_gives_each_party_one_outcome_email(): void
+    {
+        Mail::fake();
+
+        $booking = $this->booking(BookingStatus::Completed, ['disputed_at' => now()->subHour()]);
+
+        // Absence tranchée en faveur de la Face, montant crédité nul : aucun e-mail de crédit, un e-mail d'issue chacun.
+        BookingDisputeSettled::dispatch($booking, DisputeResolutionOutcome::FavorFace, 0);
+
+        $this->assertSame(1, $this->disputeMailsTo('studio@example.test'));
+        $this->assertSame(1, $this->disputeMailsTo('face@example.test'));
+        Mail::assertNotQueued(WalletCreditedFaceMail::class);
+        Mail::assertQueued(BookingDisputeSettledMail::class, 2);
     }
 
     public function test_dispute_outcome_email_failure_never_blocks_the_settlement(): void

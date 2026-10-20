@@ -89,7 +89,7 @@ class NotifyOtherPartyOnBookingPartialConfirmation
                     // absente de BookingResource pour ce statut). Déjà passée ⇒ le prochain passage horaire suffit.
                     $dueAt = $booking->date_fin?->copy()->addHours(72);
                     $dueLabel = $dueAt !== null && $dueAt->isFuture()
-                        ? Booking::formatForBusiness($dueAt)
+                        ? Booking::formatForBusiness($dueAt, 'd/m/Y')
                         : null;
 
                     // afterCommit : BookingPartiallyConfirmed est dispatché dans la transaction de confirm().

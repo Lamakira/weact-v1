@@ -63,8 +63,29 @@ class RemindShootingDayCommand extends Command
 
         foreach ($missions as $mission) {
             try {
-                $this->sendRemindersForMission($mission);
-                $mission->update(['shooting_reminder_sent_at' => now()]);
+                // Claim atomique : jamais deux rappels pour la même mission, même si deux exécutions se chevauchent.
+                $claimedAt = now()->startOfSecond();
+                $claimed = Mission::query()
+                    ->whereKey($mission->id)
+                    ->whereNull('shooting_reminder_sent_at')
+                    ->update(['shooting_reminder_sent_at' => $claimedAt]);
+
+                if ($claimed === 0) {
+                    continue;
+                }
+
+                try {
+                    $this->sendRemindersForMission($mission);
+                } catch (\Throwable $e) {
+                    // Échec avant fin d'envoi : on libère le claim pour que le prochain passage réessaie.
+                    Mission::query()
+                        ->whereKey($mission->id)
+                        ->where('shooting_reminder_sent_at', $claimedAt)
+                        ->update(['shooting_reminder_sent_at' => null]);
+
+                    throw $e;
+                }
+
                 $this->info("Reminders sent for mission #{$mission->id} \"{$mission->titre}\"");
                 $sent++;
             } catch (\Throwable $e) {
@@ -86,19 +107,18 @@ class RemindShootingDayCommand extends Command
 
     /**
      * Lot D6 : bookings cash payés dont le tournage (date_debut) a lieu demain, jour calendaire du
-     * fuseau métier (la base stocke en UTC). In-app + e-mail aux deux parties, une seule fois par booking.
+     * fuseau métier. In-app + e-mail aux deux parties, une seule fois par booking.
      */
     private function remindBookings(): void
     {
-        $tomorrow = now()->setTimezone((string) config('app.business_timezone'))->addDay();
-        $from = $tomorrow->copy()->startOfDay()->utc();
-        $to = $tomorrow->copy()->endOfDay()->utc();
+        // `date_debut` est une date calendaire sans heure (00:00 UTC) : on compare le jour, demain côté fuseau métier.
+        $tomorrow = now()->setTimezone((string) config('app.business_timezone'))->addDay()->toDateString();
 
         // BINARY : aligne la comparaison SQL (collation _ci) sur le PHP `=== 'UGC'` (pas de tournage en UGC).
         $bookings = Booking::query()
             ->whereIn('status', [BookingStatus::Paid->value, BookingStatus::InProgress->value])
             ->whereRaw("BINARY type_contenu != 'UGC'")
-            ->whereBetween('date_debut', [$from, $to])
+            ->whereDate('date_debut', $tomorrow)
             ->whereNull('shooting_reminder_sent_at')
             ->with(['face.userable', 'producer.userable'])
             ->get();

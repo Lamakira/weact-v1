@@ -149,8 +149,8 @@ class RemindShootingDayCommandTest extends TestCase
             'type_contenu' => 'Publicité',
             'lieu' => 'Cotonou, Haie Vive',
             'duree_heures' => 6,
-            // Demain 14 h, fuseau métier.
-            'date_debut' => now()->setTimezone((string) config('app.business_timezone'))->addDay()->setTime(14, 0)->utc(),
+            // Forme réelle : date calendaire sans heure (minuit UTC), demain.
+            'date_debut' => now()->addDay()->startOfDay(),
         ], $attributes));
     }
 
@@ -188,24 +188,52 @@ class RemindShootingDayCommandTest extends TestCase
         $this->assertSame(2, Notification::where('type', 'shooting_day_reminder')->where('data->booking_id', $booking->id)->count());
     }
 
-    public function test_booking_reminder_uses_the_business_day_not_the_utc_day(): void
+    public function test_booking_reminder_targets_the_right_day_with_midnight_dates_and_shows_no_hour(): void
     {
-        // Demain 00 h 30 à Porto-Novo = aujourd'hui 23 h 30 UTC : c'est bien « demain » pour les utilisateurs.
-        $tomorrowEarly = $this->paidBooking([
-            'date_debut' => now()->setTimezone((string) config('app.business_timezone'))->addDay()->startOfDay()->addMinutes(30)->utc(),
-        ]);
-        $today = $this->paidBooking([
-            'date_debut' => now()->setTimezone((string) config('app.business_timezone'))->setTime(16, 0)->utc(),
-        ]);
-        $dayAfter = $this->paidBooking([
-            'date_debut' => now()->setTimezone((string) config('app.business_timezone'))->addDays(2)->setTime(10, 0)->utc(),
-        ]);
+        // date_debut est stocké à 00:00 UTC : aucune conversion de fuseau, aucune heure affichée.
+        $tomorrow = $this->paidBooking();
+        $today = $this->paidBooking(['date_debut' => now()->startOfDay()]);
+        $dayAfter = $this->paidBooking(['date_debut' => now()->addDays(2)->startOfDay()]);
 
         $this->artisan('missions:remind-shooting')->assertExitCode(0);
 
-        $this->assertNotNull($tomorrowEarly->fresh()->shooting_reminder_sent_at);
+        $this->assertNotNull($tomorrow->fresh()->shooting_reminder_sent_at);
         $this->assertNull($today->fresh()->shooting_reminder_sent_at);
         $this->assertNull($dayAfter->fresh()->shooting_reminder_sent_at);
+
+        foreach ([true, false] as $forProducer) {
+            $html = (new BookingShootingReminderMail($tomorrow->load('face.userable', 'producer.userable'), $forProducer))->render();
+            $this->assertStringNotContainsString('01h00', $html);
+            $this->assertStringNotContainsString('Heure de début', $html);
+            $this->assertStringContainsString(now()->addDay()->locale('fr')->translatedFormat('l d F Y'), $html);
+        }
+    }
+
+    public function test_evening_catch_up_reminds_a_booking_paid_after_the_morning_run_without_duplicates(): void
+    {
+        $booking = $this->paidBooking(['status' => BookingStatus::Accepted]);
+
+        // 08:00 : pas encore payé, rien à rappeler.
+        $this->artisan('missions:remind-shooting')->assertExitCode(0);
+        Mail::assertNothingQueued();
+
+        // Payé dans la journée ; passage de 18:00.
+        $booking->update(['status' => BookingStatus::Paid]);
+        $this->artisan('missions:remind-shooting')->assertExitCode(0);
+        Mail::assertQueued(BookingShootingReminderMail::class, 2);
+
+        // Le lendemain matin / soir suivant : aucun doublon.
+        $this->artisan('missions:remind-shooting')->assertExitCode(0);
+        Mail::assertQueued(BookingShootingReminderMail::class, 2);
+    }
+
+    public function test_reminder_is_scheduled_at_08_and_18_without_overlapping(): void
+    {
+        $events = collect(app(\Illuminate\Console\Scheduling\Schedule::class)->events())
+            ->filter(fn ($event): bool => str_contains((string) $event->command, 'missions:remind-shooting'));
+
+        $this->assertEqualsCanonicalizing(['0 8 * * *', '0 18 * * *'], $events->pluck('expression')->all());
+        $this->assertTrue($events->every(fn ($event): bool => $event->withoutOverlapping));
     }
 
     public function test_booking_reminder_skips_unpaid_cancelled_and_ugc_bookings(): void

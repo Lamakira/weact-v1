@@ -6,7 +6,7 @@ namespace App\Mail\Concerns;
 
 /**
  * Libellés communs aux e-mails de booking (propriété `$booking` du Mailable requise).
- * Les dates sont rendues dans le fuseau métier (la base stocke en UTC).
+ * Les dates de tournage sont des dates calendaires sans heure : jamais d'heure de début affichée.
  */
 trait DescribesBooking
 {
@@ -24,25 +24,13 @@ trait DescribesBooking
         return $name !== '' ? $name : 'Le Producteur';
     }
 
+    /** `date_debut` est une date calendaire (00:00 UTC, sans heure) : aucune conversion de fuseau. */
     protected function bookingDateLabel(): ?string
     {
         return $this->booking->date_debut
             ?->copy()
-            ->setTimezone((string) config('app.business_timezone'))
             ->locale('fr')
             ->translatedFormat('l d F Y');
-    }
-
-    /** Heure de début, seulement si le booking en porte une (minuit = pas d'horaire saisi). */
-    protected function startTimeLabel(): ?string
-    {
-        $start = $this->booking->date_debut?->copy()->setTimezone((string) config('app.business_timezone'));
-
-        if ($start === null || $start->format('H:i') === '00:00') {
-            return null;
-        }
-
-        return $start->format('H\hi');
     }
 
     protected function formatMoney(int|float $amount): string

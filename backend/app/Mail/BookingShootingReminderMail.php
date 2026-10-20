@@ -33,7 +33,6 @@ final class BookingShootingReminderMail extends BaseMail
                 'forProducer' => $this->forProducer,
                 'otherName' => $this->forProducer ? $this->faceName() : $this->producerName(),
                 'bookingDate' => $this->bookingDateLabel(),
-                'startTime' => $this->startTimeLabel(),
                 'dureeHeures' => $this->booking->duree_heures,
                 'bookingLocation' => $this->booking->lieu,
                 'bookingUrl' => $this->bookingUrl($this->forProducer),
