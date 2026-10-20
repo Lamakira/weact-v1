@@ -57,7 +57,15 @@ class CandidatureController extends Controller
         }
 
         $query = Candidature::where('mission_id', $mission->id)
-            ->with(['mission', 'face.activeSubscription', 'conversation', 'shipment.receptionPhotos', 'deliverables'])
+            ->with([
+                'mission',
+                'face.activeSubscription',
+                'conversation',
+                'shipment.receptionPhotos',
+                'deliverables',
+                // Lot C8 : seulement la note de ce Producteur (jamais celle de la Face sur le Producteur).
+                'ratings' => fn ($q) => $q->where('rater_id', $user->id),
+            ])
             ->latest();
 
         // Apply status filter if provided

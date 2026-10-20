@@ -16,6 +16,7 @@ use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
+use App\Models\Rating;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -329,6 +330,51 @@ class ProducerMissionSummaryTest extends TestCase
         $over->update(['date_limite_candidature' => now()->subDays(3)->toDateString()]);
         $this->candidature($over, CandidatureStatus::InProgress);
         $this->assertSame('tunnel', $this->summary($over)['step']);
+    }
+
+    public function test_faces_to_rate_counts_completed_candidatures_without_a_producer_rating(): void
+    {
+        $mission = $this->mission(MissionStatus::Completed);
+        $rated = $this->candidature($mission, CandidatureStatus::Completed);
+        $this->candidature($mission, CandidatureStatus::Completed);
+        $this->candidature($mission, CandidatureStatus::Completed);
+        $this->candidature($mission, CandidatureStatus::Rejected);
+
+        $this->assertSame(3, $this->summary($mission)['faces_to_rate']);
+
+        Rating::create([
+            'candidature_id' => $rated->id,
+            'rater_id' => $this->producerUser->id,
+            'rated_id' => $rated->face_id,
+            'rated_type' => Face::class,
+            'score' => 5,
+        ]);
+
+        $this->assertSame(2, $this->summary($mission)['faces_to_rate']);
+    }
+
+    public function test_faces_to_rate_ignores_the_face_side_rating(): void
+    {
+        $mission = $this->mission(MissionStatus::Completed);
+        $candidature = $this->candidature($mission, CandidatureStatus::Completed);
+        $faceUser = User::factory()->create(['userable_type' => Face::class, 'userable_id' => $candidature->face_id]);
+        Rating::create([
+            'candidature_id' => $candidature->id,
+            'rater_id' => $faceUser->id,
+            'rated_id' => $this->producer->id,
+            'rated_type' => Producer::class,
+            'score' => 4,
+        ]);
+
+        $this->assertSame(1, $this->summary($mission)['faces_to_rate']);
+    }
+
+    public function test_faces_to_rate_is_zero_without_completed_candidatures(): void
+    {
+        $mission = $this->mission(MissionStatus::Published);
+        $this->candidature($mission, CandidatureStatus::Confirmed);
+
+        $this->assertSame(0, $this->summary($mission)['faces_to_rate']);
     }
 
     /**

@@ -18,6 +18,7 @@ const routeState = vi.hoisted(() => ({
   query: {} as Record<string, unknown>,
   replace: vi.fn().mockResolvedValue(undefined),
   push: vi.fn().mockResolvedValue(undefined),
+  focusFirstToRate: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
@@ -34,7 +35,7 @@ vi.mock('@/features/candidature/components', () => ({
     name: 'ProducerCandidaturesSectionStub',
     props: { missionId: { type: String, required: true } },
     setup(_props, { expose }) {
-      expose({ openCandidaturePayment: vi.fn() })
+      expose({ openCandidaturePayment: vi.fn(), focusFirstToRate: routeState.focusFirstToRate })
       return () => h('div', { 'data-testid': 'candidatures-section-stub' })
     },
   }),
@@ -89,6 +90,7 @@ function makeSummary(step: MissionSummaryStep, overrides: Partial<MissionSummary
     attendance: null,
     ugc_deliverables: null,
     completion_blocker: null,
+    faces_to_rate: 0,
     can_edit: false,
     ...overrides,
   }
@@ -290,6 +292,30 @@ describe('ProducerMissionDetailPage — action principale par étape', () => {
     await flushPromises()
 
     expect(document.body.textContent).toContain('Paiement de la commission')
+  })
+
+  it('mission terminée avec des Faces à noter : « Noter mes Faces » met le premier « Noter » en avant, facultatif', async () => {
+    routeState.focusFirstToRate.mockClear()
+    const w = await mountPage(
+      makeMission({ status: 'completed', has_paid_payment: true }, makeSummary('completed', { faces_to_rate: 2 })),
+    )
+
+    const button = primaryAction(w)
+    expect(button.text()).toContain('Noter mes Faces')
+    expect(button.text()).toContain('facultatif')
+    expect(w.text()).toContain('facultatif')
+
+    await button.trigger('click')
+    await flushPromises()
+    expect(routeState.focusFirstToRate).toHaveBeenCalledTimes(1)
+  })
+
+  it('mission terminée dont toutes les Faces sont notées : plus d\'action principale', async () => {
+    const w = await mountPage(
+      makeMission({ status: 'completed', has_paid_payment: true }, makeSummary('completed', { faces_to_rate: 0 })),
+    )
+
+    expect(primaryAction(w).exists()).toBe(false)
   })
 
   it('UGC publiée depuis le formulaire (?pay={id}) : ouvre le tunnel de commission et consomme le paramètre', async () => {
