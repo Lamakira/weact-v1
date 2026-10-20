@@ -22,7 +22,13 @@ const statusColorClasses: Record<BookingStatusType, string> = {
   no_show: 'bg-red-100 text-red-800',
 }
 
-const label = computed(() => BookingStatusLabel[props.status] || props.status)
+// Côté Face/Producteur, « payé » = argent en séquestre : même mot que la page booking (lot C6).
+// L'administration garde BookingStatusLabel tel quel.
+const userFacingLabels: Partial<Record<BookingStatusType, string>> = {
+  paid: 'Paiement sécurisé',
+}
+
+const label = computed(() => userFacingLabels[props.status] ?? BookingStatusLabel[props.status] ?? props.status)
 const colorClass = computed(() => statusColorClasses[props.status] || 'bg-gray-100 text-gray-800')
 </script>
 

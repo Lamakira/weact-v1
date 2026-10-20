@@ -40,6 +40,12 @@ class BookingResource extends JsonResource
             'ugc_commission_payment_deadline' => $this->status === BookingStatus::Pending && $this->commission_paid_at === null
                 ? $this->ugcCommissionPaymentDeadline()?->toIso8601String()
                 : null,
+            // Lot C6 : date de clôture automatique, là où elle existe (payé relancé / confirmé par la Face seule).
+            'auto_completion_at' => match ($this->status) {
+                BookingStatus::Paid => $this->silentAutoCompleteDueAt()?->toIso8601String(),
+                BookingStatus::ConfirmedByFace => $this->faceConfirmedAutoCompleteDueAt()?->toIso8601String(),
+                default => null,
+            },
             'date_fin' => $this->date_fin?->toIso8601String(),
             'duree_heures' => $this->duree_heures,
             'type_contenu' => $this->type_contenu,

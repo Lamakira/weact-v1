@@ -3,10 +3,14 @@ import { mount } from '@vue/test-utils'
 import BookingCard from '../BookingCard.vue'
 import type { Booking } from '@/features/booking/types'
 
+const viewer = vi.hoisted(() => ({ type: 'Face' }))
+
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
     user: {
-      userable_type: 'Face',
+      get userable_type() {
+        return viewer.type
+      },
     },
   }),
 }))
@@ -150,5 +154,40 @@ describe('BookingCard', () => {
     expect(wrapper.text()).not.toContain('Invalid Date')
     expect(wrapper.text()).not.toContain('max')
     expect(wrapper.text()).toContain('En attente') // the card still renders
+  })
+
+  describe('sous-titre selon le statut et le rôle (lot C6)', () => {
+    const mountCard = (booking: Booking) =>
+      mount(BookingCard, {
+        props: { booking },
+        global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
+      })
+    const subtitle = (booking: Booking) => mountCard(booking).find('[data-testid="booking-card-subtitle"]').text()
+
+    it('ne répète plus « Demande de booking » quel que soit le statut', () => {
+      viewer.type = 'Face'
+      expect(mountCard(makeBooking({ status: 'paid' })).text()).not.toContain('Demande de booking')
+    })
+
+    it('la pastille d’un booking payé dit « Paiement sécurisé », pas « Payée »', () => {
+      viewer.type = 'Face'
+      const text = mountCard(makeBooking({ status: 'paid' })).text()
+      expect(text).toContain('Paiement sécurisé')
+      expect(text).not.toContain('Payée')
+    })
+
+    it('Face : demande en attente → à elle de répondre ; payé → paiement sécurisé', () => {
+      viewer.type = 'Face'
+      expect(subtitle(makeBooking({ status: 'pending' }))).toBe('À vous de répondre')
+      expect(subtitle(makeBooking({ status: 'accepted' }))).toBe('En attente du paiement')
+      expect(subtitle(makeBooking({ status: 'paid' }))).toBe('Confirmé, paiement sécurisé')
+    })
+
+    it('Producer : demande en attente → sa réponse ; accepté → à payer', () => {
+      viewer.type = 'Producer'
+      expect(subtitle(makeBooking({ status: 'pending' }))).toBe('En attente de sa réponse')
+      expect(subtitle(makeBooking({ status: 'accepted' }))).toBe('À payer')
+      viewer.type = 'Face'
+    })
   })
 })
