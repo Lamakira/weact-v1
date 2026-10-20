@@ -26,6 +26,21 @@ export const MissionStatusLabel: Record<MissionStatusType, string> = {
   [MissionStatus.COMPLETED]: 'Terminée',
 }
 
+// Lot C3 : statut affiché (dérivé côté serveur de status + type + paiement ; ne remplace pas `status`)
+export const MissionDisplayStatus = {
+  DRAFT: 'draft',
+  PUBLISHED: 'published',
+  PAYMENT_IN_PROGRESS: 'payment_in_progress',
+  COMMISSION_DUE: 'commission_due',
+  PAID_PREPARING: 'paid_preparing',
+  CLOSED: 'closed',
+  IN_PROGRESS: 'in_progress',
+  ATTENDANCE_PENDING: 'attendance_pending',
+  COMPLETED: 'completed',
+} as const
+
+export type MissionDisplayStatusType = (typeof MissionDisplayStatus)[keyof typeof MissionDisplayStatus]
+
 // Mission type enum
 export const MissionType = {
   PUBLICITE: 'publicite',
@@ -159,6 +174,9 @@ export interface Mission {
   duree: string
   status: MissionStatusType
   status_label: string
+  // Lot C3 : statut véridique pour l'affichage (repli sur status_label si absent)
+  display_status?: MissionDisplayStatusType
+  display_status_label?: string
   is_accepting_candidatures: boolean
   has_paid_payment: boolean
   // Propriétaire seulement : miroir serveur des règles de POST /complete.

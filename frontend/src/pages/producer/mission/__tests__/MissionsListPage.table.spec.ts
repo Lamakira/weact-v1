@@ -82,10 +82,19 @@ function makeMission(id: string, overrides: Partial<Mission> = {}): Mission {
 }
 
 const published = makeMission('pub')
-const closedPaid = makeMission('clo', { status: 'closed', status_label: 'Clôturée', has_paid_payment: true, can_complete: true })
+const closedPaid = makeMission('clo', {
+  status: 'closed',
+  status_label: 'Clôturée',
+  display_status: 'paid_preparing',
+  display_status_label: 'Payée, en préparation',
+  has_paid_payment: true,
+  can_complete: true,
+})
 const ugcPending = makeMission('ugc', {
   status: 'pending_payment',
   status_label: 'En attente de paiement',
+  display_status: 'commission_due',
+  display_status_label: 'Commission à payer',
   type_mission: 'ugc',
   commission_ugc: 2500,
   date_tournage: null as unknown as string,
@@ -172,7 +181,7 @@ describe('MissionsListPage — table (md and up)', () => {
     expect(rows[0]!.text()).toContain('Publicité')
     expect(rows[0]!.text()).toContain('Publiée')
     expect(rows[2]!.text()).toContain('UGC')
-    expect(rows[2]!.text()).toContain('En attente de paiement')
+    expect(rows[2]!.text()).toContain('Commission à payer')
   })
 
   it('only offers sorting on status, the two dates, candidatures and creation date', async () => {
@@ -223,7 +232,7 @@ describe('MissionsListPage — table (md and up)', () => {
 
   it('goes back to page 1 when the status filter changes and keeps the sort', async () => {
     const { wrapper, router } = await mountPage('/producer/missions?page=3&sort=status&direction=asc')
-    const closedTab = wrapper.findAll('button').find((b) => b.text() === 'Clôturée')!
+    const closedTab = wrapper.findAll('button').find((b) => b.text() === 'Recrutement clos')!
     await closedTab.trigger('click')
     await flushPromises()
 
@@ -326,6 +335,10 @@ describe('MissionsListPage — table (md and up)', () => {
     expect(dot.text()).toBe('Publiée')
     expect(dot.attributes('data-tone')).toBe('success')
     expect(rows[2]!.find('td:nth-child(2) [data-testid="r-status-dot"]').attributes('data-tone')).toBe('pending')
+    // Lot C3 : le libellé affiché vient du serveur (display_status_label), pas du statut stocké
+    expect(rows[1]!.find('td:nth-child(2) [data-testid="r-status-dot"]').text()).toBe('Payée, en préparation')
+    expect(rows[1]!.find('td:nth-child(2) [data-testid="r-status-dot"]').attributes('data-tone')).toBe('progress')
+    expect(rows[2]!.find('td:nth-child(2) [data-testid="r-status-dot"]').text()).toBe('Commission à payer')
     // candidatures column: plain number, no button, no icon
     const cell = rows[0]!.find('td:nth-child(5)')
     expect(cell.text()).toBe('3 / 2')
