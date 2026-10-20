@@ -89,7 +89,7 @@ class MissionPaymentController extends Controller
             ]);
         }
 
-        return "{$frontendUrl}/producer/missions/{$mission->uuid}/candidatures?payment=confirmed";
+        return "{$frontendUrl}/producer/missions/{$mission->uuid}?tab=candidatures&payment=confirmed";
     }
 
     /**

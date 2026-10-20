@@ -292,6 +292,32 @@ describe('ProducerMissionDetailPage — action principale par étape', () => {
     expect(document.body.textContent).toContain('Paiement de la commission')
   })
 
+  it('UGC publiée depuis le formulaire (?pay={id}) : ouvre le tunnel de commission et consomme le paramètre', async () => {
+    routeState.query = { pay: 'mission-uuid-under-test' }
+    await mountPage(
+      makeMission(
+        { status: 'pending_payment', type_mission: 'ugc', type_compensation: 'product', commission_ugc: 2500 } as Partial<Mission>,
+        makeSummary('commission'),
+      ),
+    )
+
+    expect(document.body.textContent).toContain('Paiement de la commission')
+    expect(routeState.replace).toHaveBeenCalledWith({ query: {} })
+  })
+
+  it('?pay sur une mission déjà payée : ne rouvre pas le tunnel mais consomme le paramètre', async () => {
+    routeState.query = { pay: 'mission-uuid-under-test' }
+    await mountPage(
+      makeMission(
+        { status: 'published', type_mission: 'ugc', type_compensation: 'product', commission_ugc: 2500 } as Partial<Mission>,
+        makeSummary('recruiting'),
+      ),
+    )
+
+    expect(document.body.textContent).not.toContain('Paiement de la commission')
+    expect(routeState.replace).toHaveBeenCalledWith({ query: {} })
+  })
+
   it('UGC tunnel : « Voir les livrables » seulement s’il y a des livrables à valider', async () => {
     const ugc = { status: 'closed', type_mission: 'ugc', type_compensation: 'product' } as Partial<Mission>
     const w = await mountPage(

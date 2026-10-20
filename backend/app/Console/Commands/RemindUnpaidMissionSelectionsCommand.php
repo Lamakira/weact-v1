@@ -133,7 +133,7 @@ class RemindUnpaidMissionSelectionsCommand extends Command
                 'data' => [
                     'message' => "Votre sélection pour « {$mission->titre} » n'est pas encore payée. Sans paiement avant le {$deadline}, elle sera annulée.",
                     'mission_id' => $mission->id,
-                    'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                    'url' => "/producer/missions/{$mission->uuid}?tab=candidatures",
                 ],
             ]);
             $notified = true;

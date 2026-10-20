@@ -39,7 +39,7 @@ class NotifyProducerOnUgcDealAccepted
                 'data' => [
                     'message' => $candidature->face->prenom.' a accepté votre mission UGC "'.$mission->titre.'" — préparez l\'expédition du produit.',
                     'mission_id' => $mission->id,
-                    'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                    'url' => "/producer/missions/{$mission->uuid}?tab=candidatures",
                 ],
             ]);
         } catch (\Throwable $e) {

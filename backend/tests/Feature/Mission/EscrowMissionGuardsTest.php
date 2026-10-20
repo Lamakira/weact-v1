@@ -620,6 +620,9 @@ class EscrowMissionGuardsTest extends TestCase
             'user_id' => $this->producerUser->id,
             'type' => 'mission_detached_payment_credited',
         ]);
+        // Lot C4 : la notification pointe vers le portefeuille crédité.
+        $credited = \App\Models\Notification::where('user_id', $this->producerUser->id)->where('type', 'mission_detached_payment_credited')->firstOrFail();
+        $this->assertSame('/producer/wallet', $credited->data['url']);
 
         // Rejeu (nouvel event, même transaction) : aucun second crédit.
         $this->runWebhook('evt_late_cash_2', 'transaction.transferred', ['id' => 777001, 'reference' => 'ref_late', 'amount' => 220000]);
