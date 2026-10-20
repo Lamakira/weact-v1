@@ -120,6 +120,11 @@ export type FaceTodoType =
   | 'confirm_prestation'
   | 'ugc_deliverable'
   | 'pending_candidatures'
+  | 'late_cancellation_contest'
+  | 'confirm_participation'
+  | 'ugc_reconfirm'
+  | 'ugc_receipt'
+  | 'rate'
   | 'profile_completion'
 
 export interface FaceTodoItem {

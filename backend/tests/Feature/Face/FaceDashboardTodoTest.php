@@ -12,6 +12,7 @@ use App\Enums\EscrowStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\UgcTunnelStatus;
 use App\Models\Booking;
+use App\Models\BookingRating;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\FaceVideo;
@@ -19,7 +20,9 @@ use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
+use App\Models\Rating;
 use App\Models\User;
+use App\Services\FaceDashboardTodoService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -653,6 +656,298 @@ class FaceDashboardTodoTest extends TestCase
         $this->assertSame([], $this->ofType($this->todo(), 'mission_absence_contest'));
     }
 
+    // ---------------------------------------------------------------
+    // Lot D1 : confirmations, réception UGC, notation, annulation tardive
+    // ---------------------------------------------------------------
+
+    /**
+     * Candidature acceptée d'une mission avec son entrée d'escrow (sélection payée).
+     *
+     * @param  array<string, mixed>  $missionAttributes
+     */
+    private function acceptedCandidature(array $missionAttributes, ?Carbon $acceptedAt, ?EscrowStatus $escrow = EscrowStatus::Locked): Candidature
+    {
+        $mission = Mission::factory()->closed()->create(array_merge([
+            'producer_id' => $this->producer->id,
+            'titre' => 'Mission à confirmer',
+            'date_tournage' => Carbon::now()->addDays(30),
+        ], $missionAttributes));
+        $candidature = Candidature::factory()->accepted()->create([
+            'face_id' => $this->face->id,
+            'mission_id' => $mission->id,
+            'accepted_at' => $acceptedAt,
+        ]);
+
+        if ($escrow !== null) {
+            $payment = MissionPayment::create([
+                'mission_id' => $mission->id,
+                'producer_id' => $this->producer->id,
+                'nombre_faces_retenues' => 1,
+                'budget_par_face' => 100000,
+                'montant_sous_total' => 100000,
+                'commission_producteur' => 10000,
+                'montant_total_producteur' => 110000,
+                'commission_faces_total' => 10000,
+                'montant_total_faces' => 90000,
+                'status' => MissionPaymentStatus::Paid,
+                'paid_at' => now(),
+            ]);
+            MissionPaymentCandidature::create([
+                'mission_payment_id' => $payment->id,
+                'candidature_id' => $candidature->id,
+                'face_id' => $this->face->id,
+                'montant_face_recoit' => 90000,
+                'escrow_status' => $escrow,
+                'locked_at' => now(),
+            ]);
+        }
+
+        return $candidature;
+    }
+
+    public function test_confirm_participation_for_a_paid_cash_selection(): void
+    {
+        // Acceptée il y a 30 h : échéance accepted_at + 48 h => reste 18 h (urgent).
+        $candidature = $this->acceptedCandidature([], Carbon::now()->subHours(30));
+
+        $items = $this->ofType($this->todo(), 'confirm_participation');
+
+        $this->assertCount(1, $items);
+        $this->assertSame('Confirmer votre participation', $items[0]['title']);
+        $this->assertSame('Mission à confirmer', $items[0]['meta']);
+        $this->assertSame('reste 18 h', $items[0]['urgent_meta']);
+        $this->assertSame('Confirmer', $items[0]['action_label']);
+        $this->assertSame('/face/missions/'.$candidature->mission->uuid, $items[0]['url']);
+        // Urgent => en tête de file.
+        $this->assertSame('confirm_participation', $this->todo()[0]['type']);
+    }
+
+    public function test_confirm_participation_absent_without_escrow_entry_or_once_confirmed(): void
+    {
+        // Pas d'entrée d'escrow (sélection non payée)
+        $this->acceptedCandidature([], Carbon::now()->subHours(5), null);
+        // Déjà confirmée
+        $confirmed = $this->acceptedCandidature([], Carbon::now()->subHours(5));
+        $confirmed->update(['status' => 'confirmed']);
+
+        $this->assertSame([], $this->ofType($this->todo(), 'confirm_participation'));
+    }
+
+    public function test_ugc_reconfirm_for_an_accepted_ugc_candidature(): void
+    {
+        // Acceptée il y a 40 h : échéance accepted_at + 48 h => reste 8 h.
+        $candidature = $this->acceptedCandidature(
+            ['type_mission' => 'ugc', 'type_compensation' => 'product', 'titre' => 'Appel UGC'],
+            Carbon::now()->subHours(40),
+            null,
+        );
+
+        $items = $this->ofType($this->todo(), 'ugc_reconfirm');
+
+        $this->assertCount(1, $items);
+        $this->assertSame('Reconfirmer votre participation', $items[0]['title']);
+        $this->assertSame('reste 8 h', $items[0]['urgent_meta']);
+        $this->assertSame('/face/missions/'.$candidature->mission->uuid, $items[0]['url']);
+        $this->assertSame([], $this->ofType($this->todo(), 'confirm_participation'));
+    }
+
+    public function test_ugc_reconfirm_absent_for_hybrid_without_locked_escrow(): void
+    {
+        $this->acceptedCandidature(
+            ['type_mission' => 'ugc', 'type_compensation' => 'hybrid'],
+            Carbon::now()->subHours(5),
+            EscrowStatus::Refunded,
+        );
+
+        $this->assertSame([], $this->ofType($this->todo(), 'ugc_reconfirm'));
+    }
+
+    public function test_ugc_receipt_for_a_shipped_booking_and_a_shipped_candidature(): void
+    {
+        $booking = $this->ugcBookingWithShipment(UgcTunnelStatus::Shipped, null);
+
+        $mission = Mission::factory()->published()->create([
+            'producer_id' => $this->producer->id,
+            'type_mission' => 'ugc',
+            'type_compensation' => 'product',
+            'commission_paid_at' => Carbon::now()->subDays(5),
+        ]);
+        $candidature = Candidature::factory()->confirmed()->create([
+            'face_id' => $this->face->id,
+            'mission_id' => $mission->id,
+        ]);
+        $candidature->shipment()->create([
+            'transporteur' => 'Gozem',
+            'numero_suivi' => 'GZ-R',
+            'tunnel_status' => UgcTunnelStatus::Shipped,
+            'shipped_at' => Carbon::now()->subDay(),
+            'recu_le' => null,
+            'destinataire_nom' => 'X',
+            'destinataire_ville' => 'Cotonou',
+            'destinataire_pays' => 'Bénin',
+        ]);
+
+        $items = $this->ofType($this->todo(), 'ugc_receipt');
+
+        $this->assertCount(2, $items);
+        $this->assertSame('Confirmer la réception du produit', $items[0]['title']);
+        $this->assertSame('Confirmer', $items[0]['action_label']);
+        $this->assertEqualsCanonicalizing(
+            ["/face/bookings/{$booking->uuid}", "/face/missions/{$mission->uuid}"],
+            array_column($items, 'url'),
+        );
+    }
+
+    public function test_ugc_receipt_absent_once_received_or_when_refund_is_requested(): void
+    {
+        $this->ugcBookingWithShipment(UgcTunnelStatus::Received, Carbon::now()->subDay());
+        $refunding = $this->ugcBookingWithShipment(UgcTunnelStatus::Shipped, null);
+        $refunding->update(['commission_refund_requested_at' => Carbon::now()]);
+
+        $this->assertSame([], $this->ofType($this->todo(), 'ugc_receipt'));
+    }
+
+    public function test_rate_for_a_recently_completed_booking_and_mission(): void
+    {
+        $booking = $this->booking([
+            'status' => BookingStatus::Completed,
+            'date_debut' => '2026-10-05',
+            'date_fin' => '2026-10-06',
+        ]);
+        $mission = Mission::factory()->completed()->create([
+            'producer_id' => $this->producer->id,
+            'titre' => 'Clip terminé',
+        ]);
+        $candidature = Candidature::factory()->completed()->create([
+            'face_id' => $this->face->id,
+            'mission_id' => $mission->id,
+        ]);
+
+        $items = $this->ofType($this->todo(), 'rate');
+
+        $this->assertCount(2, $items);
+        $this->assertSame('Noter '.$this->producer->display_name, $items[0]['title']);
+        $this->assertSame('Noter', $items[0]['action_label']);
+        $this->assertEqualsCanonicalizing(
+            ["/face/bookings/{$booking->uuid}", "/face/missions/{$mission->uuid}"],
+            array_column($items, 'url'),
+        );
+    }
+
+    public function test_rate_absent_when_already_rated_or_completed_more_than_7_days_ago(): void
+    {
+        $rated = $this->booking(['status' => BookingStatus::Completed]);
+        BookingRating::create([
+            'booking_id' => $rated->id,
+            'rater_id' => $this->faceUser->id,
+            'rated_id' => $this->producerUser->id,
+            'score' => 5,
+        ]);
+        $ratedCandidature = Candidature::factory()->completed()->create([
+            'face_id' => $this->face->id,
+            'mission_id' => Mission::factory()->completed()->create(['producer_id' => $this->producer->id])->id,
+        ]);
+        Rating::create([
+            'candidature_id' => $ratedCandidature->id,
+            'rater_id' => $this->faceUser->id,
+            'rated_id' => $this->producer->id,
+            'rated_type' => Producer::class,
+            'score' => 4,
+        ]);
+        // Terminés il y a 8 jours : plus proposés
+        $this->booking(['status' => BookingStatus::Completed])->forceFill(['updated_at' => Carbon::now()->subDays(8)])->saveQuietly();
+        Candidature::factory()->completed()->create([
+            'face_id' => $this->face->id,
+            'mission_id' => Mission::factory()->completed()->create(['producer_id' => $this->producer->id])->id,
+        ])->forceFill(['updated_at' => Carbon::now()->subDays(8)])->saveQuietly();
+
+        $this->assertSame([], $this->ofType($this->todo(), 'rate'));
+    }
+
+    public function test_late_cancellation_by_producer_is_contestable_during_the_window(): void
+    {
+        $booking = $this->booking([
+            'status' => BookingStatus::CancelledByProducer,
+            'date_debut' => Carbon::now()->addDay(),
+            'date_fin' => Carbon::now()->addDay(),
+            'settlement_due_at' => Carbon::now()->addHours(60),
+        ]);
+
+        $items = $this->ofType($this->todo(), 'late_cancellation_contest');
+
+        $this->assertCount(1, $items);
+        $this->assertSame('Annulation tardive par '.$this->producer->display_name, $items[0]['title']);
+        $this->assertSame('Contester', $items[0]['action_label']);
+        $this->assertSame('Contester avant le 11/10 à 23:00', $items[0]['urgent_meta']);
+        $this->assertSame("/face/bookings/{$booking->uuid}", $items[0]['url']);
+        $this->assertSame([], $this->ofType($this->todo(), 'no_show_contest'));
+    }
+
+    public function test_late_cancellation_absent_when_closed_disputed_or_without_settlement(): void
+    {
+        $base = [
+            'status' => BookingStatus::CancelledByProducer,
+            'date_debut' => Carbon::now()->addDay(),
+            'date_fin' => Carbon::now()->addDay(),
+        ];
+        $this->booking($base + ['settlement_due_at' => Carbon::now()->subHour()]);
+        $this->booking($base + ['settlement_due_at' => Carbon::now()->addDay(), 'disputed_at' => Carbon::now()]);
+        $this->booking($base + ['settlement_due_at' => Carbon::now()->addDay(), 'dispute_resolved_at' => Carbon::now()]);
+        $this->booking($base + ['settlement_due_at' => null]);
+
+        $this->assertSame([], $this->ofType($this->todo(), 'late_cancellation_contest'));
+    }
+
+    public function test_rate_entry_ranks_after_pending_candidatures_and_before_profile(): void
+    {
+        $this->face->update(['bio' => null]);
+        $this->booking(['status' => BookingStatus::Completed]);
+        Candidature::factory()->pending()->create([
+            'face_id' => $this->face->id,
+            'mission_id' => Mission::factory()->published()->create()->id,
+            'created_at' => Carbon::now()->subDays(6),
+        ]);
+
+        $this->assertSame(
+            ['pending_candidatures', 'rate', 'profile_completion'],
+            array_column($this->todo(), 'type'),
+        );
+    }
+
+    public function test_all_for_face_is_not_truncated_and_carries_categories(): void
+    {
+        $this->face->update(['bio' => null]);
+        for ($i = 0; $i < 10; $i++) {
+            $this->booking([
+                'status' => BookingStatus::Pending,
+                'date_debut' => Carbon::now()->addDays(20 + $i),
+                'date_fin' => Carbon::now()->addDays(20 + $i),
+            ]);
+        }
+        $this->acceptedCandidature([], Carbon::now()->subHours(5));
+        $this->ugcBookingWithShipment(UgcTunnelStatus::Received, Carbon::now()->subDays(2));
+
+        $service = app(FaceDashboardTodoService::class);
+        $all = $service->allForFace($this->faceUser, $this->face);
+        $capped = $service->forFace($this->faceUser, $this->face);
+
+        // 10 propositions + confirmation + livrable + profil
+        $this->assertCount(13, $all);
+        $this->assertCount(FaceDashboardTodoService::MAX_ITEMS, $capped);
+        $this->assertSame(array_slice(array_column($all, 'type'), 0, 8), array_column($capped, 'type'));
+
+        $categories = array_column($all, 'category', 'type');
+        $this->assertSame('bookings', $categories['booking_proposal']);
+        $this->assertSame('candidatures', $categories['confirm_participation']);
+        $this->assertSame('livrables', $categories['ugc_deliverable']);
+        $this->assertSame('other', $categories['profile_completion']);
+        $this->assertContains('profile_completion', array_column($all, 'type'));
+
+        // Le contrat de forFace() ne change pas : pas de `category`, ni dans l'API.
+        $this->assertArrayNotHasKey('category', $capped[0]);
+        $this->assertArrayNotHasKey('category', $this->todo()[0]);
+    }
+
     public function test_query_count_is_constant_with_more_items(): void
     {
         $seed = function (int $n): void {
@@ -708,6 +1003,6 @@ class FaceDashboardTodoTest extends TestCase
         $large = $count();
 
         $this->assertSame($small, $large, "Requêtes : {$small} avec peu de données, {$large} avec plus (N+1).");
-        $this->assertLessThanOrEqual(25, $large);
+        $this->assertLessThanOrEqual(32, $large);
     }
 }
