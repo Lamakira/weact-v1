@@ -80,6 +80,15 @@ describe('useUgcDeliverableReview', () => {
     expect(error.value).toBeNull()
   })
 
+  it('scopes the fetch to a mission when a mission uuid is given', async () => {
+    vi.mocked(producerApi.listDeliverablesToReview).mockResolvedValue({ data: [makeReviewItem()] })
+
+    const { fetchPending } = useUgcDeliverableReview('mission-uuid-1')
+    await fetchPending()
+
+    expect(producerApi.listDeliverablesToReview).toHaveBeenCalledWith('mission-uuid-1')
+  })
+
   it('captures the error and code when fetchPending fails', async () => {
     vi.mocked(producerApi.listDeliverablesToReview).mockRejectedValue(
       makeEnvelopeError('INTERNAL_ERROR', 'Erreur interne du serveur.'),

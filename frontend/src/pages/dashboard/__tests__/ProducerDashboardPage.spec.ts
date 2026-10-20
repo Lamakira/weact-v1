@@ -55,7 +55,7 @@ function makeRouter() {
       { path: '/', component: stub },
       { path: '/producer/missions', name: 'producer-missions', component: stub },
       { path: '/producer/missions/publish', name: 'publish-mission', component: stub },
-      { path: '/producer/missions/:id/candidatures', name: 'producer-mission-candidatures', component: stub },
+      { path: '/producer/missions/:id', name: 'producer-mission-detail', component: stub },
       { path: '/producer/messages', name: 'producer-messages', component: stub },
       { path: '/producer/conversations/:conversationId', name: 'producer-conversation', component: stub },
       { path: '/producer/ugc/validation', name: 'producer-ugc-validation', component: stub },
@@ -365,7 +365,7 @@ describe('ProducerDashboardPage', () => {
       expect(row.get('[data-testid="active-mission-new"]').text()).toBe('3 nouvelles')
       expect(row.get('[data-testid="active-mission-faces"]').text()).toBe('1 / 3 Faces confirmées')
       expect(row.get('[data-testid="active-mission-progress"]').attributes('style')).toContain('width: 33%')
-      expect(row.get('a[aria-label="Voir la mission Lookbook Wax"]').attributes('href')).toBe('/producer/missions/m-1/candidatures')
+      expect(row.get('a[aria-label="Voir la mission Lookbook Wax"]').attributes('href')).toBe('/producer/missions/m-1')
       expect(wrapper.get('[data-testid="active-missions-count"]').text()).toBe('6')
     })
 

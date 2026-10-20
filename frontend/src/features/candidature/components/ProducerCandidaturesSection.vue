@@ -15,6 +15,7 @@ import { missionApi } from '@/features/mission/services/missionApi'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import ProducerCandidatureCard from './ProducerCandidatureCard.vue'
 import UgcCandidaturePaymentOverlay from './UgcCandidaturePaymentOverlay.vue'
+import RateFaceDialog from './RateFaceDialog.vue'
 import MissionSelectionSummary from '@/features/mission/components/MissionSelectionSummary.vue'
 import StatusFilter from './StatusFilter.vue'
 import { useToast } from '@/composables/useToast'
@@ -52,6 +53,8 @@ const emit = defineEmits<{
   'selection-failed': [message: string]
   /** Lot B4 : une place libérée vient d'être donnée à une remplaçante. */
   'freed-place-replaced': []
+  /** Lot C8 : une Face vient d'être notée (le résumé de la mission doit se rafraîchir). */
+  rated: []
 }>()
 
 /**
@@ -274,7 +277,33 @@ function openCandidaturePayment(candidatureId: string): void {
   paymentTarget.value = { id: candidatureId, faceName: candidature?.face.display_name ?? '' }
 }
 
-defineExpose({ openCandidaturePayment })
+/**
+ * Notation facultative d'une Face (lot C8) — un seul dialogue au niveau section.
+ */
+const rateTarget = ref<{ id: string; faceName: string } | null>(null)
+const sectionRef = ref<HTMLElement | null>(null)
+
+function handleRate(candidatureId: string): void {
+  const candidature = candidatures.value.find((c) => c.id === candidatureId)
+  rateTarget.value = { id: candidatureId, faceName: candidature?.face.display_name ?? 'cette Face' }
+}
+
+async function handleRated(): Promise<void> {
+  rateTarget.value = null
+  toast.success('Merci, votre note a été enregistrée.')
+  await refresh()
+  emit('rated')
+}
+
+/** « Noter mes Faces » : met en avant le premier bouton « Noter » de la page affichée. */
+function focusFirstToRate(): void {
+  const button = sectionRef.value?.querySelector<HTMLElement>('[data-testid="rate-candidature-btn"]')
+  if (!button) return
+  button.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
+  button.focus({ preventScroll: true })
+}
+
+defineExpose({ openCandidaturePayment, focusFirstToRate })
 
 /** Overlay closed (cancel / failed-dismiss) → drop the target. */
 function handlePaymentOverlayClose(value: boolean): void {
@@ -384,7 +413,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <section class="space-y-6">
+  <section ref="sectionRef" class="space-y-6">
     <!-- Header & Filter -->
     <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div class="space-y-1">
@@ -507,7 +536,7 @@ onMounted(() => {
         Vous avez atteint le nombre maximum de Faces pour cette mission ({{ nombreFacesVoulu }}).
       </div>
 
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="candidature-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <ProducerCandidatureCard
           v-for="candidature in candidatures"
           :key="candidature.id"
@@ -519,6 +548,7 @@ onMounted(() => {
           :ugc-compensation-type="ugcCompensationType"
           :can-offer-freed-place="canReplaceFreedPlace"
           @offer-freed-place="handleOfferFreedPlace"
+          @rate="handleRate"
           @reject="handleReject"
           @accept="handleAccept"
           @release="handleRelease"
@@ -616,6 +646,14 @@ onMounted(() => {
         </div>
       </div>
     </Teleport>
+
+    <!-- Lot C8 : notation facultative d'une Face -->
+    <RateFaceDialog
+      :candidature-id="rateTarget?.id ?? null"
+      :face-name="rateTarget?.faceName ?? ''"
+      @rated="handleRated"
+      @close="rateTarget = null"
+    />
 
     <!-- Lot B4 : confirmation de la place libérée proposée à une candidature non retenue -->
     <ConfirmModal

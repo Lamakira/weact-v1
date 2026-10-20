@@ -173,4 +173,24 @@ describe('useMissionDetail', () => {
     expect(detail.ugcPaywallMessage.value).toBeNull()
     expect(detail.mission.value?.id).toBe('mission-uuid-1')
   })
+
+  it('relecture silencieuse : pas de spinner plein écran, état conservé si elle échoue (lot C5)', async () => {
+    vi.mocked(faceMissionApi.getMissionDetail).mockResolvedValueOnce({
+      data: createMission(),
+      candidature: null,
+    })
+    const detail = useMissionDetail()
+    await detail.fetchMission('m1')
+
+    let loadingDuringSilent: boolean | null = null
+    vi.mocked(faceMissionApi.getMissionDetail).mockImplementationOnce(async () => {
+      loadingDuringSilent = detail.isLoading.value
+      throw new Error('réseau')
+    })
+    await detail.fetchMission('m1', { silent: true })
+
+    expect(loadingDuringSilent).toBe(false)
+    expect(detail.error.value).toBeNull()
+    expect(detail.mission.value?.id).toBe('mission-uuid-1')
+  })
 })

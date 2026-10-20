@@ -304,7 +304,7 @@ class ReconcileStaleSelectionsCommandTest extends TestCase
             'Le paiement de votre sélection pour la mission « '.$missionTitre.' » n\'a pas abouti. La mission est de nouveau ouverte aux candidatures — vous pouvez relancer votre sélection depuis la page de la mission.',
             $producerNotif->data['message']
         );
-        $this->assertSame('/producer/missions/'.$missionUuid.'/candidatures', $producerNotif->data['url']);
+        $this->assertSame('/producer/missions/'.$missionUuid.'?tab=candidatures', $producerNotif->data['url']);
     }
 
     public function test_second_apply_run_is_a_no_op(): void

@@ -356,6 +356,8 @@ class Candidature extends Model
 
     /**
      * Get the ratings associated with this candidature.
+     *
+     * @return HasMany<Rating, $this>
      */
     public function ratings(): HasMany
     {
@@ -371,6 +373,30 @@ class Candidature extends Model
     public function canBeRated(): bool
     {
         return $this->status->allowsRatings();
+    }
+
+    /**
+     * Notation de la mission vue par la Face (lot C8) : `can_rate` + `my_rating` du rater donné.
+     *
+     * Lit uniquement la relation `ratings` déjà chargée (jamais de lazy-load) : l'appelant la précharge,
+     * idéalement contrainte au rater, pour rester sans N+1 en liste.
+     *
+     * @return array{can_rate: bool, my_rating: array{score: int, comment: ?string, created_at: ?string}|null}
+     */
+    public function raterRatingPayload(?int $raterId): array
+    {
+        $rating = $raterId === null
+            ? null
+            : $this->ratings->first(fn (Rating $r): bool => $r->rater_id === $raterId);
+
+        return [
+            'can_rate' => $rating === null && $this->canBeRated(),
+            'my_rating' => $rating === null ? null : [
+                'score' => (int) $rating->score,
+                'comment' => $rating->comment,
+                'created_at' => $rating->created_at?->toIso8601String(),
+            ],
+        ];
     }
 
     /**

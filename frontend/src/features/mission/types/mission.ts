@@ -3,6 +3,7 @@
  */
 
 import type { Deliverable, ProductPhoto, Shipment } from '@/components/ugc'
+import type { MissionRating } from '@/features/candidature/types'
 
 // Mission status enum
 export const MissionStatus = {
@@ -25,6 +26,21 @@ export const MissionStatusLabel: Record<MissionStatusType, string> = {
   [MissionStatus.PENDING_ATTENDANCE_VALIDATION]: 'En attente de validation des présences',
   [MissionStatus.COMPLETED]: 'Terminée',
 }
+
+// Lot C3 : statut affiché (dérivé côté serveur de status + type + paiement ; ne remplace pas `status`)
+export const MissionDisplayStatus = {
+  DRAFT: 'draft',
+  PUBLISHED: 'published',
+  PAYMENT_IN_PROGRESS: 'payment_in_progress',
+  COMMISSION_DUE: 'commission_due',
+  PAID_PREPARING: 'paid_preparing',
+  CLOSED: 'closed',
+  IN_PROGRESS: 'in_progress',
+  ATTENDANCE_PENDING: 'attendance_pending',
+  COMPLETED: 'completed',
+} as const
+
+export type MissionDisplayStatusType = (typeof MissionDisplayStatus)[keyof typeof MissionDisplayStatus]
 
 // Mission type enum
 export const MissionType = {
@@ -84,6 +100,57 @@ export interface MissionProducer {
   updated_at: string
 }
 
+export type MissionSummaryStep =
+  | 'draft'
+  | 'recruiting'
+  | 'payment'
+  | 'confirmations'
+  | 'ready'
+  | 'attendance'
+  | 'commission'
+  | 'tunnel'
+  | 'completed'
+
+// Lot C1 : résumé du cycle de vie (détail Producer uniquement, absent des listes).
+export interface MissionSummary {
+  step: MissionSummaryStep
+  candidatures: Record<
+    'pending' | 'accepted' | 'confirmed' | 'in_progress' | 'completed' | 'rejected' | 'cancelled' | 'expired',
+    number
+  >
+  selection: {
+    faces_wanted: number
+    faces_selected: number
+    faces_confirmed: number
+    freed_places: number
+  }
+  payment: {
+    status: string | null
+    expires_at: string | null
+    paid_at: string | null
+    montant_total_producteur: number | null
+  }
+  attendance: {
+    opens_at: string | null
+    can_mark: boolean
+    pending: number
+    present: number
+    absent: number
+    disputed: number
+  } | null
+  ugc_deliverables: {
+    to_review: number
+    validated: number
+    retouche_requested: number
+  } | null
+  completion_blocker: string | null
+  /** Lot C8 : Faces terminées que le Producteur n'a pas encore notées (notation facultative). */
+  faces_to_rate: number
+  /** Lot C9 : toutes les Faces sélectionnées ont échoué (places remboursées) — la mission peut être republiée. */
+  all_places_refunded: boolean
+  can_edit: boolean
+}
+
 // Mission data from API
 export interface Mission {
   id: string
@@ -112,6 +179,9 @@ export interface Mission {
   duree: string
   status: MissionStatusType
   status_label: string
+  // Lot C3 : statut véridique pour l'affichage (repli sur status_label si absent)
+  display_status?: MissionDisplayStatusType
+  display_status_label?: string
   is_accepting_candidatures: boolean
   has_paid_payment: boolean
   // Propriétaire seulement : miroir serveur des règles de POST /complete.
@@ -120,6 +190,8 @@ export interface Mission {
   freed_places_count?: number
   can_replace_freed_place?: boolean
   freed_places_refund_at?: string | null
+  // Lot C1 : résumé du cycle de vie (détail Producer uniquement)
+  summary?: MissionSummary
   candidatures_count?: number
   // Photos produit UGC (spec photos produit, `whenLoaded`) — clé OMISE sur les
   // listes, chargée sur les détails. URLs publiques directes (disque public).
@@ -170,6 +242,18 @@ export interface MissionCandidature {
     deadline: string | null
     can_contest: boolean
   } | null
+  /** Échéance de confirmation (cash `accepted`, ISO 8601) — null sinon (lot C5). */
+  confirmation_deadline?: string | null
+  /** Date-limite de reconfirmation UGC (`accepted`, ISO 8601) — null sinon (lot C5). */
+  reconfirm_deadline?: string | null
+  /** Net reçu par la Face une fois sa place payée (escrow) — null avant sélection payée (lot C5). */
+  montant_face_recoit?: number | null
+  /** UUID de la conversation (chat) — null tant que la candidature n'est pas acceptée (lot C5). */
+  conversation_id?: string | null
+  /** La Face peut noter le producteur (candidature terminée, pas encore notée) — lot C8. */
+  can_rate?: boolean
+  /** Sa propre notation du producteur, sinon null — lot C8. */
+  my_rating?: MissionRating | null
   message_motivation: string | null
   created_at: string
   updated_at: string

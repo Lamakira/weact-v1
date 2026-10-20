@@ -50,7 +50,7 @@ class NotifyProducerOnProductReceived
                     ->where('userable_id', $mission->producer_id) // producers.id
                     ->value('id');
                 $productName = (string) $mission->nom_produit;
-                $url = "/producer/missions/{$mission->uuid}/candidatures";
+                $url = "/producer/missions/{$mission->uuid}?tab=candidatures";
             } else {
                 return;
             }

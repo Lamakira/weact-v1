@@ -4,14 +4,21 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Mission;
 
+use App\Enums\CandidatureStatus;
+use App\Enums\EscrowStatus;
+use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Models\Candidature;
+use App\Models\Conversation;
 use App\Models\Face;
 use App\Models\FaceSubscription;
 use App\Models\Mission;
+use App\Models\MissionPayment;
+use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class FaceViewMissionDetailTest extends TestCase
@@ -482,5 +489,97 @@ class FaceViewMissionDetailTest extends TestCase
             ->getJson("/api/v1/face/missions/{$hiddenMission->uuid}")
             ->assertStatus(200)
             ->assertJsonPath('data.id', $hiddenMission->uuid);
+    }
+
+    // ─── Page mission Face (lot C5) : champs d'échéance + chat ──────────
+
+    public function test_show_exposes_confirmation_deadline_and_conversation_id_for_accepted_cash_candidature(): void
+    {
+        $mission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+            'date_tournage' => now()->addDays(20)->toDateString(),
+        ]);
+        $acceptedAt = now()->subHours(2)->startOfSecond();
+        $candidature = Candidature::create([
+            'face_id' => $this->face->id,
+            'mission_id' => $mission->id,
+            'status' => CandidatureStatus::Accepted,
+            'accepted_at' => $acceptedAt,
+        ]);
+        $conversation = Conversation::firstOrCreate(['candidature_id' => $candidature->id]);
+        $payment = MissionPayment::create([
+            'mission_id' => $mission->id,
+            'producer_id' => $this->producer->id,
+            'nombre_faces_retenues' => 1,
+            'budget_par_face' => 100000,
+            'montant_sous_total' => 100000,
+            'commission_producteur' => 10000,
+            'montant_total_producteur' => 110000,
+            'commission_faces_total' => 10000,
+            'montant_total_faces' => 90000,
+            'status' => MissionPaymentStatus::Paid,
+            'paid_at' => now(),
+        ]);
+        MissionPaymentCandidature::create([
+            'mission_payment_id' => $payment->id,
+            'candidature_id' => $candidature->id,
+            'face_id' => $this->face->id,
+            'montant_face_recoit' => 90000,
+            'escrow_status' => EscrowStatus::Locked,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$mission->uuid}")
+            ->assertOk()
+            ->assertJsonPath('candidature.status', 'accepted')
+            ->assertJsonPath('candidature.conversation_id', $conversation->uuid)
+            ->assertJsonPath('candidature.montant_face_recoit', 90000);
+
+        $this->assertSame(
+            $acceptedAt->copy()->addHours(48)->toIso8601String(),
+            Carbon::parse($response->json('candidature.confirmation_deadline'))->toIso8601String(),
+        );
+    }
+
+    public function test_show_exposes_reconfirm_deadline_for_accepted_ugc_candidature(): void
+    {
+        $mission = $this->makePublishedUgcMission();
+        $acceptedAt = now()->subHour()->startOfSecond();
+        Candidature::create([
+            'face_id' => $this->face->id,
+            'mission_id' => $mission->id,
+            'status' => CandidatureStatus::Accepted,
+            'accepted_at' => $acceptedAt,
+        ]);
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$mission->uuid}")
+            ->assertOk();
+
+        $this->assertSame(
+            $acceptedAt->copy()->addHours(48)->toIso8601String(),
+            Carbon::parse($response->json('candidature.reconfirm_deadline'))->toIso8601String(),
+        );
+        // UGC : pas d'échéance de confirmation cash.
+        $response->assertJsonPath('candidature.confirmation_deadline', null);
+    }
+
+    public function test_show_has_null_deadlines_and_conversation_for_pending_candidature(): void
+    {
+        $mission = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+        ]);
+        Candidature::create(['face_id' => $this->face->id, 'mission_id' => $mission->id]);
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$mission->uuid}")
+            ->assertOk()
+            ->assertJsonPath('candidature.status', 'pending')
+            ->assertJsonPath('candidature.confirmation_deadline', null)
+            ->assertJsonPath('candidature.reconfirm_deadline', null)
+            ->assertJsonPath('candidature.conversation_id', null)
+            ->assertJsonPath('candidature.montant_face_recoit', null);
     }
 }

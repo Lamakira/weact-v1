@@ -30,7 +30,7 @@ final class MissionPaymentReminderMail extends BaseMail
                 'missionTitle' => $this->mission->titre,
                 'deadline' => $this->deadline,
                 'formattedAmount' => number_format((int) $this->payment->montant_total_producteur, 0, ',', ' ').' XOF',
-                'candidaturesUrl' => rtrim((string) config('app.frontend_url'), '/')."/producer/missions/{$this->mission->uuid}/candidatures",
+                'candidaturesUrl' => rtrim((string) config('app.frontend_url'), '/')."/producer/missions/{$this->mission->uuid}?tab=candidatures",
             ],
         );
     }

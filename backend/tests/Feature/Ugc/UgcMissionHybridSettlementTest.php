@@ -477,6 +477,9 @@ class UgcMissionHybridSettlementTest extends TestCase
             'user_id' => $producerUser->id,
             'type' => 'mission_candidature_payment_failed',
         ]);
+        // Lot C4 : la notification ramène à la page détail de la mission (plus à la liste).
+        $failed = \App\Models\Notification::where('user_id', $producerUser->id)->where('type', 'mission_candidature_payment_failed')->firstOrFail();
+        $this->assertSame("/producer/missions/{$mission->uuid}?tab=candidatures", $failed->data['url']);
         // Webhook traité (queue non empoisonnée).
         $this->assertDatabaseMissing('fedapay_webhook_events', ['status' => 'received']);
     }

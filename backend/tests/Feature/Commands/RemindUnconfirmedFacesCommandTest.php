@@ -81,7 +81,7 @@ class RemindUnconfirmedFacesCommandTest extends TestCase
         $this->assertNotNull($notification);
         $this->assertStringContainsString("Confirmez votre participation à « {$mission->titre} » avant le ", $notification->data['message']);
         $this->assertStringContainsString('sinon votre place sera libérée.', $notification->data['message']);
-        $this->assertSame('/face/candidatures', $notification->data['url']);
+        $this->assertSame("/face/missions/{$mission->uuid}", $notification->data['url']);
         Mail::assertQueued(FaceConfirmationReminderMail::class, fn (FaceConfirmationReminderMail $m): bool => $m->hasTo($faceUser->email));
         $this->assertNotNull($candidature->fresh()->confirmation_reminder_sent_at);
 

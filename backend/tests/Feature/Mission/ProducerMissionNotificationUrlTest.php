@@ -25,7 +25,10 @@ class ProducerMissionNotificationUrlTest extends TestCase
         app(MissionService::class)->notifyProducerOnCompletion($mission);
 
         $notification = Notification::where('user_id', $user->id)->where('type', 'mission_completed_producer')->firstOrFail();
-        $this->assertSame("/producer/missions/{$mission->uuid}/candidatures", $notification->data['url']);
+        $this->assertSame("/producer/missions/{$mission->uuid}?tab=candidatures", $notification->data['url']);
+        // Lot C8 : la notification invite (sans relance) à noter les Faces, de façon facultative.
+        $this->assertStringContainsString('noter vos Faces', $notification->data['message']);
+        $this->assertStringContainsString('facultatif', $notification->data['message']);
     }
 
     public function test_migration_rewrites_bare_mission_urls_only(): void

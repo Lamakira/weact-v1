@@ -30,7 +30,7 @@ final class FaceConfirmationExpiredMail extends BaseMail
             with: [
                 'faceFirstName' => $prenom !== '' ? $prenom : $this->face->display_name,
                 'missionTitle' => $this->mission->titre,
-                'missionsUrl' => rtrim((string) config('app.frontend_url'), '/').'/face/candidatures',
+                'missionsUrl' => rtrim((string) config('app.frontend_url'), '/')."/face/missions/{$this->mission->uuid}",
             ],
         );
     }

@@ -2,48 +2,23 @@
 /**
  * MissionApplyBlock
  *
- * Zone d'action « Postuler » + tous ses états (déjà postulé / suivi tracking /
- * email non vérifié / contexte genre indisponible / genre incompatible /
- * reconfirmation UGC / mission fermée).
+ * Zone d'action « Postuler » et ses états AVANT candidature (email non vérifié / abonnement
+ * requis / contexte genre indisponible / genre incompatible / mission fermée).
  *
- * Extrait de FaceMissionDetailPage pour être monté à DEUX emplacements selon le
- * breakpoint sans dupliquer la logique :
+ * Une fois la candidature posée, la page bascule sur FaceMissionHub (lot C5) : statut honnête,
+ * action principale et « Et ensuite ? » y vivent désormais.
+ *
+ * Monté à DEUX emplacements selon le breakpoint sans dupliquer la logique :
  *  - desktop : dans la carte d'action de la sidebar sticky ;
- *  - mobile  : dans la barre d'action fixée en bas (CTA) ou inline (post-candidature).
+ *  - mobile  : dans la barre d'action fixée en bas.
  *
- * Composant 100% présentationnel : aucune donnée propre. Toute la logique reste
- * dans la page parente (props named-identiques aux locales de la page → markup
- * des états conservé à l'identique), les actions remontent via emits.
+ * Composant 100% présentationnel : la logique reste dans la page parente, les actions remontent via emits.
  */
-import {
-  AlertCircle,
-  CheckCircle,
-  Clock,
-  Loader2,
-  Mail,
-  ShieldAlert,
-  XCircle,
-} from 'lucide-vue-next'
-import { UgcFaceTrackingCard } from '@/components/ugc'
-import MissionAbsenceContestBlock from '@/features/candidature/components/MissionAbsenceContestBlock.vue'
-import type { Shipment, UgcUploadProgress } from '@/components/ugc'
-import type { Mission, MissionCandidature } from '@/features/mission/types'
+import { AlertCircle, Loader2, Mail, ShieldAlert } from 'lucide-vue-next'
+import type { Mission } from '@/features/mission/types'
 
 defineProps<{
   mission: Mission
-  candidature: MissionCandidature | null
-  hasApplied: boolean
-  showFaceTrackingCard: boolean
-  candidatureShipment: Shipment | null
-  ugcTrackingStep: number
-  isSubmittingReceipt: boolean
-  isUploadingDeliverable: boolean
-  uploadProgress: UgcUploadProgress | null
-  ugcEngaged: boolean
-  canCancelCandidature: boolean
-  canReconfirmUgc: boolean
-  isReconfirming: boolean
-  isCancelling: boolean
   canApply: boolean
   isSubscriptionGated: boolean
   isResendingVerification: boolean
@@ -56,115 +31,16 @@ defineProps<{
 
 defineEmits<{
   apply: []
-  cancel: []
-  reconfirm: []
   'resend-verification': []
   'view-pricing': []
-  'confirm-receipt': []
-  upload: [file: File]
-  contested: []
 }>()
 </script>
 
 <template>
   <div>
-    <!-- State 1: Already Applied (UGC engaged: dedicated banner, no CTA, no cancel) -->
-    <div v-if="hasApplied" class="space-y-3">
-      <!-- Carte de suivi Face (3.4, D-3.4.f) — remplace le bandeau dès que le produit est expédié -->
-      <UgcFaceTrackingCard
-        v-if="showFaceTrackingCard && candidatureShipment"
-        :shipment="candidatureShipment"
-        :current="ugcTrackingStep"
-        :is-submitting="isSubmittingReceipt"
-        :is-uploading="isUploadingDeliverable"
-        :upload-progress="uploadProgress"
-        :deliverables="candidature?.deliverables ?? []"
-        @confirm-receipt="$emit('confirm-receipt')"
-        @upload="(file: File) => $emit('upload', file)"
-      />
-      <div
-        v-else-if="ugcEngaged"
-        class="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 px-6 min-[376px]:px-8 py-4 text-green-700"
-        data-testid="ugc-engaged-banner"
-      >
-        <CheckCircle class="h-5 w-5 shrink-0 mt-0.5" aria-hidden="true" />
-        <p class="text-xs min-[376px]:text-sm font-medium">
-          Mission acceptée — le producteur va expédier votre produit. Les chronos démarreront à la réception.
-        </p>
-      </div>
-      <div
-        v-else-if="candidature?.display_status === 'selection_payment_pending'"
-        class="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-6 min-[376px]:px-8 py-3 text-amber-800"
-        data-testid="candidature-selection-payment-pending"
-      >
-        <Clock class="h-5 w-5 shrink-0 mt-0.5" aria-hidden="true" />
-        <div>
-          <p class="text-xs min-[376px]:text-sm font-medium">Sélection en cours de paiement</p>
-          <p class="text-xs min-[376px]:text-sm opacity-90">
-            Le producteur finalise le paiement de sa sélection. Vous serez prévenue par e-mail si votre candidature est retenue.
-          </p>
-        </div>
-      </div>
-      <div
-        v-else-if="candidature?.display_status === 'mission_closed'"
-        class="flex items-center justify-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-6 min-[376px]:px-8 py-3 text-gray-600"
-        data-testid="candidature-mission-closed"
-      >
-        <XCircle class="h-5 w-5" />
-        <span class="text-xs min-[376px]:text-sm font-medium">Candidature envoyée</span>
-        <span class="text-xs opacity-75">({{ candidature?.display_status_label ?? 'Mission clôturée' }})</span>
-      </div>
-      <div
-        v-else
-        class="flex items-center justify-center gap-2 rounded-lg border px-6 min-[376px]:px-8 py-3"
-        :class="canCancelCandidature
-          ? 'border-green-200 bg-green-50 text-green-700'
-          : candidature?.status === 'cancelled'
-            ? 'border-gray-200 bg-gray-50 text-gray-600'
-            : 'border-green-200 bg-green-50 text-green-700'"
-      >
-        <CheckCircle v-if="candidature?.status !== 'cancelled'" class="h-5 w-5" />
-        <XCircle v-else class="h-5 w-5" />
-        <span class="text-xs min-[376px]:text-sm font-medium">
-          {{ candidature?.status === 'cancelled' ? 'Candidature annulée' : 'Candidature envoyée' }}
-        </span>
-        <span class="text-xs opacity-75">({{ candidature?.display_status_label ?? candidature?.status_label }})</span>
-      </div>
-      <!-- Absence déclarée par le Producteur : contestation 72 h -->
-      <MissionAbsenceContestBlock
-        v-if="candidature?.attendance_dispute"
-        :dispute="candidature.attendance_dispute"
-        :mission-id="mission.id"
-        @contested="$emit('contested')"
-      />
-      <button
-        v-if="canReconfirmUgc"
-        type="button"
-        data-testid="ugc-reconfirm-btn"
-        class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        :disabled="isReconfirming"
-        @click="$emit('reconfirm')"
-      >
-        <Loader2 v-if="isReconfirming" class="h-4 w-4 animate-spin" />
-        <CheckCircle v-else class="h-4 w-4" />
-        {{ isReconfirming ? 'Confirmation...' : 'Reconfirmer ma participation' }}
-      </button>
-      <button
-        v-if="canCancelCandidature"
-        type="button"
-        class="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-6 min-[376px]:px-8 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-        :disabled="isCancelling"
-        @click="$emit('cancel')"
-      >
-        <Loader2 v-if="isCancelling" class="h-4 w-4 animate-spin" />
-        <XCircle v-else class="h-4 w-4" />
-        {{ isCancelling ? 'Annulation...' : 'Annuler ma candidature' }}
-      </button>
-    </div>
-
-    <!-- State 2: Email not verified -->
+    <!-- State 1: Email not verified -->
     <div
-      v-else-if="!canApply && mission.is_accepting_candidatures"
+      v-if="!canApply && mission.is_accepting_candidatures"
       class="rounded-lg border border-amber-200 bg-amber-50 p-3 min-[376px]:p-4"
       data-testid="email-verification-apply-block"
     >
@@ -191,7 +67,7 @@ defineEmits<{
       </div>
     </div>
 
-    <!-- State 2b: Candidatures réservées aux Faces abonnées (missions standard, tier Free) -->
+    <!-- State 1b: Candidatures réservées aux Faces abonnées (missions standard, tier Free) -->
     <div
       v-else-if="mission.is_accepting_candidatures && isSubscriptionGated"
       class="rounded-[10px] bg-white p-3 ring-1 ring-[#E5E5E5] min-[376px]:p-4"
@@ -212,7 +88,7 @@ defineEmits<{
       </div>
     </div>
 
-    <!-- State 3: Gender context unavailable -->
+    <!-- State 2: Gender context unavailable -->
     <div
       v-else-if="mission.is_accepting_candidatures && isGenderContextUnknown"
       class="rounded-lg border border-amber-200 bg-amber-50 p-3 min-[376px]:p-4"
@@ -252,7 +128,7 @@ defineEmits<{
       </div>
     </div>
 
-    <!-- State 4: Gender mismatch -->
+    <!-- State 3: Gender mismatch -->
     <div
       v-else-if="mission.is_accepting_candidatures && isGenderMismatch"
       class="rounded-lg border border-amber-200 bg-amber-50 p-3 min-[376px]:p-4"
@@ -285,7 +161,7 @@ defineEmits<{
       </div>
     </div>
 
-    <!-- State 5: Can Apply (UGC compris — postule comme un standard, 8-3 D-8.3.e) -->
+    <!-- State 4: Can Apply (UGC compris — postule comme un standard, 8-3 D-8.3.e) -->
     <div v-else-if="mission.is_accepting_candidatures">
       <button
         type="button"
@@ -299,7 +175,7 @@ defineEmits<{
       </p>
     </div>
 
-    <!-- State 6: Mission Closed -->
+    <!-- State 5: Mission Closed -->
     <div
       v-else-if="!mission.is_accepting_candidatures"
       class="flex items-center justify-center gap-2 rounded-lg border border-muted bg-muted/50 px-6 min-[376px]:px-8 py-3 text-xs min-[376px]:text-sm text-muted-foreground"

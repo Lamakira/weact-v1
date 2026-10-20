@@ -3,7 +3,7 @@ import { formatXof } from '@/lib/formatCurrency'
 import { computed } from 'vue'
 import { Calendar, Users, Wallet } from 'lucide-vue-next'
 import RStatusDot from '@/components/regie/RStatusDot.vue'
-import { missionStatusDot } from '@/components/regie/statusTone'
+import { missionDisplayStatusDot } from '@/components/regie/statusTone'
 import type { SortingState } from '@tanstack/vue-table'
 import DataTable from '@/components/data-table/DataTable.vue'
 import type { DataTableColumn } from '@/components/data-table/dataTableFeatures'
@@ -11,7 +11,7 @@ import type { Mission } from '../types'
 import { getMissionActionState } from '../composables/missionActionState'
 import MissionRowActions from './MissionRowActions.vue'
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     missions: Mission[]
     emailVerified?: boolean
@@ -33,6 +33,7 @@ const emit = defineEmits<{
   'page-change': [page: number]
   'page-size-change': [pageSize: number]
   retry: []
+  open: [id: string]
   edit: [id: string]
   delete: [id: string]
   close: [id: string]
@@ -100,9 +101,14 @@ const columns = computed<DataTableColumn<Mission>[]>(() => [
   { id: 'actions', header: 'Actions', enableSorting: false, meta: { sticky: 'right' } },
 ])
 
-// Same behaviour as the former card: a click on an editable mission opens its edit form.
+// Lot C4 : toute ligne / carte ouvre la page détail de la mission (les contrôles internes gèrent leur propre clic).
 function onRowClick(mission: Mission): void {
-  if (getMissionActionState(mission, props.emailVerified).canEdit) emit('edit', mission.id)
+  emit('open', mission.id)
+}
+
+function onCardClick(event: MouseEvent, mission: Mission): void {
+  if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label')) return
+  emit('open', mission.id)
 }
 </script>
 
@@ -121,7 +127,7 @@ function onRowClick(mission: Mission): void {
     :view="view"
     caption="Liste de vos missions"
     error-hint="Impossible de charger vos missions pour le moment."
-    :row-clickable="(m: Mission) => getMissionActionState(m, emailVerified).canEdit"
+    :row-clickable="true"
     @update:sorting="emit('update:sorting', $event)"
     @page-change="emit('page-change', $event)"
     @page-size-change="emit('page-size-change', $event)"
@@ -140,7 +146,7 @@ function onRowClick(mission: Mission): void {
     </template>
 
     <template #cell-status="{ row }">
-      <RStatusDot v-bind="missionStatusDot(row.status)" class="text-[13px] text-ink" />
+      <RStatusDot v-bind="missionDisplayStatusDot(row)" class="text-[13px] text-ink" />
     </template>
 
     <template #cell-date_limite_candidature="{ row }">
@@ -182,12 +188,13 @@ function onRowClick(mission: Mission): void {
     <!-- Compact mobile card, built from the same row data -->
     <template #card="{ row }">
       <article
-        class="w-full rounded-xl border border-border bg-card p-4 shadow-sm"
+        class="w-full cursor-pointer rounded-xl border border-border bg-card p-4 shadow-sm"
         :data-testid="`mission-card-${row.id}`"
+        @click="onCardClick($event, row)"
       >
         <div class="flex items-start justify-between gap-3">
           <h3 class="min-w-0 text-base font-bold leading-tight text-foreground">{{ row.titre }}</h3>
-          <RStatusDot v-bind="missionStatusDot(row.status)" class="shrink-0 text-[13px] text-ink" />
+          <RStatusDot v-bind="missionDisplayStatusDot(row)" class="shrink-0 text-[13px] text-ink" />
         </div>
 
         <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">

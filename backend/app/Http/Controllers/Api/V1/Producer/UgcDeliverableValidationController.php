@@ -47,14 +47,32 @@ class UgcDeliverableValidationController extends Controller
         $producer = $user->userable;
         abort_unless($producer instanceof Producer, 403, 'Réservé aux Producteurs.');
 
+        $validated = $request->validate(['mission' => ['nullable', 'uuid']]);
+        $missionUuid = $validated['mission'] ?? null;
+
         $deliverables = Deliverable::query()
             ->where('validation_status', DeliverableValidationStatus::InReview)
-            ->where(function ($q) use ($user, $producer): void {
+            ->where(function ($q) use ($user, $producer, $missionUuid): void {
+                // Filtre `mission` (page détail mission) : seuls les livrables de
+                // candidatures de CETTE mission ; la propriété reste vérifiée.
+                $candidatureOwner = function ($c) use ($producer, $missionUuid): void {
+                    $c->whereHas('mission', function ($m) use ($producer, $missionUuid): void {
+                        $m->where('producer_id', $producer->id);
+                        if ($missionUuid !== null) {
+                            $m->where('uuid', $missionUuid);
+                        }
+                    });
+                };
+
+                if ($missionUuid !== null) {
+                    $q->whereHasMorph('owner', [Candidature::class], $candidatureOwner);
+
+                    return;
+                }
+
                 $q->whereHasMorph('owner', [Booking::class], function ($b) use ($user): void {
                     $b->where('producer_id', $user->id);
-                })->orWhereHasMorph('owner', [Candidature::class], function ($c) use ($producer): void {
-                    $c->whereHas('mission', fn ($m) => $m->where('producer_id', $producer->id));
-                });
+                })->orWhereHasMorph('owner', [Candidature::class], $candidatureOwner);
             })
             ->with(['owner' => function ($morphTo): void {
                 $morphTo->morphWith([

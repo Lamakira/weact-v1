@@ -28,7 +28,10 @@ export function getMissionActionState(mission: Mission, emailVerified: boolean):
 
   return {
     isUgc,
-    canEdit: emailVerified && ['draft', 'published'].includes(mission.status) && !isUgc,
+    // Règle serveur (summary.can_edit) quand présente (détail) ; même règle en repli sur les listes.
+    canEdit:
+      emailVerified &&
+      (mission.summary?.can_edit ?? (['draft', 'published'].includes(mission.status) && !isUgc)),
     canPayCommission: emailVerified && mission.status === 'pending_payment' && isUgc,
     canDelete: ['draft', 'published'].includes(mission.status),
     canClose: emailVerified && mission.status === 'published',
