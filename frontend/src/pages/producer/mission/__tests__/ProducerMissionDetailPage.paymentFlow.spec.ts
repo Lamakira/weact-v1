@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
-import ProducerMissionCandidaturesPage from '../ProducerMissionCandidaturesPage.vue'
+import ProducerMissionDetailPage from '../ProducerMissionDetailPage.vue'
 import { missionApi } from '@/features/mission/services/missionApi'
 import { candidatureApi } from '@/features/candidature/services/candidatureApi'
-import type { Mission } from '@/features/mission/types'
+import { createPinia, setActivePinia } from 'pinia'
+import type { Mission, MissionSummary } from '@/features/mission/types'
 
 const toastErrorSpy = vi.fn()
 const toastSuccessSpy = vi.hoisted(() => vi.fn())
@@ -60,7 +61,7 @@ vi.mock('@/features/candidature/components', () => ({
 // the API boundary, not Vue reactivity.
 const startPollingSpy = vi.fn()
 const stopPollingSpy = vi.fn()
-vi.mock('@/features/mission/composables', () => ({
+vi.mock('@/features/mission/composables/useMissionPayment', () => ({
   useMissionPayment: () => ({
     startPolling: startPollingSpy,
     stopPolling: stopPollingSpy,
@@ -83,7 +84,36 @@ vi.mock('@/features/candidature/services/candidatureApi', () => ({
   candidatureApi: { getCandidaturePaymentStatus: vi.fn() },
 }))
 
+/** Résumé C1 minimal cohérent avec le statut (la page en dérive étapes et action principale). */
+function makeSummary(status: Mission['status']): MissionSummary {
+  const step = (
+    {
+      draft: 'draft',
+      published: 'recruiting',
+      pending_payment: 'payment',
+      closed: 'confirmations',
+      pending_attendance_validation: 'attendance',
+      completed: 'completed',
+    } as const
+  )[status]
+  return {
+    step,
+    candidatures: { pending: 0, accepted: 0, confirmed: 0, in_progress: 0, completed: 0, rejected: 0, cancelled: 0, expired: 0 },
+    selection: { faces_wanted: 2, faces_selected: 2, faces_confirmed: 0, freed_places: 0 },
+    payment: { status: null, expires_at: null, paid_at: null, montant_total_producteur: null },
+    attendance: null,
+    ugc_deliverables: null,
+    completion_blocker: null,
+    can_edit: false,
+  }
+}
+
 function makePendingPaymentMission(overrides: Partial<Mission> = {}): Mission {
+  const mission = makeBaseMission(overrides)
+  return { ...mission, summary: overrides.summary ?? makeSummary(mission.status) }
+}
+
+function makeBaseMission(overrides: Partial<Mission> = {}): Mission {
   return {
     id: 1,
     uuid: 'mission-uuid-under-test',
@@ -109,7 +139,11 @@ function makePendingPaymentMission(overrides: Partial<Mission> = {}): Mission {
   } as Mission
 }
 
-describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () => {
+beforeEach(() => {
+  setActivePinia(createPinia())
+})
+
+describe('ProducerMissionDetailPage — FIX-19.3 false-pending guard', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     routeState.query = {}
@@ -136,7 +170,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       },
     })
 
-    const wrapper = mount(ProducerMissionCandidaturesPage)
+    const wrapper = mount(ProducerMissionDetailPage)
 
     // Let fetchMission + evaluatePendingPaymentState resolve.
     await flushPromises()
@@ -172,7 +206,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       },
     })
 
-    const wrapper = mount(ProducerMissionCandidaturesPage)
+    const wrapper = mount(ProducerMissionDetailPage)
 
     await flushPromises()
     await flushPromises()
@@ -200,7 +234,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       },
     })
 
-    const wrapper = mount(ProducerMissionCandidaturesPage)
+    const wrapper = mount(ProducerMissionDetailPage)
     await flushPromises()
     await flushPromises()
 
@@ -215,7 +249,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       message: 'ok',
     })
 
-    const wrapper = mount(ProducerMissionCandidaturesPage)
+    const wrapper = mount(ProducerMissionDetailPage)
     await flushPromises()
     await flushPromises()
 
@@ -235,7 +269,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       message: 'Sélection annulée. Vous pouvez refaire votre sélection.',
     })
 
-    const wrapper = mount(ProducerMissionCandidaturesPage, { attachTo: document.body })
+    const wrapper = mount(ProducerMissionDetailPage, { attachTo: document.body })
     await flushPromises()
     await flushPromises()
 
@@ -272,7 +306,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       },
     })
 
-    const wrapper = mount(ProducerMissionCandidaturesPage)
+    const wrapper = mount(ProducerMissionDetailPage)
 
     await flushPromises()
     await flushPromises()
@@ -314,7 +348,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       },
     })
 
-    const wrapper = mount(ProducerMissionCandidaturesPage)
+    const wrapper = mount(ProducerMissionDetailPage)
 
     await flushPromises()
     await flushPromises()
@@ -337,7 +371,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       message: 'ok',
     })
 
-    const wrapper = mount(ProducerMissionCandidaturesPage)
+    const wrapper = mount(ProducerMissionDetailPage)
     await flushPromises()
     await flushPromises()
 
@@ -353,7 +387,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
     })
     vi.mocked(missionApi.getPaymentStatus).mockRejectedValueOnce(new Error('timeout'))
 
-    const wrapper = mount(ProducerMissionCandidaturesPage)
+    const wrapper = mount(ProducerMissionDetailPage)
 
     await flushPromises()
     await flushPromises()
@@ -385,7 +419,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       }),
     )
 
-    const wrapper = mount(ProducerMissionCandidaturesPage)
+    const wrapper = mount(ProducerMissionDetailPage)
 
     await flushPromises()
     wrapper.unmount()
@@ -423,7 +457,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       },
     })
 
-    const wrapper = mount(ProducerMissionCandidaturesPage)
+    const wrapper = mount(ProducerMissionDetailPage)
 
     await flushPromises()
 
@@ -462,7 +496,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       },
     })
 
-    const wrapper = mount(ProducerMissionCandidaturesPage)
+    const wrapper = mount(ProducerMissionDetailPage)
 
     await flushPromises()
     await flushPromises()
@@ -503,7 +537,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       message: 'ok',
     })
 
-    mount(ProducerMissionCandidaturesPage)
+    mount(ProducerMissionDetailPage)
 
     await flushPromises()
 
@@ -522,7 +556,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
         data: { candidature_status: 'pending', payment_status: 'pending', is_trackable: true },
       })
 
-      const wrapper = mount(ProducerMissionCandidaturesPage)
+      const wrapper = mount(ProducerMissionDetailPage)
       await flushPromises()
       await flushPromises()
 
@@ -543,7 +577,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
         data: { has_payment: true, is_trackable: true, status: 'paid', mission_status: 'closed' },
       })
 
-      const wrapper = mount(ProducerMissionCandidaturesPage)
+      const wrapper = mount(ProducerMissionDetailPage)
       await flushPromises()
       await flushPromises()
 
@@ -558,7 +592,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
         data: makePendingPaymentMission({ status: 'published', status_label: 'Publiée' }),
         message: 'ok',
       })
-      const wrapper = mount(ProducerMissionCandidaturesPage)
+      const wrapper = mount(ProducerMissionDetailPage)
       await flushPromises()
       // (earlier tests of this file leave mounted pages listening: compare deltas)
       const afterMount = vi.mocked(missionApi.getMission).mock.calls.length
@@ -583,7 +617,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
         message: 'ok',
       })
 
-      const wrapper = mount(ProducerMissionCandidaturesPage)
+      const wrapper = mount(ProducerMissionDetailPage)
       await flushPromises()
 
       expect(candidatureApi.getCandidaturePaymentStatus).not.toHaveBeenCalled()
@@ -600,7 +634,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       vi.mocked(candidatureApi.getCandidaturePaymentStatus).mockResolvedValue({
         data: { candidature_status: 'pending', payment_status: 'failed', is_trackable: false },
       })
-      const wrapper = mount(ProducerMissionCandidaturesPage)
+      const wrapper = mount(ProducerMissionDetailPage)
       await flushPromises()
       await flushPromises()
 
@@ -622,7 +656,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
         data: { has_payment: true, is_trackable: false, status: 'pending', mission_status: 'pending_payment' },
       })
 
-      const wrapper = mount(ProducerMissionCandidaturesPage)
+      const wrapper = mount(ProducerMissionDetailPage)
       await flushPromises()
       await flushPromises()
       await flushPromises()
@@ -650,7 +684,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
           data: { has_payment: true, is_trackable: true, status: 'pending', mission_status: 'pending_payment' },
         })
 
-        const wrapper = mount(ProducerMissionCandidaturesPage)
+        const wrapper = mount(ProducerMissionDetailPage)
         await flushPromises()
         expect(startPollingSpy).not.toHaveBeenCalled()
 
@@ -673,7 +707,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
         data: { has_payment: true, is_trackable: true, status: 'pending', mission_status: 'pending_payment' },
       })
-      const wrapper = mount(ProducerMissionCandidaturesPage)
+      const wrapper = mount(ProducerMissionDetailPage)
       await flushPromises()
       expect(wrapper.find('[data-testid="mission-payment-pending-banner"]').exists()).toBe(true)
 
@@ -704,7 +738,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
         data: { checkout_url: 'https://checkout.fedapay.test/fresh' },
         message: 'ok',
       } as never)
-      const wrapper = mount(ProducerMissionCandidaturesPage)
+      const wrapper = mount(ProducerMissionDetailPage)
       await flushPromises()
 
       expect(wrapper.text()).toContain('Relancer le paiement')
@@ -723,7 +757,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
         data: { has_payment: true, is_trackable: false, status: 'pending', mission_status: 'pending_payment' },
       })
       vi.mocked(missionApi.confirmSelection).mockRejectedValue(new Error('422'))
-      const wrapper = mount(ProducerMissionCandidaturesPage)
+      const wrapper = mount(ProducerMissionDetailPage)
       await flushPromises()
       const fetchesBefore = vi.mocked(missionApi.getMission).mock.calls.length
 
@@ -741,7 +775,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
         data: { has_payment: false, is_trackable: false, status: undefined, mission_status: 'pending_payment' },
       })
-      const wrapper = mount(ProducerMissionCandidaturesPage)
+      const wrapper = mount(ProducerMissionDetailPage)
       await flushPromises()
 
       expect(wrapper.find('[data-testid="mission-payment-resume-btn"]').exists()).toBe(false)
@@ -754,7 +788,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
       vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
         data: { has_payment: true, is_trackable: true, status: 'pending', mission_status: 'pending_payment' },
       })
-      const wrapper = mount(ProducerMissionCandidaturesPage)
+      const wrapper = mount(ProducerMissionDetailPage)
       await flushPromises()
 
       expect(wrapper.get('[data-testid="mission-payment-resume-btn"]').text()).toBe('Reprendre le paiement')
@@ -770,14 +804,14 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
         vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
           data: { has_payment: true, is_trackable: true, status: 'pending', mission_status: 'pending_payment' },
         })
-        const wrapper = mount(ProducerMissionCandidaturesPage)
+        const wrapper = mount(ProducerMissionDetailPage)
         await flushPromises()
         await vi.advanceTimersByTimeAsync(59000)
         expect(wrapper.get('[data-testid="mission-payment-pending-banner"]').text()).toContain('en attente de confirmation')
 
         await vi.advanceTimersByTimeAsync(2000)
         expect(wrapper.get('[data-testid="mission-payment-pending-banner"]').text()).toContain(
-          'Paiement non finalisé ? Reprenez-le ci-dessous.',
+          'Paiement non finalisé ? Reprenez-le avec le bouton d\'action de la page.',
         )
         expect(stopPollingSpy).not.toHaveBeenCalled()
         wrapper.unmount()
@@ -795,7 +829,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
         data: { checkout_url: 'https://checkout.fedapay.test/regenerated' },
         message: 'ok',
       } as never)
-      const wrapper = mount(ProducerMissionCandidaturesPage)
+      const wrapper = mount(ProducerMissionDetailPage)
       await flushPromises()
 
       await wrapper.get('[data-testid="mission-payment-resume-btn"]').trigger('click')
@@ -809,7 +843,7 @@ describe('ProducerMissionCandidaturesPage — FIX-19.3 false-pending guard', () 
 
 })
 
-describe('ProducerMissionCandidaturesPage — place libérée (lot B4)', () => {
+describe('ProducerMissionDetailPage — place libérée (lot B4)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     routeState.query = {}
@@ -833,7 +867,7 @@ describe('ProducerMissionCandidaturesPage — place libérée (lot B4)', () => {
       message: 'ok',
     })
 
-    const wrapper = mount(ProducerMissionCandidaturesPage)
+    const wrapper = mount(ProducerMissionDetailPage)
     await flushPromises()
     await flushPromises()
 
@@ -850,7 +884,7 @@ describe('ProducerMissionCandidaturesPage — place libérée (lot B4)', () => {
       message: 'ok',
     })
 
-    const wrapper = mount(ProducerMissionCandidaturesPage)
+    const wrapper = mount(ProducerMissionDetailPage)
     await flushPromises()
 
     expect(wrapper.find('[data-testid="mission-freed-place-banner"]').exists()).toBe(false)
