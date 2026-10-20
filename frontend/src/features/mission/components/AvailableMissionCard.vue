@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Calendar, Wallet, MapPin, Users } from 'lucide-vue-next'
 import RatingDisplay from '@/components/RatingDisplay.vue'
+import MissionMarks from './MissionMarks.vue'
 import type { Mission } from '../types'
 
 const props = defineProps<{
@@ -87,6 +88,11 @@ function handleProducerClick(event: MouseEvent | KeyboardEvent): void {
   >
     <!-- Header: Badge & Title -->
     <div class="mb-4 flex flex-col gap-2">
+      <MissionMarks
+        :my-candidature="mission.my_candidature"
+        :my-candidature-label="mission.my_candidature_label"
+        :eligibility="mission.eligibility"
+      />
       <div class="flex items-center justify-between">
         <span
           class="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary"
