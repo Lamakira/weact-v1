@@ -28,7 +28,8 @@ class FaceDashboardController extends Controller
      *
      * Each item: { type, title, meta, urgent_meta|null, action_label, url } — `url` is a
      * front route built from uuids. Types: booking_proposal, ugc_proposal, no_show_contest,
-     * confirm_prestation, ugc_deliverable, pending_candidatures, profile_completion.
+     * late_cancellation_contest, mission_absence_contest, confirm_prestation, confirm_participation,
+     * ugc_reconfirm, ugc_receipt, ugc_deliverable, pending_candidatures, rate, profile_completion.
      */
     public function todo(Request $request, FaceDashboardTodoService $todoService): JsonResponse
     {

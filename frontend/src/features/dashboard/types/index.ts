@@ -137,6 +137,39 @@ export interface FaceTodoItem {
 }
 
 /**
+ * Item of the Producer « À faire » queue (GET /producer/dashboard/todo) — même forme
+ * que l'item Face.
+ */
+export type ProducerTodoType =
+  | 'candidatures_to_process'
+  | 'selection_payment'
+  | 'ugc_mission_commission'
+  | 'booking_payment'
+  | 'ugc_booking_commission'
+  | 'attendance_validation'
+  | 'ugc_deliverable_review'
+  | 'ugc_shipment'
+  | 'booking_completion'
+  | 'rate'
+
+export interface ProducerTodoItem {
+  type: ProducerTodoType
+  title: string
+  meta: string | null
+  urgent_meta: string | null
+  action_label: string
+  url: string
+}
+
+/**
+ * API response for the Producer todo queue
+ */
+export interface ProducerTodoResponse {
+  data: ProducerTodoItem[]
+  message: string
+}
+
+/**
  * API response for the Face todo queue
  */
 export interface FaceTodoResponse {
