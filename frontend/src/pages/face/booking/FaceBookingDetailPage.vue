@@ -983,7 +983,11 @@ onUnmounted(() => {
           </div>
         </header>
 
+        <!-- Une seule barre de progression : en UGC actif, la frise détaillée du tunnel
+             (ci-dessous) la remplace ; la barre générique ne sert qu'à montrer où un
+             booking UGC arrêté (refusé, annulé, expiré) s'est interrompu. -->
         <BookingStepsBar
+          v-if="!isUgc || view.steps.halted"
           class="mb-4"
           :labels="view.steps.labels"
           :current="view.steps.current"
@@ -993,7 +997,7 @@ onUnmounted(() => {
         <!-- UGC timeline (3.2) — pleine largeur, détaille le tunnel de livraison.
              Pour la Face avec shipment, la carte de suivi (timeline V intégrée) la remplace (D-3.4.e). -->
         <div
-          v-if="isUgc && !showFaceTrackingCard"
+          v-if="isUgc && !view.steps.halted && !showFaceTrackingCard"
           class="mb-4 overflow-x-auto rounded-[10px] border border-gray-200 bg-white p-5"
           data-testid="ugc-booking-timeline-card"
         >

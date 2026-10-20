@@ -340,7 +340,7 @@ function nextFor(booking: Booking, role: BookingRole): BookingNext {
       const headline = !booking.date_debut
         ? 'Booking confirmé'
         : shootStarted
-          ? `Tournage du ${formatShortDate(booking.date_debut)} : confirmez qu'il a eu lieu`
+          ? `Tournage du ${formatShortDate(booking.date_debut)}\u00a0: confirmez qu'il a eu lieu`
           : `Rendez-vous ${formatShortDate(booking.date_debut)}`
       const who = shootStarted ? YOU_ACT : 'Prochaine étape : le tournage'
       if (producer) {

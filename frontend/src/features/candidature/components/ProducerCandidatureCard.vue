@@ -525,10 +525,10 @@ const categoryLabel = computed(() => {
       <!-- Profile Link -->
       <RouterLink
         :to="{ name: 'producer-candidate-profile', params: { id: candidature.face.id } }"
-        class="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
+        class="inline-flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-primary hover:underline"
       >
-        Voir le profil complet
-        <ArrowUpRight class="h-3 w-3" />
+        Voir le profil
+        <ArrowUpRight class="h-3 w-3 shrink-0" aria-hidden="true" />
       </RouterLink>
     </div>
 

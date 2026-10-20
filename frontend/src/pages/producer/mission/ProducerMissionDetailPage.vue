@@ -298,19 +298,19 @@ const completeBlocked = computed(
     ['closed', 'pending_attendance_validation'].includes(mission.value?.status ?? ''),
 )
 
-const hasMenu = computed(() => {
+// « Modifier la sélection » n'entre dans le menu que sur téléphone (sur ordinateur,
+// c'est un bouton visible à côté) : sans autre entrée, le menu n'existe que sur téléphone.
+const hasMobileOnlyMenuItem = computed(
+  () => mission.value?.status === 'pending_payment' && !isUgc.value,
+)
+
+const hasDesktopMenuItems = computed(() => {
   const s = actionState.value
   if (!s) return false
-  return (
-    s.canEdit ||
-    s.canClose ||
-    s.canReopen ||
-    s.canComplete ||
-    completeBlocked.value ||
-    s.canDelete ||
-    mission.value?.status === 'pending_payment'
-  )
+  return s.canEdit || s.canClose || s.canReopen || s.canComplete || completeBlocked.value || s.canDelete
 })
+
+const hasMenu = computed(() => hasDesktopMenuItems.value || hasMobileOnlyMenuItem.value)
 
 async function confirmDelete(): Promise<void> {
   if (!mission.value) return
@@ -445,6 +445,7 @@ function goToEdit(): void {
                 type="button"
                 variant="outline"
                 class="press h-10"
+                :class="{ 'sm:hidden': !hasDesktopMenuItems }"
                 data-testid="mission-more-menu-trigger"
               >
                 Gérer la mission
@@ -453,7 +454,7 @@ function goToEdit(): void {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" class="min-w-52" data-testid="mission-more-menu">
               <DropdownMenuItem
-                v-if="mission.status === 'pending_payment' && !isUgc"
+                v-if="hasMobileOnlyMenuItem"
                 class="min-h-10 sm:hidden"
                 data-testid="mission-menu-cancel-selection"
                 @select="isCancelSelectionDialogOpen = true"

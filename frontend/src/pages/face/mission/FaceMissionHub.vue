@@ -171,7 +171,7 @@ const chatTarget = computed(() =>
           <span v-if="!isUgc && mission.lieu" class="inline-flex items-center gap-1.5">
             <MapPin class="h-3.5 w-3.5" aria-hidden="true" />{{ mission.lieu }}
           </span>
-          <span class="inline-flex items-center gap-1.5 tabular-nums" data-testid="hub-money">
+          <span class="inline-flex items-center gap-1.5" data-testid="hub-money">
             <Wallet class="h-3.5 w-3.5" aria-hidden="true" />{{ moneyLabel }}
           </span>
         </div>
@@ -286,7 +286,7 @@ const chatTarget = computed(() =>
               <dt class="text-muted-foreground">
                 {{ candidature.montant_face_recoit != null || isUgc ? 'Votre part' : 'Rémunération proposée' }}
               </dt>
-              <dd class="text-right font-semibold tabular-nums text-foreground">
+              <dd class="text-right font-semibold text-foreground">
                 {{
                   isUgc
                     ? moneyLabel
@@ -352,7 +352,7 @@ const chatTarget = computed(() =>
                 aria-hidden="true"
               />
             </span>
-            <span class="text-sm font-semibold tabular-nums text-foreground" data-testid="hub-my-rating-score">
+            <span class="text-sm font-semibold text-foreground" data-testid="hub-my-rating-score">
               {{ myRating.score }}/5
             </span>
           </div>
@@ -376,7 +376,7 @@ const chatTarget = computed(() =>
           <p class="mt-1.5 text-sm text-foreground">{{ hub.next.text }}</p>
           <div
             v-if="remaining"
-            class="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-[13px] font-bold tabular-nums text-amber-800"
+            class="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-0.5 text-[13px] font-bold text-amber-800"
             data-testid="hub-countdown"
           >
             <Clock class="h-3.5 w-3.5" aria-hidden="true" />{{ remaining }}

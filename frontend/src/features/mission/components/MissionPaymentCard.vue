@@ -20,7 +20,7 @@ const TONE_CLASSES: Record<Tone, string> = {
     <dl class="mt-2.5 grid gap-2 text-[13px]">
       <div v-for="row in card.rows" :key="row.label" class="flex justify-between gap-3">
         <dt class="text-muted-foreground">{{ row.label }}</dt>
-        <dd class="text-right font-semibold tabular-nums text-foreground">{{ row.value }}</dd>
+        <dd class="text-right font-semibold text-foreground">{{ row.value }}</dd>
       </div>
       <div class="flex items-center justify-between gap-3 border-t border-border pt-2">
         <dt class="text-muted-foreground">Statut</dt>

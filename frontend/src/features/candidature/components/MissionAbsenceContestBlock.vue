@@ -160,7 +160,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
           <div class="flex items-start justify-between gap-3 text-xs">
             <p class="text-gray-500">{{ MESSAGE_MIN }} caractères minimum.</p>
             <p
-              class="shrink-0 tabular-nums text-gray-500"
+              class="shrink-0 text-gray-500"
               data-testid="absence-contest-counter"
             >
               {{ message.length }}/{{ MESSAGE_MAX }}

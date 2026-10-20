@@ -125,7 +125,7 @@ describe('buildBookingView — « Et ensuite ? » d’un booking payé selon la 
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-10-24T10:00:00Z'))
     const producer = buildBookingView(makeBooking({ status: 'paid' }), 'producer').next
-    expect(producer.headline).toMatch(/^Tournage du .* : confirmez qu'il a eu lieu$/)
+    expect(producer.headline).toMatch(/^Tournage du .*\u00a0: confirmez qu'il a eu lieu$/)
     expect(producer.who).toBe("À vous d'agir")
     const face = buildBookingView(makeBooking({ status: 'paid' }), 'face').next
     expect(face.text).toMatch(/^Confirmez la réalisation pour recevoir /)

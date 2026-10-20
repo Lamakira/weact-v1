@@ -94,7 +94,7 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
       {{ tab.label }}
       <span
         v-if="tab.count !== null && tab.count !== undefined"
-        class="rounded-full border px-1.5 text-[11px] tabular-nums"
+        class="rounded-full border px-1.5 text-[11px]"
         :class="
           tab.hot
             ? 'border-transparent bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
