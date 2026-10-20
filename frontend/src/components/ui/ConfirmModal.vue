@@ -12,6 +12,8 @@ interface Props {
   variant?: 'danger' | 'warning'
   /** Désactive le bouton de confirmation (ex : contenu de slot obligatoire non rempli). */
   confirmDisabled?: boolean
+  /** Mouvement court (200 ms, fondu + échelle .96 → 1, sans translation) pour les confirmations du parcours. */
+  compactMotion?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -19,6 +21,7 @@ const props = withDefaults(defineProps<Props>(), {
   cancelText: 'Annuler',
   variant: 'danger',
   confirmDisabled: false,
+  compactMotion: false,
 })
 
 const emit = defineEmits<{
@@ -62,12 +65,12 @@ onUnmounted(() => {
       >
         <Transition
           appear
-          enter-active-class="transition duration-300 ease-out"
-          enter-from-class="opacity-0 scale-95 translate-y-2"
-          enter-to-class="opacity-100 scale-100 translate-y-0"
-          leave-active-class="transition duration-200 ease-in"
-          leave-from-class="opacity-100 scale-100 translate-y-0"
-          leave-to-class="opacity-0 scale-95 translate-y-2"
+          :enter-active-class="compactMotion ? 'transition duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] motion-reduce:transition-opacity' : 'transition duration-300 ease-out'"
+          :enter-from-class="compactMotion ? 'opacity-0 scale-[.96]' : 'opacity-0 scale-95 translate-y-2'"
+          :enter-to-class="compactMotion ? 'opacity-100 scale-100' : 'opacity-100 scale-100 translate-y-0'"
+          :leave-active-class="compactMotion ? 'transition duration-150 ease-out motion-reduce:transition-opacity' : 'transition duration-200 ease-in'"
+          :leave-from-class="compactMotion ? 'opacity-100 scale-100' : 'opacity-100 scale-100 translate-y-0'"
+          :leave-to-class="compactMotion ? 'opacity-0 scale-[.96]' : 'opacity-0 scale-95 translate-y-2'"
         >
           <div
             v-if="isOpen"

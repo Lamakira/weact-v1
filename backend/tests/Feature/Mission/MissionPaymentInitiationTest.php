@@ -453,7 +453,7 @@ class MissionPaymentInitiationTest extends TestCase
                 rtrim(
                     (string) config('app.frontend_url', (string) config('app.url', '')),
                     '/'
-                )."/producer/missions/{$this->mission->uuid}/candidatures?payment=confirmed"
+                )."/producer/missions/{$this->mission->uuid}?tab=candidatures&payment=confirmed"
             );
 
         $this->assertSame(MissionStatus::Closed, $this->mission->fresh()->status);
@@ -1015,6 +1015,11 @@ class MissionPaymentInitiationTest extends TestCase
             'type' => 'mission_participation_confirmation_required',
         ]);
         $this->assertDatabaseMissing('notifications', ['type' => 'candidature_accepted']);
+
+        // La notif de confirmation renvoie vers la page mission de la Face (pas la liste).
+        $confirmation = \App\Models\Notification::where('user_id', $this->getFaceUserId($this->selectedFirst))
+            ->where('type', 'mission_participation_confirmation_required')->firstOrFail();
+        $this->assertSame("/face/missions/{$this->mission->uuid}", $confirmation->data['url']);
     }
 
     public function test_webhook_replay_is_idempotent_and_does_not_double_mutate_or_notify(): void

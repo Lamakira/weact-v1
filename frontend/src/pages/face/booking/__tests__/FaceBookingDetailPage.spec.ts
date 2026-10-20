@@ -810,6 +810,7 @@ describe('FaceBookingDetailPage — UGC commission CTA (story 1.6)', () => {
     await flushPromises()
 
     expect(wrapper.vm.$router.currentRoute.value.name).toBe('pricing')
+    expect(wrapper.vm.$router.currentRoute.value.query.redirect).toBe('/face/bookings/booking-uuid-1')
   })
 
   it('shows the UGC dotation summary and hides the shoot fields + cash finances for a UGC booking', async () => {

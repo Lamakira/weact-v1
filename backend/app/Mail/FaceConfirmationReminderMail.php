@@ -32,7 +32,7 @@ final class FaceConfirmationReminderMail extends BaseMail
                 'faceFirstName' => $prenom !== '' ? $prenom : $this->face->display_name,
                 'missionTitle' => $this->mission->titre,
                 'deadline' => $this->deadline,
-                'confirmUrl' => rtrim((string) config('app.frontend_url'), '/').'/face/candidatures',
+                'confirmUrl' => rtrim((string) config('app.frontend_url'), '/')."/face/missions/{$this->mission->uuid}",
             ],
         );
     }

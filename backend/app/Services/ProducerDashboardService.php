@@ -39,6 +39,7 @@ class ProducerDashboardService
         $since = now()->subDay();
 
         $missions = $this->activeQuery($producer)
+            ->withPaidPaymentFlag()
             ->withCount([
                 'candidatures',
                 'candidatures as new_candidatures_count' => fn (Builder $q) => $q->where('created_at', '>=', $since),

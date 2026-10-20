@@ -36,7 +36,7 @@ class RemindUnpaidMissionSelectionsCommandTest extends TestCase
             ->where('type', 'mission_payment_reminder')
             ->first();
         $this->assertNotNull($notification);
-        $this->assertSame("/producer/missions/{$mission->uuid}/candidatures", $notification->data['url']);
+        $this->assertSame("/producer/missions/{$mission->uuid}?tab=candidatures", $notification->data['url']);
         $this->assertStringContainsString("n'est pas encore payée", $notification->data['message']);
         Mail::assertQueued(MissionPaymentReminderMail::class, 1);
         $this->assertNotNull($payment->fresh()->reminder_sent_at);

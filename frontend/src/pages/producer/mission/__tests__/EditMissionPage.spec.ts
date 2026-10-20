@@ -4,16 +4,18 @@ import { defineComponent, h, ref } from 'vue'
 import type { Mission } from '@/features/mission/types'
 
 const routerPushSpy = vi.fn()
+const routerReplaceSpy = vi.fn()
+const toastErrorSpy = vi.fn()
 const loadMissionSpy = vi.fn().mockResolvedValue(undefined)
 const missionRef = ref<Mission | null>(null)
 
 vi.mock('vue-router', () => ({
-  useRouter: () => ({ push: routerPushSpy }),
+  useRouter: () => ({ push: routerPushSpy, replace: routerReplaceSpy }),
   useRoute: () => ({ params: { id: 'm1' } }),
 }))
 
 vi.mock('@/composables/useToast', () => ({
-  useToast: () => ({ success: vi.fn(), error: vi.fn() }),
+  useToast: () => ({ success: vi.fn(), error: toastErrorSpy }),
 }))
 
 vi.mock('@/features/mission/composables', () => ({
@@ -75,23 +77,39 @@ describe('EditMissionPage — UGC edit dead-end (ugc-3-5)', () => {
     document.body.innerHTML = ''
   })
 
-  it('blocks editing a UGC mission: no form, shows the non-editable message', async () => {
-    // discriminant canonique isUgcMission = type_compensation != null
-    missionRef.value = { ...baseMission, type_compensation: 'product', commission_ugc: 2500 } as unknown as Mission
+  it('redirects a UGC mission to the detail page with a toast, never showing the form', async () => {
+    missionRef.value = { ...baseMission, type_mission: 'ugc', type_compensation: 'product', commission_ugc: 2500 } as unknown as Mission
 
     const wrapper = mount(EditMissionPage, { attachTo: document.body })
     await flushPromises()
 
     expect(wrapper.find('[data-testid="mission-form"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('non modifiable')
+    expect(toastErrorSpy).toHaveBeenCalledWith('Cette mission ne peut plus être modifiée.')
+    expect(routerReplaceSpy).toHaveBeenCalledWith({ name: 'producer-mission-detail', params: { id: 'm1' } })
   })
 
-  it('renders the edit form for a standard (non-UGC) mission', async () => {
-    missionRef.value = { ...baseMission, type_compensation: null } as unknown as Mission
+  it('redirects when the server says summary.can_edit is false (closed mission)', async () => {
+    missionRef.value = {
+      ...baseMission,
+      status: 'closed',
+      summary: { can_edit: false },
+    } as unknown as Mission
+
+    const wrapper = mount(EditMissionPage, { attachTo: document.body })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="mission-form"]').exists()).toBe(false)
+    expect(toastErrorSpy).toHaveBeenCalledWith('Cette mission ne peut plus être modifiée.')
+    expect(routerReplaceSpy).toHaveBeenCalledWith({ name: 'producer-mission-detail', params: { id: 'm1' } })
+  })
+
+  it('renders the edit form for an editable standard mission', async () => {
+    missionRef.value = { ...baseMission, type_compensation: null, summary: { can_edit: true } } as unknown as Mission
 
     const wrapper = mount(EditMissionPage, { attachTo: document.body })
     await flushPromises()
 
     expect(wrapper.find('[data-testid="mission-form"]').exists()).toBe(true)
+    expect(routerReplaceSpy).not.toHaveBeenCalled()
   })
 })

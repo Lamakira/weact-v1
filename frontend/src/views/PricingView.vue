@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'
 import { useSubscriptionPayment } from '@/features/face/composables/useSubscriptionPayment'
 import { TIER_PRESENTATION } from '@/features/face/tierPresentation'
+import { storeSubscriptionReturn } from '@/features/face/subscriptionReturn'
 import TierChangeModal from '@/features/face/components/TierChangeModal.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
@@ -415,6 +416,8 @@ function onTierClick(handoffKey: HandoffTierKey): void {
 async function onConfirm(): Promise<void> {
   const offer = modalTarget.value
   if (!offer || offer.tier === 'free') return
+  // Mémorise la page d'origine (paywall) AVANT le départ vers FedaPay.
+  storeSubscriptionReturn(route.query.redirect)
   const ok = await initiatePayment(offer.tier as FaceSubscriptionPlan)
   if (ok) {
     modalOpen.value = false
@@ -428,6 +431,7 @@ function onCancelModal(): void {
 }
 
 function onResumeClick(): void {
+  storeSubscriptionReturn(route.query.redirect)
   void resumePayment()
 }
 

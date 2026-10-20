@@ -80,6 +80,14 @@ class ProducerAcceptUgcCandidatureTest extends TestCase
             'type' => 'candidature_accepted',
         ]);
         Mail::assertQueued(CandidatureAcceptedMail::class);
+
+        // La notif et l'email renvoient vers la page mission (point central Face), pas la liste.
+        $notif = \App\Models\Notification::where('user_id', $faceUser->id)->where('type', 'candidature_accepted')->firstOrFail();
+        $this->assertSame("/face/missions/{$mission->uuid}", $notif->data['url']);
+        Mail::assertQueued(
+            CandidatureAcceptedMail::class,
+            fn (CandidatureAcceptedMail $m): bool => str_ends_with($m->reconfirmUrl, "/face/missions/{$mission->uuid}"),
+        );
     }
 
     public function test_email_failure_does_not_rollback_accept(): void

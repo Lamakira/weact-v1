@@ -1,9 +1,10 @@
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import FaceBillingPage from '../FaceBillingPage.vue'
+import { SUBSCRIPTION_RETURN_KEY } from '@/features/face/subscriptionReturn'
 import type {
   FaceSubscriptionTier,
   SubscriptionCurrent,
@@ -453,6 +454,56 @@ describe('FaceBillingPage', () => {
       expect(ctx.getHistory).toHaveBeenCalledTimes(2) // mount + after confirmation
       expect(ctx.routerReplace).toHaveBeenCalledWith({ query: {} })
       wrapper.unmount()
+    })
+
+    describe('retour vers la page d\'origine du paywall (lot C7)', () => {
+      beforeEach(() => {
+        sessionStorage.clear()
+        vi.useFakeTimers()
+      })
+      afterEach(() => {
+        vi.useRealTimers()
+      })
+
+      it('confirmé + origine mémorisée : revient à la mission après le message de succès', async () => {
+        sessionStorage.setItem(SUBSCRIPTION_RETURN_KEY, '/face/missions/abc')
+        ctx.route.query = { payment_return: 'subscription' }
+        ctx.verifySubscriptionPayment.mockResolvedValue({ data: { subscription_id: 's', status: 'active' } })
+        const wrapper = mount(FaceBillingPage)
+        await flushPromises()
+
+        expect(ctx.toast.success).toHaveBeenCalledWith('Votre abonnement est activé.')
+        expect(ctx.routerPush).not.toHaveBeenCalled()
+        await vi.advanceTimersByTimeAsync(2500)
+        expect(ctx.routerPush).toHaveBeenCalledWith('/face/missions/abc')
+        expect(sessionStorage.getItem(SUBSCRIPTION_RETURN_KEY)).toBeNull()
+        wrapper.unmount()
+      })
+
+      it('origine falsifiée : ignorée, on reste sur la facturation', async () => {
+        sessionStorage.setItem(SUBSCRIPTION_RETURN_KEY, 'https://evil.com')
+        ctx.route.query = { payment_return: 'subscription' }
+        ctx.verifySubscriptionPayment.mockResolvedValue({ data: { subscription_id: 's', status: 'active' } })
+        const wrapper = mount(FaceBillingPage)
+        await flushPromises()
+        await vi.advanceTimersByTimeAsync(2500)
+
+        expect(ctx.routerPush).not.toHaveBeenCalled()
+        wrapper.unmount()
+      })
+
+      it('paiement en échec : pas de retour, l\'origine reste mémorisée pour « Réessayer »', async () => {
+        sessionStorage.setItem(SUBSCRIPTION_RETURN_KEY, '/face/missions/abc')
+        ctx.route.query = { payment_return: 'subscription' }
+        ctx.verifySubscriptionPayment.mockResolvedValue({ data: { subscription_id: 's', status: 'failed' } })
+        const wrapper = mount(FaceBillingPage)
+        await flushPromises()
+        await vi.advanceTimersByTimeAsync(2500)
+
+        expect(ctx.routerPush).not.toHaveBeenCalled()
+        expect(sessionStorage.getItem(SUBSCRIPTION_RETURN_KEY)).toBe('/face/missions/abc')
+        wrapper.unmount()
+      })
     })
 
     it('ONE banner: the pending resume/verify/cancel banner is suppressed while the return flow is verifying', async () => {

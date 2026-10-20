@@ -143,7 +143,7 @@ class CandidatureResponseDeadlineService
                 'data' => [
                     'message' => "Rappel : {$pendingCount} candidature(s) attendent votre réponse pour la mission « {$mission->titre} ». Répondez avant le {$deadlineLabel}, sinon elles expireront.",
                     'mission_id' => $mission->id,
-                    'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                    'url' => "/producer/missions/{$mission->uuid}?tab=candidatures",
                 ],
             ]);
         } catch (\Throwable $e) {

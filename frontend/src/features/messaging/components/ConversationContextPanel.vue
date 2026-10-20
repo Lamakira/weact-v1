@@ -21,12 +21,12 @@ const dot = computed(() =>
   props.context ? candidatureStatusDot(props.context.candidature_status) : null,
 )
 
-// Face -> détail de la mission ; Producteur -> candidatures de la mission
+// Face et Producteur -> page détail de la mission (chacun la sienne)
 const missionLink = computed(() => {
   if (!props.context) return null
   return props.role === 'face'
     ? { name: 'face-mission-detail', params: { id: props.context.mission_id } }
-    : { name: 'producer-mission-candidatures', params: { id: props.context.mission_id } }
+    : { name: 'producer-mission-detail', params: { id: props.context.mission_id } }
 })
 const participantLabel = computed(() => (props.participant.type === 'producer' ? 'Producteur' : 'Face'))
 </script>

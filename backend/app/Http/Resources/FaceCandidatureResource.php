@@ -51,6 +51,15 @@ class FaceCandidatureResource extends JsonResource
                 $this->relationLoaded('paymentEntry'),
                 fn () => $this->attendanceDispute(),
             ),
+            // Notation côté Face (lot C8) : clés présentes seulement si `ratings` est préchargée.
+            'can_rate' => $this->when(
+                $this->relationLoaded('ratings'),
+                fn () => $this->raterRatingPayload($request->user()?->id)['can_rate'],
+            ),
+            'my_rating' => $this->when(
+                $this->relationLoaded('ratings'),
+                fn () => $this->raterRatingPayload($request->user()?->id)['my_rating'],
+            ),
             'mission' => $this->whenLoaded('mission', fn () => [
                 'id' => $mission?->uuid,
                 'titre' => $mission?->titre,

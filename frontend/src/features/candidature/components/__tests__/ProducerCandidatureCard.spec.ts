@@ -413,4 +413,49 @@ describe('ProducerCandidatureCard', () => {
       ).toBe(false)
     })
   })
+
+  describe('notation facultative (lot C8)', () => {
+    const completed = {
+      ...confirmedUgcCandidature,
+      status: 'completed' as const,
+      status_label: 'Terminée',
+    }
+
+    function mountCard(candidature: Record<string, unknown>) {
+      return mount(ProducerCandidatureCard, {
+        props: { candidature: candidature as never },
+        global: { stubs: { RouterLink: { template: '<a><slot /></a>', props: ['to'] }, Teleport: true } },
+      })
+    }
+
+    it('affiche « Noter » sur une Face terminée non notée et émet rate', async () => {
+      const wrapper = mountCard({ ...completed, can_rate: true, my_rating: null })
+
+      const button = wrapper.find('[data-testid="rate-candidature-btn"]')
+      expect(button.exists()).toBe(true)
+      expect(button.text()).toContain('Noter')
+
+      await button.trigger('click')
+      expect(wrapper.emitted('rate')?.[0]).toEqual([completed.id])
+    })
+
+    it('n\'affiche pas « Noter » quand le serveur ne l\'autorise pas', () => {
+      expect(mountCard({ ...completed, can_rate: false }).find('[data-testid="rate-candidature-btn"]').exists()).toBe(false)
+      expect(mountCard(completed).find('[data-testid="rate-candidature-btn"]').exists()).toBe(false)
+    })
+
+    it('affiche la note donnée à la place du bouton', () => {
+      const wrapper = mountCard({
+        ...completed,
+        can_rate: false,
+        my_rating: { score: 4, comment: 'Très professionnelle', created_at: '2026-10-20T10:00:00+00:00' },
+      })
+
+      expect(wrapper.find('[data-testid="rate-candidature-btn"]').exists()).toBe(false)
+      const rating = wrapper.get('[data-testid="candidature-my-rating"]')
+      expect(rating.text()).toContain('Votre note')
+      expect(rating.text()).toContain('Très professionnelle')
+      expect(rating.find('[aria-label="4 sur 5"]').exists()).toBe(true)
+    })
+  })
 })
