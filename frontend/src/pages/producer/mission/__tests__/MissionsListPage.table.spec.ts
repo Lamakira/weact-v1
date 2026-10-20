@@ -82,10 +82,19 @@ function makeMission(id: string, overrides: Partial<Mission> = {}): Mission {
 }
 
 const published = makeMission('pub')
-const closedPaid = makeMission('clo', { status: 'closed', status_label: 'Clôturée', has_paid_payment: true, can_complete: true })
+const closedPaid = makeMission('clo', {
+  status: 'closed',
+  status_label: 'Clôturée',
+  display_status: 'paid_preparing',
+  display_status_label: 'Payée, en préparation',
+  has_paid_payment: true,
+  can_complete: true,
+})
 const ugcPending = makeMission('ugc', {
   status: 'pending_payment',
   status_label: 'En attente de paiement',
+  display_status: 'commission_due',
+  display_status_label: 'Commission à payer',
   type_mission: 'ugc',
   commission_ugc: 2500,
   date_tournage: null as unknown as string,
@@ -122,8 +131,7 @@ function makeRouter(): Router {
       { path: '/producer/missions', name: 'producer-missions', component: Stub },
       { path: '/producer/missions/publish', name: 'publish-mission', component: Stub },
       { path: '/producer/missions/:id/edit', name: 'edit-mission', component: Stub },
-      { path: '/producer/missions/:id/candidatures', name: 'producer-mission-candidatures', component: Stub },
-      { path: '/producer/missions/:id/attendance', name: 'producer-mission-attendance', component: Stub },
+      { path: '/producer/missions/:id', name: 'producer-mission-detail', component: Stub },
     ],
   })
 }
@@ -172,7 +180,7 @@ describe('MissionsListPage — table (md and up)', () => {
     expect(rows[0]!.text()).toContain('Publicité')
     expect(rows[0]!.text()).toContain('Publiée')
     expect(rows[2]!.text()).toContain('UGC')
-    expect(rows[2]!.text()).toContain('En attente de paiement')
+    expect(rows[2]!.text()).toContain('Commission à payer')
   })
 
   it('only offers sorting on status, the two dates, candidatures and creation date', async () => {
@@ -223,7 +231,7 @@ describe('MissionsListPage — table (md and up)', () => {
 
   it('goes back to page 1 when the status filter changes and keeps the sort', async () => {
     const { wrapper, router } = await mountPage('/producer/missions?page=3&sort=status&direction=asc')
-    const closedTab = wrapper.findAll('button').find((b) => b.text() === 'Clôturée')!
+    const closedTab = wrapper.findAll('button').find((b) => b.text() === 'Recrutement clos')!
     await closedTab.trigger('click')
     await flushPromises()
 
@@ -250,12 +258,12 @@ describe('MissionsListPage — table (md and up)', () => {
     expect(wrapper.text()).not.toContain("Vous n'avez pas encore de missions")
   })
 
-  it('only marks editable rows as clickable', async () => {
+  it('marks every row as clickable (lot C4)', async () => {
     const { wrapper } = await mountPage()
     const rows = wrapper.findAll('tbody tr')
     expect(rows[0]!.classes()).toContain('cursor-pointer')
-    expect(rows[1]!.classes()).not.toContain('cursor-pointer')
-    expect(rows[2]!.classes()).not.toContain('cursor-pointer')
+    expect(rows[1]!.classes()).toContain('cursor-pointer')
+    expect(rows[2]!.classes()).toContain('cursor-pointer')
   })
 
   it('shows the total only once (table footer)', async () => {
@@ -304,7 +312,7 @@ describe('MissionsListPage — table (md and up)', () => {
 
     await rows[1]!.find('[data-testid="action-attendance"]').trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/producer/missions/clo/attendance')
+    expect(router.currentRoute.value.fullPath).toBe('/producer/missions/clo?tab=presences')
 
     await router.push('/producer/missions')
     await flushPromises()
@@ -326,6 +334,10 @@ describe('MissionsListPage — table (md and up)', () => {
     expect(dot.text()).toBe('Publiée')
     expect(dot.attributes('data-tone')).toBe('success')
     expect(rows[2]!.find('td:nth-child(2) [data-testid="r-status-dot"]').attributes('data-tone')).toBe('pending')
+    // Lot C3 : le libellé affiché vient du serveur (display_status_label), pas du statut stocké
+    expect(rows[1]!.find('td:nth-child(2) [data-testid="r-status-dot"]').text()).toBe('Payée, en préparation')
+    expect(rows[1]!.find('td:nth-child(2) [data-testid="r-status-dot"]').attributes('data-tone')).toBe('progress')
+    expect(rows[2]!.find('td:nth-child(2) [data-testid="r-status-dot"]').text()).toBe('Commission à payer')
     // candidatures column: plain number, no button, no icon
     const cell = rows[0]!.find('td:nth-child(5)')
     expect(cell.text()).toBe('3 / 2')
@@ -346,18 +358,26 @@ describe('MissionsListPage — table (md and up)', () => {
     expect(created.classes()).toEqual(expect.arrayContaining(['hidden', '2xl:table-cell']))
   })
 
-  it('opens the edit form from an editable row click only', async () => {
+  it('opens the mission detail page from any row click, editable or not (lot C4)', async () => {
     const { wrapper, router } = await mountPage()
     await wrapper.findAll('tbody tr')[0]!.trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/producer/missions/pub/edit')
+    expect(router.currentRoute.value.fullPath).toBe('/producer/missions/pub')
 
     await router.push('/producer/missions')
     await flushPromises()
-    // closed row: not editable -> a row click does nothing
+    // closed (non editable) row opens the detail too
     await wrapper.findAll('tbody tr')[1]!.trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.path).toBe('/producer/missions')
+    expect(router.currentRoute.value.fullPath).toBe('/producer/missions/clo')
+  })
+
+  it('does not open the detail when clicking the row action button', async () => {
+    const { wrapper, router } = await mountPage()
+    await wrapper.findAll('tbody tr')[1]!.find('[data-testid="action-attendance"]').trigger('click')
+    await flushPromises()
+    // the primary action navigates to its own tab, not the bare detail URL
+    expect(router.currentRoute.value.fullPath).toBe('/producer/missions/clo?tab=presences')
   })
 
   it('only keeps candidatures and delete when the email is not verified', async () => {
@@ -419,6 +439,13 @@ describe('MissionsListPage — compact cards (below md)', () => {
     expect(wrapper.find('[data-testid="mission-card-clo"]').text()).toContain('Valider les présences')
     expect(wrapper.find('[data-testid="mission-card-ugc"]').text()).toContain('Régler la commission')
     expect(wrapper.find('[data-testid="mission-card-ugc"]').text()).toContain('UGC')
+  })
+
+  it('opens the mission detail when a card is clicked (lot C4)', async () => {
+    const { wrapper, router } = await mountPage()
+    await wrapper.find('[data-testid="mission-card-clo"]').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.fullPath).toBe('/producer/missions/clo')
   })
 
   it('keeps actions working from the cards', async () => {

@@ -58,6 +58,8 @@ class CandidatureController extends Controller
                 'shipment.receptionPhotos',
                 'deliverables',
                 'paymentEntry',
+                // Lot C8 : sa propre notation (can_rate / my_rating), 1 requête pour toute la page.
+                'ratings' => fn ($q) => $q->where('rater_id', $request->user()->id),
             ])
             ->latest();
 
@@ -189,7 +191,7 @@ class CandidatureController extends Controller
                     'data' => [
                         'message' => "Nouvelle candidature reçue pour la mission \"{$mission->titre}\"",
                         'mission_id' => $mission->id,
-                        'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                        'url' => "/producer/missions/{$mission->uuid}?tab=candidatures",
                     ],
                 ]);
             } catch (\Throwable) {
@@ -320,7 +322,7 @@ class CandidatureController extends Controller
                     'data' => [
                         'message' => $face->prenom.' a confirmé sa participation à la mission "'.$mission->titre.'".',
                         'mission_id' => $mission->id,
-                        'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                        'url' => "/producer/missions/{$mission->uuid}?tab=candidatures",
                     ],
                 ]);
             } catch (\Throwable) {

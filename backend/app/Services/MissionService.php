@@ -529,9 +529,10 @@ class MissionService
                 'user_id' => $producerUser->id,
                 'type' => 'mission_completed_producer',
                 'data' => [
-                    'message' => "La mission \"{$mission->titre}\" est terminée.",
+                    // Lot C8 : invitation à noter les Faces, facultative et sans relance.
+                    'message' => "La mission \"{$mission->titre}\" est terminée. Vous pouvez noter vos Faces (facultatif).",
                     'mission_id' => $mission->id,
-                    'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                    'url' => "/producer/missions/{$mission->uuid}?tab=candidatures",
                 ],
             ]);
         } catch (\Throwable $e) {

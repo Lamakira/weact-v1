@@ -35,7 +35,7 @@ final class MissionPlaceFreedMail extends BaseMail
                 'faceName' => $this->faceName,
                 'formattedAmount' => number_format($this->placeBudget, 0, ',', ' ').' FCFA',
                 'refundAtLabel' => $this->refundAtLabel,
-                'candidaturesUrl' => rtrim((string) config('app.frontend_url'), '/')."/producer/missions/{$this->mission->uuid}/candidatures",
+                'candidaturesUrl' => rtrim((string) config('app.frontend_url'), '/')."/producer/missions/{$this->mission->uuid}?tab=candidatures",
             ],
         );
     }

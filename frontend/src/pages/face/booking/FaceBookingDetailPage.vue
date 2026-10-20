@@ -6,6 +6,7 @@ import {
   Calendar,
   Clock,
   Film,
+  Lock,
   MapPin,
   MessageSquare,
   Wallet,
@@ -20,14 +21,19 @@ import {
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useBookingDetail, useBookingActions } from '@/features/booking/composables'
+import { useBookingRealtime } from '@/features/booking/composables/useBookingRealtime'
 import {
-  BookingTimeline,
-  BookingStatusBadge,
   PaymentOverlay,
   BookingPricingBreakdown,
   BookingChat,
   CancellationDialog,
   BookingRatingForm,
+  BookingSwap,
+  BookingStepsBar,
+  BookingNextBlock,
+  BookingOtherPartyCard,
+  BookingPrimaryAction,
+  BookingActionBar,
 } from '@/features/booking/components'
 import {
   BookingStatus,
@@ -39,8 +45,8 @@ import {
   type BookingCancellationPayload,
   type BookingStatusType,
   type BookingRating,
+  type BookingPrimaryActionModel,
 } from '@/features/booking/types'
-import RatingDisplay from '@/components/RatingDisplay.vue'
 import {
   UgcPaymentOverlay,
   CommissionBreakdown,
@@ -62,6 +68,13 @@ import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
 import { useUgcShipment } from '@/composables/useUgcShipment'
 import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
 import { formatBookingDeadline } from '@/features/booking/utils/formatBookingDeadline'
+import {
+  buildBookingView,
+  formatFcfa,
+  formatRemaining,
+  formatShortDate,
+  type BookingRole,
+} from '@/features/booking/utils/bookingPresentation'
 import { CONTACT_DETAILS_MESSAGE, containsContactDetails } from '@/lib/contactDetails'
 
 const route = useRoute()
@@ -190,7 +203,6 @@ const contestMessage = ref('')
 const CONTEST_MIN_LENGTH = 10
 const CONTEST_MAX_LENGTH = 1000
 const nowTimestamp = ref(Date.now())
-const hasExpiryRealtimeListener = ref(false)
 let countdownTicker: ReturnType<typeof setInterval> | null = null
 
 // Booking route param uses the public UUID (legacy numeric IDs remain supported by the API).
@@ -209,27 +221,6 @@ const producerName = computed(() => {
   return userable.display_name || 'Producteur'
 })
 
-const producerAvatarUrl = computed(() => {
-  const producer = booking.value?.producer
-  if (!producer?.userable) return null
-  const userable = producer.userable as { profile_photo_url?: string | null; thumbnail_url?: string | null }
-  return userable.thumbnail_url || userable.profile_photo_url || null
-})
-
-const producerInitials = computed(() => producerName.value.charAt(0).toUpperCase())
-
-const producerRating = computed(() => {
-  const producer = booking.value?.producer
-  if (!producer?.userable) return null
-  return (producer.userable as { average_rating?: number | null }).average_rating ?? null
-})
-
-const producerRatingsCount = computed(() => {
-  const producer = booking.value?.producer
-  if (!producer?.userable) return 0
-  return (producer.userable as { ratings_count?: number }).ratings_count ?? 0
-})
-
 const faceName = computed(() => {
   const face = booking.value?.face
   if (!face?.userable) return 'Face'
@@ -239,6 +230,14 @@ const faceName = computed(() => {
 })
 
 const ratedName = computed(() => (isFace.value ? producerName.value : faceName.value))
+
+// Lot C6 : la page parle au rôle de celui qui regarde (titre, pastille, « Et ensuite ? », étapes).
+const role = computed<BookingRole>(() => (isFace.value ? 'face' : 'producer'))
+const view = computed(() => (booking.value ? buildBookingView(booking.value, role.value) : null))
+const nextCountdown = computed<string | null>(() => {
+  const deadline = view.value?.next.deadlineAt
+  return deadline ? formatRemaining(deadline, nowTimestamp.value) : null
+})
 
 // Délai d'annulation de la Face (fourni par le backend) : sans échéance connue, on laisse le backend trancher.
 const faceCancelDeadline = computed<Date | null>(() => {
@@ -448,6 +447,106 @@ watch(
   { immediate: true },
 )
 
+// Lot C6 : UNE action principale par état (en haut à droite, ou dans la barre collée en bas
+// sur téléphone). Les actions secondaires (refuser, signaler une absence, contester…)
+// restent disponibles dans la page, en retrait. Premier cas qui s'applique, dans l'ordre.
+const primaryAction = computed<BookingPrimaryActionModel | null>(() => {
+  const current = booking.value
+  if (!current) return null
+
+  if (current.can_pay && !isPaymentOverdue.value) {
+    return { key: 'pay', label: `Payer ${formatFcfa(current.montant_total_producteur)}`, icon: Wallet }
+  }
+  if (canPayUgcCommission.value) {
+    return {
+      key: 'pay-commission',
+      label: `Payer la commission · ${formatFcfa(current.commission_ugc)}`,
+      icon: Wallet,
+      testid: 'ugc-pay-commission-cta',
+    }
+  }
+  if (current.can_accept) {
+    return { key: 'accept', label: 'Accepter', icon: CheckCircle, loading: isAccepting.value }
+  }
+  if (confirmLabel.value && !isBeforeShootingDate.value) {
+    return { key: 'confirm', label: confirmLabel.value, icon: CheckCircle, loading: isConfirming.value }
+  }
+  if (canConfirmShipment.value) {
+    return { key: 'ship', label: "Confirmer l'expédition", icon: Package }
+  }
+  if (current.status === BookingStatus.COMPLETED && current.can_rate) {
+    return { key: 'rate', label: `Noter ${ratedName.value}`, icon: Star }
+  }
+  if (canShowChat.value && current.status !== BookingStatus.COMPLETED) {
+    return { key: 'chat', label: 'Ouvrir le chat', icon: MessageSquare }
+  }
+  if (canCancelBooking.value) {
+    return {
+      key: 'cancel',
+      label: !isFace.value && current.status === BookingStatus.PENDING ? 'Annuler la demande' : 'Annuler le booking',
+      kind: 'ghost',
+      testid: 'face-cancel-btn',
+    }
+  }
+  return null
+})
+
+// Messagerie fermée avant paiement (UGC : avant l'acceptation) — voulu, anti-contournement.
+const messagingLockedText = computed<string | null>(() => {
+  const status = booking.value?.status
+  if (!status || canShowChat.value) return null
+  if (status !== BookingStatus.PENDING && status !== BookingStatus.ACCEPTED && status !== BookingStatus.COMMISSION_PAID) {
+    return null
+  }
+  return isUgc.value
+    ? "La messagerie s'ouvre quand la Face accepte la demande."
+    : "La messagerie s'ouvre après le paiement. Avant, les échanges passent par le brief et la demande."
+})
+
+const actionBarSub = computed<string>(() => nextCountdown.value ?? view.value?.next.who ?? '')
+
+// Ancres des actions qui ne font que mener à une zone de la page.
+const chatSection = ref<HTMLElement | null>(null)
+const ratingSection = ref<HTMLElement | null>(null)
+const shipmentPanel = ref<HTMLElement | null>(null)
+
+function scrollToSection(target: HTMLElement | null): void {
+  if (!target || typeof target.scrollIntoView !== 'function') return
+  const reduce = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+}
+
+function handlePrimaryAction(): void {
+  switch (primaryAction.value?.key) {
+    case 'pay':
+      showPaymentOverlay.value = true
+      break
+    case 'pay-commission':
+      showUgcPaymentOverlay.value = true
+      break
+    case 'accept':
+      handleAccept()
+      break
+    case 'confirm':
+      void handleConfirm()
+      break
+    case 'ship':
+      scrollToSection(shipmentPanel.value)
+      break
+    case 'rate':
+      scrollToSection(ratingSection.value)
+      break
+    case 'chat':
+      // Sur grand écran le chat est déjà visible à droite : on place le curseur dans la saisie.
+      scrollToSection(chatSection.value)
+      chatSection.value?.querySelector('textarea')?.focus({ preventScroll: true })
+      break
+    case 'cancel':
+      showCancellationDialog.value = true
+      break
+  }
+}
+
 /**
  * FORMAT HELPERS
  */
@@ -485,7 +584,7 @@ async function doAccept(): Promise<void> {
   // Paywall FR5 (2.4) : Face non éligible → invitation à s'abonner.
   if (actionErrorCode.value === 'UGC_SUBSCRIPTION_REQUIRED') {
     toast.info(actionError.value || "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.")
-    router.push({ name: 'pricing' })
+    router.push({ name: 'pricing', query: { redirect: route.fullPath } })
     return
   }
 
@@ -704,58 +803,36 @@ async function handleUploadDeliverable(file: File): Promise<void> {
   toast.error(deliverableError.value || "Erreur lors de l'envoi de la vidéo Unboxing")
 }
 
-interface EchoChannel {
-  listen: (event: string, callback: () => void) => EchoChannel
-  stopListening: (event: string) => EchoChannel
-}
+// Lot C6 : on écoute le canal du booking tant qu'il peut encore évoluer (pas seulement
+// « accepté ») ; il se referme dès que le booking est terminal.
+const TERMINAL_STATUSES: BookingStatusType[] = [
+  BookingStatus.COMPLETED,
+  BookingStatus.REFUSED,
+  BookingStatus.EXPIRED,
+  BookingStatus.CANCELLED_BY_FACE,
+]
 
-async function attachExpiryRealtimeListener(): Promise<void> {
-  if (hasExpiryRealtimeListener.value || bookingRealtimeChannelKey.value === null) return
+const isRealtimeActive = computed<boolean>(() => {
+  const current = booking.value
+  if (!current) return false
+  if (TERMINAL_STATUSES.includes(current.status)) return false
+  // Absence / annulation tardive : encore vivant tant que le règlement n'est pas tranché.
+  if (
+    (current.status === BookingStatus.NO_SHOW || current.status === BookingStatus.CANCELLED_BY_PRODUCER)
+    && !isPendingSettlement.value
+  ) {
+    return false
+  }
+  return true
+})
 
-  try {
-    const { echo } = await import('@/plugins/echo')
-    ;(echo.private(`booking.${bookingRealtimeChannelKey.value}`) as EchoChannel)
-      .listen('.booking.expired', async () => {
-        if (bookingId.value !== null) {
-          await fetchBooking(bookingId.value)
-        }
-      })
-
-    hasExpiryRealtimeListener.value = true
-  } catch {
-    hasExpiryRealtimeListener.value = false
+async function refetchBooking(): Promise<void> {
+  if (bookingId.value !== null) {
+    await fetchBooking(bookingId.value)
   }
 }
 
-async function detachExpiryRealtimeListener(): Promise<void> {
-  if (!hasExpiryRealtimeListener.value || bookingRealtimeChannelKey.value === null) return
-
-  try {
-    const { echo } = await import('@/plugins/echo')
-    // Stop only the expiry listener — do not leave the channel, as other
-    // components (BookingChat) may subscribe to the same private channel.
-    ;(echo.private(`booking.${bookingRealtimeChannelKey.value}`) as EchoChannel)
-      .stopListening('.booking.expired')
-  } catch {
-    // Ignore realtime cleanup errors.
-  } finally {
-    hasExpiryRealtimeListener.value = false
-  }
-}
-
-/**
- * LIFECYCLE
- */
-watch(
-  () => booking.value?.status,
-  async (status) => {
-    if (status === BookingStatus.ACCEPTED) {
-      await attachExpiryRealtimeListener()
-    } else {
-      await detachExpiryRealtimeListener()
-    }
-  },
-)
+useBookingRealtime(bookingRealtimeChannelKey, isRealtimeActive, refetchBooking)
 
 // Return from the same-tab FedaPay checkout (?payment_return=booking|booking_commission).
 const paymentReturn = usePaymentReturn({
@@ -802,24 +879,26 @@ onUnmounted(() => {
     clearInterval(countdownTicker)
     countdownTicker = null
   }
-
-  void detachExpiryRealtimeListener()
 })
 </script>
 
 <template>
-  <div class="max-w-3xl mx-auto px-4 py-6">
+  <!-- Avec le chat, la page s'élargit : infos à gauche, conversation à droite (sans défiler). -->
+  <div
+    class="@container/page mx-auto px-4 py-6 max-sm:pb-28"
+    :class="canShowChat ? 'max-w-7xl' : 'max-w-5xl'"
+  >
     <!-- Back button -->
     <button
-      class="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-6 transition-colors"
+      class="booking-press flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-6 transition-colors"
       @click="goBack"
     >
       <ArrowLeft class="w-4 h-4" />
       Retour
     </button>
 
-    <!-- Loading state -->
-    <div v-if="isLoading" class="flex flex-col items-center justify-center py-20">
+    <!-- Loading state (premier chargement seulement : un rechargement temps réel ne vide pas la page) -->
+    <div v-if="isLoading && !booking" class="flex flex-col items-center justify-center py-20">
       <Loader2 class="w-8 h-8 text-weact animate-spin" />
       <p class="mt-3 text-sm text-gray-500">Chargement du booking...</p>
     </div>
@@ -844,445 +923,467 @@ onUnmounted(() => {
     </div>
 
     <!-- Booking detail content -->
-    <template v-else-if="booking">
-      <PaymentReturnBanner
-        :state="paymentReturn.state.value"
-        @retry="paymentReturn.retry"
-        @dismiss="paymentReturn.dismiss"
-      />
+    <div
+      v-else-if="booking && view"
+      class="grid grid-cols-1 items-start gap-6"
+      :class="{ '@4xl/page:grid-cols-[minmax(0,1fr)_minmax(340px,400px)]': canShowChat }"
+      data-testid="booking-layout"
+    >
+      <!-- Infos du booking -->
+      <div class="@container/info min-w-0">
+        <PaymentReturnBanner
+          :state="paymentReturn.state.value"
+          @retry="paymentReturn.retry"
+          @dismiss="paymentReturn.dismiss"
+        />
 
-      <!-- Header: Status badge + title -->
-      <div class="flex items-center gap-3 mb-6">
-        <BookingStatusBadge :status="booking.status" />
-        <h1 class="text-xl font-bold text-gray-900">Demande de booking</h1>
-      </div>
-
-      <!-- UGC timeline (3.2) — pleine largeur, remplace la carte Progression cash.
-           Pour la Face avec shipment, la carte de suivi (timeline V intégrée) la remplace (D-3.4.e). -->
-      <div
-        v-if="isUgc && !showFaceTrackingCard"
-        class="mb-6 overflow-x-auto rounded-xl border border-gray-200 bg-white p-5"
-        data-testid="ugc-booking-timeline-card"
-      >
-        <h2 class="mb-4 text-sm font-semibold text-gray-700">Progression</h2>
-        <UgcBookingTimeline :current="ugcTimelineCurrent" variant="horizontal" />
-      </div>
-
-      <!-- Carte de suivi Face (3.4, écran 8A) — même emplacement, pleine largeur -->
-      <UgcFaceTrackingCard
-        v-if="showFaceTrackingCard && booking.shipment"
-        class="mb-6"
-        :shipment="booking.shipment"
-        :current="ugcTimelineCurrent"
-        :is-submitting="isSubmittingShipment"
-        :is-uploading="isUploadingDeliverable"
-        :upload-progress="uploadProgress"
-        :deliverables="booking.deliverables ?? []"
-        @confirm-receipt="openReceiptModal"
-        @upload="handleUploadDeliverable"
-      />
-
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <!-- Left column: Timeline (cash bookings only) -->
-        <div v-if="!isUgc" class="lg:col-span-1">
-          <div class="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 class="text-sm font-semibold text-gray-700 mb-4">Progression</h2>
-            <BookingTimeline
-              :status="booking.status"
-              :cancellation-reason="booking.cancellation_reason"
-              :accepted-at="booking.accepted_at"
-              :was-paid="booking.was_paid"
-            />
+        <!-- Header : titre et pastille propres au statut ET au rôle, action principale à droite -->
+        <header class="mb-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start sm:gap-x-5">
+          <div class="min-w-0">
+            <p class="text-xs text-gray-500">Booking · {{ booking.type_contenu }}</p>
+            <BookingSwap>
+              <h1
+                :key="view.title"
+                class="text-lg font-bold leading-tight text-balance text-gray-900 sm:text-[22px]"
+                data-testid="booking-title"
+              >
+                {{ view.title }}
+              </h1>
+            </BookingSwap>
+            <div class="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[13px] text-gray-500">
+              <BookingSwap>
+                <span
+                  :key="view.pill.label"
+                  class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                  :class="{
+                    'bg-weact-50 text-weact': view.pill.tone === 'info',
+                    'bg-amber-50 text-amber-800': view.pill.tone === 'warn',
+                    'bg-emerald-50 text-emerald-700': view.pill.tone === 'ok',
+                    'bg-gray-50 text-gray-500 border border-gray-200': view.pill.tone === 'mute',
+                    'bg-red-50 text-red-700': view.pill.tone === 'danger',
+                  }"
+                  data-testid="booking-pill"
+                >
+                  <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+                  {{ view.pill.label }}
+                </span>
+              </BookingSwap>
+              <span v-if="booking.date_debut" class="inline-flex items-center gap-1.5">
+                <Calendar class="w-3.5 h-3.5" aria-hidden="true" />
+                {{ formatShortDate(booking.date_debut) }}
+              </span>
+              <span v-if="booking.lieu" class="inline-flex items-center gap-1.5">
+                <MapPin class="w-3.5 h-3.5" aria-hidden="true" />
+                {{ booking.lieu }}
+              </span>
+            </div>
           </div>
+          <div v-if="primaryAction" class="hidden sm:flex sm:items-center sm:gap-2" data-testid="booking-primary-action">
+            <BookingPrimaryAction :action="primaryAction" @click="handlePrimaryAction" />
+          </div>
+        </header>
+
+        <!-- Une seule barre de progression : en UGC actif, la frise détaillée du tunnel
+             (ci-dessous) la remplace ; la barre générique ne sert qu'à montrer où un
+             booking UGC arrêté (refusé, annulé, expiré) s'est interrompu. -->
+        <BookingStepsBar
+          v-if="!isUgc || view.steps.halted"
+          class="mb-4"
+          :labels="view.steps.labels"
+          :current="view.steps.current"
+          :halted="view.steps.halted"
+        />
+
+        <!-- UGC timeline (3.2) — pleine largeur, détaille le tunnel de livraison.
+             Pour la Face avec shipment, la carte de suivi (timeline V intégrée) la remplace (D-3.4.e). -->
+        <div
+          v-if="isUgc && !view.steps.halted && !showFaceTrackingCard"
+          class="mb-4 overflow-x-auto rounded-[10px] border border-gray-200 bg-white p-5"
+          data-testid="ugc-booking-timeline-card"
+        >
+          <h2 class="mb-4 text-sm font-semibold text-gray-700">Progression</h2>
+          <UgcBookingTimeline :current="ugcTimelineCurrent" variant="horizontal" />
         </div>
 
-        <!-- Right column: Details -->
-        <div class="space-y-5" :class="isUgc ? 'lg:col-span-3' : 'lg:col-span-2'">
-          <!-- Producer card -->
-          <div class="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 class="text-sm font-semibold text-gray-700 mb-3">Producteur</h2>
-            <div class="flex items-center gap-3">
-              <div
-                v-if="producerAvatarUrl"
-                class="w-12 h-12 rounded-full bg-cover bg-center border border-gray-200"
-                :style="{ backgroundImage: `url(${producerAvatarUrl})` }"
+        <!-- Carte de suivi Face (3.4, écran 8A) — même emplacement, pleine largeur -->
+        <UgcFaceTrackingCard
+          v-if="showFaceTrackingCard && booking.shipment"
+          class="mb-4"
+          :shipment="booking.shipment"
+          :current="ugcTimelineCurrent"
+          :is-submitting="isSubmittingShipment"
+          :is-uploading="isUploadingDeliverable"
+          :upload-progress="uploadProgress"
+          :deliverables="booking.deliverables ?? []"
+          @confirm-receipt="openReceiptModal"
+          @upload="handleUploadDeliverable"
+        />
+
+        <div class="grid grid-cols-1 items-start gap-4 @3xl/info:grid-cols-[minmax(0,1fr)_300px]">
+          <!-- Colonne principale -->
+          <div class="min-w-0 space-y-4">
+            <!-- L'autre partie : le Producteur voit la Face, la Face voit le Producteur -->
+            <BookingOtherPartyCard :booking="booking" :role="role" />
+
+            <!-- Booking details -->
+            <div class="bg-white rounded-[10px] border border-gray-200 p-5">
+              <h2 class="text-sm font-semibold text-gray-700 mb-3">Détails</h2>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div v-if="booking.date_debut" class="flex items-center gap-2.5">
+                  <Calendar class="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p class="text-xs text-gray-500">Date de début</p>
+                    <p class="text-sm font-medium text-gray-900">{{ formatDate(booking.date_debut) }}</p>
+                  </div>
+                </div>
+                <div v-if="booking.date_fin" class="flex items-center gap-2.5">
+                  <Calendar class="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p class="text-xs text-gray-500">Date de fin</p>
+                    <p class="text-sm font-medium text-gray-900">{{ formatDate(booking.date_fin) }}</p>
+                  </div>
+                </div>
+                <div v-if="booking.duree_heures" class="flex items-center gap-2.5">
+                  <Clock class="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p class="text-xs text-gray-500">Durée</p>
+                    <p class="text-sm font-medium text-gray-900">max {{ booking.duree_heures }}h</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2.5">
+                  <Film class="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p class="text-xs text-gray-500">Type de contenu</p>
+                    <p class="text-sm font-medium text-gray-900">{{ booking.type_contenu }}</p>
+                  </div>
+                </div>
+                <div v-if="booking.lieu" class="flex items-center gap-2.5">
+                  <MapPin class="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p class="text-xs text-gray-500">Lieu de tournage</p>
+                    <p class="text-sm font-medium text-gray-900">{{ booking.lieu }}</p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Producer message -->
+              <div v-if="booking.message" class="mt-4 pt-4 border-t border-gray-100">
+                <div class="flex items-start gap-2.5">
+                  <MessageSquare class="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p class="text-xs text-gray-500 mb-1">Message du producteur</p>
+                    <p class="text-sm text-gray-700">{{ booking.message }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- UGC dotation summary (replaces the cash finances card for UGC bookings) -->
+            <div v-if="booking.type_contenu === 'UGC'" class="bg-white rounded-[10px] border border-gray-200 p-5">
+              <h2 class="text-sm font-semibold text-gray-700 mb-3">Dotation UGC</h2>
+              <div class="space-y-3 mb-4">
+                <div v-if="booking.nom_produit" class="flex items-center gap-2.5">
+                  <Package class="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p class="text-xs text-gray-500">Produit</p>
+                    <p class="text-sm font-medium text-gray-900">{{ booking.nom_produit }}</p>
+                  </div>
+                </div>
+                <div v-if="booking.type_compensation_label" class="flex items-center gap-2.5">
+                  <Gift class="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p class="text-xs text-gray-500">Type de compensation</p>
+                    <p class="text-sm font-medium text-gray-900">{{ booking.type_compensation_label }}</p>
+                  </div>
+                </div>
+                <div v-if="booking.nombre_videos" class="flex items-center gap-2.5">
+                  <Film class="w-4 h-4 text-gray-400 shrink-0" />
+                  <div>
+                    <p class="text-xs text-gray-500">Vidéos attendues</p>
+                    <p class="text-sm font-medium text-gray-900">{{ booking.nombre_videos }}</p>
+                  </div>
+                </div>
+              </div>
+              <!-- Photos produit (spec photos produit) — URLs signées, visibles des
+                   deux parties ; aucune section sans photo (bookings pré-deploy) -->
+              <ProductPhotoGallery
+                v-if="booking.product_photos?.length"
+                class="mb-4"
+                title="Photos du produit"
+                :photos="booking.product_photos"
               />
-              <div v-else class="w-12 h-12 rounded-full bg-weact/10 text-weact flex items-center justify-center font-semibold text-lg">
-                {{ producerInitials }}
-              </div>
-              <div class="flex-1 min-w-0">
-                <p class="font-medium text-gray-900 truncate">{{ producerName }}</p>
-                <RatingDisplay
-                  v-if="producerRating !== null"
-                  :average-rating="producerRating"
-                  :review-count="producerRatingsCount"
-                />
-                <p v-else class="text-xs text-gray-400">Pas encore noté</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Booking details -->
-          <div class="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 class="text-sm font-semibold text-gray-700 mb-3">Détails</h2>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div v-if="booking.date_debut" class="flex items-center gap-2.5">
-                <Calendar class="w-4 h-4 text-gray-400 shrink-0" />
-                <div>
-                  <p class="text-xs text-gray-500">Date de début</p>
-                  <p class="text-sm font-medium text-gray-900">{{ formatDate(booking.date_debut) }}</p>
-                </div>
-              </div>
-              <div v-if="booking.date_fin" class="flex items-center gap-2.5">
-                <Calendar class="w-4 h-4 text-gray-400 shrink-0" />
-                <div>
-                  <p class="text-xs text-gray-500">Date de fin</p>
-                  <p class="text-sm font-medium text-gray-900">{{ formatDate(booking.date_fin) }}</p>
-                </div>
-              </div>
-              <div v-if="booking.duree_heures" class="flex items-center gap-2.5">
-                <Clock class="w-4 h-4 text-gray-400 shrink-0" />
-                <div>
-                  <p class="text-xs text-gray-500">Durée</p>
-                  <p class="text-sm font-medium text-gray-900">max {{ booking.duree_heures }}h</p>
-                </div>
-              </div>
-              <div class="flex items-center gap-2.5">
-                <Film class="w-4 h-4 text-gray-400 shrink-0" />
-                <div>
-                  <p class="text-xs text-gray-500">Type de contenu</p>
-                  <p class="text-sm font-medium text-gray-900">{{ booking.type_contenu }}</p>
-                </div>
-              </div>
-              <div v-if="booking.lieu" class="flex items-center gap-2.5">
-                <MapPin class="w-4 h-4 text-gray-400 shrink-0" />
-                <div>
-                  <p class="text-xs text-gray-500">Lieu de tournage</p>
-                  <p class="text-sm font-medium text-gray-900">{{ booking.lieu }}</p>
-                </div>
-              </div>
+              <CommissionBreakdown
+                :product-value="booking.valeur_produit ?? 0"
+                :pay-amount="booking.montant_remuneration ?? 0"
+                :on-platform="true"
+              />
             </div>
 
-            <!-- Producer message -->
-            <div v-if="booking.message" class="mt-4 pt-4 border-t border-gray-100">
-              <div class="flex items-start gap-2.5">
-                <MessageSquare class="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
-                <div>
-                  <p class="text-xs text-gray-500 mb-1">Message du producteur</p>
-                  <p class="text-sm text-gray-700">{{ booking.message }}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- UGC dotation summary (replaces the cash finances card for UGC bookings) -->
-          <div v-if="booking.type_contenu === 'UGC'" class="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 class="text-sm font-semibold text-gray-700 mb-3">Dotation UGC</h2>
-            <div class="space-y-3 mb-4">
-              <div v-if="booking.nom_produit" class="flex items-center gap-2.5">
-                <Package class="w-4 h-4 text-gray-400 shrink-0" />
-                <div>
-                  <p class="text-xs text-gray-500">Produit</p>
-                  <p class="text-sm font-medium text-gray-900">{{ booking.nom_produit }}</p>
-                </div>
-              </div>
-              <div v-if="booking.type_compensation_label" class="flex items-center gap-2.5">
-                <Gift class="w-4 h-4 text-gray-400 shrink-0" />
-                <div>
-                  <p class="text-xs text-gray-500">Type de compensation</p>
-                  <p class="text-sm font-medium text-gray-900">{{ booking.type_compensation_label }}</p>
-                </div>
-              </div>
-              <div v-if="booking.nombre_videos" class="flex items-center gap-2.5">
-                <Film class="w-4 h-4 text-gray-400 shrink-0" />
-                <div>
-                  <p class="text-xs text-gray-500">Vidéos attendues</p>
-                  <p class="text-sm font-medium text-gray-900">{{ booking.nombre_videos }}</p>
-                </div>
-              </div>
-            </div>
-            <!-- Photos produit (spec photos produit) — URLs signées, visibles des
-                 deux parties ; aucune section sans photo (bookings pré-deploy) -->
-            <ProductPhotoGallery
-              v-if="booking.product_photos?.length"
-              class="mb-4"
-              title="Photos du produit"
-              :photos="booking.product_photos"
-            />
-            <CommissionBreakdown
-              :product-value="booking.valeur_produit ?? 0"
-              :pay-amount="booking.montant_remuneration ?? 0"
-              :on-platform="true"
-            />
-          </div>
-
-          <!-- Panneau expédition UGC (Producteur, écran 4A — 3.2) -->
-          <div
-            v-if="canConfirmShipment"
-            class="rounded-xl border border-gray-200 bg-white p-5"
-            data-testid="ugc-shipment-panel"
-          >
-            <p class="mb-1 text-[10px] font-bold uppercase tracking-widest text-weact">Étape 3 sur 6 · Expédition</p>
-            <h2 class="text-sm font-semibold text-gray-700">Confirmer l'envoi du produit</h2>
-            <p class="mb-4 mt-0.5 text-xs text-gray-500">{{ booking.nom_produit }} · Pour {{ faceName }}</p>
-            <UgcShipmentForm :is-submitting="isSubmittingShipment" @submit="handleConfirmShipment" />
-          </div>
-
-          <!-- Tracking expédition UGC (Producteur post-confirmation — 3.2) -->
-          <UgcShipmentTrackingCard
-            v-if="!isFace && isUgc && booking.shipment"
-            :shipment="booking.shipment"
-          />
-
-          <!-- Financial section (cash bookings only) -->
-          <div v-if="booking.type_contenu !== 'UGC'" class="bg-white rounded-xl border border-gray-200 p-5">
-            <h2 class="text-sm font-semibold text-gray-700 mb-3">Finances</h2>
-            <BookingPricingBreakdown
-              :tarif-base="booking.tarif_base"
-              :role="isFace ? 'face' : 'producer'"
-              :montant-face-recoit="booking.montant_face_recoit"
-              :montant-total-producteur="booking.montant_total_producteur"
-            />
-          </div>
-
-          <!-- Cancellation reason (if refused/cancelled) -->
-          <div
-            v-if="booking.cancellation_reason"
-            class="bg-red-50 rounded-xl border border-red-200 p-5"
-          >
-            <h2 class="text-sm font-semibold text-red-700 mb-2">
-              {{ booking.status === BookingStatus.REFUSED ? 'Raison du refus' : 'Raison de l\'annulation' }}
-            </h2>
-            <p class="text-sm text-red-600">{{ getCancellationReasonLabel(booking.cancellation_reason) }}</p>
-            <p
-              v-if="booking.custom_cancellation_reason"
-              class="mt-2 text-sm text-red-700"
+            <!-- Panneau expédition UGC (Producteur, écran 4A — 3.2) -->
+            <div
+              v-if="canConfirmShipment"
+              ref="shipmentPanel"
+              class="scroll-mt-4 rounded-[10px] border border-gray-200 bg-white p-5"
+              data-testid="ugc-shipment-panel"
             >
-              {{ booking.custom_cancellation_reason }}
-            </p>
-          </div>
+              <p class="mb-1 text-[10px] font-bold uppercase tracking-widest text-weact">Étape 3 sur 6 · Expédition</p>
+              <h2 class="text-sm font-semibold text-gray-700">Confirmer l'envoi du produit</h2>
+              <p class="mb-4 mt-0.5 text-xs text-gray-500">{{ booking.nom_produit }} · Pour {{ faceName }}</p>
+              <UgcShipmentForm :is-submitting="isSubmittingShipment" @submit="handleConfirmShipment" />
+            </div>
 
-          <!-- Règlement en attente (fenêtre de contestation 72 h) -->
-          <div
-            v-if="isPendingSettlement"
-            class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-            data-testid="settlement-banner"
-          >
-            <p v-if="isDisputed" data-testid="settlement-disputed">
-              Contestation en cours : un administrateur va trancher.
-            </p>
-            <p v-else-if="isWindowOver" data-testid="settlement-over">
-              Délai terminé : règlement en cours.
-            </p>
-            <template v-else-if="isFace">
-              <p data-testid="settlement-face">
-                Vous pouvez contester jusqu'au {{ settlementDueLabel }}.
-                Sans contestation de votre part, le Producteur sera remboursé le {{ settlementDueLabel }}.
+            <!-- Tracking expédition UGC (Producteur post-confirmation — 3.2) -->
+            <UgcShipmentTrackingCard
+              v-if="!isFace && isUgc && booking.shipment"
+              :shipment="booking.shipment"
+            />
+
+            <!-- Cancellation reason (if refused/cancelled) -->
+            <div
+              v-if="booking.cancellation_reason"
+              class="bg-red-50 rounded-[10px] border border-red-200 p-5"
+            >
+              <h2 class="text-sm font-semibold text-red-700 mb-2">
+                {{ booking.status === BookingStatus.REFUSED ? 'Raison du refus' : 'Raison de l\'annulation' }}
+              </h2>
+              <p class="text-sm text-red-600">{{ getCancellationReasonLabel(booking.cancellation_reason) }}</p>
+              <p
+                v-if="booking.custom_cancellation_reason"
+                class="mt-2 text-sm text-red-700"
+              >
+                {{ booking.custom_cancellation_reason }}
               </p>
+            </div>
+
+            <!-- Règlement en attente (fenêtre de contestation 72 h) -->
+            <div
+              v-if="isPendingSettlement"
+              class="rounded-[10px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+              data-testid="settlement-banner"
+            >
+              <p v-if="isDisputed" data-testid="settlement-disputed">
+                Contestation en cours : un administrateur va trancher.
+              </p>
+              <p v-else-if="isWindowOver" data-testid="settlement-over">
+                Délai terminé : règlement en cours.
+              </p>
+              <template v-else-if="isFace">
+                <p data-testid="settlement-face">
+                  Vous pouvez contester jusqu'au {{ settlementDueLabel }}.
+                  Sans contestation de votre part, le Producteur sera remboursé le {{ settlementDueLabel }}.
+                </p>
+                <button
+                  v-if="canContest"
+                  class="booking-press mt-3 inline-flex items-center justify-center gap-2 rounded-lg border border-amber-400 bg-white px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
+                  data-testid="contest-btn"
+                  @click="openContestDialog"
+                >
+                  <AlertTriangle class="w-4 h-4" />
+                  Contester
+                </button>
+              </template>
+              <p v-else data-testid="settlement-producer">
+                Remboursement prévu le {{ settlementDueLabel }} si la Face ne conteste pas.
+              </p>
+            </div>
+            <p
+              v-else-if="disputeOutcomeLabel"
+              class="rounded-[10px] border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700"
+              data-testid="dispute-outcome"
+            >
+              {{ disputeOutcomeLabel }}
+            </p>
+
+            <div
+              v-if="shouldShowPaymentDeadline"
+              data-testid="payment-deadline"
+              class="rounded-[10px] border px-4 py-3 text-sm"
+              :class="isPaymentOverdue
+                ? 'border-red-200 bg-red-50 text-red-800'
+                : 'border-amber-200 bg-amber-50 text-amber-800'"
+            >
+              <template v-if="isFace">
+                <span v-if="isPaymentOverdue">Délai de paiement dépassé — cette demande va bientôt expirer</span>
+                <span v-else>Le Producteur doit payer avant le {{ formattedPaymentDeadline }}, sinon la demande expirera.</span>
+              </template>
+              <template v-else>
+                <span v-if="isPaymentOverdue">Délai expiré — cette demande va bientôt expirer</span>
+                <span v-else>Paiement requis avant le {{ formattedPaymentDeadline }}</span>
+              </template>
+            </div>
+
+            <p
+              v-if="responseDeadlineText"
+              class="rounded-[10px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+              data-testid="face-response-deadline"
+            >
+              {{ responseDeadlineText }}
+            </p>
+            <p
+              v-if="ugcCommissionDeadlineText"
+              class="rounded-[10px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+              data-testid="ugc-commission-deadline"
+            >
+              {{ ugcCommissionDeadlineText }}
+            </p>
+
+            <!-- Confirmation tant que le tournage n'a pas eu lieu : désactivée, avec la raison.
+                 (Une fois possible, « Confirmer » devient l'action principale de la page.) -->
+            <div v-if="confirmLabel && isBeforeShootingDate" class="relative group">
               <button
-                v-if="canContest"
-                class="mt-3 inline-flex items-center justify-center gap-2 rounded-lg border border-amber-400 bg-white px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-100 transition-colors"
-                data-testid="contest-btn"
-                @click="openContestDialog"
+                disabled
+                class="w-full flex items-center justify-center gap-2 rounded-lg bg-weact px-4 py-3 text-sm font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                title="La confirmation n'est possible qu'à partir du jour du tournage"
+              >
+                <CheckCircle class="w-4 h-4" />
+                {{ confirmLabel }}
+              </button>
+              <p class="mt-2 text-sm text-amber-600">
+                La confirmation n'est possible qu'à partir du jour du tournage.
+              </p>
+            </div>
+
+            <!-- Actions secondaires : refuser, annuler, signaler une absence -->
+            <div v-if="booking.can_refuse" class="flex gap-3">
+              <button
+                :disabled="isRefusing"
+                class="booking-press flex-1 flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                @click="openRefuseDialog"
+              >
+                <XCircle class="w-4 h-4" />
+                Refuser
+              </button>
+            </div>
+
+            <div v-if="canCancelBooking && primaryAction?.key !== 'cancel'" class="flex gap-3">
+              <button
+                class="booking-press flex-1 flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                data-testid="face-cancel-btn"
+                @click="showCancellationDialog = true"
+              >
+                <XCircle class="w-4 h-4" />
+                Annuler le booking
+              </button>
+            </div>
+            <p
+              v-if="showFaceCancelInfo && isFaceCancelWindowOpen"
+              class="text-sm text-gray-500"
+              data-testid="face-cancel-deadline"
+            >
+              Annulation possible jusqu'au {{ formattedFaceCancelDeadline }}
+            </p>
+            <p
+              v-else-if="showFaceCancelInfo"
+              class="text-sm text-amber-600"
+              data-testid="face-cancel-closed"
+            >
+              Annulation impossible à moins de 24 h du jour du tournage.
+            </p>
+
+            <!-- No-show report (Producer only) -->
+            <div v-if="canReportNoShow" class="flex gap-3">
+              <button
+                class="booking-press flex-1 flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2.5 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                data-testid="report-no-show-btn"
+                @click="showNoShowDialog = true"
               >
                 <AlertTriangle class="w-4 h-4" />
-                Contester
+                Signaler une absence
               </button>
-            </template>
-            <p v-else data-testid="settlement-producer">
-              Remboursement prévu le {{ settlementDueLabel }} si la Face ne conteste pas.
-            </p>
-          </div>
-          <p
-            v-else-if="disputeOutcomeLabel"
-            class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700"
-            data-testid="dispute-outcome"
-          >
-            {{ disputeOutcomeLabel }}
-          </p>
+            </div>
 
-          <div
-            v-if="shouldShowPaymentDeadline"
-            data-testid="payment-deadline"
-            class="rounded-xl border px-4 py-3 text-sm"
-            :class="isPaymentOverdue
-              ? 'border-red-200 bg-red-50 text-red-800'
-              : 'border-amber-200 bg-amber-50 text-amber-800'"
-          >
-            <template v-if="isFace">
-              <span v-if="isPaymentOverdue">Délai de paiement dépassé — cette demande va bientôt expirer</span>
-              <span v-else>Le Producteur doit payer avant le {{ formattedPaymentDeadline }}, sinon la demande expirera.</span>
-            </template>
-            <template v-else>
-              <span v-if="isPaymentOverdue">Délai expiré — cette demande va bientôt expirer</span>
-              <span v-else>Paiement requis avant le {{ formattedPaymentDeadline }}</span>
-            </template>
-          </div>
-
-          <!-- Confirm button (double-confirmation) -->
-          <div v-if="confirmLabel" class="relative group">
-            <button
-              :disabled="isConfirming || isBeforeShootingDate"
-              class="w-full flex items-center justify-center gap-2 rounded-lg bg-weact px-4 py-3 text-sm font-semibold text-white hover:bg-weact/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              :title="isBeforeShootingDate ? 'La confirmation n\'est possible qu\'à partir du jour du tournage' : undefined"
-              @click="handleConfirm"
+            <!-- Messagerie fermée avant le paiement (anti-contournement) -->
+            <div
+              v-if="messagingLockedText"
+              class="flex items-start gap-2.5 rounded-[10px] border border-dashed border-gray-300 bg-gray-50 p-3 text-sm text-gray-500"
+              data-testid="booking-chat-locked"
             >
-              <Loader2 v-if="isConfirming" class="w-4 h-4 animate-spin" />
-              <CheckCircle v-else class="w-4 h-4" />
-              {{ confirmLabel }}
-            </button>
-            <p v-if="isBeforeShootingDate" class="mt-2 text-sm text-amber-600">
-              La confirmation n'est possible qu'à partir du jour du tournage.
-            </p>
-          </div>
+              <Lock class="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>{{ messagingLockedText }}</span>
+            </div>
 
-          <!-- Booking cancellation -->
-          <div v-if="canCancelBooking" class="flex gap-3">
-            <button
-              class="flex-1 flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
-              data-testid="face-cancel-btn"
-              @click="showCancellationDialog = true"
+            <!-- Rating section (completed only) -->
+            <div
+              v-if="booking.status === BookingStatus.COMPLETED"
+              ref="ratingSection"
+              class="mt-1 scroll-mt-4"
             >
-              <XCircle class="w-4 h-4" />
-              Annuler le booking
-            </button>
-          </div>
-          <p
-            v-if="showFaceCancelInfo && isFaceCancelWindowOpen"
-            class="text-sm text-gray-500"
-            data-testid="face-cancel-deadline"
-          >
-            Annulation possible jusqu'au {{ formattedFaceCancelDeadline }}
-          </p>
-          <p
-            v-else-if="showFaceCancelInfo"
-            class="text-sm text-amber-600"
-            data-testid="face-cancel-closed"
-          >
-            Annulation impossible à moins de 24 h du jour du tournage.
-          </p>
+              <BookingRatingForm
+                v-if="booking.can_rate"
+                :booking-id="booking.id"
+                :rated-name="ratedName"
+                @rated="handleRatingSubmitted"
+              />
 
-          <!-- No-show report (Producer only) -->
-          <div v-if="canReportNoShow" class="flex gap-3">
-            <button
-              class="flex-1 flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
-              data-testid="report-no-show-btn"
-              @click="showNoShowDialog = true"
-            >
-              <AlertTriangle class="w-4 h-4" />
-              Signaler une absence
-            </button>
-          </div>
-
-          <!-- Action buttons -->
-          <p
-            v-if="responseDeadlineText"
-            class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-            data-testid="face-response-deadline"
-          >
-            {{ responseDeadlineText }}
-          </p>
-          <p
-            v-if="ugcCommissionDeadlineText"
-            class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-            data-testid="ugc-commission-deadline"
-          >
-            {{ ugcCommissionDeadlineText }}
-          </p>
-
-          <div v-if="booking.can_accept || booking.can_refuse || booking.can_pay" class="flex gap-3">
-            <button
-              v-if="booking.can_pay && !isPaymentOverdue"
-              class="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
-              @click="showPaymentOverlay = true"
-            >
-              <Wallet class="w-4 h-4" />
-              Payer maintenant
-            </button>
-            <button
-              v-if="booking.can_accept"
-              :disabled="isAccepting"
-              class="flex-1 flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              @click="handleAccept"
-            >
-              <Loader2 v-if="isAccepting" class="w-4 h-4 animate-spin" />
-              <CheckCircle v-else class="w-4 h-4" />
-              Accepter
-            </button>
-            <button
-              v-if="booking.can_refuse"
-              :disabled="isRefusing"
-              class="flex-1 flex items-center justify-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-3 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              @click="openRefuseDialog"
-            >
-              <XCircle class="w-4 h-4" />
-              Refuser
-            </button>
-          </div>
-
-          <!-- UGC commission payment (Producer only — pending UGC booking) -->
-          <div v-if="canPayUgcCommission" class="flex gap-3" data-testid="ugc-pay-commission-cta">
-            <button
-              class="flex-1 flex items-center justify-center gap-2 rounded-lg bg-weact px-4 py-3 text-sm font-semibold text-white hover:bg-weact/90 transition-colors"
-              @click="showUgcPaymentOverlay = true"
-            >
-              <Wallet class="w-4 h-4" />
-              Payer la commission · {{ new Intl.NumberFormat('fr-FR').format(booking.commission_ugc ?? 0) }} FCFA
-            </button>
-          </div>
-
-          <!-- Rating section (completed only) -->
-          <div
-            v-if="booking.status === BookingStatus.COMPLETED"
-            class="mt-1"
-          >
-            <BookingRatingForm
-              v-if="booking.can_rate"
-              :booking-id="booking.id"
-              :rated-name="ratedName"
-              @rated="handleRatingSubmitted"
-            />
-
-            <section
-              v-else-if="booking.my_rating"
-              class="bg-white rounded-xl border border-gray-200 p-5"
-              data-testid="booking-my-rating-readonly"
-            >
-              <h2 class="text-sm font-semibold text-gray-700">Votre évaluation</h2>
-              <p class="mt-1 text-sm text-gray-500">Vous avez noté {{ booking.my_rating.rated.name }}.</p>
-
-              <div class="mt-3 flex items-center gap-1.5 text-amber-400">
-                <Star
-                  v-for="star in 5"
-                  :key="`readonly-star-${star}`"
-                  class="h-5 w-5"
-                  :fill="booking.my_rating.score >= star ? 'currentColor' : 'none'"
-                />
-                <span class="ml-2 text-sm text-gray-600">{{ booking.my_rating.score }}/5</span>
-              </div>
-
-              <p
-                v-if="booking.my_rating.comment"
-                class="mt-3 rounded-lg bg-gray-50 p-3 text-sm text-gray-700"
+              <section
+                v-else-if="booking.my_rating"
+                class="bg-white rounded-[10px] border border-gray-200 p-5"
+                data-testid="booking-my-rating-readonly"
               >
-                {{ booking.my_rating.comment }}
-              </p>
-            </section>
+                <h2 class="text-sm font-semibold text-gray-700">Votre évaluation</h2>
+                <p class="mt-1 text-sm text-gray-500">Vous avez noté {{ booking.my_rating.rated.name }}.</p>
+
+                <div class="mt-3 flex items-center gap-1.5 text-amber-400">
+                  <Star
+                    v-for="star in 5"
+                    :key="`readonly-star-${star}`"
+                    class="h-5 w-5"
+                    :fill="booking.my_rating.score >= star ? 'currentColor' : 'none'"
+                  />
+                  <span class="ml-2 text-sm text-gray-600">{{ booking.my_rating.score }}/5</span>
+                </div>
+
+                <p
+                  v-if="booking.my_rating.comment"
+                  class="mt-3 rounded-lg bg-gray-50 p-3 text-sm text-gray-700"
+                >
+                  {{ booking.my_rating.comment }}
+                </p>
+              </section>
+            </div>
           </div>
+
+          <!-- Colonne latérale : « Et ensuite ? » puis l'argent -->
+          <!-- Chat à droite et infos sur une colonne : « Et ensuite ? » remonte en tête. -->
+        <aside class="booking-side space-y-4 @3xl/info:sticky @3xl/info:top-3">
+            <BookingNextBlock :next="view.next" :now="nowTimestamp" />
+
+            <!-- Financial section (cash bookings only) -->
+            <div v-if="booking.type_contenu !== 'UGC'" class="bg-white rounded-[10px] border border-gray-200 p-4">
+              <h2 class="text-sm font-semibold text-gray-700 mb-3">{{ isFace ? 'Votre rémunération' : 'À payer' }}</h2>
+              <BookingPricingBreakdown
+                :tarif-base="booking.tarif_base"
+                :role="isFace ? 'face' : 'producer'"
+                :montant-face-recoit="booking.montant_face_recoit"
+                :montant-total-producteur="booking.montant_total_producteur"
+              />
+            </div>
+          </aside>
         </div>
       </div>
 
-      <!-- Booking Chat Section (AC6: only for eligible statuses ; UGC dès Accepted — 3.2) -->
+      <!-- Booking Chat Section (AC6: only for eligible statuses ; UGC dès Accepted — 3.2).
+           Sur grand écran, colonne de droite collée en haut, à hauteur d'écran. -->
       <section
         v-if="canShowChat"
-        class="mt-6"
+        ref="chatSection"
+        class="scroll-mt-4 @4xl/page:sticky @4xl/page:top-6"
         data-testid="booking-chat-section"
       >
-        <div class="bg-white rounded-[24px] shadow-sm overflow-hidden h-[calc(100dvh-6.5rem)] sm:h-[600px]">
+        <div class="booking-chat-box bg-white rounded-[24px] shadow-sm overflow-hidden">
           <BookingChat :booking="booking" :current-user-id="currentUserId" />
         </div>
       </section>
-    </template>
+
+      <!-- Barre d'action collée en bas (téléphone) -->
+      <BookingActionBar
+        v-if="primaryAction"
+        :headline="view.next.headline"
+        :sub="actionBarSub"
+        :action="primaryAction"
+        @action="handlePrimaryAction"
+      />
+    </div>
 
     <!-- Payment overlay -->
     <PaymentOverlay
@@ -1348,10 +1449,10 @@ onUnmounted(() => {
     <Teleport to="body">
       <div
         v-if="showNoShowDialog"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        class="booking-dialog fixed inset-0 z-50 flex items-center justify-center bg-black/40"
         @click.self="showNoShowDialog = false"
       >
-        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+        <div class="booking-dialog-card bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-2">Signaler une absence</h3>
           <p class="text-sm text-gray-500 mb-4">
             Les fonds restent en séquestre pendant 72 h. La Face peut contester ce signalement ; un administrateur tranche alors.
@@ -1383,11 +1484,11 @@ onUnmounted(() => {
     <Teleport to="body">
       <div
         v-if="showContestDialog"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        class="booking-dialog fixed inset-0 z-50 flex items-center justify-center bg-black/40"
         data-testid="contest-dialog"
         @click.self="closeContestDialog"
       >
-        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+        <div class="booking-dialog-card bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-2">Contester</h3>
           <p class="text-sm text-gray-500 mb-4">
             Expliquez pourquoi vous contestez. Les fonds restent bloqués et un administrateur tranchera.
@@ -1433,10 +1534,10 @@ onUnmounted(() => {
     <Teleport to="body">
       <div
         v-if="showRefuseDialog"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        class="booking-dialog fixed inset-0 z-50 flex items-center justify-center bg-black/40"
         @click.self="closeRefuseDialog"
       >
-        <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
+        <div class="booking-dialog-card bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6">
           <h3 class="text-lg font-semibold text-gray-900 mb-2">Refuser le booking</h3>
           <p class="text-sm text-gray-500 mb-4">
             Êtes-vous sûr de vouloir refuser cette demande ?
@@ -1498,3 +1599,82 @@ onUnmounted(() => {
     </Teleport>
   </div>
 </template>
+
+<style scoped>
+/* Hauteur du chat : écran de téléphone, 600 px au-delà, puis toute la hauteur
+   disponible quand il occupe la colonne de droite : écran moins barre du haut (4rem),
+   marges de la zone principale et de la page, lien « Retour » (9.25rem). */
+.booking-chat-box {
+  height: calc(100dvh - 6.5rem);
+}
+@media (min-width: 640px) {
+  .booking-chat-box {
+    height: 600px;
+  }
+}
+@container page (min-width: 56rem) {
+  .booking-chat-box {
+    height: calc(100dvh - 13.25rem);
+    min-height: 28rem;
+  }
+}
+/* Chat à droite et infos sur une seule colonne : « Et ensuite ? » passe en tête. */
+@container page (min-width: 56rem) {
+  @container info (max-width: 47.99rem) {
+    .booking-side {
+      order: -1;
+    }
+  }
+}
+/* Lot C6 : mouvement. Seuls transform / opacity / filter s'animent. */
+.booking-press {
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.booking-press:not(:disabled):active {
+  transform: scale(0.97);
+}
+
+/* Fenêtres : fondu du voile + carte centrée qui passe de .96 à 1 (pas d'origine liée au déclencheur). */
+.booking-dialog {
+  animation: booking-dialog-fade 200ms ease-out;
+}
+
+.booking-dialog-card {
+  animation: booking-dialog-pop 200ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+@keyframes booking-dialog-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes booking-dialog-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .booking-press {
+    transition: none;
+  }
+
+  .booking-press:not(:disabled):active {
+    transform: none;
+  }
+
+  .booking-dialog-card {
+    animation-name: booking-dialog-fade;
+  }
+}
+</style>

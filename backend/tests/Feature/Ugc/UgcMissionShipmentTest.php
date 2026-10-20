@@ -399,7 +399,7 @@ class UgcMissionShipmentTest extends TestCase
             ->first();
 
         $this->assertNotNull($notification);
-        $this->assertSame("/producer/missions/{$mission->uuid}/candidatures", data_get($notification->data, 'url'));
+        $this->assertSame("/producer/missions/{$mission->uuid}?tab=candidatures", data_get($notification->data, 'url'));
         $this->assertSame($shipment->uuid, data_get($notification->data, 'shipment_id'));
     }
 

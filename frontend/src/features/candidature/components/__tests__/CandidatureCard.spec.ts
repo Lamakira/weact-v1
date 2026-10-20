@@ -1,9 +1,14 @@
-import { describe, expect, it } from 'vitest'
-import { mount, RouterLinkStub } from '@vue/test-utils'
+import { describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
+import { candidatureApi } from '../../services/candidatureApi'
 import CandidatureCard from '../CandidatureCard.vue'
 import { StatusPill } from '@/components/ugc'
 import type { Shipment } from '@/components/ugc'
 import type { FaceCandidature } from '../../types'
+
+vi.mock('../../services/candidatureApi', () => ({
+  candidatureApi: { rateProducer: vi.fn() },
+}))
 
 function makeShipment(overrides: Partial<Shipment> = {}): Shipment {
   return {
@@ -41,7 +46,7 @@ function mountCard(candidature: FaceCandidature) {
   // La racine du composant est un RouterLink.
   return mount(CandidatureCard, {
     props: { candidature },
-    global: { stubs: { RouterLink: RouterLinkStub } },
+    global: { stubs: { RouterLink: RouterLinkStub, teleport: true } },
   })
 }
 
@@ -212,5 +217,38 @@ describe('CandidatureCard', () => {
           .exists(),
       ).toBe(false)
     })
+  })
+})
+
+describe('CandidatureCard — notation (lot C8)', () => {
+  const completed = (overrides: Partial<FaceCandidature> = {}) =>
+    makeCandidature({ status: 'completed', status_label: 'Terminée', can_rate: true, my_rating: null, ...overrides })
+
+  it('propose « Noter le producteur » pour une candidature terminée non notée', () => {
+    const wrapper = mountCard(completed())
+    expect(wrapper.get('[data-testid="candidature-rate"]').text()).toBe('Noter le producteur')
+  })
+
+  it.each([
+    ['déjà notée', completed({ can_rate: false, my_rating: { score: 5, comment: null, created_at: null } })],
+    ['non terminée', makeCandidature({ status: 'confirmed', can_rate: false })],
+    ['payload sans can_rate', makeCandidature({ status: 'completed', status_label: 'Terminée' })],
+  ])('ne propose pas la notation : %s', (_label, candidature) => {
+    expect(mountCard(candidature).find('[data-testid="candidature-rate"]').exists()).toBe(false)
+  })
+
+  it('ouvre le dialogue, envoie la note, émet « rated » et masque l’action', async () => {
+    const rating = { score: 3, comment: null, created_at: '2026-10-20T10:00:00+00:00' }
+    vi.mocked(candidatureApi.rateProducer).mockResolvedValueOnce(rating)
+    const wrapper = mountCard(completed())
+
+    await wrapper.get('[data-testid="candidature-rate"]').trigger('click')
+    await wrapper.get('[data-testid="rating-star-3"]').trigger('click')
+    await wrapper.get('[data-testid="rating-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(candidatureApi.rateProducer).toHaveBeenCalledWith('cand-uuid-1', 3, undefined)
+    expect(wrapper.emitted('rated')?.[0]).toEqual(['cand-uuid-1', rating])
+    expect(wrapper.find('[data-testid="candidature-rate"]').exists()).toBe(false)
   })
 })

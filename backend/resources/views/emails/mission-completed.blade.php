@@ -40,6 +40,12 @@
         </tr>
     </table>
 
+    <p style="margin: 0 0 24px; color: #374151; font-size: 14px; line-height: 1.6;">
+        Si vous le souhaitez, vous pouvez
+        <a href="{{ $missionUrl }}" style="color: #198496; font-weight: 600;">noter le producteur</a>
+        depuis la page de la mission : c'est facultatif, et cela aide les autres Faces à choisir leurs missions.
+    </p>
+
     <p style="margin: 0; padding: 12px 16px; background-color: #d1fae5; border-radius: 6px; color: #065f46; font-size: 13px; line-height: 1.5;">
         ✅ Vos fonds sont disponibles et peuvent être retirés dès maintenant via votre portefeuille.
     </p>

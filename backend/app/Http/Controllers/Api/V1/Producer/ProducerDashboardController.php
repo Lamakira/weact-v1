@@ -141,6 +141,8 @@ class ProducerDashboardController extends Controller
                 'type_mission' => $mission->type_mission?->value,
                 'status' => $mission->status->value,
                 'status_label' => $mission->status->label(),
+                'display_status' => $mission->displayStatus((bool) $mission->has_paid_payment)->value,
+                'display_status_label' => $mission->displayStatus((bool) $mission->has_paid_payment)->label(),
                 'candidatures_count' => (int) $mission->candidatures_count,
                 'new_candidatures_count' => (int) $mission->new_candidatures_count,
                 'confirmed_count' => (int) $mission->confirmed_count,

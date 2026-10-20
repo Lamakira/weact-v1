@@ -24,6 +24,11 @@ class MissionResource extends JsonResource
         // exposés aux Faces (UGC 2.1 review) — surfaces Producer/Admin inchangées.
         $requesterIsFace = $request->user()?->userable instanceof Face;
 
+        $hasPaidPayment = array_key_exists('has_paid_payment', $this->resource->getAttributes())
+            ? (bool) $this->resource->getAttribute('has_paid_payment')
+            : \App\Models\MissionPayment::where('mission_id', $this->id)->where('status', 'paid')->exists();
+        $displayStatus = $this->resource->displayStatus($hasPaidPayment);
+
         return [
             'id' => $this->uuid,
             'titre' => $this->titre,
@@ -57,11 +62,14 @@ class MissionResource extends JsonResource
             'product_photos' => ProductPhotoResource::collection($this->whenLoaded('productPhotos')),
             'is_accepting_candidatures' => $this->isAcceptingCandidatures(),
             // Listings pre-load the flag (Mission::scopeWithPaidPaymentFlag); the query is the fallback.
-            'has_paid_payment' => array_key_exists('has_paid_payment', $this->resource->getAttributes())
-                ? (bool) $this->resource->getAttribute('has_paid_payment')
-                : \App\Models\MissionPayment::where('mission_id', $this->id)->where('status', 'paid')->exists(),
+            'has_paid_payment' => $hasPaidPayment,
+            // Lot C3 : statut affiché, dérivé de status + type + has_paid_payment (aucune requête de plus).
+            'display_status' => $displayStatus->value,
+            'display_status_label' => $displayStatus->label(),
             // Owner-only: mirrors the exact rules of POST /producer/missions/{mission}/complete.
-            'can_complete' => $this->when(! $requesterIsFace, fn () => $this->resource->canBeCompleted()),
+            'can_complete' => $this->when(! $requesterIsFace, fn () => array_key_exists('can_complete', $this->resource->getAttributes())
+                ? (bool) $this->resource->getAttribute('can_complete')
+                : $this->resource->canBeCompleted()),
             // Lot B4 : places libérées (détail Producer uniquement, posé par MissionController::show).
             'freed_places_count' => $this->when(
                 ! $requesterIsFace && array_key_exists('freed_places_count', $this->resource->getAttributes()),
@@ -76,6 +84,11 @@ class MissionResource extends JsonResource
                 fn () => (int) $this->resource->getAttribute('freed_places_count') > 0
                     ? $this->resource->shootingDayStartsAt()?->toIso8601String()
                     : null,
+            ),
+            // Lot C1 : résumé du cycle de vie (détail Producer uniquement, posé par MissionController::show).
+            'summary' => $this->when(
+                ! $requesterIsFace && array_key_exists('summary', $this->resource->getAttributes()),
+                fn () => $this->resource->getAttribute('summary'),
             ),
             'candidatures_count' => $this->candidatures_count ?? ($this->whenLoaded('candidatures') ? $this->candidatures->count() : 0),
             'producer' => new ProducerResource($this->whenLoaded('producer')),

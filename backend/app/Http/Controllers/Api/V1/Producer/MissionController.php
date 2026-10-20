@@ -19,6 +19,7 @@ use App\Models\Mission;
 use App\Models\Producer;
 use App\Services\FreedPlaceService;
 use App\Services\MissionService;
+use App\Services\MissionSummaryService;
 use App\Support\LifecycleSort;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -97,7 +98,7 @@ class MissionController extends Controller
      * Display the specified mission.
      * For producer routes, only the owner can view their mission details.
      */
-    public function show(Request $request, Mission $mission, FreedPlaceService $freedPlaces): JsonResponse
+    public function show(Request $request, Mission $mission, FreedPlaceService $freedPlaces, MissionSummaryService $summaries): JsonResponse
     {
         $user = $request->user();
 
@@ -115,8 +116,16 @@ class MissionController extends Controller
         $mission->setAttribute('freed_places_count', $freedCount);
         $mission->setAttribute('can_replace_freed_place', $freedPlaces->canReplaceNow($mission, $freedCount));
 
+        // Lot C1 : résumé du cycle de vie (barre d'étapes), détail Producer uniquement.
+        $mission->load(['producer', 'productPhotos']);
+        $summary = $summaries->summarize($mission, $freedCount);
+        $mission->setAttribute('summary', $summary);
+        // Valeurs déjà connues du résumé : évitent de refaire completionBlocker() et l'existence du paiement.
+        $mission->setAttribute('can_complete', $mission->hasCompletableStatus() && $summary['completion_blocker'] === null);
+        $mission->setAttribute('has_paid_payment', $summary['payment']['status'] === 'paid');
+
         return response()->json([
-            'data' => new MissionResource($mission->load(['producer', 'productPhotos'])),
+            'data' => new MissionResource($mission),
         ]);
     }
 

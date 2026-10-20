@@ -9,6 +9,7 @@ import type {
   ProducerCandidatureListResponse,
   CandidateFullProfileResponse,
   ReleaseCandidatureResponse,
+  MissionRating,
 } from '../types'
 import type { ConfirmShipmentPayload, ShipmentResponse } from '@/components/ugc'
 
@@ -167,6 +168,22 @@ export const candidatureApi = {
   },
 
   /**
+   * Note une Face après une mission terminée (Producteur, lot C8) — facultatif.
+   * Erreurs : RATING_NOT_ALLOWED (403, candidature non terminée), ALREADY_RATED (422).
+   */
+  async rateCandidature(
+    candidatureId: string,
+    score: number,
+    comment?: string,
+  ): Promise<{ data: { score: number; comment: string | null; created_at: string | null }; message: string }> {
+    const response = await apiClient.post(`/producer/candidatures/${candidatureId}/rate`, {
+      score,
+      comment: comment || undefined,
+    })
+    return response.data
+  },
+
+  /**
    * Confirm participation in a mission (Face only)
    * Changes candidature status from "accepted" to "confirmed"
    * @param candidatureId The candidature ID to confirm
@@ -219,5 +236,18 @@ export const candidatureApi = {
       { message },
     )
     return response.data
+  },
+  /**
+   * Noter le producteur à la fin d'une mission (Face uniquement, facultatif, lot C8).
+   * @param candidatureId UUID de la candidature terminée
+   * @param score Note de 1 à 5
+   * @param comment Commentaire facultatif (1000 caractères max)
+   */
+  async rateProducer(candidatureId: string, score: number, comment?: string): Promise<MissionRating> {
+    const response = await apiClient.post<{ data: MissionRating }>(
+      `/face/candidatures/${candidatureId}/rate`,
+      { score, comment: comment || undefined },
+    )
+    return response.data.data
   },
 }

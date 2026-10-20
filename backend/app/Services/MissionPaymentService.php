@@ -637,7 +637,7 @@ class MissionPaymentService
                     data: [
                         'message' => 'Paiement confirmé pour la mission '.$mission->titre,
                         'mission_id' => $mission->id,
-                        'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                        'url' => "/producer/missions/{$mission->uuid}?tab=candidatures",
                     ]
                 );
             }
@@ -651,7 +651,7 @@ class MissionPaymentService
                     data: [
                         'message' => 'Vous avez été sélectionné(e) pour la mission "'.$mission->titre.'". Confirmez votre participation.',
                         'mission_id' => $mission->id,
-                        'url' => '/face/candidatures',
+                        'url' => "/face/missions/{$mission->uuid}",
                     ]
                 );
             }
@@ -908,7 +908,7 @@ class MissionPaymentService
                 'message' => "La mission \"{$mission->titre}\" est terminée. Votre portefeuille a été crédité de {$entry->montant_face_recoit} XOF.",
                 'mission_id' => $mission->id,
                 'amount' => $entry->montant_face_recoit,
-                'url' => '/face/candidatures',
+                'url' => "/face/missions/{$mission->uuid}",
             ]
         );
 
@@ -1136,7 +1136,7 @@ class MissionPaymentService
                 'message' => "Vous n'avez pas confirmé votre participation à « {$mission->titre} » dans les délais : votre place a été libérée.",
                 'mission_id' => $mission->id,
                 'candidature_id' => $result['candidature_id'],
-                'url' => '/face/candidatures',
+                'url' => "/face/missions/{$mission->uuid}",
                 'reason' => $reason,
             ],
         );
@@ -1158,7 +1158,7 @@ class MissionPaymentService
                     'mission_id' => $mission->id,
                     'candidature_id' => $result['candidature_id'],
                     'montant' => $result['amount'],
-                    'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                    'url' => "/producer/missions/{$mission->uuid}?tab=candidatures",
                     'reason' => $reason,
                 ],
             );
@@ -1175,7 +1175,7 @@ class MissionPaymentService
                 'mission_id' => $mission->id,
                 'candidature_id' => $result['candidature_id'],
                 'montant' => $result['amount'],
-                'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                'url' => "/producer/missions/{$mission->uuid}?tab=candidatures",
                 'reason' => $reason,
             ],
         );
@@ -1287,7 +1287,7 @@ class MissionPaymentService
             data: [
                 'message' => "Aucune Face sélectionnée n'a confirmé sa participation à « {$mission->titre} » : toutes les places ont été remboursées sur votre wallet (hors frais de service).",
                 'mission_id' => $mission->id,
-                'url' => "/producer/missions/{$mission->uuid}/candidatures",
+                'url' => "/producer/missions/{$mission->uuid}?tab=candidatures",
             ],
         );
     }
@@ -1484,7 +1484,7 @@ class MissionPaymentService
                     'mission_title' => $accepted->mission?->titre,
                     'candidature_id' => $accepted->id,
                     'message' => 'Votre candidature a été acceptée — confirmez votre participation.',
-                    'url' => '/face/candidatures',
+                    'url' => "/face/missions/{$accepted->mission?->uuid}",
                 ],
             ]);
         } catch (\Throwable) {
@@ -1498,7 +1498,7 @@ class MissionPaymentService
                     faceName: (string) $accepted->face?->prenom,
                     missionTitle: (string) $accepted->mission?->titre,
                     productName: (string) $accepted->mission?->nom_produit,
-                    reconfirmUrl: rtrim((string) config('app.frontend_url'), '/').'/face/candidatures',
+                    reconfirmUrl: rtrim((string) config('app.frontend_url'), '/')."/face/missions/{$accepted->mission?->uuid}",
                     reconfirmDeadline: $accepted->reconfirmDeadline(),
                 ));
             }
@@ -1519,7 +1519,7 @@ class MissionPaymentService
      */
     public function markUgcMissionCandidatureFailed(MissionPaymentCandidature $entry, string $reason): void
     {
-        /** @var array{producerUserId: int|null, missionTitre: string}|null $notifyPayload */
+        /** @var array{producerUserId: int|null, missionTitre: string, missionUuid: string|null}|null $notifyPayload */
         $notifyPayload = DB::transaction(function () use ($entry, $reason): ?array {
             /** @var MissionPaymentCandidature|null $lockedEntry */
             $lockedEntry = MissionPaymentCandidature::query()->lockForUpdate()->find($entry->id);
@@ -1577,7 +1577,7 @@ class MissionPaymentService
                 'reason' => $reason,
             ]);
 
-            return ['producerUserId' => $producerUserId, 'missionTitre' => $missionTitre];
+            return ['producerUserId' => $producerUserId, 'missionTitre' => $missionTitre, 'missionUuid' => $mission instanceof Mission ? $mission->uuid : null];
         }, 3);
 
         // ugc-9-1 (code-review D-9.1.i) : à la suppression de mission, le Producteur initie
@@ -1594,7 +1594,7 @@ class MissionPaymentService
             data: [
                 'message' => 'Le paiement du règlement d\'une Face a échoué. Vous pouvez réessayer de l\'accepter.',
                 'mission_titre' => $notifyPayload['missionTitre'],
-                'url' => '/producer/missions',
+                'url' => $notifyPayload['missionUuid'] !== null ? "/producer/missions/{$notifyPayload['missionUuid']}?tab=candidatures" : '/producer/missions',
             ],
         );
     }
@@ -1815,7 +1815,7 @@ class MissionPaymentService
                     'message' => 'Votre place sur la mission a été libérée.',
                     'mission_id' => $lockedMission->id,
                     'candidature_id' => $locked->id,
-                    'url' => '/face/candidatures',
+                    'url' => "/face/missions/{$lockedMission->uuid}",
                     'reason' => $reason,
                 ],
             );
@@ -2224,7 +2224,7 @@ class MissionPaymentService
             return true;
         }
 
-        $url = $mission instanceof Mission ? "/producer/missions/{$mission->uuid}/candidatures" : '/producer/missions';
+        $url = $mission instanceof Mission ? "/producer/missions/{$mission->uuid}?tab=candidatures" : '/producer/missions';
         $message = $reason === 'face_withdrew_during_payment'
             ? 'Une Face a retiré sa candidature pendant le paiement : votre sélection sur « '.($mission instanceof Mission ? $mission->titre : 'votre mission').' » a été annulée. Refaites-la depuis la page Candidatures. Si un paiement aboutit malgré tout, son montant sera crédité sur votre wallet WeAct.'
             : ($reason === 'selection_payment_expired'
@@ -2340,6 +2340,7 @@ class MissionPaymentService
                 data: [
                     'message' => "Votre paiement de {$paidAmount} XOF est arrivé après l'annulation de la sélection : il a été crédité sur votre portefeuille.",
                     'mission_id' => $metadata['mission_id'] ?? null,
+                    'url' => '/producer/wallet',
                     'montant' => $paidAmount,
                 ],
             );

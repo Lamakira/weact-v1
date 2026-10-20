@@ -133,6 +133,8 @@ class CompleteMissionTest extends TestCase
             'user_id' => $this->faceUser->id,
             'type' => 'mission_completed',
         ]);
+        $completed = \App\Models\Notification::where('user_id', $this->faceUser->id)->where('type', 'mission_completed')->firstOrFail();
+        $this->assertSame("/face/missions/{$this->closedMission->uuid}", $completed->data['url']);
 
         $this->assertDatabaseHas('notifications', [
             'user_id' => $this->producerUser->id,

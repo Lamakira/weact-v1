@@ -30,8 +30,15 @@ final class MissionCompletedMail extends BaseMail
                 'missionTitle' => $this->mission->titre,
                 'formattedAmount' => $this->formatAmount(),
                 'walletUrl' => $this->buildWalletUrl(),
+                'missionUrl' => $this->buildMissionUrl(),
             ],
         );
+    }
+
+    /** Page mission Face : c'est là que la notation (facultative) du producteur est proposée. */
+    private function buildMissionUrl(): string
+    {
+        return rtrim((string) config('app.frontend_url'), '/')."/face/missions/{$this->mission->uuid}";
     }
 
     private function resolveFaceFirstName(): string

@@ -20,9 +20,11 @@ export function useMissionDetail() {
    * Fetch mission detail by ID
    * @param id The mission ID
    */
-  async function fetchMission(id: string): Promise<void> {
-    isLoading.value = true
-    error.value = null
+  async function fetchMission(id: string, options: { silent?: boolean } = {}): Promise<void> {
+    // `silent` : relecture en place (pas de spinner plein écran) — la page reste montée et ses transitions jouent.
+    const silent = options.silent === true
+    isLoading.value = !silent
+    if (!silent) error.value = null
     notFound.value = false
     ugcPaywall.value = false
     ugcPaywallMessage.value = null
@@ -44,7 +46,8 @@ export function useMissionDetail() {
         ugcPaywall.value = true
         ugcPaywallMessage.value =
           (err.response.data as { error?: { message?: string } }).error?.message ?? null
-      } else {
+      } else if (!(silent && mission.value)) {
+        // Relecture silencieuse échouée : on garde l'état affiché plutôt que de le remplacer par une erreur.
         error.value = getApiErrorMessage(err)
       }
     } finally {

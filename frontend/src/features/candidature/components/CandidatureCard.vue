@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { Calendar, MapPin, Wallet, User, Check, Loader2, MessageCircle, XCircle } from 'lucide-vue-next'
-import type { FaceCandidature } from '../types'
+import { Calendar, MapPin, Wallet, User, Check, Loader2, MessageCircle, XCircle, Star } from 'lucide-vue-next'
+import type { FaceCandidature, MissionRating } from '../types'
 import { CandidatureStatusColor } from '../types'
 import { formatConfirmationDeadline } from '../utils/formatConfirmationDeadline'
 import { StatusPill, tunnelStatusToPillKind } from '@/components/ugc'
 import MissionAbsenceContestBlock from './MissionAbsenceContestBlock.vue'
+import MissionRatingDialog from './MissionRatingDialog.vue'
 
 /**
  * Props
@@ -22,6 +23,7 @@ const emit = defineEmits<{
   confirm: [candidatureId: string]
   cancel: [candidatureId: string]
   contested: []
+  rated: [candidatureId: string, rating: MissionRating]
 }>()
 
 /**
@@ -29,6 +31,19 @@ const emit = defineEmits<{
  */
 const isConfirming = ref(false)
 const isCancelling = ref(false)
+
+// Notation du producteur (lot C8) : « Noter » seulement pour une candidature terminée et pas encore notée.
+const ratingOpen = ref(false)
+const justRated = ref(false)
+const canRate = computed(
+  () => props.candidature.status === 'completed' && props.candidature.can_rate === true && !justRated.value,
+)
+
+function handleRated(rating: MissionRating): void {
+  justRated.value = true
+  ratingOpen.value = false
+  emit('rated', props.candidature.id, rating)
+}
 
 /**
  * Computed: Show confirm button for accepted candidatures
@@ -287,7 +302,7 @@ const formattedConfirmationDeadline = computed(() =>
 
     <!-- Actions Section -->
     <div
-      v-if="canCancel || canConfirm || canChat"
+      v-if="canCancel || canConfirm || canChat || canRate"
       class="mt-4 flex flex-col gap-2 border-t border-border pt-4"
     >
       <!-- Confirm Button -->
@@ -334,6 +349,18 @@ const formattedConfirmationDeadline = computed(() =>
         {{ isCancelling ? 'Annulation...' : 'Annuler ma candidature' }}
       </button>
 
+      <!-- Noter le producteur (facultatif, lot C8) -->
+      <button
+        v-if="canRate"
+        type="button"
+        class="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+        data-testid="candidature-rate"
+        @click.stop.prevent="ratingOpen = true"
+      >
+        <Star class="h-4 w-4 text-amber-400" />
+        Noter le producteur
+      </button>
+
       <!-- Chat Button -->
       <RouterLink
         v-if="canChat"
@@ -345,5 +372,13 @@ const formattedConfirmationDeadline = computed(() =>
         Discuter avec le producteur
       </RouterLink>
     </div>
+
+    <MissionRatingDialog
+      :open="ratingOpen"
+      :candidature-id="candidature.id"
+      :producer-name="candidature.producer.display_name"
+      @close="ratingOpen = false"
+      @rated="handleRated"
+    />
   </RouterLink>
 </template>

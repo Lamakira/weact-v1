@@ -370,6 +370,7 @@ watch(
             @confirm="handleConfirm"
             @cancel="handleCancelRequest"
             @contested="refresh"
+            @rated="toast.success('Merci, votre évaluation a été envoyée.')"
           />
         </div>
 
