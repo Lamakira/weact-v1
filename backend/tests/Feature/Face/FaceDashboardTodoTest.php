@@ -733,6 +733,56 @@ class FaceDashboardTodoTest extends TestCase
         $this->assertSame([], $this->ofType($this->todo(), 'confirm_participation'));
     }
 
+    public function test_confirm_participation_disappears_once_the_deadline_has_passed(): void
+    {
+        // accepted_at + 48 h = 2026-10-09 12:00 : présente à 10:00, absente à 12:00.
+        $this->acceptedCandidature([], Carbon::now()->subHours(46));
+        $this->assertCount(1, $this->ofType($this->todo(), 'confirm_participation'));
+
+        Carbon::setTestNow('2026-10-09 12:00:00');
+        $this->assertSame([], $this->ofType($this->todo(), 'confirm_participation'));
+    }
+
+    public function test_ugc_reconfirm_disappears_once_the_deadline_has_passed(): void
+    {
+        $this->acceptedCandidature(
+            ['type_mission' => 'ugc', 'type_compensation' => 'product'],
+            Carbon::now()->subHours(46),
+            null,
+        );
+        $this->assertCount(1, $this->ofType($this->todo(), 'ugc_reconfirm'));
+
+        Carbon::setTestNow('2026-10-09 12:00:00');
+        $this->assertSame([], $this->ofType($this->todo(), 'ugc_reconfirm'));
+    }
+
+    public function test_booking_proposal_and_contests_disappear_after_their_window(): void
+    {
+        $this->booking([
+            'status' => BookingStatus::Pending,
+            'date_debut' => Carbon::now()->addHours(2),
+            'date_fin' => Carbon::now()->addHours(3),
+        ]);
+        $this->booking([
+            'status' => BookingStatus::CancelledByProducer,
+            'date_debut' => Carbon::now()->addDay(),
+            'date_fin' => Carbon::now()->addDay(),
+            'settlement_due_at' => Carbon::now()->addHours(2),
+        ]);
+        $this->booking([
+            'status' => BookingStatus::NoShow,
+            'date_debut' => Carbon::now()->subDay(),
+            'date_fin' => Carbon::now()->subDay(),
+            'settlement_due_at' => Carbon::now()->addHours(2),
+        ]);
+        $this->assertCount(3, $this->todo());
+
+        Carbon::setTestNow('2026-10-09 12:30:00');
+        $this->assertSame([], $this->ofType($this->todo(), 'booking_proposal'));
+        $this->assertSame([], $this->ofType($this->todo(), 'late_cancellation_contest'));
+        $this->assertSame([], $this->ofType($this->todo(), 'no_show_contest'));
+    }
+
     public function test_ugc_reconfirm_for_an_accepted_ugc_candidature(): void
     {
         // Acceptée il y a 40 h : échéance accepted_at + 48 h => reste 8 h.

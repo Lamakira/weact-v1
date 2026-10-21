@@ -394,7 +394,8 @@ class FaceDashboardTodoService
                 $actionLabel = 'Confirmer';
             }
 
-            if ($deadline === null) {
+            // Échéance passée : la place est expirée par le cron horaire, rien n'est plus à faire.
+            if ($deadline === null || $deadline->lte(now())) {
                 continue;
             }
 
