@@ -253,6 +253,7 @@ class ProducerDashboardTodoTest extends TestCase
 
         $this->assertCount(2, $items);
         $this->assertSame('3 candidatures à traiter', $items[0]['title']);
+        $this->assertSame('Mission test · tournage le 30 oct.', $items[0]['meta']);
         $this->assertSame('reste 37 h', $items[0]['urgent_meta']);
         $this->assertSame("/producer/missions/{$mission->uuid}?tab=candidatures", $items[0]['url']);
         $this->assertSame('Traiter', $items[0]['action_label']);
@@ -297,7 +298,7 @@ class ProducerDashboardTodoTest extends TestCase
         $this->assertSame('reste 14 h', $items[0]['urgent_meta']);
         $this->assertSame('Payer', $items[0]['action_label']);
         $this->assertSame("/producer/missions/{$mission->uuid}", $items[0]['url']);
-        $this->assertSame('Mission test', $items[0]['meta']);
+        $this->assertSame('Mission test · tournage le 8 nov.', $items[0]['meta']);
     }
 
     public function test_selection_payment_absent_when_mission_is_not_pending_payment(): void
@@ -318,6 +319,8 @@ class ProducerDashboardTodoTest extends TestCase
         $this->assertNull($items[0]['urgent_meta']);
         $this->assertSame("/producer/missions/{$mission->uuid}", $items[0]['url']);
         $this->assertSame([], $this->ofType($this->todo(), 'selection_payment'));
+        // Mission UGC sans date de tournage : date de création
+        $this->assertStringStartsWith('Mission test · ', (string) $items[0]['meta']);
     }
 
     // ---------------------------------------------------------------
@@ -415,6 +418,37 @@ class ProducerDashboardTodoTest extends TestCase
         $this->assertSame([], $this->todo());
     }
 
+    public function test_mission_entries_tell_two_missions_of_the_same_title_apart(): void
+    {
+        foreach (['2026-11-02', '2026-11-20'] as $day) {
+            $mission = $this->mission([
+                'status' => MissionStatus::Published,
+                'titre' => 'Shooting wax',
+                'date_limite_candidature' => '2026-10-20',
+                'date_tournage' => $day,
+            ]);
+            Candidature::factory()->pending()->create(['mission_id' => $mission->id]);
+        }
+
+        $metas = array_column($this->ofType($this->todo(), 'candidatures_to_process'), 'meta');
+        sort($metas);
+
+        // Le compte à rebours d'échéance suit la ligne mission
+        $this->assertCount(2, $metas);
+        $this->assertStringStartsWith('Shooting wax · tournage le 2 nov. · ', $metas[0]);
+        $this->assertStringStartsWith('Shooting wax · tournage le 20 nov. · ', $metas[1]);
+    }
+
+    public function test_ugc_mission_without_shooting_date_shows_its_creation_date(): void
+    {
+        $mission = $this->mission($this->ugcMission(['status' => MissionStatus::PendingPayment, 'commission_paid_at' => null, 'date_tournage' => null]));
+        $mission->forceFill(['created_at' => '2026-10-03 09:00:00'])->saveQuietly();
+
+        $items = $this->ofType($this->todo(), 'ugc_mission_commission');
+
+        $this->assertSame('Mission test · créée le 3 oct.', $items[0]['meta']);
+    }
+
     // ---------------------------------------------------------------
     // 6. Présences
     // ---------------------------------------------------------------
@@ -432,7 +466,7 @@ class ProducerDashboardTodoTest extends TestCase
 
         $this->assertCount(1, $items);
         $this->assertSame('2 présences à valider', $items[0]['title']);
-        $this->assertSame('Mission test', $items[0]['meta']);
+        $this->assertSame('Mission test · tournage le 8 oct.', $items[0]['meta']);
         $this->assertSame("/producer/missions/{$mission->uuid}?tab=presences", $items[0]['url']);
     }
 
@@ -480,6 +514,7 @@ class ProducerDashboardTodoTest extends TestCase
         $byUrl = array_column($items, null, 'url');
         $missionItem = $byUrl["/producer/missions/{$mission->uuid}?tab=livrables"];
         $this->assertSame('2 livrables à valider', $missionItem['title']);
+        $this->assertSame('Appel UGC · tournage le 8 nov.', $missionItem['meta']);
         // Plus ancienne soumission (il y a 10 h) + 48 h => 38 h
         $this->assertSame('reste 38 h', $missionItem['urgent_meta']);
         $this->assertSame('1 livrable à valider', $byUrl["/producer/bookings/{$booking->uuid}"]['title']);
@@ -579,6 +614,7 @@ class ProducerDashboardTodoTest extends TestCase
         $this->assertCount(2, $items);
         $byUrl = array_column($items, null, 'url');
         $this->assertSame('Noter 2 Faces', $byUrl["/producer/missions/{$mission->uuid}?tab=candidatures"]['title']);
+        $this->assertStringStartsWith('Clip terminé · tournage le ', (string) $byUrl["/producer/missions/{$mission->uuid}?tab=candidatures"]['meta']);
         $this->assertSame('Noter '.$this->face->display_name, $byUrl["/producer/bookings/{$booking->uuid}"]['title']);
         $this->assertSame('Noter', $items[0]['action_label']);
     }

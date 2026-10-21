@@ -141,7 +141,7 @@ class ProducerDashboardTodoService
                 category: 'candidatures',
                 type: 'candidatures_to_process',
                 title: $count === 1 ? '1 candidature à traiter' : "{$count} candidatures à traiter",
-                baseMeta: [$mission->titre],
+                baseMeta: [$this->missionMeta($mission)],
                 deadline: $deadline,
                 urgentWording: 'reste',
                 actionLabel: 'Traiter',
@@ -178,7 +178,7 @@ class ProducerDashboardTodoService
                     category: 'missions',
                     type: 'ugc_mission_commission',
                     title: 'Régler la commission de la mission',
-                    baseMeta: [$mission->titre],
+                    baseMeta: [$this->missionMeta($mission)],
                     deadline: null,
                     urgentWording: 'reste',
                     actionLabel: 'Payer',
@@ -206,7 +206,7 @@ class ProducerDashboardTodoService
                 category: 'missions',
                 type: 'selection_payment',
                 title: 'Payer la sélection de Faces',
-                baseMeta: [$mission->titre],
+                baseMeta: [$this->missionMeta($mission)],
                 deadline: $paymentDeadline,
                 urgentWording: 'reste',
                 actionLabel: 'Payer',
@@ -340,7 +340,7 @@ class ProducerDashboardTodoService
                     'type' => 'attendance_validation',
                     'category' => 'missions',
                     'title' => $count === 1 ? '1 présence à valider' : "{$count} présences à valider",
-                    'meta' => $mission->titre,
+                    'meta' => $this->missionMeta($mission),
                     'urgent_meta' => null,
                     'action_label' => 'Valider',
                     'url' => "/producer/missions/{$mission->uuid}?tab=presences",
@@ -386,7 +386,7 @@ class ProducerDashboardTodoService
                 $url = "/producer/bookings/{$owner->uuid}";
             } elseif ($owner instanceof Candidature && $owner->mission !== null) {
                 $key = "mission:{$owner->mission_id}";
-                $label = $owner->mission->titre;
+                $label = $this->missionMeta($owner->mission);
                 $url = "/producer/missions/{$owner->mission->uuid}?tab=livrables";
             } else {
                 continue;
@@ -489,7 +489,7 @@ class ProducerDashboardTodoService
             $entries[] = $this->shipmentEntry(
                 'livrables',
                 $count === 1 ? '1 envoi de produit à confirmer' : "{$count} envois de produit à confirmer",
-                [$group['mission']->titre],
+                [$this->missionMeta($group['mission'])],
                 "/producer/missions/{$group['mission']->uuid}?tab=candidatures",
                 0,
             );
@@ -612,7 +612,7 @@ class ProducerDashboardTodoService
 
             $entries[] = $this->rateEntry(
                 $count === 1 ? 'Noter 1 Face' : "Noter {$count} Faces",
-                $group['mission']->titre,
+                $this->missionMeta($group['mission']),
                 "/producer/missions/{$group['mission']->uuid}?tab=candidatures",
                 $group['at'],
             );
@@ -710,6 +710,24 @@ class ProducerDashboardTodoService
         $hours = intdiv($seconds, 3600);
 
         return $hours < self::URGENT_HOURS ? "{$hours} h" : intdiv($hours, 24).' j';
+    }
+
+    /**
+     * Ligne méta d'une entrée liée à une mission : distingue deux missions de même titre par
+     * la date de tournage, ou à défaut (UGC sans tournage) par la date de création.
+     */
+    private function missionMeta(Mission $mission): string
+    {
+        if ($mission->date_tournage !== null) {
+            return "{$mission->titre} · tournage le ".$this->shortDate($mission->date_tournage);
+        }
+
+        $created = $mission->created_at?->copy()
+            ->setTimezone((string) config('app.business_timezone'))
+            ->locale('fr')
+            ->translatedFormat('j M');
+
+        return $created === null ? $mission->titre : "{$mission->titre} · créée le {$created}";
     }
 
     private function faceName(mixed $face): string
