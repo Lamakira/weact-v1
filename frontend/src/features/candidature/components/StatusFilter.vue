@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { CandidatureFilterStatus } from '../types'
 import { CANDIDATURE_TO_PROCESS_FILTER, CandidatureStatus, CandidatureStatusLabel } from '../types'
+import { useActionCountsStore } from '@/stores/actionCounts'
 
 /**
  * Props
@@ -35,6 +36,13 @@ const filterOptions = computed<{ value: CandidatureFilterStatus; label: string }
   { value: CandidatureStatus.EXPIRED, label: CandidatureStatusLabel[CandidatureStatus.EXPIRED] },
 ])
 
+const actionCounts = useActionCountsStore()
+
+/** Nombre d'éléments « À traiter » (store actionCounts), pour la seule pastille « À traiter ». */
+function countFor(value: string): number {
+  return value === CANDIDATURE_TO_PROCESS_FILTER ? actionCounts.counts.candidatures : 0
+}
+
 /**
  * Handle filter selection
  */
@@ -65,6 +73,14 @@ function isActive(value: CandidatureFilterStatus): boolean {
       @click="selectFilter(option.value)"
     >
       {{ option.label }}
+      <span
+        v-if="countFor(option.value) > 0"
+        class="ml-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-semibold"
+        :class="isActive(option.value) ? 'bg-white/25 text-white' : 'bg-primary text-white'"
+        data-testid="to-process-count"
+      >
+        {{ countFor(option.value) }}
+      </span>
     </button>
   </div>
 </template>

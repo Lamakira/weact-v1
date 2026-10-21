@@ -109,7 +109,19 @@ class BookingController extends Controller
 
         $perPage = (int) $request->validated('per_page', IndexBookingsRequest::DEFAULT_PER_PAGE);
 
-        return BookingResource::collection($query->paginate($perPage));
+        $page = $query->paginate($perPage);
+
+        // « requires_my_action » : une seule requête pour la page, même scope que le filtre « À traiter ».
+        $toProcessIds = Booking::query()->toProcess($user)
+            ->whereIn('id', $page->getCollection()->pluck('id')->all())
+            ->pluck('id')
+            ->all();
+        $page->getCollection()->each(fn (Booking $booking) => $booking->setAttribute(
+            'requires_my_action',
+            in_array($booking->id, $toProcessIds, true),
+        ));
+
+        return BookingResource::collection($page);
     }
 
     /**

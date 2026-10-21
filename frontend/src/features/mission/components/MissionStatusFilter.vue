@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { MissionFilterStatus } from '../types'
 import { MISSION_TO_PROCESS_FILTER, MissionStatus, MissionStatusLabel } from '../types'
+import { useActionCountsStore } from '@/stores/actionCounts'
 
 /**
  * Props
@@ -27,6 +28,13 @@ const filterOptions = computed<{ value: MissionFilterStatus; label: string }[]>(
   { value: MissionStatus.CLOSED, label: 'Recrutement clos' },
   { value: MissionStatus.COMPLETED, label: MissionStatusLabel[MissionStatus.COMPLETED] },
 ])
+
+const actionCounts = useActionCountsStore()
+
+/** Nombre d'éléments « À traiter » (store actionCounts), pour la seule pastille « À traiter ». */
+function countFor(value: string): number {
+  return value === MISSION_TO_PROCESS_FILTER ? actionCounts.counts.missions : 0
+}
 
 /**
  * Handle filter selection
@@ -58,6 +66,14 @@ function isActive(value: MissionFilterStatus): boolean {
       @click="selectFilter(option.value)"
     >
       {{ option.label }}
+      <span
+        v-if="countFor(option.value) > 0"
+        class="ml-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-semibold"
+        :class="isActive(option.value) ? 'bg-white/25 text-white' : 'bg-primary text-white'"
+        data-testid="to-process-count"
+      >
+        {{ countFor(option.value) }}
+      </span>
     </button>
   </div>
 </template>

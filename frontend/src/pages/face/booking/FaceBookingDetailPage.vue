@@ -978,7 +978,12 @@ onUnmounted(() => {
               </span>
             </div>
           </div>
-          <div v-if="primaryAction" class="hidden sm:flex sm:items-center sm:gap-2" data-testid="booking-primary-action">
+          <div
+            v-if="primaryAction"
+            class="hidden sm:flex sm:items-center sm:gap-2"
+            :class="{ 'booking-primary-action--chat': primaryAction.key === 'chat' }"
+            data-testid="booking-primary-action"
+          >
             <BookingPrimaryAction :action="primaryAction" @click="handlePrimaryAction" />
           </div>
         </header>
@@ -1616,6 +1621,12 @@ onUnmounted(() => {
   .booking-chat-box {
     height: calc(100dvh - 13.25rem);
     min-height: 28rem;
+  }
+}
+/* Chat affiché dans la colonne de droite : « Ouvrir le chat » est redondant en en-tête. */
+@container page (min-width: 56rem) {
+  .booking-primary-action--chat {
+    display: none;
   }
 }
 /* Chat à droite et infos sur une seule colonne : « Et ensuite ? » passe en tête. */

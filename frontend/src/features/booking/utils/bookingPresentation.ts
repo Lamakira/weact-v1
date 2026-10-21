@@ -522,6 +522,8 @@ export interface BookingListAction {
 }
 
 export function bookingListAction(booking: Booking, role: BookingRole, now: number = Date.now()): BookingListAction | null {
+  // Source unique : le serveur (Booking::toProcess) dit si une action est attendue (fenêtre encore ouverte…).
+  if (booking.requires_my_action === false) return null
   const producer = role === 'producer'
   const ugc = isUgc(booking)
   const act = (label: string, deadlinePrefix?: string, deadlineIso?: string | null): BookingListAction => ({

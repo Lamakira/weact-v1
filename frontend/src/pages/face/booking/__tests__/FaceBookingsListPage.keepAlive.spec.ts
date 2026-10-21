@@ -17,6 +17,9 @@ const getBookings = vi.hoisted(() => vi.fn())
 vi.mock('@/features/booking/services/bookingApi', () => ({
   bookingApi: { getBookings },
 }))
+vi.mock('@/stores/actionCounts', () => ({
+  useActionCountsStore: () => ({ counts: { bookings: 0, candidatures: 0, missions: 0, livrables: 0, messages: 0 } }),
+}))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { id: 1, userable_type: 'Face' } }),
 }))
