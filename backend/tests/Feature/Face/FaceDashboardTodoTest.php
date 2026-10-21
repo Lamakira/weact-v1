@@ -505,6 +505,56 @@ class FaceDashboardTodoTest extends TestCase
         $this->assertSame([], $this->ofType($this->todo(), 'profile_completion'));
     }
 
+    public function test_missing_tarifs_item_when_no_daily_rate(): void
+    {
+        foreach ([null, 0] as $tarif) {
+            $this->face->update(['tarif_journalier' => $tarif]);
+
+            $items = $this->ofType($this->todo(), 'missing_tarifs');
+
+            $this->assertCount(1, $items);
+            $this->assertSame('Renseigner vos tarifs pour être visible', $items[0]['title']);
+            $this->assertSame('Renseigner', $items[0]['action_label']);
+            $this->assertSame('/face/profile?tab=carriere&section=tarif', $items[0]['url']);
+        }
+    }
+
+    public function test_missing_tarifs_item_absent_when_a_daily_rate_is_set(): void
+    {
+        $this->assertSame([], $this->ofType($this->todo(), 'missing_tarifs'));
+    }
+
+    public function test_missing_whatsapp_item_when_the_number_is_empty(): void
+    {
+        $this->face->update(['whatsapp_number' => null]);
+
+        $items = $this->ofType($this->todo(), 'missing_whatsapp');
+
+        $this->assertCount(1, $items);
+        $this->assertSame('Renseigner votre numéro WhatsApp', $items[0]['title']);
+        $this->assertSame('/face/profile?focus=whatsapp', $items[0]['url']);
+    }
+
+    public function test_missing_whatsapp_item_absent_when_the_number_is_set(): void
+    {
+        $this->assertSame([], $this->ofType($this->todo(), 'missing_whatsapp'));
+    }
+
+    public function test_missing_reminders_share_the_profile_rank_and_come_last(): void
+    {
+        $this->face->update(['tarif_journalier' => null, 'whatsapp_number' => null]);
+        $this->booking([
+            'status' => BookingStatus::Pending,
+            'date_debut' => Carbon::now()->addDays(10),
+            'date_fin' => Carbon::now()->addDays(10),
+        ]);
+
+        $this->assertSame(
+            ['booking_proposal', 'missing_tarifs', 'missing_whatsapp', 'profile_completion'],
+            array_column($this->todo(), 'type'),
+        );
+    }
+
     // ---------------------------------------------------------------
     // Ordre, plafond, isolation, requêtes
     // ---------------------------------------------------------------

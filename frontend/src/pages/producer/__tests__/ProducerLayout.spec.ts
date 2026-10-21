@@ -25,22 +25,12 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { email: 'p@x.bj' }, isEmailVerified: true }),
 }))
 
-// Shared basic-info resource: tests drive it through these hoisted refs.
-const basicInfoHolder = vi.hoisted(() => ({
-  info: null as unknown as { value: { type: string; whatsapp_number?: string | null } | null },
-  fetch: null as unknown as ReturnType<typeof vi.fn>,
+// Le rappel WhatsApp n'est plus chargé par le layout (ligne de la to-do du tableau de bord) :
+// ce mock vérifie qu'aucun chargement des infos de base n'est déclenché.
+const basicInfoFetch = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+vi.mock('@/features/producer/composables/useProducerBasicInfo', () => ({
+  useProducerBasicInfo: () => ({ basicInfo: { value: null }, fetchBasicInfo: basicInfoFetch }),
 }))
-vi.mock('@/features/producer/composables/useProducerBasicInfo', async () => {
-  const { ref } = await import('vue')
-  basicInfoHolder.info = ref(null)
-  basicInfoHolder.fetch = vi.fn().mockResolvedValue(undefined)
-  return {
-    useProducerBasicInfo: () => ({
-      basicInfo: basicInfoHolder.info,
-      fetchBasicInfo: basicInfoHolder.fetch,
-    }),
-  }
-})
 
 // Harness: mutable REACTIVE route so tests can simulate child-route navigation
 // (route.path change) and trigger any route watcher in the layout. Exposed via a
@@ -78,7 +68,7 @@ const wrappers: Array<ReturnType<typeof mount>> = []
 const DashboardLayoutStub = {
   name: 'DashboardLayout',
   props: ['sidebarItems', 'mobileTabs', 'title', 'userEmail', 'userName', 'avatarUrl', 'isLoggingOut', 'profileRoute'],
-  template: '<div><slot /></div>',
+  template: '<div><slot name="alerts" /><slot /></div>',
 }
 
 // Routage des GET : compteurs d'actions (lot D3) et compteur de conversations non lues.
@@ -97,8 +87,6 @@ describe('ProducerLayout', () => {
     vi.clearAllMocks()
     routeHolder.route.path = '/producer/dashboard'
     routeHolder.route.fullPath = '/producer/dashboard'
-    basicInfoHolder.info.value = null
-    basicInfoHolder.fetch.mockResolvedValue(undefined)
     resetAllSharedCachedResources()
     mockApi()
   })
@@ -110,7 +98,7 @@ describe('ProducerLayout', () => {
   it('feeds the action counters as badges on Missions, Bookings and Validation des livrables', async () => {
     mockApi({ missions: 2, bookings: 4, livrables: 3 })
     const wrapper = mount(ProducerLayout, {
-      global: { stubs: { DashboardLayout: DashboardLayoutStub, EmailVerificationBanner: true, RouterView: true } },
+      global: { stubs: { DashboardLayout: DashboardLayoutStub, AccountAlertBar: true, RouterView: true } },
     })
     wrappers.push(wrapper)
     await flushPromises()
@@ -128,7 +116,7 @@ describe('ProducerLayout', () => {
   it('bottom bar: Accueil, Missions, Bookings, Messages, Livrables with their badges', async () => {
     mockApi({ missions: 2, bookings: 4, livrables: 3 }, 5)
     const wrapper = mount(ProducerLayout, {
-      global: { stubs: { DashboardLayout: DashboardLayoutStub, EmailVerificationBanner: true, RouterView: true } },
+      global: { stubs: { DashboardLayout: DashboardLayoutStub, AccountAlertBar: true, RouterView: true } },
     })
     wrappers.push(wrapper)
     await flushPromises()
@@ -140,116 +128,32 @@ describe('ProducerLayout', () => {
     expect(tabs.find((t) => t.label === 'Livrables')?.to).toBe('/producer/ugc/validation')
   })
 
-  describe('WhatsApp reminder banner', () => {
-    const layoutStubs = {
-      DashboardLayout: DashboardLayoutStub,
-      EmailVerificationBanner: true,
-      RouterView: true,
-    }
-
-    async function mountLayout() {
-      vi.mocked(producerApi.listDeliverablesToReview).mockResolvedValue({ data: [] as never })
-      const wrapper = mount(ProducerLayout, { global: { stubs: layoutStubs } })
+  describe('Barre d\'alertes', () => {
+    it('monte une seule barre d\'alertes (audience producer) et aucun bandeau empilé', async () => {
+      const wrapper = mount(ProducerLayout, {
+        global: { stubs: { DashboardLayout: DashboardLayoutStub, AccountAlertBar: true, RouterView: true } },
+      })
       wrappers.push(wrapper)
       await flushPromises()
-      return wrapper
-    }
 
-    it('shows the banner, pointing to the profile field, while the number is missing', async () => {
-      basicInfoHolder.fetch.mockImplementation(async () => {
-        basicInfoHolder.info.value = { type: 'particulier', whatsapp_number: null }
-      })
+      const bars = wrapper.findAllComponents({ name: 'AccountAlertBar' })
+      expect(bars).toHaveLength(1)
+      expect(bars[0]!.props('audience')).toBe('producer')
+      expect(wrapper.find('[data-testid="email-verification-banner"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="whatsapp-missing-banner"]').exists()).toBe(false)
+    })
 
-      const wrapper = await mountLayout()
-      const banner = wrapper.findComponent({ name: 'WhatsappMissingBanner' })
-
-      expect(banner.exists()).toBe(true)
-      expect(banner.props('to')).toBe('/producer/profile?focus=whatsapp')
-      expect(banner.text()).toContain(
-        "Ajoutez votre numéro WhatsApp pour que l'équipe WeAct puisse vous joindre rapidement.",
+    it('ne charge plus les infos de base : le rappel WhatsApp est une ligne de la to-do', async () => {
+      wrappers.push(
+        mount(ProducerLayout, {
+          global: { stubs: { DashboardLayout: DashboardLayoutStub, AccountAlertBar: true, RouterView: true } },
+        }),
       )
-    })
-
-    it('hides the banner once the Producer has a number', async () => {
-      basicInfoHolder.fetch.mockImplementation(async () => {
-        basicInfoHolder.info.value = { type: 'agency', whatsapp_number: '+22997000000' }
-      })
-
-      const wrapper = await mountLayout()
-
-      expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(false)
-    })
-
-    it('hides the banner again when the number gets saved elsewhere', async () => {
-      basicInfoHolder.fetch.mockImplementation(async () => {
-        basicInfoHolder.info.value = { type: 'particulier', whatsapp_number: null }
-      })
-      const wrapper = await mountLayout()
-      expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(true)
-
-      basicInfoHolder.info.value = { type: 'particulier', whatsapp_number: '+22997000000' }
       await flushPromises()
-
-      expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(false)
-    })
-
-    it('hides the banner when the shared cache is reset (logout) for a Producer with a number', async () => {
-      basicInfoHolder.fetch.mockImplementation(async () => {
-        basicInfoHolder.info.value = { type: 'particulier', whatsapp_number: '+22997000000' }
-      })
-      const wrapper = await mountLayout()
-
-      basicInfoHolder.info.value = null
-      await flushPromises()
-
-      expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(false)
-    })
-
-    it('shows the banner when the stored value holds no digit', async () => {
-      basicInfoHolder.fetch.mockImplementation(async () => {
-        basicInfoHolder.info.value = { type: 'particulier', whatsapp_number: 'non' }
-      })
-
-      const wrapper = await mountLayout()
-
-      expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(true)
-    })
-
-    it('retries the basic-info load on route change while it is not loaded', async () => {
-      basicInfoHolder.fetch.mockRejectedValueOnce(new Error('network'))
-      const wrapper = await mountLayout()
-      expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(false)
-      expect(basicInfoHolder.fetch).toHaveBeenCalledTimes(1)
-
-      basicInfoHolder.fetch.mockImplementation(async () => {
-        basicInfoHolder.info.value = { type: 'particulier', whatsapp_number: null }
-      })
       routeHolder.route.path = '/producer/missions'
       await flushPromises()
 
-      expect(basicInfoHolder.fetch).toHaveBeenCalledTimes(2)
-      expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(true)
-    })
-
-    it('does not refetch on route change once loaded', async () => {
-      basicInfoHolder.fetch.mockImplementation(async () => {
-        basicInfoHolder.info.value = { type: 'particulier', whatsapp_number: null }
-      })
-      await mountLayout()
-      expect(basicInfoHolder.fetch).toHaveBeenCalledTimes(1)
-
-      routeHolder.route.path = '/producer/wallet'
-      await flushPromises()
-
-      expect(basicInfoHolder.fetch).toHaveBeenCalledTimes(1)
-    })
-
-    it('does not flash the banner when the basic info could not be loaded', async () => {
-      basicInfoHolder.fetch.mockRejectedValue(new Error('network'))
-
-      const wrapper = await mountLayout()
-
-      expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(false)
+      expect(basicInfoFetch).not.toHaveBeenCalled()
     })
   })
 
@@ -259,7 +163,7 @@ describe('ProducerLayout', () => {
   it('re-fetches the action counters on each child-route navigation', async () => {
     wrappers.push(
       mount(ProducerLayout, {
-        global: { stubs: { DashboardLayout: DashboardLayoutStub, EmailVerificationBanner: true, RouterView: true } },
+        global: { stubs: { DashboardLayout: DashboardLayoutStub, AccountAlertBar: true, RouterView: true } },
       }),
     )
     await flushPromises()
@@ -278,7 +182,7 @@ describe('ProducerLayout', () => {
     async function mountLayoutWithCount(count: number) {
       mockApi({}, count)
       const wrapper = mount(ProducerLayout, {
-        global: { stubs: { DashboardLayout: DashboardLayoutStub, EmailVerificationBanner: true, RouterView: true } },
+        global: { stubs: { DashboardLayout: DashboardLayoutStub, AccountAlertBar: true, RouterView: true } },
       })
       wrappers.push(wrapper)
       await flushPromises()
@@ -325,7 +229,7 @@ describe('ProducerLayout', () => {
       routeHolder.route.fullPath = path
       vi.mocked(producerApi.listDeliverablesToReview).mockResolvedValue({ data: [] as never })
       const wrapper = mount(ProducerLayout, {
-        global: { stubs: { DashboardLayout: DashboardLayoutStub, EmailVerificationBanner: true, RouterView: true } },
+        global: { stubs: { DashboardLayout: DashboardLayoutStub, AccountAlertBar: true, RouterView: true } },
       })
       wrappers.push(wrapper)
       await flushPromises()
@@ -351,20 +255,5 @@ describe('ProducerLayout', () => {
       const items = wrapper.findComponent({ name: 'DashboardLayout' }).props('sidebarItems') as SidebarItem[]
       expect(items.find((i) => i.to === '/producer/dashboard')?.label).toBe('Tableau de bord')
     })
-  })
-
-  it('does not show the WhatsApp banner on the profile page (it has its own field)', async () => {
-    basicInfoHolder.fetch.mockImplementation(async () => {
-      basicInfoHolder.info.value = { type: 'particulier', whatsapp_number: null }
-    })
-    vi.mocked(producerApi.listDeliverablesToReview).mockResolvedValue({ data: [] as never })
-    routeHolder.route.path = '/producer/profile'
-    const wrapper = mount(ProducerLayout, {
-      global: { stubs: { DashboardLayout: DashboardLayoutStub, EmailVerificationBanner: true, RouterView: true } },
-    })
-    wrappers.push(wrapper)
-    await flushPromises()
-
-    expect(wrapper.findComponent({ name: 'WhatsappMissingBanner' }).exists()).toBe(false)
   })
 })

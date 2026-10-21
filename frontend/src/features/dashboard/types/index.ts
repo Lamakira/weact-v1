@@ -125,6 +125,8 @@ export type FaceTodoType =
   | 'ugc_reconfirm'
   | 'ugc_receipt'
   | 'rate'
+  | 'missing_tarifs'
+  | 'missing_whatsapp'
   | 'profile_completion'
 
 export interface FaceTodoItem {
@@ -151,6 +153,7 @@ export type ProducerTodoType =
   | 'ugc_shipment'
   | 'booking_completion'
   | 'rate'
+  | 'missing_whatsapp'
 
 export interface ProducerTodoItem {
   type: ProducerTodoType
