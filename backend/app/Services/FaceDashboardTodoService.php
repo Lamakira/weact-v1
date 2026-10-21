@@ -17,6 +17,7 @@ use App\Enums\UgcTunnelStatus;
 use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Face;
+use App\Models\Mission;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\Shipment;
@@ -232,7 +233,7 @@ class FaceDashboardTodoService
                 'item' => [
                     'type' => 'mission_absence_contest',
                     'title' => 'Absence signalée par '.$this->producerName($mission->producer),
-                    'meta' => $mission->titre,
+                    'meta' => $this->missionMeta($mission),
                     'urgent_meta' => 'Contester avant le '.Booking::formatForBusiness($deadline, 'd/m \à H:i'),
                     'action_label' => 'Contester',
                     'url' => "/face/missions/{$mission->uuid}",
@@ -402,7 +403,7 @@ class FaceDashboardTodoService
             $entries[] = $this->deadlineEntry(
                 type: $type,
                 title: $title,
-                baseMeta: [$mission->titre],
+                baseMeta: [$this->missionMeta($mission)],
                 deadline: $deadline,
                 urgentWording: 'reste',
                 actionLabel: $actionLabel,
@@ -473,7 +474,7 @@ class FaceDashboardTodoService
 
             $entries[] = $this->receiptEntry(
                 $candidature->shipment,
-                (string) ($mission->nom_produit ?? $mission->titre),
+                $this->missionMeta($mission, (string) ($mission->nom_produit ?? $mission->titre)),
                 $this->producerName($mission->producer),
                 "/face/missions/{$mission->uuid}",
             );
@@ -543,7 +544,7 @@ class FaceDashboardTodoService
 
             $entries[] = $this->rateEntry(
                 $this->producerName($mission->producer),
-                $mission->titre,
+                $this->missionMeta($mission),
                 "/face/missions/{$mission->uuid}",
                 $candidature->updated_at,
             );
@@ -632,6 +633,7 @@ class FaceDashboardTodoService
                 (string) ($mission->nom_produit ?? $mission->titre),
                 $this->producerName($mission->producer),
                 "/face/missions/{$mission->uuid}",
+                $this->missionMeta($mission),
             );
             if ($entry !== null) {
                 $entries[] = $entry;
@@ -650,6 +652,7 @@ class FaceDashboardTodoService
         string $label,
         string $producerName,
         string $url,
+        ?string $missionMeta = null,
     ): ?array {
         if ($shipment === null) {
             return null;
@@ -668,7 +671,7 @@ class FaceDashboardTodoService
         return $this->deadlineEntry(
             type: 'ugc_deliverable',
             title: "Envoyer la vidéo {$kind} — {$label}",
-            baseMeta: [$producerName],
+            baseMeta: [$missionMeta, $producerName],
             deadline: $deadline,
             urgentWording: 'reste',
             actionLabel: 'Envoyer la vidéo',
@@ -796,6 +799,26 @@ class FaceDashboardTodoService
         $hours = intdiv($seconds, 3600);
 
         return $hours < self::URGENT_HOURS ? "{$hours} h" : intdiv($hours, 24).' j';
+    }
+
+    /**
+     * Ligne méta d'une entrée liée à une mission : distingue deux missions de même titre par
+     * la date de tournage, ou à défaut (UGC sans tournage) par la date de création.
+     */
+    private function missionMeta(Mission $mission, ?string $label = null): string
+    {
+        $label ??= $mission->titre;
+
+        if ($mission->date_tournage !== null) {
+            return "{$label} · tournage le ".$this->shortDate($mission->date_tournage);
+        }
+
+        $created = $mission->created_at?->copy()
+            ->setTimezone((string) config('app.business_timezone'))
+            ->locale('fr')
+            ->translatedFormat('j M');
+
+        return $created === null ? $label : "{$label} · créée le {$created}";
     }
 
     private function producerName(mixed $producer): string

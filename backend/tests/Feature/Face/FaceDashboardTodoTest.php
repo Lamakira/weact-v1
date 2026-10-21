@@ -616,10 +616,12 @@ class FaceDashboardTodoTest extends TestCase
     public function test_mission_absence_with_open_contest_window_is_urgent_and_links_to_the_mission(): void
     {
         $entry = $this->missionAbsenceEntry(AttendanceStatus::Absent, Carbon::now()->subHours(10));
+        $entry->missionPayment->mission->forceFill(['date_tournage' => '2026-10-07'])->saveQuietly();
 
         $items = $this->ofType($this->todo(), 'mission_absence_contest');
 
         $this->assertCount(1, $items);
+        $this->assertSame('Pub Absence · tournage le 7 oct.', $items[0]['meta']);
         $this->assertSame(
             '/face/missions/'.$entry->missionPayment->mission->uuid,
             $items[0]['url'],
@@ -714,7 +716,7 @@ class FaceDashboardTodoTest extends TestCase
 
         $this->assertCount(1, $items);
         $this->assertSame('Confirmer votre participation', $items[0]['title']);
-        $this->assertSame('Mission à confirmer', $items[0]['meta']);
+        $this->assertSame('Mission à confirmer · tournage le 8 nov.', $items[0]['meta']);
         $this->assertSame('reste 18 h', $items[0]['urgent_meta']);
         $this->assertSame('Confirmer', $items[0]['action_label']);
         $this->assertSame('/face/missions/'.$candidature->mission->uuid, $items[0]['url']);
@@ -783,6 +785,31 @@ class FaceDashboardTodoTest extends TestCase
         $this->assertSame([], $this->ofType($this->todo(), 'no_show_contest'));
     }
 
+    public function test_mission_entries_tell_two_missions_of_the_same_title_apart(): void
+    {
+        $this->acceptedCandidature(['titre' => 'Shooting wax', 'date_tournage' => '2026-11-02'], Carbon::now()->subHours(5));
+        $this->acceptedCandidature(['titre' => 'Shooting wax', 'date_tournage' => '2026-11-20'], Carbon::now()->subHours(6));
+
+        $metas = array_column($this->ofType($this->todo(), 'confirm_participation'), 'meta');
+        sort($metas);
+
+        $this->assertSame(['Shooting wax · tournage le 2 nov.', 'Shooting wax · tournage le 20 nov.'], $metas);
+    }
+
+    public function test_ugc_mission_without_shooting_date_shows_its_creation_date(): void
+    {
+        $candidature = $this->acceptedCandidature(
+            ['type_mission' => 'ugc', 'type_compensation' => 'product', 'titre' => 'Appel UGC', 'date_tournage' => null],
+            Carbon::now()->subHours(5),
+            null,
+        );
+        $candidature->mission->forceFill(['created_at' => '2026-10-03 09:00:00'])->saveQuietly();
+
+        $items = $this->ofType($this->todo(), 'ugc_reconfirm');
+
+        $this->assertSame('Appel UGC · créée le 3 oct.', $items[0]['meta']);
+    }
+
     public function test_ugc_reconfirm_for_an_accepted_ugc_candidature(): void
     {
         // Acceptée il y a 40 h : échéance accepted_at + 48 h => reste 8 h.
@@ -797,6 +824,7 @@ class FaceDashboardTodoTest extends TestCase
         $this->assertCount(1, $items);
         $this->assertSame('Reconfirmer votre participation', $items[0]['title']);
         $this->assertSame('reste 8 h', $items[0]['urgent_meta']);
+        $this->assertSame('Appel UGC · tournage le 8 nov.', $items[0]['meta']);
         $this->assertSame('/face/missions/'.$candidature->mission->uuid, $items[0]['url']);
         $this->assertSame([], $this->ofType($this->todo(), 'confirm_participation'));
     }
@@ -841,6 +869,7 @@ class FaceDashboardTodoTest extends TestCase
 
         $this->assertCount(2, $items);
         $this->assertSame('Confirmer la réception du produit', $items[0]['title']);
+        $this->assertStringContainsString(' · tournage le ', implode('|', array_column($items, 'meta')));
         $this->assertSame('Confirmer', $items[0]['action_label']);
         $this->assertEqualsCanonicalizing(
             ["/face/bookings/{$booking->uuid}", "/face/missions/{$mission->uuid}"],
@@ -867,6 +896,7 @@ class FaceDashboardTodoTest extends TestCase
         $mission = Mission::factory()->completed()->create([
             'producer_id' => $this->producer->id,
             'titre' => 'Clip terminé',
+            'date_tournage' => '2026-10-05',
         ]);
         $candidature = Candidature::factory()->completed()->create([
             'face_id' => $this->face->id,
@@ -878,6 +908,7 @@ class FaceDashboardTodoTest extends TestCase
         $this->assertCount(2, $items);
         $this->assertSame('Noter '.$this->producer->display_name, $items[0]['title']);
         $this->assertSame('Noter', $items[0]['action_label']);
+        $this->assertContains('Clip terminé · tournage le 5 oct.', array_column($items, 'meta'));
         $this->assertEqualsCanonicalizing(
             ["/face/bookings/{$booking->uuid}", "/face/missions/{$mission->uuid}"],
             array_column($items, 'url'),
