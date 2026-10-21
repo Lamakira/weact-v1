@@ -35,6 +35,8 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
         ->middleware('throttle:ui-read');
     Route::get('/dashboard/active-missions', [ProducerDashboardController::class, 'activeMissions'])
         ->middleware('throttle:ui-read');
+    Route::get('/dashboard/todo', [ProducerDashboardController::class, 'todo'])
+        ->middleware('throttle:ui-read');
 
     // Basic info routes (agency_name or first_name/last_name based on type)
     Route::get('/basic-info', [BasicInfoController::class, 'show'])

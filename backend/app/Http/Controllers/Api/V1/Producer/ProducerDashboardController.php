@@ -12,11 +12,32 @@ use App\Models\Candidature;
 use App\Models\Mission;
 use App\Models\Producer;
 use App\Services\ProducerDashboardService;
+use App\Services\ProducerDashboardTodoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class ProducerDashboardController extends Controller
 {
+    /**
+     * Get the « À faire » queue for the authenticated Producer (up to 8 items, most urgent first).
+     *
+     * Each item: { type, title, meta, urgent_meta|null, action_label, url } — `url` is a
+     * front route built from uuids.
+     */
+    public function todo(Request $request, ProducerDashboardTodoService $todoService): JsonResponse
+    {
+        $result = $this->getAuthenticatedProducer($request);
+
+        if ($result instanceof JsonResponse) {
+            return $result;
+        }
+
+        return response()->json([
+            'data' => $todoService->forProducer($request->user(), $result),
+            'message' => 'Dashboard todo retrieved successfully',
+        ]);
+    }
+
     /**
      * Get dashboard statistics for the authenticated Producer.
      *
