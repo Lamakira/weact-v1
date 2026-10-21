@@ -77,6 +77,10 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (
         ->middleware('throttle:60,1')
         ->name('bookings.messages.store');
 
+    Route::post('/bookings/{booking}/messages/read', [BookingMessageController::class, 'markRead'])
+        ->middleware('throttle:60,1')
+        ->name('bookings.messages.read');
+
     // Shared notifications (Face + Producer — auth:sanctum only, b6-2)
     Route::get('/me/notifications', [NotificationController::class, 'index'])
         ->middleware('throttle:60,1')

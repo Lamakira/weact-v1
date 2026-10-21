@@ -1,4 +1,5 @@
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
+import { syncMessagesUnreadFromServer } from '@/stores/messagesUnread'
 import type { BookingMessageListResponse, BookingMessageResponse } from '../types'
 
 /**
@@ -42,5 +43,15 @@ export const bookingChatApi = {
         : undefined,
     )
     return response.data
+  },
+
+  /**
+   * Mark the other party's messages as read (idempotent) and sync the Messages badge.
+   */
+  async markRead(bookingId: string): Promise<void> {
+    const response = await apiClient.post<{ data: { unread_conversations_count?: number } }>(
+      `/bookings/${bookingId}/messages/read`,
+    )
+    syncMessagesUnreadFromServer(response.data?.data?.unread_conversations_count)
   },
 }

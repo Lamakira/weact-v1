@@ -340,6 +340,7 @@ export interface BookingMessage {
   sender_name: string
   content: string
   is_own_message: boolean
+  read_at?: string | null // ISO 8601, null tant que l'autre partie n'a pas lu
   created_at: string // ISO 8601
 }
 

@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $booking_id
  * @property int $sender_id
  * @property string $content
+ * @property \Carbon\CarbonInterface|null $read_at
  * @property \Carbon\CarbonInterface $created_at
  * @property-read \App\Models\Booking|null $booking
  * @property-read \App\Models\User|null $sender
@@ -25,7 +26,18 @@ class BookingMessage extends Model
         'booking_id',
         'sender_id',
         'content',
+        'read_at',
     ];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'read_at' => 'datetime',
+        ];
+    }
 
     public function booking(): BelongsTo
     {

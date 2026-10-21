@@ -25,7 +25,11 @@ const dot = computed(() =>
   props.conversation.context ? candidatureStatusDot(props.conversation.context.candidature_status) : null,
 )
 
+const isBooking = computed(() => props.conversation.kind === 'booking')
+
+// Fil de booking : le repère « Booking » est un badge, on retire le préfixe du titre
 const contextLine = computed(() => {
+  if (isBooking.value) return props.conversation.mission_title.replace(/^Booking · /, '')
   const context = props.conversation.context
   return context ? `${context.type_label} · ${context.title}` : props.conversation.mission_title
 })
@@ -73,6 +77,11 @@ const preview = computed(() => {
           </span>
         </span>
         <span class="flex items-center gap-1.5 text-[12px] text-ink-3 lg:text-[11.5px]">
+          <span
+            v-if="isBooking"
+            class="shrink-0 rounded bg-weact-50 px-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-weact-700"
+            data-testid="booking-badge"
+          >Booking</span>
           <RStatusDot v-if="dot" :tone="dot.tone" :label="dot.label" hide-label />
           <span class="truncate">{{ contextLine }}</span>
         </span>

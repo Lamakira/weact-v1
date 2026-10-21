@@ -27,8 +27,10 @@ import { messagingApi } from '../services/messagingApi'
 import { applyConversationUpdate, previewContent } from '../utils/conversationList'
 import ConversationContextPanel from './ConversationContextPanel.vue'
 import ConversationListPane from './ConversationListPane.vue'
+import BookingThreadPane from './BookingThreadPane.vue'
 import MessageThread from './MessageThread.vue'
 import type {
+  ConversationKind,
   ConversationListItem,
   ConversationUpdatedBroadcast,
   MessageBroadcast,
@@ -83,11 +85,25 @@ function routeConversationId(): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
+// `?kind=booking` (e-mail, panneau du dashboard, mobile) désigne un fil de booking sans passer par la liste
+function routeKind(): ConversationKind | null {
+  const raw = Array.isArray(route.query.kind) ? route.query.kind[0] : route.query.kind
+  return raw === 'booking' || raw === 'mission' ? raw : null
+}
+
 const selectedId = ref<string | null>(routeConversationId())
+// Type du fil ouvert : booking => BookingThreadPane, sinon conversation de mission
+const selectedKind = ref<ConversationKind>('mission')
 const newMessageText = ref('')
 
 const selectedItem = computed(
   () => conversations.value.find((conversation) => conversation.id === selectedId.value) ?? null,
+)
+// Fil de booking : panneau dédié (BookingChat) à la place du fil de conversation
+const selectedBooking = computed(() =>
+  selectedKind.value === 'booking' && selectedId.value !== null
+    ? { id: selectedId.value, mission_title: selectedItem.value?.mission_title ?? 'Booking' }
+    : null,
 )
 const participant = computed(
   () => otherParticipant.value ?? selectedItem.value?.other_participant ?? null,
@@ -116,13 +132,32 @@ async function openConversation(id: string): Promise<void> {
   newMessageText.value = ''
   resetSendError()
   resetConversation()
+  const item = conversations.value.find((conversation) => conversation.id === id)
+  // Type connu par la liste, sinon par `?kind=` ; à défaut on essaie la mission puis le booking
+  const knownKind = item?.kind ?? routeKind()
+  selectedKind.value = knownKind ?? 'mission'
+  if (selectedKind.value === 'booking') {
+    // Le panneau (BookingThreadPane) charge le chat ; il marque lu quand le fil est visible
+    markListItemRead(id)
+    return
+  }
   const ok = await loadConversation(id)
-  if (ok && selectedId.value === id) markListItemRead(id)
+  if (ok && selectedId.value === id) {
+    markListItemRead(id)
+  } else if (!ok && knownKind === null && selectedId.value === id && conversationError.value === 'Conversation introuvable') {
+    // Lien profond sans type, hors de la liste chargée : ce n'est pas une mission, on tente le booking
+    resetConversation()
+    selectedKind.value = 'booking'
+  }
 }
 
 function selectConversation(conversation: ConversationListItem): void {
   if (!isDesktop.value) {
-    void router.push({ name: `${props.role}-conversation`, params: { conversationId: conversation.id } })
+    void router.push({
+      name: `${props.role}-conversation`,
+      params: { conversationId: conversation.id },
+      ...(conversation.kind === 'booking' ? { query: { kind: 'booking' } } : {}),
+    })
     return
   }
   if (conversation.id === selectedId.value) return
@@ -131,6 +166,7 @@ function selectConversation(conversation: ConversationListItem): void {
 
 function handleBack(): void {
   selectedId.value = null
+  selectedKind.value = 'mission'
   resetConversation()
   if (routeConversationId()) void router.push({ name: `${props.role}-messages` })
 }
@@ -239,7 +275,9 @@ function handleConversationUpdated(update: ConversationUpdatedBroadcast): void {
 
 // Aucun abonnement ni polling pour un fil en erreur (403/404) ou derrière le mur d'e-mail
 const realtimeConversationId = computed(() =>
-  authStore.isEmailVerified && !conversationError.value ? selectedId.value : null,
+  authStore.isEmailVerified && !conversationError.value && selectedBooking.value === null
+    ? selectedId.value
+    : null,
 )
 
 useConversationRealtime(realtimeConversationId, props.role, {
@@ -268,8 +306,14 @@ function goToMissions(): void {
 
 onMounted(() => {
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  void loadConversations()
-  if (selectedId.value) void openConversation(selectedId.value)
+  const listLoaded = loadConversations()
+  if (selectedId.value) {
+    // Le type de fil (mission ou booking) se lit dans la liste : on l'attend avant d'ouvrir
+    // le fil visé par la route.
+    void listLoaded.then(() => {
+      if (selectedId.value) void openConversation(selectedId.value)
+    })
+  }
 })
 
 onBeforeUnmount(() => {
@@ -328,6 +372,15 @@ watch(refreshError, (newError) => {
             Choisissez une conversation dans la liste pour afficher les messages.
           </p>
         </div>
+
+        <BookingThreadPane
+          v-else-if="selectedBooking"
+          :booking-id="selectedBooking.id"
+          :title="selectedBooking.mission_title"
+          :role="role"
+          :compact="!isDesktop"
+          @back="handleBack"
+        />
 
         <template v-else>
           <MessageThread
