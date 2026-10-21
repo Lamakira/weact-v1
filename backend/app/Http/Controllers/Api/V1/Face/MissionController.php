@@ -14,6 +14,7 @@ use App\Http\Resources\MissionResource;
 use App\Models\Candidature;
 use App\Models\Mission;
 use App\Services\FaceEntitlementService;
+use App\Services\MissionEligibility;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -21,6 +22,7 @@ class MissionController extends Controller
 {
     public function __construct(
         private readonly FaceEntitlementService $entitlement,
+        private readonly MissionEligibility $eligibility,
     ) {}
 
     /**
@@ -88,6 +90,8 @@ class MissionController extends Controller
      */
     public function index(FilterMissionsRequest $request): JsonResponse
     {
+        $face = $request->user()->userable;
+
         $missions = Mission::where('status', MissionStatus::Published)
             ->where('type_mission', '!=', MissionType::Ugc->value)
             ->whereProducerActive()
@@ -104,9 +108,15 @@ class MissionController extends Controller
             ->when($request->type_mission, fn ($q, $type) => $q->where('type_mission', $type))
             ->with(['producer' => fn ($q) => $q->withRatingAggregates()])
             ->withPaidPaymentFlag()
-            ->withCount('candidatures')
+            ->withCount('candidatures');
+
+        // Lot D8 : genre incompatible en fin de liste (tri SQL → pagination juste), ordre existant conservé par groupe.
+        $missions = $this->eligibility->orderGenderMismatchLast($missions, $face)
             ->orderBy('created_at', 'desc')
             ->paginate(12);
+
+        // Lot D8 : « déjà candidaté » + éligibilité par mission, une seule requête pour la page.
+        $this->eligibility->annotate($face, $missions->getCollection());
 
         $response = MissionResource::collection($missions)->response()->getData(true);
 

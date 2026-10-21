@@ -152,6 +152,12 @@ export interface MissionSummary {
 }
 
 // Mission data from API
+export type MissionEligibility =
+  | 'ok'
+  | 'gender_mismatch'
+  | 'subscription_required'
+  | 'ugc_subscription_required'
+
 export interface Mission {
   id: string
   titre: string
@@ -183,6 +189,10 @@ export interface Mission {
   display_status?: MissionDisplayStatusType
   display_status_label?: string
   is_accepting_candidatures: boolean
+  // Lot D8 : marques des cartes (listes Face uniquement, absentes ailleurs)
+  my_candidature?: string | null
+  my_candidature_label?: string | null
+  eligibility?: MissionEligibility
   has_paid_payment: boolean
   // Propriétaire seulement : miroir serveur des règles de POST /complete.
   can_complete?: boolean

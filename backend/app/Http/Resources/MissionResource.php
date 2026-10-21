@@ -90,6 +90,19 @@ class MissionResource extends JsonResource
                 ! $requesterIsFace && array_key_exists('summary', $this->resource->getAttributes()),
                 fn () => $this->resource->getAttribute('summary'),
             ),
+            // Lot D8 : marques des cartes côté Face (posées par MissionEligibility::annotate, listes Face).
+            'my_candidature' => $this->when(
+                $requesterIsFace && array_key_exists('eligibility', $this->resource->getAttributes()),
+                fn () => $this->resource->getAttribute('my_candidature'),
+            ),
+            'my_candidature_label' => $this->when(
+                $requesterIsFace && array_key_exists('eligibility', $this->resource->getAttributes()),
+                fn () => $this->resource->getAttribute('my_candidature_label'),
+            ),
+            'eligibility' => $this->when(
+                $requesterIsFace && array_key_exists('eligibility', $this->resource->getAttributes()),
+                fn () => $this->resource->getAttribute('eligibility'),
+            ),
             'candidatures_count' => $this->candidatures_count ?? ($this->whenLoaded('candidatures') ? $this->candidatures->count() : 0),
             'producer' => new ProducerResource($this->whenLoaded('producer')),
             'created_at' => $this->created_at?->toIso8601String(),
