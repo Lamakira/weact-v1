@@ -366,7 +366,7 @@ class MissionAttendanceService
             ]);
         }
 
-        return DB::transaction(function () use ($entry, $actor, $message): MissionPaymentCandidature {
+        $disputed = DB::transaction(function () use ($entry, $actor, $message): MissionPaymentCandidature {
             /** @var MissionPaymentCandidature $lockedEntry */
             $lockedEntry = MissionPaymentCandidature::lockForUpdate()->findOrFail($entry->id);
 
@@ -402,6 +402,11 @@ class MissionAttendanceService
 
             return $freshEntry;
         });
+
+        // Lot D5 : le Producteur est prévenu après commit (in-app + e-mail), sans jamais bloquer.
+        DB::afterCommit(fn () => app(MissionAttendanceDisputeNotifier::class)->disputeOpened($disputed));
+
+        return $disputed;
     }
 
     /**
@@ -425,7 +430,7 @@ class MissionAttendanceService
         Admin $admin,
         string $notes,
     ): MissionPaymentCandidature {
-        return DB::transaction(function () use ($entry, $outcome, $admin, $notes): MissionPaymentCandidature {
+        $resolved = DB::transaction(function () use ($entry, $outcome, $admin, $notes): MissionPaymentCandidature {
             $this->lockMissionOfEntry($entry->id);
 
             /** @var MissionPaymentCandidature $lockedEntry */
@@ -477,6 +482,11 @@ class MissionAttendanceService
 
             return $freshEntry;
         }, 3);
+
+        // Lot D5 : les deux parties sont prévenues de l'issue après commit (in-app + e-mail), sans jamais bloquer.
+        DB::afterCommit(fn () => app(MissionAttendanceDisputeNotifier::class)->disputeResolved($resolved, $outcome));
+
+        return $resolved;
     }
 
     /**
