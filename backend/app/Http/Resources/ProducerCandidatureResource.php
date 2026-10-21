@@ -27,6 +27,7 @@ class ProducerCandidatureResource extends JsonResource
     public function toArray(Request $request): array
     {
         $firstCategory = data_get($this->face?->categoriesWithLabels(), '0.value');
+        $firstCategoryLabel = data_get($this->face?->categoriesWithLabels(), '0.label');
 
         return [
             'id' => $this->uuid,
@@ -62,6 +63,7 @@ class ProducerCandidatureResource extends JsonResource
                 'profile_photo_url' => $this->face->profile_photo_url,
                 'profile_photo_thumbnail_url' => $this->face->thumbnail_url,
                 'category' => $firstCategory,
+                'category_label' => $firstCategoryLabel,
                 'city' => $this->face->ville,
                 'tarif_horaire' => $this->face->tarif_horaire,
                 'tarif_journalier' => $this->face->tarif_journalier,

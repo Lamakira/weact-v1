@@ -273,8 +273,8 @@ class UgcDeadlineEscalationTest extends TestCase
         // dépend de la troncature à la seconde du round-trip DB de recu_le (« 23 heures »
         // vs « 1 jour ») — non déterministe à la seconde près, et hors du périmètre « copie ».
         $message = (string) data_get($notifs->first()->data, 'message');
-        $this->assertStringStartsWith('⏰ Dernière ligne droite : il te reste ', $message);
-        $this->assertStringContainsString('pour déposer ton Unboxing « Tenue Shade Fit », sinon ton compte sera suspendu.', $message);
+        $this->assertStringStartsWith('⏰ Dernière ligne droite : il vous reste ', $message);
+        $this->assertStringContainsString('pour déposer votre Unboxing « Tenue Shade Fit », sinon votre compte sera suspendu.', $message);
         $this->assertSame(3, $shipment->fresh()->last_notified_threshold);
     }
 

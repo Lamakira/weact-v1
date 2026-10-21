@@ -1,14 +1,14 @@
 @extends('emails.layouts.base')
 
-@section('title', 'Produit reçu — à toi de filmer')
+@section('title', 'Produit reçu — à vous de filmer')
 
 @section('content')
     <h2 style="margin: 0 0 16px; color: #111827; font-size: 20px; font-weight: 700; line-height: 1.3;">
         Ça y est{{ $faceName !== '' ? ', '.$faceName : '' }} !
     </h2>
     <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        Tu as confirmé la réception @if($productName !== '')de « <strong>{{ $productName }}</strong> »@else de ton produit @endif.
-        <strong>Le chrono Unboxing a démarré</strong>&nbsp;: filme ta vidéo et dépose-la dans l'app avant la fin du délai.
+        Vous avez confirmé la réception @if($productName !== '')de « <strong>{{ $productName }}</strong> »@else de votre produit @endif.
+        <strong>Le chrono Unboxing a démarré</strong>&nbsp;: filmez votre vidéo et déposez-la dans l'app avant la fin du délai.
     </p>
 
     {{-- CTA button --}}
@@ -23,6 +23,6 @@
     </table>
 
     <p style="margin: 0; padding: 12px 16px; background-color: #ecfeff; border-radius: 6px; color: #155e75; font-size: 13px; line-height: 1.5;">
-        🎬 Le délai exact reste affiché dans l'app — c'est ta source de vérité. Cet email est juste un coup de pouce.
+        🎬 Le délai exact reste affiché dans l'app — c'est votre source de vérité. Cet email est juste un coup de pouce.
     </p>
 @endsection

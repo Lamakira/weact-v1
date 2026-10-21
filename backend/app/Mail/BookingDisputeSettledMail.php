@@ -39,7 +39,7 @@ final class BookingDisputeSettledMail extends BaseMail
         if ($inFavorOfRecipient) {
             return $this->forProducer
                 ? 'Litige réglé : décision en votre faveur'
-                : 'Litige réglé : décision en ta faveur';
+                : 'Litige réglé : décision en votre faveur';
         }
 
         return $this->outcome === DisputeResolutionOutcome::FavorProducer

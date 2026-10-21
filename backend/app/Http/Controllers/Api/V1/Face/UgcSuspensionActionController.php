@@ -36,18 +36,18 @@ class UgcSuspensionActionController extends Controller
 
         if ($suspension === null) {
             return response()->json(
-                ErrorCodes::InvalidStatus->envelope('Aucune suspension active sur ton compte.'),
+                ErrorCodes::InvalidStatus->envelope('Aucune suspension active sur votre compte.'),
                 422
             );
         }
 
         return match ($this->service->resumeForLateCompletion($suspension)) {
             'resumed' => response()->json([
-                'message' => 'Tu peux maintenant déposer ta vidéo en retard pour terminer ce deal.',
+                'message' => 'Vous pouvez maintenant déposer votre vidéo en retard pour terminer ce deal.',
             ]),
             'window_closed' => response()->json(
                 ErrorCodes::InvalidStatus->envelope(
-                    'La fenêtre de régularisation (30 jours) est dépassée. Tu peux faire appel auprès de WeAct.'
+                    'La fenêtre de régularisation (30 jours) est dépassée. Vous pouvez faire appel auprès de WeAct.'
                 ),
                 422
             ),
@@ -73,14 +73,14 @@ class UgcSuspensionActionController extends Controller
 
         if ($suspension === null) {
             return response()->json(
-                ErrorCodes::InvalidStatus->envelope('Aucune suspension active sur ton compte.'),
+                ErrorCodes::InvalidStatus->envelope('Aucune suspension active sur votre compte.'),
                 422
             );
         }
 
         return match ($this->service->openAppeal($suspension)) {
             'opened' => response()->json([
-                'message' => "Ton appel est enregistré — l'équipe WeAct le revoit sous ~24 h.",
+                'message' => "Votre appel est enregistré — l'équipe WeAct le revoit sous ~24 h.",
             ]),
             default => response()->json( // 'appeal_exists' | 'no_active_suspension'
                 ErrorCodes::InvalidStatus->envelope('Un appel est déjà enregistré pour cette suspension.'),

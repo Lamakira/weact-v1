@@ -37,7 +37,7 @@ const { hasPendingPayment, paymentFailed, dismissFailure } = useSubscriptionReco
           Paiement d'abonnement en attente
         </h3>
         <p class="mt-1 text-sm text-blue-700">
-          Ton paiement n'a pas encore été confirmé. Reprends-le pour activer ton abonnement.
+          Votre paiement n'a pas encore été confirmé. Reprenez-le pour activer votre abonnement.
         </p>
 
         <div class="mt-3">
@@ -71,7 +71,7 @@ const { hasPendingPayment, paymentFailed, dismissFailure } = useSubscriptionReco
       <div class="flex-1 min-w-0">
         <h3 class="text-sm font-semibold text-red-800">Paiement non abouti</h3>
         <p class="mt-1 text-sm text-red-700">
-          Ton dernier paiement d'abonnement n'a pas abouti. Tu peux réessayer.
+          Votre dernier paiement d'abonnement n'a pas abouti. Vous pouvez réessayer.
         </p>
 
         <div class="mt-3 flex items-center gap-2">

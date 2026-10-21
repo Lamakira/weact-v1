@@ -542,7 +542,7 @@ describe('FaceBillingPage', () => {
       ;(ctx.payment.paymentState as { value: string }).value = 'confirmed'
       await flushPromises()
 
-      expect(ctx.toast.success).not.toHaveBeenCalledWith('Paiement confirmé — ton abonnement est actif.')
+      expect(ctx.toast.success).not.toHaveBeenCalledWith('Paiement confirmé — votre abonnement est actif.')
       wrapper.unmount()
     })
 
@@ -553,7 +553,7 @@ describe('FaceBillingPage', () => {
       ;(ctx.payment.paymentState as { value: string }).value = 'confirmed'
       await flushPromises()
 
-      expect(ctx.toast.success).toHaveBeenCalledWith('Paiement confirmé — ton abonnement est actif.')
+      expect(ctx.toast.success).toHaveBeenCalledWith('Paiement confirmé — votre abonnement est actif.')
       wrapper.unmount()
     })
 

@@ -423,7 +423,7 @@ class BookingLotD6EmailsTest extends TestCase
         $this->assertSame(1, $this->disputeMailsTo('studio@example.test'));
         Mail::assertQueued(
             WalletCreditedFaceMail::class,
-            fn (WalletCreditedFaceMail $mail): bool => str_contains((string) $mail->outcomeNote, "L'administrateur a tranché en ta faveur"),
+            fn (WalletCreditedFaceMail $mail): bool => str_contains((string) $mail->outcomeNote, "L'administrateur a tranché en votre faveur"),
         );
         Mail::assertQueued(
             BookingDisputeSettledMail::class,

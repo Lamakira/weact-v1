@@ -58,7 +58,7 @@ const countDisplay = computed((): string | null => {
           <Zap class="w-3 h-3 fill-current" />
         </div>
         <span class="text-xs font-bold tracking-widest uppercase text-[#198496]"
-          >Tu attends quoi ?</span
+          >Vous attendez quoi ?</span
         >
       </div>
 
@@ -69,7 +69,7 @@ const countDisplay = computed((): string | null => {
       >
         DEVIENS <span class="text-[#198496]">UNE FACE</span>.
       </h2>
-      <p class="text-gray-600 text-lg">Rejoins la 1ère plateforme de casting au Bénin</p>
+      <p class="text-gray-600 text-lg">Rejoignez la 1ère plateforme de casting au Bénin</p>
     </div>
 
     <!-- Infinite Marquee Carousel -->

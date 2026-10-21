@@ -24,7 +24,7 @@ final class BookingProducerConfirmedMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return $this->producerName().' a confirmé la prestation : confirme à ton tour';
+        return $this->producerName().' a confirmé la prestation : confirmez à votre tour';
     }
 
     public function content(): Content

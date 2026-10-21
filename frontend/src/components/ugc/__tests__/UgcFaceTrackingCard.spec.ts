@@ -175,7 +175,7 @@ describe('UgcFaceTrackingCard', () => {
     expect(section.find('[data-testid="ugc-upload-dropzone"]').exists()).toBe(true)
     expect(section.find('[data-testid="ugc-upload-input"]').exists()).toBe(true)
     // Copy 8A réelle : « Uploade » (le placeholder « Prépare » de 3.4 est levé).
-    expect(section.text()).toContain('Uploade ta vidéo Unboxing')
+    expect(section.text()).toContain('Uploadez votre vidéo Unboxing')
     expect(section.text()).toContain('MP4, MOV ou AVI · max 200 Mo')
   })
 
@@ -257,8 +257,8 @@ describe('UgcFaceTrackingCard', () => {
     expect(wrapper.findComponent(ChronoRing).exists()).toBe(true)
     expect(section.find('[data-testid="ugc-upload-dropzone"]').exists()).toBe(true)
     // Copy spécifique Avis (la phase Unboxing dit « Unboxing »).
-    expect(section.text()).toContain('Uploade ta vidéo Avis')
-    expect(section.text()).not.toContain('Uploade ta vidéo Unboxing')
+    expect(section.text()).toContain('Uploadez votre vidéo Avis')
+    expect(section.text()).not.toContain('Uploadez votre vidéo Unboxing')
     // La deadline rendue vient de avis_deadline_at (26 juin), JAMAIS d'unboxing_deadline_at
     // (19 juin) : verrouille la source de `activeDeadlineAt` en phase Avis (AC2 / D-4.6.d).
     expect(section.text()).toContain('À envoyer avant le')

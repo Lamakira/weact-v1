@@ -54,7 +54,7 @@ class NotifyFaceOnDeliverableRejected
                 'user_id' => $faceUserId,
                 'type' => 'ugc_deliverable_rejected',
                 'data' => [
-                    'message' => "Ton {$deliverable->kind->label()} a été refusé : {$deliverable->review_note}. Dépose une nouvelle version.",
+                    'message' => "Votre {$deliverable->kind->label()} a été refusé : {$deliverable->review_note}. Déposez une nouvelle version.",
                     'deliverable_id' => $deliverable->uuid,
                     'kind' => $deliverable->kind->value,
                     'url' => $url,

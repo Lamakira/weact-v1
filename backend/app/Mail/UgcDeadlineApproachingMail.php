@@ -24,9 +24,9 @@ final class UgcDeadlineApproachingMail extends BaseMail
     protected function subjectLine(): string
     {
         return match (true) {
-            $this->level >= 3 => '⏰ Dernière ligne droite pour ta vidéo UGC',
-            $this->level === 2 => 'Ton échéance UGC approche ⏳',
-            default => 'Pense à déposer ta vidéo UGC ⏳',
+            $this->level >= 3 => '⏰ Dernière ligne droite pour votre vidéo UGC',
+            $this->level === 2 => 'Votre échéance UGC approche ⏳',
+            default => 'Pensez à déposer votre vidéo UGC ⏳',
         };
     }
 

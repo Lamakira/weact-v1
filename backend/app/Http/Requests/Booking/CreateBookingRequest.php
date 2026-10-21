@@ -209,7 +209,7 @@ class CreateBookingRequest extends FormRequest
      * Refuse la création d'un booking UGC pour une Face qui ne pourrait pas l'accepter
      * (non abonnée Pro+ ou suspendue) : sinon la commission serait encaissée pour rien.
      * Message volontairement neutre (ne révèle ni l'abonnement ni la suspension) et code
-     * 422 standard — jamais UGC_SUBSCRIPTION_REQUIRED (le frontend y lit « tu dois t'abonner »).
+     * 422 standard — jamais UGC_SUBSCRIPTION_REQUIRED (le frontend y lit « vous devez vous abonner »).
      */
     private function validateFaceCanReceiveUgc(Validator $validator): void
     {

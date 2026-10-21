@@ -200,7 +200,7 @@ describe('NotificationsDropdown', () => {
       createNotification({
         id: 'deadline-1',
         type: 'ugc_deliverable_deadline_approaching',
-        data: { message: 'Plus que 2 jours pour déposer ton Unboxing', level: 1 },
+        data: { message: 'Plus que 2 jours pour déposer votre Unboxing', level: 1 },
       }),
     ]
 
@@ -209,7 +209,7 @@ describe('NotificationsDropdown', () => {
 
     const icon = wrapper.find('[data-testid="deadline-icon"]')
     expect(icon.exists()).toBe(true)
-    expect(wrapper.text()).toContain('Plus que 2 jours pour déposer ton Unboxing')
+    expect(wrapper.text()).toContain('Plus que 2 jours pour déposer votre Unboxing')
     expect(styleHasColor(icon.attributes('style') ?? '', '#F59E0B')).toBe(true)
   })
 

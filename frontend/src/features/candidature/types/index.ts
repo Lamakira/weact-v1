@@ -234,6 +234,8 @@ export interface FaceSummary {
   // variant job is pending
   profile_photo_thumbnail_url: string | null
   category: string | null
+  /** Libellé de catégorie accordé au sexe de la Face (calculé par l'API) ; absent des anciens payloads. */
+  category_label?: string | null
   city: string | null
   tarif_horaire: number | null
   tarif_journalier: number | null

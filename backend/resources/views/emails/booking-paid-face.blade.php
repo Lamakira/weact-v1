@@ -7,7 +7,7 @@
         Paiement sécurisé
     </h2>
     <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        <strong>{{ $producerName }}</strong> a réglé ton booking : le paiement est sécurisé par WEACT et te sera versé après la prestation.
+        <strong>{{ $producerName }}</strong> a réglé votre booking : le paiement est sécurisé par WEACT et vous sera versé après la prestation.
         Le chat est désormais ouvert pour organiser le tournage.
     </p>
 
@@ -28,7 +28,7 @@
                         </tr>
                     @endif
                     <tr>
-                        <td style="padding: 0; color: #6b7280; font-size: 13px;">Montant que tu recevras</td>
+                        <td style="padding: 0; color: #6b7280; font-size: 13px;">Montant que vous recevrez</td>
                         <td style="padding: 0; color: #198496; font-size: 16px; font-weight: 700; text-align: right;">{{ $formattedAmount }}</td>
                     </tr>
                 </table>

@@ -32,7 +32,7 @@ onMounted(fetchStatus)
       <div class="flex-1 min-w-0">
         <h3 class="text-sm font-semibold text-red-800">Compte suspendu</h3>
         <p class="mt-1 text-sm text-red-700">
-          Tu as dépassé une deadline UGC. Tes missions sont en pause et ton accès UGC est bloqué.
+          Vous avez dépassé une deadline UGC. Vos missions sont en pause et votre accès UGC est bloqué.
         </p>
         <div class="mt-3">
           <button

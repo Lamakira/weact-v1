@@ -68,7 +68,7 @@ const activeRemainingLabel = computed(() =>
   isAvisChronoActive.value ? avisRemaining.value : unboxingRemaining.value,
 )
 const activeUploadTitle = computed(() =>
-  isAvisChronoActive.value ? 'Uploade ta vidéo Avis' : 'Uploade ta vidéo Unboxing',
+  isAvisChronoActive.value ? 'Uploadez votre vidéo Avis' : 'Uploadez votre vidéo Unboxing',
 )
 const activeDeadlineAt = computed<string | null>(() =>
   isAvisChronoActive.value ? props.shipment.avis_deadline_at : props.shipment.unboxing_deadline_at,
@@ -168,7 +168,7 @@ function handleDragLeave(): void {
     <!-- Étape 4 : « Produit reçu » (AC épic — présent avant réception) -->
     <div v-if="isShipped" class="mt-4 border-t border-gray-100 pt-4" data-testid="ugc-receipt-cta-zone">
       <p class="mb-3 text-xs text-gray-500">
-        Confirme uniquement quand le produit est entre tes mains — le chrono Unboxing
+        Confirmez uniquement quand le produit est entre vos mains — le chrono Unboxing
         ({{ UGC_UNBOXING_DAYS }} jours) démarre immédiatement.
       </p>
       <button
@@ -267,7 +267,7 @@ function handleDragLeave(): void {
       <div class="mt-3 flex items-start gap-2 rounded-md border border-orange-200 bg-orange-50 p-3">
         <AlertTriangle class="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#EA580C]" />
         <p class="text-[11px] leading-snug text-orange-900">
-          Si tu dépasses la deadline, ton compte sera <strong>automatiquement suspendu</strong> et ton abonnement bloqué.
+          Si vous dépassez la deadline, votre compte sera <strong>automatiquement suspendu</strong> et votre abonnement bloqué.
         </p>
       </div>
     </div>
@@ -282,7 +282,7 @@ function handleDragLeave(): void {
       <div>
         <p class="text-sm font-semibold text-gray-900">{{ reviewTitle }}</p>
         <p class="mt-0.5 text-xs text-gray-600">
-          En attente de validation du Producteur (sous 48&nbsp;h). Tu seras notifiée dès qu'il aura statué.
+          En attente de validation du Producteur (sous 48&nbsp;h). Vous serez notifiée dès qu'il aura statué.
         </p>
       </div>
     </div>

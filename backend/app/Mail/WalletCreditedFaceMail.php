@@ -19,7 +19,7 @@ final class WalletCreditedFaceMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return 'Ton portefeuille WEACT a été crédité de '.$this->formatAmount().' 🎉';
+        return 'Votre portefeuille WEACT a été crédité de '.$this->formatAmount().' 🎉';
     }
 
     public function content(): Content
