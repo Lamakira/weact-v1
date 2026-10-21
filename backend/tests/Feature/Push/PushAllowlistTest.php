@@ -86,9 +86,11 @@ class PushAllowlistTest extends TestCase
             }
         }
 
-        // MissionPaymentService::notifySafely, the reconcile command (result arrays)
+        // MissionPaymentService::notifySafely, MissionAttendanceDisputeNotifier::notifySafely (même
+        // motif `type: '...'`), the reconcile command (result arrays)
         // and the renewal reminder (30d/7d ternary). Any other dynamic type escapes the scan above.
         $known = [
+            'MissionAttendanceDisputeNotifier.php',
             'MissionPaymentService.php',
             'ReconcileStaleSelectionsCommand.php',
             'RemindFaceSubscriptionRenewalsCommand.php',

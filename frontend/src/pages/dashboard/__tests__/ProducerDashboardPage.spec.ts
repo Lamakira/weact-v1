@@ -8,7 +8,7 @@ import { dashboardApi } from '@/features/dashboard/services/dashboardApi'
 import { producerApi } from '@/features/producer/services/producerApi'
 import { messagingApi } from '@/features/messaging/services/messagingApi'
 import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
-import type { ProducerDashboardStats, ProducerActiveMission } from '@/features/dashboard/types'
+import type { ProducerDashboardStats, ProducerActiveMission, ProducerTodoItem } from '@/features/dashboard/types'
 import type { DeliverableReviewItem } from '@/components/ugc/ugc'
 import type { ConversationListItem } from '@/features/messaging/types'
 
@@ -32,6 +32,7 @@ vi.mock('@/features/dashboard/services/dashboardApi', () => ({
   dashboardApi: {
     getProducerStats: vi.fn(),
     getProducerActiveMissions: vi.fn(),
+    getProducerTodo: vi.fn(),
   },
 }))
 
@@ -147,7 +148,9 @@ function mockAll(opts: {
   conversations?: ConversationListItem[]
   missions?: ProducerActiveMission[]
   missionsTotal?: number
+  todo?: ProducerTodoItem[]
 } = {}) {
+  vi.mocked(dashboardApi.getProducerTodo).mockResolvedValue({ data: opts.todo ?? [], message: 'ok' })
   vi.mocked(dashboardApi.getProducerStats).mockResolvedValue({ data: opts.stats ?? baseStats, message: 'ok' })
   vi.mocked(producerApi.listDeliverablesToReview).mockResolvedValue({ data: opts.deliverables ?? [] })
   vi.mocked(messagingApi.getProducerConversations).mockResolvedValue({
@@ -425,6 +428,84 @@ describe('ProducerDashboardPage', () => {
       expect(wrapper.find('[data-testid="reputation-distribution"]').exists()).toBe(false)
       expect(wrapper.find('[data-testid="reputation-empty"]').exists()).toBe(true)
       expect(wrapper.get('[data-testid="reputation-candidatures"]').text()).toBe('38')
+    })
+  })
+
+  describe('« À faire » panel', () => {
+    const urgentItem: ProducerTodoItem = {
+      type: 'booking_payment',
+      title: 'Payer le booking de Awa Dossou',
+      meta: 'Publicité · 110 000 XOF',
+      urgent_meta: 'reste 14 h',
+      action_label: 'Payer',
+      url: '/producer/bookings/b-1',
+    }
+    const calmItem: ProducerTodoItem = {
+      type: 'candidatures_to_process',
+      title: '3 candidatures à traiter',
+      meta: 'Clip Gbêto',
+      urgent_meta: null,
+      action_label: 'Traiter',
+      url: '/producer/missions/m-1?tab=candidatures',
+    }
+
+    it('sits above the KPI row and lists the items with their action', async () => {
+      mockAll({ todo: [urgentItem, calmItem] })
+      const { wrapper } = await mountPage()
+
+      const panel = wrapper.get('[data-testid="producer-todo-panel"]')
+      expect(panel.text()).toContain('Payer le booking de Awa Dossou')
+      expect(panel.text()).toContain('reste 14 h')
+      expect(panel.text()).toContain('3 candidatures à traiter')
+      expect(panel.text()).toContain('Payer')
+      expect(panel.text()).toContain('Traiter')
+
+      const html = wrapper.html()
+      expect(html.indexOf('producer-todo-panel')).toBeLessThan(html.indexOf('kpi-cards-grid'))
+    })
+
+    it('shows a sober empty state', async () => {
+      const { wrapper } = await mountPage()
+
+      expect(wrapper.get('[data-testid="r-todo-empty"]').text()).toBe('Rien à traiter pour le moment')
+    })
+
+    it('shows an error with a working retry', async () => {
+      vi.mocked(dashboardApi.getProducerTodo).mockRejectedValueOnce(new Error('boom'))
+      const { wrapper } = await mountPage()
+
+      expect(wrapper.find('[data-testid="producer-todo-error"]').exists()).toBe(true)
+
+      vi.mocked(dashboardApi.getProducerTodo).mockResolvedValue({ data: [calmItem], message: 'ok' })
+      await wrapper.get('[data-testid="producer-todo-retry"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="producer-todo-error"]').exists()).toBe(false)
+      expect(wrapper.text()).toContain('3 candidatures à traiter')
+    })
+
+    it('reloads when the user comes back to the tab, at most every 30 seconds', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      try {
+        vi.setSystemTime(new Date('2026-10-20T10:00:00Z'))
+        const { wrapper } = await mountPage()
+        expect(dashboardApi.getProducerTodo).toHaveBeenCalledTimes(1)
+
+        vi.setSystemTime(new Date('2026-10-20T10:00:10Z'))
+        window.dispatchEvent(new Event('focus'))
+        expect(dashboardApi.getProducerTodo).toHaveBeenCalledTimes(1)
+
+        vi.setSystemTime(new Date('2026-10-20T10:00:45Z'))
+        window.dispatchEvent(new Event('focus'))
+        expect(dashboardApi.getProducerTodo).toHaveBeenCalledTimes(2)
+
+        wrapper.unmount()
+        vi.setSystemTime(new Date('2026-10-20T10:05:00Z'))
+        window.dispatchEvent(new Event('focus'))
+        expect(dashboardApi.getProducerTodo).toHaveBeenCalledTimes(2)
+      } finally {
+        vi.useRealTimers()
+      }
     })
   })
 

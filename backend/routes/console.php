@@ -32,6 +32,7 @@ use App\Console\Commands\RemindUnconfirmedFacesCommand;
 use App\Console\Commands\RemindUnpaidMissionSelectionsCommand;
 use App\Console\Commands\RemindUnreadMessagesCommand;
 use App\Console\Commands\RotateFaceListingRanksCommand;
+use App\Console\Commands\SendCandidatureDigestCommand;
 use App\Console\Commands\SettleBookingDisputesCommand;
 use App\Console\Commands\SettleDisputedMissionAttendanceCommand;
 use Illuminate\Console\Scheduling\Schedule;
@@ -71,6 +72,8 @@ app(Schedule::class)->command(CompleteFinishedUgcMissionsCommand::class)->hourly
 // Lot B6 (D3) : réponse du Producer aux candidatures sous 72 h après leur clôture.
 app(Schedule::class)->command(RemindCandidatureResponseCommand::class)->hourly()->withoutOverlapping();
 app(Schedule::class)->command(ExpireUnansweredCandidaturesCommand::class)->hourly()->withoutOverlapping();
+// Lot D5 : e-mail groupé au Producer pour les nouvelles candidatures, au plus un par mission et par heure.
+app(Schedule::class)->command(SendCandidatureDigestCommand::class)->hourly()->withoutOverlapping();
 // Lot B4 (D1) : place libérée sans remplaçante au début du jour de tournage -> remboursée.
 app(Schedule::class)->command(RefundFreedPlacesCommand::class)->hourly()->withoutOverlapping();
 // 4.5 — relance d'escalade des deadlines d'upload Face (~15 min, NFR3/AR3).

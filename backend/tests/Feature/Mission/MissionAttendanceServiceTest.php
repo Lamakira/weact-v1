@@ -12,6 +12,8 @@ use App\Enums\FinancialEventType;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Events\MissionAttendanceMarkedAbsent;
+use App\Mail\MissionAttendanceDisputedMail;
+use App\Mail\MissionAttendanceDisputeResolvedMail;
 use App\Mail\MissionCompletedMail;
 use App\Models\Admin;
 use App\Models\Candidature;
@@ -577,6 +579,35 @@ class MissionAttendanceServiceTest extends TestCase
         $this->assertNull($entry->released_at);
         $this->assertNull($entry->refunded_at);
         $this->assertSame(0, FinancialEvent::count());
+
+        // Lot D5 : le Producteur est prévenu (in-app + e-mail), les montants/états ci-dessus sont inchangés.
+        $notification = Notification::query()->where('user_id', $this->producerUser->id)->where('type', 'mission_attendance_disputed')->sole();
+        $this->assertSame("/producer/missions/{$entry->missionPayment->mission->uuid}", $notification->data['url']);
+        $this->assertStringContainsString('Face0 conteste son absence', $notification->data['message']);
+        Mail::assertQueued(MissionAttendanceDisputedMail::class, 1);
+        Mail::assertQueued(MissionAttendanceDisputedMail::class, function (MissionAttendanceDisputedMail $mail): bool {
+            $this->assertSame(90000, $mail->amount);
+            $this->assertSame('Face0', $mail->faceName);
+            $this->assertStringStartsWith('Une Face conteste son absence à « ', $mail->envelope()->subject);
+
+            return $mail->hasTo($this->producerUser->email);
+        });
+        // Aucune notification côté Face à l'ouverture (c'est elle qui conteste).
+        $this->assertSame(0, Notification::query()->where('user_id', $faces[0]['faceUser']->id)->count());
+    }
+
+    public function test_dispute_attendance_still_succeeds_when_notification_mail_fails(): void
+    {
+        [, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
+        $faces[0]['entry']->update(['attendance_status' => AttendanceStatus::Absent, 'notified_at' => now()]);
+
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('smtp down'));
+
+        $this->service->disputeAttendance($faces[0]['entry'], $faces[0]['faceUser']);
+
+        $entry = $faces[0]['entry']->fresh();
+        $this->assertSame(AttendanceStatus::Disputed, $entry->attendance_status);
+        $this->assertSame(EscrowStatus::Locked, $entry->escrow_status);
     }
 
     public function test_dispute_attendance_rejects_non_owner_face(): void
@@ -656,6 +687,21 @@ class MissionAttendanceServiceTest extends TestCase
         $this->assertSame('Note admin de test', $event->metadata['admin_notes'] ?? null);
         $this->assertSame('favor_face', $event->metadata['outcome'] ?? null);
         $this->assertSame(MissionStatus::Completed, $mission->fresh()->status);
+
+        // Lot D5 : les deux parties sont prévenues de l'issue ; pas de doublon avec le mail/l'avis génériques de fin de mission.
+        Mail::assertQueued(MissionAttendanceDisputeResolvedMail::class, 2);
+        Mail::assertQueued(MissionAttendanceDisputeResolvedMail::class, fn (MissionAttendanceDisputeResolvedMail $mail): bool => $mail->recipient === 'face'
+            && $mail->outcome === DisputeResolutionOutcome::FavorFace
+            && $mail->amount === 90000
+            && $mail->hasTo($faces[0]['faceUser']->email)
+            && str_contains($mail->render(), 'ont été crédités sur votre portefeuille'));
+        Mail::assertQueued(MissionAttendanceDisputeResolvedMail::class, fn (MissionAttendanceDisputeResolvedMail $mail): bool => $mail->recipient === 'producer'
+            && $mail->hasTo($this->producerUser->email)
+            && str_contains($mail->render(), 'La décision est en faveur de la Face'));
+        Mail::assertNotQueued(MissionCompletedMail::class);
+        $this->assertDatabaseMissing('notifications', ['user_id' => $faces[0]['faceUser']->id, 'type' => 'mission_completed']);
+        $this->assertDatabaseHas('notifications', ['user_id' => $faces[0]['faceUser']->id, 'type' => 'mission_attendance_dispute_resolved']);
+        $this->assertDatabaseHas('notifications', ['user_id' => $this->producerUser->id, 'type' => 'mission_attendance_dispute_resolved']);
     }
 
     public function test_resolve_dispute_favor_producer_refunds_with_correct_metadata(): void
@@ -682,6 +728,32 @@ class MissionAttendanceServiceTest extends TestCase
         $this->assertSame($admin->role->value, $event->metadata['admin_role'] ?? null);
         $this->assertSame('Note admin de test', $event->metadata['admin_notes'] ?? null);
         $this->assertSame('favor_producer', $event->metadata['outcome'] ?? null);
+
+        // Lot D5 : les deux parties sont prévenues de l'issue (Producteur remboursé du montant de la place).
+        Mail::assertQueued(MissionAttendanceDisputeResolvedMail::class, 2);
+        Mail::assertQueued(MissionAttendanceDisputeResolvedMail::class, fn (MissionAttendanceDisputeResolvedMail $mail): bool => $mail->recipient === 'producer'
+            && $mail->outcome === DisputeResolutionOutcome::FavorProducer
+            && $mail->amount === 90000
+            && $mail->hasTo($this->producerUser->email)
+            && str_contains($mail->render(), 'en remboursement de cette place'));
+        Mail::assertQueued(MissionAttendanceDisputeResolvedMail::class, fn (MissionAttendanceDisputeResolvedMail $mail): bool => $mail->recipient === 'face'
+            && $mail->hasTo($faces[0]['faceUser']->email)
+            && str_contains($mail->render(), 'aucun montant ne vous est versé'));
+        $this->assertDatabaseHas('notifications', ['user_id' => $faces[0]['faceUser']->id, 'type' => 'mission_attendance_dispute_resolved']);
+        $this->assertDatabaseHas('notifications', ['user_id' => $this->producerUser->id, 'type' => 'mission_attendance_dispute_resolved']);
+    }
+
+    public function test_resolve_dispute_settles_money_even_when_notification_mail_fails(): void
+    {
+        [, $faces] = $this->createPaidMissionWithFaces(1, MissionStatus::PendingAttendanceValidation);
+        $faces[0]['entry']->update(['attendance_status' => AttendanceStatus::Disputed]);
+
+        Mail::shouldReceive('to')->andThrow(new \RuntimeException('smtp down'));
+
+        $this->service->resolveDispute($faces[0]['entry'], DisputeResolutionOutcome::FavorProducer, $this->createAdmin(), 'Note admin de test');
+
+        $this->assertSame(EscrowStatus::Refunded, $faces[0]['entry']->fresh()->escrow_status);
+        $this->assertSame(90000, $this->producerUser->refresh()->balance);
     }
 
     public function test_resolve_dispute_rejects_entry_not_in_disputed_state(): void
@@ -713,6 +785,9 @@ class MissionAttendanceServiceTest extends TestCase
 
         $this->assertSame(90000, $faces[0]['faceUser']->refresh()->balance);
         $this->assertSame(1, FinancialEvent::count());
+
+        // Lot D5 : le rejeu refusé ne renvoie aucune notification (une seule issue notifiée par partie).
+        Mail::assertQueued(MissionAttendanceDisputeResolvedMail::class, 2);
     }
 
     public function test_resolve_dispute_completes_mission_when_last_locked_entry_resolved(): void
