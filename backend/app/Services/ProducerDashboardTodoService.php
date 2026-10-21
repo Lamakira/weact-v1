@@ -130,13 +130,19 @@ class ProducerDashboardTodoService
 
         foreach (Mission::query()->whereIn('id', $counts->keys())->get() as $mission) {
             $count = (int) $counts[$mission->id];
+            $deadline = $mission->producerResponseDeadline();
+
+            // Échéance passée : les candidatures sont expirées par le cron horaire.
+            if ($deadline !== null && $deadline->lte(now())) {
+                continue;
+            }
 
             $entries[] = $this->entry(
                 category: 'candidatures',
                 type: 'candidatures_to_process',
                 title: $count === 1 ? '1 candidature à traiter' : "{$count} candidatures à traiter",
                 baseMeta: [$mission->titre],
-                deadline: $mission->producerResponseDeadline(),
+                deadline: $deadline,
                 urgentWording: 'reste',
                 actionLabel: 'Traiter',
                 url: "/producer/missions/{$mission->uuid}?tab=candidatures",
@@ -189,12 +195,19 @@ class ProducerDashboardTodoService
                 continue;
             }
 
+            $paymentDeadline = $payment->created_at->copy()->addHours(MissionPaymentService::SELECTION_PAYMENT_WINDOW_HOURS);
+
+            // Fenêtre close : la sélection est annulée par le cron horaire.
+            if ($paymentDeadline->lte(now())) {
+                continue;
+            }
+
             $entries[] = $this->entry(
                 category: 'missions',
                 type: 'selection_payment',
                 title: 'Payer la sélection de Faces',
                 baseMeta: [$mission->titre],
-                deadline: $payment->created_at->copy()->addHours(MissionPaymentService::SELECTION_PAYMENT_WINDOW_HOURS),
+                deadline: $paymentDeadline,
                 urgentWording: 'reste',
                 actionLabel: 'Payer',
                 url: $url,
@@ -236,12 +249,19 @@ class ProducerDashboardTodoService
             $url = "/producer/bookings/{$booking->uuid}";
 
             if ($booking->status === BookingStatus::Pending) {
+                $commissionDeadline = $booking->ugcCommissionPaymentDeadline();
+
+                // Fenêtre close : la demande est expirée par le cron horaire.
+                if ($commissionDeadline === null || $commissionDeadline->lte(now())) {
+                    continue;
+                }
+
                 $entries[] = $this->entry(
                     category: 'bookings',
                     type: 'ugc_booking_commission',
                     title: "Régler la commission de la demande UGC pour {$faceName}",
                     baseMeta: [$booking->nom_produit],
-                    deadline: $booking->ugcCommissionPaymentDeadline(),
+                    deadline: $commissionDeadline,
                     urgentWording: 'reste',
                     actionLabel: 'Payer',
                     url: $url,

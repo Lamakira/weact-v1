@@ -368,6 +368,54 @@ class ProducerDashboardTodoTest extends TestCase
     }
 
     // ---------------------------------------------------------------
+    // Échéance passée : plus d'entrée (les crons horaires expirent l'élément)
+    // ---------------------------------------------------------------
+
+    public function test_entries_with_a_window_disappear_once_the_deadline_has_passed(): void
+    {
+        // Réponse aux candidatures : échéance 2026-10-10 23:00 UTC
+        $mission = $this->mission([
+            'status' => MissionStatus::Published,
+            'date_limite_candidature' => '2026-10-07',
+            'date_tournage' => '2026-10-30',
+        ]);
+        Candidature::factory()->pending()->create(['mission_id' => $mission->id]);
+        // Sélection : créée il y a 10 h => échéance 2026-10-10 00:00 UTC
+        $selection = $this->mission(['status' => MissionStatus::PendingPayment]);
+        $this->paidPayment($selection, MissionPaymentStatus::Pending)
+            ->forceFill(['created_at' => Carbon::now()->subHours(10)])->saveQuietly();
+        // Commission UGC de booking : créée il y a 10 h => échéance 2026-10-11 00:00 UTC (+ 48 h)
+        $this->booking([
+            'status' => BookingStatus::Pending,
+            'type_contenu' => 'UGC',
+            'date_debut' => null,
+            'date_fin' => null,
+            'created_at' => Carbon::now()->subHours(10),
+        ]);
+        // Booking cash à payer : accepté il y a 10 h => échéance 2026-10-10 00:00 UTC
+        $this->booking(['status' => BookingStatus::Accepted, 'accepted_at' => Carbon::now()->subHours(10)]);
+
+        $types = array_column($this->todo(), 'type');
+        sort($types);
+        $this->assertSame(
+            ['booking_payment', 'candidatures_to_process', 'selection_payment', 'ugc_booking_commission'],
+            $types,
+        );
+
+        // Après chaque échéance, l'entrée correspondante disparaît (et seulement elle)
+        Carbon::setTestNow('2026-10-10 00:00:01');
+        $types = array_column($this->todo(), 'type');
+        sort($types);
+        $this->assertSame(['candidatures_to_process', 'ugc_booking_commission'], $types);
+
+        Carbon::setTestNow('2026-10-10 23:00:01');
+        $this->assertSame(['ugc_booking_commission'], array_column($this->todo(), 'type'));
+
+        Carbon::setTestNow('2026-10-11 00:00:01');
+        $this->assertSame([], $this->todo());
+    }
+
+    // ---------------------------------------------------------------
     // 6. Présences
     // ---------------------------------------------------------------
 
