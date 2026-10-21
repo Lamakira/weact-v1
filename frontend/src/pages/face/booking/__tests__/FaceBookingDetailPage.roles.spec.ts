@@ -398,6 +398,15 @@ describe('page booking — une seule action principale par état', () => {
     const buttons = primaryButtons(wrapper)
     expect(buttons).toHaveLength(1)
     expect(buttons[0].text()).toBe('Ouvrir le chat')
+    // Masqué en CSS (container query) quand le chat est dans la colonne de droite : classe dédiée sur le conteneur.
+    expect(wrapper.find('[data-testid="booking-primary-action"]').classes()).toContain('booking-primary-action--chat')
+    wrapper.unmount()
+  })
+
+  it('l\'en-tête ne porte la classe de masquage que pour l\'action « chat »', async () => {
+    const wrapper = await mountAs('producer', makeBooking({ status: 'completed', can_rate: true }))
+
+    expect(wrapper.find('[data-testid="booking-primary-action"]').classes()).not.toContain('booking-primary-action--chat')
     wrapper.unmount()
   })
 

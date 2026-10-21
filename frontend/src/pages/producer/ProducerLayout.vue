@@ -14,7 +14,7 @@ import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/compon
 import { resolveSidebarTitle } from '@/components/layout/resolveSidebarTitle'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
 import { useProducerBasicInfo } from '@/features/producer/composables/useProducerBasicInfo'
-import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
+import { useActionCountsStore } from '@/stores/actionCounts'
 import { useMessagesUnreadStore } from '@/stores/messagesUnread'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 import WhatsappMissingBanner from '@/components/WhatsappMissingBanner.vue'
@@ -40,33 +40,40 @@ async function loadBasicInfo(): Promise<void> {
     // Silently fail - the banner stays hidden; retried on the next route change
   }
 }
-const ugcValidationCountStore = useUgcValidationCountStore()
+const actionCountsStore = useActionCountsStore()
 const messagesUnreadStore = useMessagesUnreadStore()
 
-// Sidebar navigation items for Producer dashboard. Computed so the « Validation
-// des livrables » badge reactively follows the in_review count (only that item).
+// Sidebar navigation items for Producer dashboard. Computed so the badges
+// (missions / bookings / livrables à traiter, messages non lus) follow their counters.
 const sidebarItems = computed<SidebarItem[]>(() => [
   { label: 'Tableau de bord', icon: LayoutDashboard, to: '/producer/dashboard' },
-  { label: 'Mes missions', icon: FileText, to: '/producer/missions' },
+  { label: 'Mes missions', icon: FileText, to: '/producer/missions',
+    badge: actionCountsStore.counts.missions },
   { label: 'Publier une mission', icon: PlusCircle, to: '/producer/missions/publish' },
   { label: 'Liste des Faces', icon: Users, to: '/producer/faces' },
-  { label: 'Mes bookings', icon: CalendarCheck, to: '/producer/bookings' },
+  { label: 'Mes bookings', icon: CalendarCheck, to: '/producer/bookings',
+    badge: actionCountsStore.counts.bookings },
   { label: 'Validation des livrables', icon: BadgeCheck, to: '/producer/ugc/validation',
-    badge: ugcValidationCountStore.count },
+    badge: actionCountsStore.counts.livrables },
   { label: 'Mes vidéos UGC', icon: FolderDown, to: '/producer/ugc/videos' },
   { label: 'Messages', icon: MessageCircle, to: '/producer/messages', match: ['/producer/conversations'],
-    badge: messagesUnreadStore.count, badgeMax: 9 },
+    badge: messagesUnreadStore.count, badgeMax: 9, badgeKind: 'messages' },
   { label: 'Portefeuille', icon: Wallet, to: '/producer/wallet' },
   { label: 'Mon profil', icon: User, to: '/producer/profile' },
 ])
 
-// Bottom tab bar (mobile): the 4 main destinations; the drawer keeps the rest
+// Bottom tab bar (mobile): the 5 main destinations; the drawer keeps the rest.
+// Le profil reste accessible par le menu de l'avatar (en-tête).
 const mobileTabs = computed<SidebarItem[]>(() => [
   { label: 'Accueil', icon: House, to: '/producer/dashboard' },
-  { label: 'Missions', icon: Briefcase, to: '/producer/missions' },
+  { label: 'Missions', icon: Briefcase, to: '/producer/missions',
+    badge: actionCountsStore.counts.missions },
+  { label: 'Bookings', icon: CalendarCheck, to: '/producer/bookings',
+    badge: actionCountsStore.counts.bookings },
   { label: 'Messages', icon: MessageCircle, to: '/producer/messages', match: ['/producer/conversations'],
-    badge: messagesUnreadStore.count, badgeMax: 9 },
-  { label: 'Profil', icon: User, to: '/producer/profile' },
+    badge: messagesUnreadStore.count, badgeMax: 9, badgeKind: 'messages' },
+  { label: 'Livrables', icon: BadgeCheck, to: '/producer/ugc/validation',
+    badge: actionCountsStore.counts.livrables },
 ])
 
 // Header title = label of the sidebar item owning the current route.
@@ -89,9 +96,9 @@ const avatarUrl = computed(() => {
   return profile.value.profile_photo_url ?? profile.value.agency_logo_url ?? null
 })
 
-// Fetch profile on mount to get avatar + the in_review validation count (badge)
+// Fetch profile on mount to get avatar; badges d'actions : chargement au boot, puis événements / focus / navigation
 onMounted(async () => {
-  void ugcValidationCountStore.fetchCount()
+  actionCountsStore.start()
   // Badge « Messages » : 1 fetch au boot, puis événements / focus / repli (pas de fetch par navigation)
   messagesUnreadStore.start('producer')
   try {
@@ -103,16 +110,19 @@ onMounted(async () => {
   await loadBasicInfo()
 })
 
-onBeforeUnmount(() => messagesUnreadStore.stop())
+onBeforeUnmount(() => {
+  messagesUnreadStore.stop()
+  actionCountsStore.stop()
+})
 
 // The layout now persists across child navigations (App.vue keys it by the
-// layout's own route): refresh the sidebar "Validation des livrables" badge on
-// each one, as the per-navigation remount used to do before keep-alive.
+// layout's own route): refresh the action badges on each one (an action made by the
+// user themself emits no event towards them), as the per-navigation remount used to.
 // (Mirrors the route.path watch FaceLayout already has for its banner.)
 watch(
   () => route.path,
   () => {
-    void ugcValidationCountStore.fetchCount()
+    void actionCountsStore.refresh()
     // Retry a failed basic-info load (mirrors FaceLayout) — only while not loaded.
     if (!basicInfoLoaded.value) void loadBasicInfo()
   },

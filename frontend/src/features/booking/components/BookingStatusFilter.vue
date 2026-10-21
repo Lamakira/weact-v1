@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { BookingFilterStatus } from '../types'
 import { BookingFilterLabel } from '../types'
+import { useActionCountsStore } from '@/stores/actionCounts'
 
 const props = defineProps<{
   modelValue: BookingFilterStatus
@@ -18,6 +19,13 @@ const filterOptions: { value: BookingFilterStatus; label: string }[] = [
   { value: 'completed', label: BookingFilterLabel['completed'] },
   { value: 'cancelled', label: BookingFilterLabel['cancelled'] },
 ]
+
+const actionCounts = useActionCountsStore()
+
+/** Nombre d'éléments « À traiter » (store actionCounts), pour la seule pastille « À traiter ». */
+function countFor(value: string): number {
+  return value === 'to_process' ? actionCounts.counts.bookings : 0
+}
 
 function selectFilter(value: BookingFilterStatus): void {
   emit('update:modelValue', value)
@@ -43,6 +51,14 @@ function isActive(value: BookingFilterStatus): boolean {
       @click="selectFilter(option.value)"
     >
       {{ option.label }}
+      <span
+        v-if="countFor(option.value) > 0"
+        class="ml-1.5 inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-semibold"
+        :class="isActive(option.value) ? 'bg-white/25 text-white' : 'bg-primary text-white'"
+        data-testid="to-process-count"
+      >
+        {{ countFor(option.value) }}
+      </span>
     </button>
   </div>
 </template>

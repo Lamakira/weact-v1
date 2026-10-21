@@ -15,6 +15,7 @@ import { resolveSidebarTitle } from '@/components/layout/resolveSidebarTitle'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
 import { usePersonalInfo } from '@/features/face/composables/usePersonalInfo'
 import { useMessagesUnreadStore } from '@/stores/messagesUnread'
+import { useActionCountsStore } from '@/stores/actionCounts'
 import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
 import TarifsMissingBanner from '@/components/TarifsMissingBanner.vue'
 import WhatsappMissingBanner from '@/components/WhatsappMissingBanner.vue'
@@ -32,6 +33,7 @@ const personalInfoLoaded = ref(false)
 const hasWhatsapp = computed(() => !!personalInfo.value?.whatsapp_number)
 
 const messagesUnreadStore = useMessagesUnreadStore()
+const actionCountsStore = useActionCountsStore()
 
 // Sidebar navigation items for Face dashboard. Computed so the « Messages » badge
 // reactively follows the unread-conversations count (only that item).
@@ -39,22 +41,29 @@ const sidebarItems = computed<SidebarItem[]>(() => [
   { label: 'Tableau de bord', icon: LayoutDashboard, to: '/face/dashboard' },
   { label: 'Voir les missions', icon: Briefcase, to: '/face/missions' },
   { label: 'Missions UGC', icon: Video, to: '/face/ugc-missions' },
-  { label: 'Mes candidatures', icon: FileText, to: '/face/candidatures' },
-  { label: 'Mes bookings', icon: CalendarCheck, to: '/face/bookings' },
+  { label: 'Mes candidatures', icon: FileText, to: '/face/candidatures',
+    badge: actionCountsStore.counts.candidatures },
+  { label: 'Mes bookings', icon: CalendarCheck, to: '/face/bookings',
+    badge: actionCountsStore.counts.bookings },
   { label: 'Messages', icon: MessageCircle, to: '/face/messages', match: ['/face/conversations'],
-    badge: messagesUnreadStore.count, badgeMax: 9 },
+    badge: messagesUnreadStore.count, badgeMax: 9, badgeKind: 'messages' },
   { label: 'Portefeuille', icon: Wallet, to: '/face/wallet' },
   { label: 'Facturation', icon: CreditCard, to: '/face/billing' },
   { label: 'Tarifs', icon: Tags, to: '/pricing' },
   { label: 'Mon profil', icon: User, to: '/face/profile' },
 ])
 
-// Bottom tab bar (mobile): the 4 main destinations; the drawer keeps the rest
+// Bottom tab bar (mobile): the 5 main destinations; the drawer keeps the rest.
+// « Mes candidatures » reste joignable depuis Missions (lien en tête de page) : son badge
+// (candidatures à reconfirmer) est porté par l'onglet Missions.
 const mobileTabs = computed<SidebarItem[]>(() => [
   { label: 'Accueil', icon: House, to: '/face/dashboard' },
-  { label: 'Missions', icon: Briefcase, to: '/face/missions' },
+  { label: 'Missions', icon: Briefcase, to: '/face/missions', match: ['/face/ugc-missions'],
+    badge: actionCountsStore.counts.candidatures },
+  { label: 'Bookings', icon: CalendarCheck, to: '/face/bookings',
+    badge: actionCountsStore.counts.bookings },
   { label: 'Messages', icon: MessageCircle, to: '/face/messages', match: ['/face/conversations'],
-    badge: messagesUnreadStore.count, badgeMax: 9 },
+    badge: messagesUnreadStore.count, badgeMax: 9, badgeKind: 'messages' },
   { label: 'Profil', icon: User, to: '/face/profile' },
 ])
 
@@ -73,6 +82,8 @@ const userName = computed(() => {
 onMounted(async () => {
   // Badge « Messages » : 1 fetch au boot, puis événements / focus / repli (pas de fetch par navigation)
   messagesUnreadStore.start('face')
+  // Badges d'actions en attente : chargement au boot, puis événements / focus / navigation
+  actionCountsStore.start()
   // Independent requests: run them in parallel (profile avatar + WhatsApp status)
   await Promise.all([
     fetchProfile().catch(() => {
@@ -92,12 +103,18 @@ async function fetchWhatsappStatus(): Promise<void> {
   }
 }
 
-onBeforeUnmount(() => messagesUnreadStore.stop())
+onBeforeUnmount(() => {
+  messagesUnreadStore.stop()
+  actionCountsStore.stop()
+})
 
 // Re-check WhatsApp status when navigating between child routes
 // (e.g., user fills WhatsApp on /face/profile then navigates back)
 watch(() => route.path, () => {
   fetchWhatsappStatus()
+  // Une action faite par l'utilisateur lui-même n'émet aucun événement vers lui : on resynchronise
+  // les badges à chaque navigation (un COUNT par rôle, requêtes en vol dédupliquées).
+  void actionCountsStore.refresh()
 })
 
 async function handleLogout(): Promise<void> {

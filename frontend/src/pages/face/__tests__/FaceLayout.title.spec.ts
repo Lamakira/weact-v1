@@ -13,6 +13,14 @@ vi.mock('@/features/auth/composables/useAuth', () => ({
 vi.mock('@/stores/messagesUnread', () => ({
   useMessagesUnreadStore: () => ({ count: 0, start: vi.fn(), stop: vi.fn() }),
 }))
+vi.mock('@/stores/actionCounts', () => ({
+  useActionCountsStore: () => ({
+    counts: { bookings: 0, candidatures: 0, missions: 0, livrables: 0, messages: 0 },
+    start: vi.fn(),
+    stop: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { email: 'face@test.com' }, isEmailVerified: true }),
 }))

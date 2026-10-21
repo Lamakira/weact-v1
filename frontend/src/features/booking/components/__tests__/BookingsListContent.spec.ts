@@ -8,6 +8,10 @@ const userRef = vi.hoisted(() => ({ value: { id: 7, userable_type: 'Producer' } 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: userRef.value }),
 }))
+// Pastille « À traiter » (lot D3) : compteurs fixes, le store réel n'est pas sous test ici.
+vi.mock('@/stores/actionCounts', () => ({
+  useActionCountsStore: () => ({ counts: { bookings: 0, candidatures: 0, missions: 0, livrables: 0, messages: 0 } }),
+}))
 
 const getBookings = vi.hoisted(() => vi.fn())
 vi.mock('../../services/bookingApi', () => ({

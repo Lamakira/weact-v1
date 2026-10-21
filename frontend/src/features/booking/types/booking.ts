@@ -193,6 +193,8 @@ export interface Booking {
   can_refuse: boolean
   can_pay: boolean
   can_rate: boolean
+  /** Liste uniquement : l'utilisateur doit agir maintenant (même règle que le filtre « À traiter »). */
+  requires_my_action?: boolean
   my_rating: BookingRating | null
   // Expédition UGC (story 3.2) — `whenLoaded` backend : la clé est OMISE quand la
   // relation n'est pas chargée ou n'existe pas (jamais `null` explicite).

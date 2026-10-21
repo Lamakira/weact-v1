@@ -57,6 +57,23 @@ trait ScopesBookingsToProcess
     }
 
     /**
+     * Bookings UGC où la Face a une vidéo à envoyer (Unboxing après réception, Avis attendu) : sous-cas
+     * « vidéo à envoyer » du filtre « À traiter » Face, source du compteur « livrables » (lot D3).
+     * Le filtre sur la Face reste à la charge de l'appelant.
+     *
+     * @param  Builder<Booking>  $query
+     */
+    public function scopeAwaitingFaceVideo(Builder $query): void
+    {
+        $query->where('status', BookingStatus::Accepted->value)
+            ->whereRaw(self::UGC_SQL)
+            ->whereHas('shipment', fn (Builder $s) => $s->whereIn('tunnel_status', [
+                UgcTunnelStatus::Received->value,
+                UgcTunnelStatus::AvisPending->value,
+            ]));
+    }
+
+    /**
      * Tri « à traiter d'abord » : les bookings à traiter en tête, par échéance la plus proche
      * (sans échéance en dernier du groupe) ; les autres ne sont pas départagés ici (l'appelant
      * enchaîne `updated_at desc`).

@@ -243,6 +243,15 @@ describe('bookingListAction (lot D7)', () => {
   const action = (overrides: Record<string, unknown>, role: BookingRole) =>
     bookingListAction(makeBooking(overrides), role, now)
 
+  it('requires_my_action=false (serveur) : aucune action ni échéance, même sur un UGC « à payer » en apparence', () => {
+    const elapsed = { status: 'pending', type_contenu: 'UGC', ugc_commission_payment_deadline: '2026-10-18T10:00:00Z' }
+    expect(action({ ...elapsed, requires_my_action: false }, 'producer')).toBeNull()
+    expect(action({ ...elapsed, requires_my_action: true }, 'producer')).toEqual({
+      label: 'Payer la commission',
+      deadline: 'Payer la commission avant le dim. 18 oct. à 11h00',
+    })
+  })
+
   it('Face : répondre à une demande cash, avec son échéance', () => {
     expect(action({ status: 'pending', can_accept: true, face_response_deadline: '2026-10-23T13:00:00Z' }, 'face')).toEqual({
       label: 'Répondre',

@@ -228,6 +228,21 @@ describe('BookingCard', () => {
       expect(wrapper.find('[data-testid="booking-card-action"]').text()).toBe('Confirmer la fin')
     })
 
+    it('requires_my_action=false : ni bouton ni échéance, même si le statut suggère une action', () => {
+      viewer.type = 'Face'
+      const wrapper = mountCard(
+        makeBooking({
+          status: 'pending',
+          can_accept: true,
+          face_response_deadline: '2026-10-23T13:00:00Z',
+          requires_my_action: false,
+        }),
+      )
+
+      expect(wrapper.find('[data-testid="booking-card-action"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="booking-card-deadline"]').exists()).toBe(false)
+    })
+
     it('rien à faire : ni bouton ni échéance', () => {
       viewer.type = 'Face'
       const wrapper = mountCard(makeBooking({ status: 'completed' }))

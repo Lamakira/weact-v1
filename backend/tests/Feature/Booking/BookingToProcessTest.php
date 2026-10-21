@@ -427,4 +427,40 @@ class BookingToProcessTest extends TestCase
             $this->ids($this->faceUser, 'sort=created_at&direction=asc'),
         );
     }
+
+    public function test_list_exposes_requires_my_action_matching_the_to_process_scope(): void
+    {
+        // Commission UGC : fenêtre de 48 h ouverte (à payer) vs écoulée (badge 0, plus d'action).
+        $open = $this->ugcBooking(BookingStatus::Pending, ['created_at' => now()->subHours(10)]);
+        $elapsed = $this->ugcBooking(BookingStatus::Pending, ['created_at' => now()->subHours(60)]);
+
+        $rows = collect($this->actingAs($this->producerUser)->getJson('/api/v1/bookings')->assertOk()->json('data'))
+            ->pluck('requires_my_action', 'id');
+
+        $this->assertTrue($rows[$open->uuid]);
+        $this->assertFalse($rows[$elapsed->uuid]);
+    }
+
+    public function test_requires_my_action_costs_a_constant_number_of_queries(): void
+    {
+        $count = function (): int {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $this->actingAs($this->faceUser)->getJson('/api/v1/bookings')->assertOk();
+            $n = count(DB::getQueryLog());
+            DB::disableQueryLog();
+
+            return $n;
+        };
+
+        $this->booking(['status' => BookingStatus::Pending, 'created_at' => now()->subHour()]);
+        $few = $count();
+
+        foreach (range(1, 6) as $_) {
+            $this->booking(['status' => BookingStatus::Pending, 'created_at' => now()->subHour()]);
+            $this->booking(['status' => BookingStatus::Completed]);
+        }
+
+        $this->assertSame($few, $count());
+    }
 }
