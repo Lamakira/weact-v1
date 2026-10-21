@@ -19,9 +19,9 @@ import { CandidatureCard, StatusFilter } from '@/features/candidature/components
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
 import type { CandidatureFilterStatus } from '@/features/candidature/types'
-import { CANDIDATURE_TO_PROCESS_FILTER, CandidatureStatusLabel } from '@/features/candidature/types'
+import { CANDIDATURE_ACTIVE_FILTER, CANDIDATURE_TO_PROCESS_FILTER, CandidatureStatusLabel } from '@/features/candidature/types'
 
-const candidatureFilterStatuses = new Set([...Object.keys(CandidatureStatusLabel), CANDIDATURE_TO_PROCESS_FILTER])
+const candidatureFilterStatuses = new Set([...Object.keys(CandidatureStatusLabel), CANDIDATURE_TO_PROCESS_FILTER, CANDIDATURE_ACTIVE_FILTER])
 
 function normalizeStatusQuery(value: unknown): CandidatureFilterStatus {
   return typeof value === 'string' && candidatureFilterStatuses.has(value)
@@ -342,6 +342,9 @@ watch(
             <template v-if="statusFilter === CANDIDATURE_TO_PROCESS_FILTER">
               Aucune candidature à traiter pour le moment.
             </template>
+            <template v-else-if="statusFilter === CANDIDATURE_ACTIVE_FILTER">
+              Aucune candidature en cours pour le moment.
+            </template>
             <template v-else>
               Aucune candidature avec le statut "{{ CandidatureStatusLabel[statusFilter] }}" trouvée.
             </template>
@@ -370,8 +373,9 @@ watch(
         <!-- Cards Grid -->
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <CandidatureCard
-            v-for="candidature in candidatures"
+            v-for="(candidature, index) in candidatures"
             :key="candidature.id"
+            :style="{ '--card-index': index }"
             :ref="(el) => { if (el) cardRefs[candidature.id] = el as InstanceType<typeof CandidatureCard> }"
             :candidature="candidature"
             @confirm="handleConfirm"

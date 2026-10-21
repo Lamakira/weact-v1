@@ -194,4 +194,21 @@ class CandidatureToProcessTest extends TestCase
         $this->assertSame([$mine->uuid], $uuids($this->faceUser));
         $this->assertSame([$theirs->uuid], $uuids($this->otherFaceUser));
     }
+
+    public function test_api_status_filter_active_groups_accepted_confirmed_and_in_progress(): void
+    {
+        $accepted = $this->candidature(CandidatureStatus::Accepted, now()->subHours(3));
+        $confirmed = $this->candidature(CandidatureStatus::Confirmed, null);
+        $inProgress = $this->candidature(CandidatureStatus::InProgress, null);
+        $this->candidature(CandidatureStatus::Pending, null);
+        $this->candidature(CandidatureStatus::Completed, null);
+        $this->candidature(CandidatureStatus::Rejected, null);
+        $this->candidature(CandidatureStatus::Accepted, now()->subHours(3), face: $this->otherFace);
+
+        $uuids = collect(
+            $this->actingAs($this->faceUser)->getJson('/api/v1/face/candidatures?status=active')->assertOk()->json('data')
+        )->pluck('id')->sort()->values()->all();
+
+        $this->assertSame(collect([$accepted->uuid, $confirmed->uuid, $inProgress->uuid])->sort()->values()->all(), $uuids);
+    }
 }

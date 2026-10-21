@@ -375,4 +375,24 @@ class MissionToProcessTest extends TestCase
             ->getJson('/api/v1/producer/missions?status=nope')
             ->assertStatus(422);
     }
+
+    public function test_api_status_filter_active_groups_live_missions_only(): void
+    {
+        $published = $this->mission(MissionStatus::Published);
+        $pendingPayment = $this->mission(MissionStatus::PendingPayment);
+        $closed = $this->mission(MissionStatus::Closed);
+        $validation = $this->mission(MissionStatus::PendingAttendanceValidation);
+        $this->mission(MissionStatus::Draft);
+        $this->mission(MissionStatus::Completed);
+        $this->mission(MissionStatus::Published, ['producer_id' => $this->otherProducer->id]);
+
+        $ids = collect(
+            $this->actingAs($this->producerUser)->getJson('/api/v1/producer/missions?status=active')->assertOk()->json('data')
+        )->pluck('id')->sort()->values()->all();
+
+        $this->assertSame(
+            collect([$published, $pendingPayment, $closed, $validation])->pluck('uuid')->sort()->values()->all(),
+            $ids,
+        );
+    }
 }

@@ -67,6 +67,10 @@ class FaceCandidatureResource extends JsonResource
                 'lieu' => $mission?->lieu,
                 'budget' => $mission?->budget,
                 'type_compensation' => $mission?->type_compensation?->value,
+                // Lot F4 : carte UGC sans champ vide (« UGC · 2 vidéos », « Vous recevez »).
+                'nom_produit' => $mission?->nom_produit,
+                'nombre_videos' => $mission?->nombre_videos,
+                'montant_remuneration' => $mission?->montant_remuneration,
             ]),
             'producer' => $this->when(
                 $mission !== null && $mission->relationLoaded('producer') && $producer !== null,

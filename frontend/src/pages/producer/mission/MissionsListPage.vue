@@ -11,7 +11,7 @@ import { missionApi } from '@/features/mission/services/missionApi'
 import { buildListQuery, parseListQuery, type ListQueryState } from '@/components/data-table/listQuery'
 import { useIsDesktop } from '@/composables/useMediaQuery'
 import { UgcPaymentOverlay } from '@/components/ugc'
-import { MissionStatus, MISSION_SORT_KEYS, MISSION_TO_PROCESS_FILTER, type MissionFilterStatus, type MissionSortKey, type MissionListParams } from '@/features/mission/types'
+import { MissionStatus, MISSION_SORT_KEYS, MISSION_TO_PROCESS_FILTER, MISSION_ACTIVE_FILTER, type MissionFilterStatus, type MissionSortKey, type MissionListParams } from '@/features/mission/types'
 import type { Mission } from '@/features/mission/types'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
 import { usePaymentReturn } from '@/composables/usePaymentReturn'
@@ -47,7 +47,7 @@ const view = computed<'table' | 'cards'>(() => (isDesktop.value ? 'table' : 'car
  * Foreign keys (?pay, ?payment_return, ?mission) are preserved by buildListQuery.
  */
 const urlState = computed(() =>
-  parseListQuery(route.query, { sorts: MISSION_SORT_KEYS, statuses: [...Object.values(MissionStatus), MISSION_TO_PROCESS_FILTER] }),
+  parseListQuery(route.query, { sorts: MISSION_SORT_KEYS, statuses: [...Object.values(MissionStatus), MISSION_TO_PROCESS_FILTER, MISSION_ACTIVE_FILTER] }),
 )
 const statusFilter = computed(() => urlState.value.status as MissionFilterStatus)
 const sorting = computed<SortingState>(() =>

@@ -234,13 +234,13 @@ describe('MissionsListPage — table (md and up)', () => {
 
   it('goes back to page 1 when the status filter changes and keeps the sort', async () => {
     const { wrapper, router } = await mountPage('/producer/missions?page=3&sort=status&direction=asc')
-    const closedTab = wrapper.findAll('button').find((b) => b.text() === 'Recrutement clos')!
+    const closedTab = wrapper.findAll('button').find((b) => b.text() === 'En cours')!
     await closedTab.trigger('click')
     await flushPromises()
 
     expect(router.currentRoute.value.query.page).toBeUndefined()
-    expect(router.currentRoute.value.query).toMatchObject({ status: 'closed', sort: 'status' })
-    expect(getMissionsPage).toHaveBeenLastCalledWith({ page: 1, perPage: 15, status: 'closed', sort: 'status', direction: 'asc' })
+    expect(router.currentRoute.value.query).toMatchObject({ status: 'active', sort: 'status' })
+    expect(getMissionsPage).toHaveBeenLastCalledWith({ page: 1, perPage: 15, status: 'active', sort: 'status', direction: 'asc' })
   })
 
   it('paginates through the URL', async () => {
@@ -327,6 +327,18 @@ describe('MissionsListPage — table (md and up)', () => {
     await wrapper.findAll('tbody tr')[2]!.find('[data-testid="pay-commission-button"]').trigger('click')
     await flushPromises()
     expect(wrapper.find('[data-testid="ugc-overlay-stub"]').attributes('data-open')).toBe('true')
+  })
+
+  it('F4 : une mission UGC affiche produit et vidéos à la place du tournage, et « Produit seul » en budget', async () => {
+    getMissionsPage.mockResolvedValue(
+      listResponse([{ ...ugcPending, budget: 0, nom_produit: 'coffret Bissap', nombre_videos: 2 } as Mission]),
+    )
+    const { wrapper } = await mountPage()
+    const row = wrapper.get('tbody tr')
+
+    expect(row.text()).toContain('Produit : coffret Bissap · 2 vidéos')
+    expect(row.get('[data-testid="mission-table-budget"]').text()).toBe('Produit seul')
+    expect(row.text()).not.toContain('—')
   })
 
   it('renders status dots (not coloured pills) and a plain candidatures number', async () => {
@@ -442,6 +454,18 @@ describe('MissionsListPage — compact cards (below md)', () => {
     expect(wrapper.find('[data-testid="mission-card-clo"]').text()).toContain('Valider les présences')
     expect(wrapper.find('[data-testid="mission-card-ugc"]').text()).toContain('Régler la commission')
     expect(wrapper.find('[data-testid="mission-card-ugc"]').text()).toContain('UGC')
+  })
+
+  it('F4 : une mission UGC produit seul n’a ni champ vide ni « 0 F CFA » (produit, vidéos, « Produit seul »)', async () => {
+    getMissionsPage.mockResolvedValue(
+      listResponse([{ ...ugcPending, budget: 0, nom_produit: 'coffret Bissap', nombre_videos: 2 } as Mission]),
+    )
+    const { wrapper } = await mountPage()
+    const card = wrapper.find('[data-testid="mission-card-ugc"]')
+
+    expect(card.find('[data-testid="mission-card-ugc-summary"]').text()).toBe('Produit : coffret Bissap · 2 vidéos')
+    expect(card.text()).toContain('Produit seul')
+    expect(card.text()).not.toContain('0 F CFA')
   })
 
   it('opens the mission detail when a card is clicked (lot C4)', async () => {

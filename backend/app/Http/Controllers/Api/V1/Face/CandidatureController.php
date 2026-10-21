@@ -65,6 +65,13 @@ class CandidatureController extends Controller
         if ($request->query('status') === 'to_process') {
             // Lot D7 : candidatures où la Face doit agir maintenant (Candidature::toProcess).
             $query->toProcess();
+        } elseif ($request->query('status') === 'active') {
+            // Lot F4 : « En cours » = acceptée, confirmée ou en cours de mission.
+            $query->whereIn('status', [
+                CandidatureStatus::Accepted,
+                CandidatureStatus::Confirmed,
+                CandidatureStatus::InProgress,
+            ]);
         } elseif ($request->has('status') && $request->status !== '') {
             $status = CandidatureStatus::tryFrom($request->status);
             if ($status) {

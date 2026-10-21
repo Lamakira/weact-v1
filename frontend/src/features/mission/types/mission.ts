@@ -20,8 +20,15 @@ export type MissionStatusType = (typeof MissionStatus)[keyof typeof MissionStatu
 // Lot D7 : filtre « À traiter » de la liste Producteur (pas un statut : valeur de `status` de l'URL / de l'API)
 export const MISSION_TO_PROCESS_FILTER = 'to_process'
 
-// Valeur du filtre de la liste : un statut, « À traiter » ou rien (Tous)
-export type MissionFilterStatus = MissionStatusType | typeof MISSION_TO_PROCESS_FILTER | ''
+// Lot F4 : filtre « En cours » (groupe backend : publiée, paiement en attente, clôturée, présences à valider)
+export const MISSION_ACTIVE_FILTER = 'active'
+
+// Valeur du filtre de la liste : un statut, un groupe (« À traiter », « En cours ») ou rien (Tous)
+export type MissionFilterStatus =
+  | MissionStatusType
+  | typeof MISSION_TO_PROCESS_FILTER
+  | typeof MISSION_ACTIVE_FILTER
+  | ''
 
 // Mission status labels (French)
 export const MissionStatusLabel: Record<MissionStatusType, string> = {

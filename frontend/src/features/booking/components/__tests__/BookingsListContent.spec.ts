@@ -137,12 +137,12 @@ describe('BookingsListContent', () => {
     const dot = producer.wrapper.find('tbody tr td:nth-child(6) [data-testid="r-status-dot"]')
     expect(dot.exists()).toBe(true)
     expect(dot.attributes('data-tone')).toBe('pending')
-    expect(dot.text()).toBe('En attente')
+    expect(dot.text()).toBe('En attente de réponse')
     producer.wrapper.unmount()
 
     userRef.value = { id: 8, userable_type: 'Face' }
     const face = await mountContent('face')
-    expect(face.wrapper.find('tbody tr td:nth-child(6) [data-testid="r-status-dot"]').text()).toBe('En attente')
+    expect(face.wrapper.find('tbody tr td:nth-child(6) [data-testid="r-status-dot"]').text()).toBe('À répondre par vous')
   })
 
   it('renders the Face columns with the received amount', async () => {
@@ -157,7 +157,43 @@ describe('BookingsListContent', () => {
     expect(wrapper.text().replace(/\s/g, '')).not.toContain('55000')
   })
 
-  it('renders cards below md and hides the view toggle', async () => {
+  it('F4 : une ligne UGC produit seul affiche le produit, les vidéos et « Produit seul », sans « — » ni « 0 F CFA »', async () => {
+  userRef.value = { id: 8, userable_type: 'Face' }
+  getBookings.mockResolvedValue(
+    listResponse([
+      makeBooking('u1', {
+        type_contenu: 'UGC',
+        status: 'accepted',
+        date_debut: null,
+        date_fin: null,
+        duree_heures: null,
+        nom_produit: 'coffret Bissap',
+        nombre_videos: 2,
+        montant_face_recoit: 0,
+      }),
+    ]),
+  )
+  const { wrapper } = await mountContent('face')
+
+  expect(wrapper.get('[data-testid="booking-table-product"]').text()).toBe('Produit : coffret Bissap')
+  expect(wrapper.get('[data-testid="booking-table-videos"]').text()).toBe('2 vidéos')
+  expect(wrapper.get('[data-testid="booking-table-amount"]').text()).toBe('Produit seul')
+  expect(wrapper.get('tbody tr').text()).not.toContain('—')
+  expect(wrapper.get('tbody tr').text()).not.toContain('0 F CFA')
+})
+
+it('F4 : le statut du tableau est dit du point de vue de la personne qui lit', async () => {
+  getBookings.mockResolvedValue(listResponse([makeBooking('s1', { status: 'refused' })]))
+  const producer = await mountContent('producer')
+  expect(producer.wrapper.find('tbody tr [data-testid="r-status-dot"]').text()).toBe('Refusé par la Face')
+  producer.wrapper.unmount()
+
+  userRef.value = { id: 8, userable_type: 'Face' }
+  const face = await mountContent('face')
+  expect(face.wrapper.find('tbody tr [data-testid="r-status-dot"]').text()).toBe('Refusé par vous')
+})
+
+it('renders cards below md and hides the view toggle', async () => {
     mockMatchMedia(false)
     const { wrapper } = await mountContent('producer')
     expect(wrapper.find('table').exists()).toBe(false)
@@ -292,14 +328,14 @@ describe('BookingsListContent', () => {
   it('names the active filter in the empty state and drops the CTA', async () => {
     getBookings.mockResolvedValue(listResponse([]))
     const { wrapper } = await mountContent('producer', '/producer/bookings?status=cancelled')
-    expect(wrapper.text()).toContain('Aucun booking avec le statut "Annulés" trouvé.')
+    expect(wrapper.text()).toContain('Aucun booking avec le statut "Annulés et refusés" trouvé.')
     expect(wrapper.text()).not.toContain('Aller')
   })
 
   it('offre la pastille « À traiter » juste après « Tous » et l’envoie à l’API', async () => {
     const { wrapper, router } = await mountContent('producer')
     const pills = wrapper.findAll('button.rounded-full').map((b) => b.text())
-    expect(pills.slice(0, 3)).toEqual(['Tous', 'À traiter', 'En attente'])
+    expect(pills.slice(0, 3)).toEqual(['Tous', 'À traiter', 'En cours'])
 
     await wrapper.findAll('button.rounded-full').find((b) => b.text() === 'À traiter')!.trigger('click')
     await flushPromises()
