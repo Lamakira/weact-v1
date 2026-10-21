@@ -129,6 +129,19 @@ describe('PublicFacesView', () => {
     expect(wrapper.text()).toContain('Découvrez notre vivier de talents béninois')
   })
 
+  it('shows the "Trouver une Face" h1 and no "Filtres avancés" button', async () => {
+    vi.mocked(publicFacesApi.fetchPublicFaces).mockResolvedValue(mockResponse)
+
+    const wrapper = await mountView()
+    await flushPromises()
+
+    const h1 = wrapper.find('h1')
+    expect(h1.exists()).toBe(true)
+    expect(h1.text()).toBe('Trouver une Face')
+    expect(wrapper.text()).not.toContain('Filtres avancés')
+    expect(wrapper.find('[data-testid="filter-advanced"]').exists()).toBe(false)
+  })
+
   it('shows loading skeletons while fetching', async () => {
     vi.mocked(publicFacesApi.fetchPublicFaces).mockReturnValue(new Promise(() => {}))
 

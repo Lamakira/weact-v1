@@ -13,6 +13,8 @@ import { useRouter } from 'vue-router'
 const props = defineProps<{
   reportableType: 'face' | 'mission'
   reportableId: string | number
+  /** Libellé du lien déclencheur (défaut : « Signaler »). */
+  label?: string
 }>()
 
 const authStore = useAuthStore()
@@ -84,7 +86,7 @@ async function handleSubmit() {
     data-testid="report-button"
   >
     <Flag :size="14" />
-    <span>Signaler</span>
+    <span>{{ label ?? 'Signaler' }}</span>
   </button>
 
   <!-- Modal -->

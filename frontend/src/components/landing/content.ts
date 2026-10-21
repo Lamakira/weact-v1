@@ -5,7 +5,7 @@ import {
   Wallet,
   Shield,
   CreditCard,
-  Award,
+  Lock,
   // Producer icons (for future use)
   Search,
   FileText,
@@ -70,15 +70,14 @@ const faceContent: LandingContent = {
           'Recevez vos paiements en toute sécurité via Mobile Money après chaque mission.',
       },
       {
-        icon: Award,
-        title: 'Transactions protégées et sans souci',
+        icon: Lock,
+        title: 'Argent mis de côté avant le tournage',
         description:
-          'Travaillez en toute confiance avec des producteurs vérifiés et des projets de qualité.',
+          'Le producteur paie avant le tournage ; la somme est bloquée et vous est versée une fois la mission réalisée.',
       },
     ],
-    certifiedText: 'Plateforme certifiée',
     footerText:
-      "Weact est la première plateforme de casting digitale au Bénin, connectant talents et professionnels de l'audiovisuel depuis 2026",
+      "Weact est la première plateforme de casting digitale au Bénin, connectant talents et professionnels de l'audiovisuel.",
   },
   finalCta: {
     title: 'Prêt à commencer ?',
@@ -148,9 +147,8 @@ const producerContent: LandingContent = {
           'Consultez les avis et notes des autres producteurs pour faire le bon choix.',
       },
     ],
-    certifiedText: 'Plateforme certifiée',
     footerText:
-      "Weact est la première plateforme de casting digitale au Bénin, connectant talents et professionnels de l'audiovisuel depuis 2026",
+      "Weact est la première plateforme de casting digitale au Bénin, connectant talents et professionnels de l'audiovisuel.",
   },
   finalCta: {
     title: 'Prêt à trouver vos talents ?',

@@ -87,6 +87,12 @@ watch(faces, async () => {
   <div ref="rootEl" data-testid="public-faces-view">
     <!-- Page Header -->
     <header class="mb-8 text-center">
+      <h1
+        class="mb-3 text-3xl font-bold tracking-tight text-gray-900"
+        data-testid="faces-page-title"
+      >
+        Trouver une Face
+      </h1>
       <p class="text-gray-600 text-lg max-w-2xl mx-auto">
         Découvrez notre vivier de talents béninois pour tous vos projets audiovisuels.
       </p>

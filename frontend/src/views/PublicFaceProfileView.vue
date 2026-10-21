@@ -21,6 +21,7 @@ import type { Booking } from '@/features/booking/types'
 import type { Review } from '@/features/rating/types'
 import type { CandidateFullProfile } from '@/features/candidature/types'
 import { useScrollReveal } from '@/composables/useScrollReveal'
+import { useAuthStore } from '@/stores/auth'
 
 // Formulaire de réservation (zod + vee-validate) : chunk séparé, hors du chemin critique
 const BookingFormSheet = defineAsyncComponent(
@@ -30,6 +31,7 @@ const BookingFormSheet = defineAsyncComponent(
 const { reinit } = useScrollReveal()
 
 const route = useRoute()
+const authStore = useAuthStore()
 const router = useRouter()
 const {
   face,
@@ -95,6 +97,15 @@ const tarifDemiJourneeFormatted = computed((): string | null => {
   if (accessLevel.value !== 'producer_with_access') return null
   const journalier = fullProfile.value?.tarif_journalier
   return journalier ? formatMoney(journalier / 2) : null
+})
+
+// Propriétaire : la Face qui consulte son propre profil public garde tous les blocs,
+// même vides (elle voit ce qu'il lui reste à compléter). Les autres visiteurs
+// ne voient que les blocs qui ont du contenu.
+const isOwner = computed((): boolean => {
+  if (!authStore.isFace || !face.value) return false
+  const userable = authStore.user?.userable as { id?: string } | null | undefined
+  return !!userable?.id && userable.id === face.value.id
 })
 
 const reviewUsername = computed(() => displayProfile.value?.username?.trim() ?? '')
@@ -172,6 +183,20 @@ const displayProfile = computed((): CandidateFullProfile | null => {
   }
   return null
 })
+
+const showVideos = computed((): boolean =>
+  isOwner.value ||
+  !!displayProfile.value?.presentation_video_url ||
+  !!displayProfile.value?.acting_video_url
+)
+
+const showExperiences = computed((): boolean =>
+  isOwner.value || (displayProfile.value?.experiences?.length ?? 0) > 0
+)
+
+const showReviews = computed((): boolean =>
+  isOwner.value || reviews.value.length > 0
+)
 
 // Fetch reviews for all visitors (guests + producers)
 watch(
@@ -488,18 +513,16 @@ async function handleRetry(): Promise<void> {
           <CandidatePhotoGallery id="album-photos" :photos="displayProfile.photos" />
 
           <!-- Videos Section -->
-          <CandidateVideosSection :candidate="displayProfile" />
+          <CandidateVideosSection v-if="showVideos" :candidate="displayProfile" />
 
           <!-- Experiences -->
-          <CandidateExperiencesSection :experiences="displayProfile.experiences" />
-
-          <!-- Report button -->
-          <div v-if="face" class="flex justify-end">
-            <ReportButton reportable-type="face" :reportable-id="face.id" />
-          </div>
+          <CandidateExperiencesSection
+            v-if="showExperiences"
+            :experiences="displayProfile.experiences"
+          />
 
           <!-- Reviews Section -->
-          <div class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+          <div v-if="showReviews" class="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
             <h2 class="mb-4 text-lg font-semibold text-gray-900">Avis et évaluations</h2>
             <div
               v-if="reviewsError"
@@ -524,6 +547,15 @@ async function handleRetry(): Promise<void> {
               :total="reviewsTotal"
               :loading="reviewsLoading"
               @page-change="handleReviewsPageChange"
+            />
+          </div>
+
+          <!-- Report button : en bas de page, après le dernier bloc affiché -->
+          <div class="flex justify-end">
+            <ReportButton
+              reportable-type="face"
+              :reportable-id="face.id"
+              label="Signaler ce profil"
             />
           </div>
         </template>

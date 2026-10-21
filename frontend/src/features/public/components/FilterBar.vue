@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { watchDebounced } from '@vueuse/core'
-import { Search, SlidersHorizontal, MapPin, Tag, Briefcase, X } from 'lucide-vue-next'
+import { Search, MapPin, Tag, Briefcase, X } from 'lucide-vue-next'
 import type { FilterOption, FacesFilterParams } from '../services/publicFacesApi'
 
 const props = defineProps<{
@@ -159,23 +159,6 @@ function clearSearch(): void {
             </option>
           </select>
         </div>
-
-        <!-- Advanced Filters Button (Coming Soon) -->
-        <button
-          type="button"
-          class="inline-flex h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 text-sm font-medium text-gray-400 transition-colors"
-          disabled
-          title="Les filtres avancés seront disponibles prochainement"
-          data-testid="filter-advanced"
-        >
-          <SlidersHorizontal class="h-4 w-4" />
-          <span class="hidden sm:inline">Filtres avancés</span>
-          <span
-            class="rounded bg-[#198496]/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#198496]"
-          >
-            Bientôt
-          </span>
-        </button>
       </div>
     </div>
   </div>
