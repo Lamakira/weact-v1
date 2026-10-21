@@ -6,10 +6,12 @@ namespace Tests\Feature\Mission;
 
 use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
+use App\Enums\CompensationType;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
+use App\Enums\UgcTunnelStatus;
 use App\Models\Candidature;
 use App\Models\Deliverable;
 use App\Models\Face;
@@ -264,6 +266,68 @@ class MissionToProcessTest extends TestCase
         $this->assertFalse($this->inProcess($retouche));
         $this->assertFalse($this->inProcess($completed));
         $this->assertFalse($this->inProcess($standard));
+    }
+
+    public function test_ugc_product_shipment_to_confirm(): void
+    {
+        $ugc = ['type_mission' => MissionType::Ugc, 'date_tournage' => null];
+        $paid = ['commission_paid_at' => now()->subDay()];
+        $withShipment = function (Candidature $candidature): void {
+            $candidature->shipment()->create([
+                'transporteur' => 'DHL',
+                'numero_suivi' => 'TRK123',
+                'tunnel_status' => UgcTunnelStatus::Shipped,
+                'shipped_at' => now()->subHour(),
+                'destinataire_nom' => 'Face Test',
+            ]);
+        };
+
+        // Produit seul, commission payée, Face confirmée sans colis : à traiter.
+        $toShip = $this->mission(MissionStatus::Published, $ugc + $paid);
+        $this->candidature($toShip, CandidatureStatus::Confirmed);
+
+        // Colis déjà déclaré : plus rien à confirmer.
+        $shipped = $this->mission(MissionStatus::Published, $ugc + $paid);
+        $withShipment($this->candidature($shipped, CandidatureStatus::Confirmed));
+
+        // Deux Faces, l'une expédiée l'autre non : reste à traiter.
+        $partial = $this->mission(MissionStatus::Published, $ugc + $paid);
+        $withShipment($this->candidature($partial, CandidatureStatus::Confirmed));
+        $this->candidature($partial, CandidatureStatus::Confirmed);
+
+        // Commission non payée, ou remboursement demandé / réglé : pas d'envoi à confirmer.
+        $unpaid = $this->mission(MissionStatus::Published, $ugc);
+        $this->candidature($unpaid, CandidatureStatus::Confirmed);
+        $refunding = $this->mission(MissionStatus::Published, $ugc + $paid + ['commission_refund_requested_at' => now()->subHour()]);
+        $this->candidature($refunding, CandidatureStatus::Confirmed);
+        $refunded = $this->mission(MissionStatus::Published, $ugc + $paid + ['commission_refunded_at' => now()->subHour()]);
+        $this->candidature($refunded, CandidatureStatus::Confirmed);
+
+        // Face seulement acceptée (pas encore confirmée) : rien à expédier.
+        $notConfirmed = $this->mission(MissionStatus::Published, $ugc + $paid);
+        $this->candidature($notConfirmed, CandidatureStatus::Accepted);
+
+        // Mission standard : jamais.
+        $standard = $this->mission(MissionStatus::Published, $paid);
+        $this->candidature($standard, CandidatureStatus::Confirmed);
+
+        // Hybride : le paiement est l'escrow Locked de la Face (la commission de mission ne suffit pas).
+        $hybridLocked = $this->mission(MissionStatus::Published, $ugc + ['type_compensation' => CompensationType::Hybrid]);
+        $lockedCandidature = $this->candidature($hybridLocked, CandidatureStatus::Confirmed);
+        $this->entry($this->payment($hybridLocked, MissionPaymentStatus::Paid), $lockedCandidature);
+        $hybridNoEscrow = $this->mission(MissionStatus::Published, $ugc + $paid + ['type_compensation' => CompensationType::Hybrid]);
+        $this->candidature($hybridNoEscrow, CandidatureStatus::Confirmed);
+
+        $this->assertTrue($this->inProcess($toShip));
+        $this->assertFalse($this->inProcess($shipped));
+        $this->assertTrue($this->inProcess($partial));
+        $this->assertFalse($this->inProcess($unpaid));
+        $this->assertFalse($this->inProcess($refunding));
+        $this->assertFalse($this->inProcess($refunded));
+        $this->assertFalse($this->inProcess($notConfirmed));
+        $this->assertFalse($this->inProcess($standard));
+        $this->assertTrue($this->inProcess($hybridLocked));
+        $this->assertFalse($this->inProcess($hybridNoEscrow));
     }
 
     /**

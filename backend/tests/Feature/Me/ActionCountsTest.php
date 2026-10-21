@@ -252,7 +252,24 @@ class ActionCountsTest extends TestCase
             'status' => CandidatureStatus::Pending,
         ]);
 
+        // Mission UGC payée dont une Face confirmée n'a pas de colis : envoi du produit à confirmer.
+        $toShip = Mission::factory()->create([
+            'producer_id' => $this->producer->id,
+            'status' => MissionStatus::Published,
+            'type_mission' => MissionType::Ugc,
+            'date_tournage' => null,
+            'commission_paid_at' => now()->subDay(),
+        ]);
+        Candidature::factory()->create([
+            'mission_id' => $toShip->id,
+            'face_id' => $this->otherFace->id,
+            'status' => CandidatureStatus::Confirmed,
+            'accepted_at' => now()->subDays(2),
+        ]);
+
         $response = $this->actingAs($this->producerUser)->getJson('/api/v1/me/action-counts')->assertOk();
+        $listed = collect($this->actingAs($this->producerUser)->getJson('/api/v1/producer/missions?status=to_process')->json('data'))->pluck('id');
+        $this->assertContains($toShip->uuid, $listed);
 
         $bookingsTotal = $this->actingAs($this->producerUser)->getJson('/api/v1/bookings?status=to_process')->json('meta.total');
         $missionsTotal = $this->actingAs($this->producerUser)->getJson('/api/v1/producer/missions?status=to_process&per_page=50')->json('meta.total');

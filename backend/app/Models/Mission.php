@@ -334,7 +334,8 @@ class Mission extends Model
      *  - sélection à payer (mission standard en attente de paiement, délai de 24 h non écoulé) ;
      *  - commission UGC à payer (mission UGC en attente de paiement) ;
      *  - présences à valider (mission standard payée, jour de tournage atteint, présence encore en attente) ;
-     *  - livrables UGC à valider (au moins une vidéo en revue).
+     *  - livrables UGC à valider (au moins une vidéo en revue) ;
+     *  - envoi de produit à confirmer sur une mission UGC (une Face confirmée sans colis, paiement réglé).
      *
      * @param  Builder<Mission>  $query
      */
@@ -378,7 +379,29 @@ class Mission extends Model
                     ->whereIn('status', [MissionStatus::Published->value, MissionStatus::Closed->value])
                     ->where('type_mission', $ugc)
                     ->whereHas('candidatures', fn (Builder $c) => $c->whereHas('deliverables', fn (Builder $d) => $d
-                        ->where('validation_status', DeliverableValidationStatus::InReview->value))));
+                        ->where('validation_status', DeliverableValidationStatus::InReview->value))))
+                // Envoi du produit à confirmer (to-do Producteur `ugc_shipment`) : mission UGC sans remboursement
+                // de commission, au moins une Face confirmée sans colis, paiement réglé (hybride = escrow Locked
+                // de cette Face, produit seul = commission payée).
+                ->orWhere(fn (Builder $b) => $b
+                    ->where('type_mission', $ugc)
+                    ->whereNull('commission_refund_requested_at')
+                    ->whereNull('commission_refunded_at')
+                    ->where(fn (Builder $paid) => $paid
+                        ->where(fn (Builder $hybrid) => $hybrid
+                            ->where('type_compensation', CompensationType::Hybrid->value)
+                            ->whereHas('candidatures', fn (Builder $c) => $c
+                                ->where('status', CandidatureStatus::Confirmed->value)
+                                ->whereDoesntHave('shipment')
+                                ->whereHas('paymentEntry', fn (Builder $e) => $e->where('escrow_status', EscrowStatus::Locked->value))))
+                        ->orWhere(fn (Builder $productOnly) => $productOnly
+                            ->where(fn (Builder $t) => $t
+                                ->whereNull('type_compensation')
+                                ->orWhere('type_compensation', '!=', CompensationType::Hybrid->value))
+                            ->whereNotNull('commission_paid_at')
+                            ->whereHas('candidatures', fn (Builder $c) => $c
+                                ->where('status', CandidatureStatus::Confirmed->value)
+                                ->whereDoesntHave('shipment')))));
         });
     }
 
