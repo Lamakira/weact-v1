@@ -2,7 +2,7 @@
 /**
  * ProducerDashboardPage
  * Dashboard home for Producer users (direction « Régie ») : en-tête (logo, nom,
- * Fiche publique, Publier une mission), rangée de 4 indicateurs missions, puis 4
+ * Fiche publique, Publier une mission), file « À faire », rangée de 4 indicateurs missions, puis 4
  * modules de travail (à valider, messages non lus, missions actives, réputation).
  */
 import { computed, onMounted } from 'vue'
@@ -12,6 +12,8 @@ import { useAuthStore } from '@/stores/auth'
 import { useProducerDashboardStats } from '@/features/dashboard/composables/useProducerDashboardStats'
 import { useProducerDashboardModules } from '@/features/dashboard/composables/useProducerDashboardModules'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
+import { useProducerDashboardTodo } from '@/features/dashboard/composables/useProducerDashboardTodo'
+import ProducerTodoPanel from '@/features/dashboard/components/producer/ProducerTodoPanel.vue'
 import ProducerKpiRow from '@/features/dashboard/components/producer/ProducerKpiRow.vue'
 import ToValidatePanel from '@/features/dashboard/components/producer/ToValidatePanel.vue'
 import UnreadMessagesPanel from '@/features/dashboard/components/producer/UnreadMessagesPanel.vue'
@@ -26,9 +28,16 @@ const authStore = useAuthStore()
 const { stats, isLoading: statsLoading, error: statsError, fetchStats, retry } = useProducerDashboardStats()
 const { profile, isLoading: isProfileLoading, fetchProfile } = useProducerProfilePhoto()
 const modules = useProducerDashboardModules()
+const {
+  items: todoItems,
+  isLoading: isTodoLoading,
+  error: todoError,
+  fetchTodo,
+  retry: retryTodo,
+} = useProducerDashboardTodo()
 
 onMounted(async () => {
-  await Promise.all([fetchProfile(), fetchStats(), modules.fetchAll()])
+  await Promise.all([fetchProfile(), fetchStats(), modules.fetchAll(), fetchTodo()])
 })
 
 const displayName = computed(() => profile.value?.display_name ?? '')
@@ -113,6 +122,8 @@ const publicProfileSlug = computed(() => {
 
     <!-- Invite web push (une fois, fermable) -->
     <PushSoftPrompt audience="producer" />
+
+    <ProducerTodoPanel :items="todoItems" :is-loading="isTodoLoading" :error="todoError" @retry="retryTodo" />
 
     <ProducerKpiRow :stats="stats" :is-loading="statsLoading" :error="statsError" @retry="retry" />
 
