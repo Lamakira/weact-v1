@@ -65,6 +65,30 @@ export function useBookingChat(
     }
   }
 
+  function hasUnreadIncoming(): boolean {
+    return messages.value.some((m) => !m.is_own_message && !m.read_at)
+  }
+
+  // Marque lu côté serveur UNIQUEMENT quand le fil est réellement visible (onglet au premier plan) ;
+  // le chargement / polling des messages ne marque jamais lu à lui seul. Non bloquant.
+  async function markReadIfVisible(): Promise<void> {
+    if (typeof document === 'undefined' || document.visibilityState !== 'visible') return
+    try {
+      await bookingChatApi.markRead(bookingId)
+      const readAt = new Date().toISOString()
+      for (const m of messages.value) {
+        if (!m.is_own_message && !m.read_at) m.read_at = readAt
+      }
+    } catch {
+      // ignoré : le prochain message reçu ou le retour sur l'onglet réessaiera
+    }
+  }
+
+  // Retour sur l'onglet : les messages reçus pendant l'absence sont marqués lus
+  function handleVisibilityChange(): void {
+    if (document.visibilityState === 'visible' && hasUnreadIncoming()) void markReadIfVisible()
+  }
+
   async function subscribeToChannel(): Promise<void> {
     try {
       // Echo (pusher-js + laravel-echo) chargé à la demande, hors des chunks de listes
@@ -84,6 +108,8 @@ export function useBookingChat(
               is_own_message: event.sender_id === currentUserId,
             })
           }
+          // Message de l'autre partie reçu fil ouvert : lu côté serveur (badge « Messages » à jour)
+          if (event.sender_id !== currentUserId) void markReadIfVisible()
         })
         .error(() => {
           reverbError.value = true
@@ -138,11 +164,14 @@ export function useBookingChat(
   }
 
   onMounted(async () => {
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     await loadMessages()
+    if (hasUnreadIncoming()) void markReadIfVisible()
     await subscribeToChannel()
   })
 
   onUnmounted(() => {
+    document.removeEventListener('visibilitychange', handleVisibilityChange)
     isDisposed = true
     void unsubscribeFromChannel()
   })

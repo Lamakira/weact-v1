@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1\Producer;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\BookingThreadListResource;
 use App\Http\Resources\ConversationListResource;
 use App\Http\Resources\ConversationResource;
+use App\Models\Booking;
 use App\Models\Conversation;
 use App\Services\Messaging\ConversationRealtime;
 use App\Services\Messaging\ConversationUnreadCounter;
+use App\Services\Messaging\MessageThreadLister;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -24,35 +27,26 @@ class ConversationController extends Controller
     /**
      * List all conversations for the authenticated Producer.
      *
-     * Returns conversations ordered by most recent message, with pagination.
+     * Returns mission conversations and booking chats merged, ordered by most recent message, with pagination.
      */
-    public function index(Request $request, ConversationUnreadCounter $counter): JsonResponse
+    public function index(Request $request, ConversationUnreadCounter $counter, MessageThreadLister $lister): JsonResponse
     {
         $user = $request->user();
-        $producer = $user->userable;
 
-        // Get conversations where this Producer owns the mission
-        // Order by latest message timestamp, fallback to conversation updated_at for conversations without messages
-        $conversations = Conversation::whereHas('candidature.mission', function ($query) use ($producer) {
-            $query->where('producer_id', $producer->id);
-        })
-            ->with([
-                'candidature.mission.producer',
-                'candidature.face',
-                'candidature.paymentEntry.missionPayment',
-                'latestMessage.sender.userable',
-            ])
-            ->withUnreadCountFor($user)
-            ->orderByRaw('COALESCE((SELECT MAX(created_at) FROM messages WHERE conversation_id = conversations.id), conversations.updated_at) DESC')
-            ->paginate(15);
+        // Conversations de mission + chats de booking lisibles, triés ensemble par dernier message
+        $threads = $lister->paginate($user, 15);
 
         return response()->json([
-            'data' => ConversationListResource::collection($conversations),
+            'data' => $threads->getCollection()->map(
+                fn ($thread) => $thread instanceof Booking
+                    ? (new BookingThreadListResource($thread))->resolve($request)
+                    : (new ConversationListResource($thread))->resolve($request)
+            )->values(),
             'meta' => [
-                'current_page' => $conversations->currentPage(),
-                'last_page' => $conversations->lastPage(),
-                'per_page' => $conversations->perPage(),
-                'total' => $conversations->total(),
+                'current_page' => $threads->currentPage(),
+                'last_page' => $threads->lastPage(),
+                'per_page' => $threads->perPage(),
+                'total' => $threads->total(),
                 'unread_conversations_count' => $counter->countFor($user),
             ],
         ]);

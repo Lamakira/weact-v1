@@ -9,8 +9,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\SendBookingMessageRequest;
 use App\Http\Resources\BookingMessageResource;
 use App\Models\Booking;
+use App\Services\Messaging\BookingChatRealtime;
+use App\Services\Messaging\ConversationUnreadCounter;
 use App\Services\Push\WebPushService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 
@@ -27,6 +30,9 @@ class BookingMessageController extends Controller
         if (Gate::denies('viewMessages', $booking)) {
             return $this->chatLockedResponse();
         }
+
+        // Lecture sans effet de bord : le marquage « lu » passe par POST .../messages/read, appelé
+        // par le frontend seulement quand le fil est réellement visible.
 
         $messages = $booking->messages()
             ->reorder()
@@ -47,7 +53,7 @@ class BookingMessageController extends Controller
      * Requires: booking is in an active chat status (paid, confirmed_*).
      * Broadcasts to the other party via Reverb.
      */
-    public function store(SendBookingMessageRequest $request, Booking $booking): JsonResponse
+    public function store(SendBookingMessageRequest $request, Booking $booking, BookingChatRealtime $realtime): JsonResponse
     {
         if (Gate::denies('sendMessage', $booking)) {
             return $this->chatLockedResponse();
@@ -62,6 +68,9 @@ class BookingMessageController extends Controller
         $message->load('sender.userable');
 
         broadcast(new BookingMessageSent($message))->toOthers();
+
+        // Badge « Messages » des deux parties en direct (même événement utilisateur que les conversations)
+        $realtime->messageSent($booking, $message);
 
         // Throttled web push to the other party; never fails the send.
         try {
@@ -79,6 +88,28 @@ class BookingMessageController extends Controller
             'data' => new BookingMessageResource($message),
             'message' => 'Message envoyé avec succès',
         ], 201);
+    }
+
+    /**
+     * Mark the other party's messages as read without reloading the thread.
+     *
+     * Idempotent: a second call marks nothing and broadcasts nothing.
+     */
+    public function markRead(Request $request, Booking $booking, BookingChatRealtime $realtime, ConversationUnreadCounter $counter): JsonResponse
+    {
+        if (Gate::denies('viewMessages', $booking)) {
+            return $this->chatLockedResponse();
+        }
+
+        $user = $request->user();
+        $marked = $realtime->markRead($booking, $user);
+
+        return response()->json([
+            'data' => [
+                'marked' => $marked,
+                'unread_conversations_count' => $counter->countFor($user),
+            ],
+        ]);
     }
 
     /**

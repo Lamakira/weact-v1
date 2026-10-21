@@ -61,6 +61,7 @@ export function makeContext(
 
 export function makeListItem(overrides: Partial<ConversationListItem> = {}): ConversationListItem {
   return {
+    kind: 'mission',
     id: 'conv-1',
     candidature_id: 'cand-uuid',
     mission_title: 'Lookbook Wax',

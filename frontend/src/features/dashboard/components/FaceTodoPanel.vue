@@ -15,6 +15,9 @@ import {
   Hourglass,
   UserCog,
   ListChecks,
+  UserCheck,
+  PackageCheck,
+  Star,
 } from 'lucide-vue-next'
 import RTodoList from '@/components/regie/RTodoList.vue'
 import RTodoItem from '@/components/regie/RTodoItem.vue'
@@ -48,6 +51,11 @@ const ICONS: Record<FaceTodoType, Component> = {
   confirm_prestation: CheckCircle2,
   ugc_deliverable: Video,
   pending_candidatures: Hourglass,
+  late_cancellation_contest: ShieldAlert,
+  confirm_participation: UserCheck,
+  ugc_reconfirm: UserCheck,
+  ugc_receipt: PackageCheck,
+  rate: Star,
   profile_completion: UserCog,
 }
 

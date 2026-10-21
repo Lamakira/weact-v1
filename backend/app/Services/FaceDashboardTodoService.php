@@ -7,14 +7,17 @@ namespace App\Services;
 use App\Enums\AttendanceStatus;
 use App\Enums\BookingStatus;
 use App\Enums\CandidatureStatus;
+use App\Enums\CompensationType;
 use App\Enums\DeliverableKind;
 use App\Enums\DeliverableValidationStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
 use App\Enums\UgcTunnelStatus;
 use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Face;
+use App\Models\Mission;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\Shipment;
@@ -52,23 +55,78 @@ class FaceDashboardTodoService
 
     private const RANK_CANDIDATURES = 4;
 
-    private const RANK_PROFILE = 5;
+    /** Notation facultative et sans relance : juste avant le profil. */
+    private const RANK_RATE = 5;
+
+    private const RANK_PROFILE = 6;
+
+    /** Durée (jours) pendant laquelle une mission/un booking terminé reste proposé à la notation. */
+    private const RATE_WINDOW_DAYS = 7;
 
     /**
+     * Catégorie de chaque type d'entrée (compteurs et badges). Un type absent de la table
+     * retombe sur `other`.
+     */
+    private const CATEGORIES = [
+        'booking_proposal' => 'bookings',
+        'ugc_proposal' => 'bookings',
+        'no_show_contest' => 'bookings',
+        'late_cancellation_contest' => 'bookings',
+        'confirm_prestation' => 'bookings',
+        'mission_absence_contest' => 'missions',
+        'confirm_participation' => 'candidatures',
+        'ugc_reconfirm' => 'candidatures',
+        'pending_candidatures' => 'candidatures',
+        'ugc_deliverable' => 'livrables',
+        'ugc_receipt' => 'livrables',
+        'rate' => 'other',
+        'profile_completion' => 'other',
+    ];
+
+    /**
+     * File « À faire » plafonnée à MAX_ITEMS, sans `category`.
+     *
      * @return list<array{type: string, title: string, meta: string|null, urgent_meta: string|null, action_label: string, url: string}>
      */
     public function forFace(User $user, Face $face): array
     {
+        $items = array_map(
+            function (array $item): array {
+                unset($item['category']);
+
+                return $item;
+            },
+            $this->allForFace($user, $face),
+        );
+
+        return array_slice($items, 0, self::MAX_ITEMS);
+    }
+
+    /**
+     * Toutes les entrées, non tronquées et dans le même ordre que `forFace()`, avec leur
+     * `category` (missions | candidatures | bookings | livrables | other) pour les compteurs.
+     *
+     * @return list<array{type: string, title: string, meta: string|null, urgent_meta: string|null, action_label: string, url: string, category: string}>
+     */
+    public function allForFace(User $user, Face $face): array
+    {
         return collect([
             ...$this->bookingEntries($user),
             ...$this->missionAbsenceEntries($face),
+            ...$this->candidatureConfirmationEntries($face),
+            ...$this->ugcReceiptEntries($user, $face),
             ...$this->ugcTunnelEntries($user, $face),
             ...$this->staleCandidatureEntries($face),
+            ...$this->rateEntries($user, $face),
             ...$this->profileEntries($face),
         ])
             ->sortBy([['rank', 'asc'], ['at', 'asc']])
-            ->take(self::MAX_ITEMS)
-            ->map(fn (array $entry): array => $entry['item'])
+            ->map(function (array $entry): array {
+                $item = $entry['item'];
+                $item['category'] = self::CATEGORIES[$item['type']] ?? 'other';
+
+                return $item;
+            })
             ->values()
             ->all();
     }
@@ -99,9 +157,9 @@ class FaceDashboardTodoService
                         ->whereNotNull('commission_paid_at')
                         ->where('commission_paid_at', '>', $cutoff)
                         ->whereNull('commission_refunded_at'))
-                    // Absence signalée, fenêtre de contestation ouverte.
+                    // Absence signalée ou annulation tardive du Producteur, fenêtre de contestation ouverte.
                     ->orWhere(fn (Builder $b) => $b
-                        ->where('status', BookingStatus::NoShow->value)
+                        ->whereIn('status', [BookingStatus::NoShow->value, BookingStatus::CancelledByProducer->value])
                         ->where('settlement_due_at', '>', $now)
                         ->whereNull('disputed_at')
                         ->whereNull('dispute_resolved_at'))
@@ -126,6 +184,7 @@ class FaceDashboardTodoService
                 BookingStatus::Pending => $this->proposalEntry($booking, $producerName, $url, $booking->date_debut),
                 BookingStatus::CommissionPaid => $this->ugcProposalEntry($booking, $producerName, $url),
                 BookingStatus::NoShow => $this->noShowEntry($booking, $producerName, $url),
+                BookingStatus::CancelledByProducer => $this->noShowEntry($booking, $producerName, $url, late: true),
                 BookingStatus::Paid, BookingStatus::ConfirmedByProducer => $this->confirmEntry($booking, $producerName, $url),
                 default => null,
             };
@@ -174,7 +233,7 @@ class FaceDashboardTodoService
                 'item' => [
                     'type' => 'mission_absence_contest',
                     'title' => 'Absence signalée par '.$this->producerName($mission->producer),
-                    'meta' => $mission->titre,
+                    'meta' => $this->missionMeta($mission),
                     'urgent_meta' => 'Contester avant le '.Booking::formatForBusiness($deadline, 'd/m \à H:i'),
                     'action_label' => 'Contester',
                     'url' => "/face/missions/{$mission->uuid}",
@@ -239,7 +298,7 @@ class FaceDashboardTodoService
     /**
      * @return array{rank: int, at: int, item: array<string, mixed>}|null
      */
-    private function noShowEntry(Booking $booking, string $producerName, string $url): ?array
+    private function noShowEntry(Booking $booking, string $producerName, string $url, bool $late = false): ?array
     {
         if ($booking->settlement_due_at === null) {
             return null;
@@ -254,8 +313,8 @@ class FaceDashboardTodoService
             'rank' => self::RANK_URGENT,
             'at' => $booking->settlement_due_at->getTimestamp(),
             'item' => [
-                'type' => 'no_show_contest',
-                'title' => "Absence signalée par {$producerName}",
+                'type' => $late ? 'late_cancellation_contest' : 'no_show_contest',
+                'title' => $late ? "Annulation tardive par {$producerName}" : "Absence signalée par {$producerName}",
                 'meta' => $meta === [] ? null : implode(' · ', $meta),
                 'urgent_meta' => 'Contester avant le '.Booking::formatForBusiness($booking->settlement_due_at, 'd/m \à H:i'),
                 'action_label' => 'Contester',
@@ -284,6 +343,239 @@ class FaceDashboardTodoService
                 'meta' => implode(' · ', $meta),
                 'urgent_meta' => null,
                 'action_label' => 'Confirmer',
+                'url' => $url,
+            ],
+        ];
+    }
+
+    /**
+     * Candidatures acceptées que la Face doit confirmer : mission standard payée
+     * (`confirm`, échéance Candidature::confirmationDeadline()) ou UGC (`reconfirm`,
+     * échéance Candidature::reconfirmDeadline()). Mêmes gardes que les endpoints.
+     *
+     * @return list<array{rank: int, at: int, item: array<string, mixed>}>
+     */
+    private function candidatureConfirmationEntries(Face $face): array
+    {
+        $candidatures = Candidature::query()
+            ->where('face_id', $face->id)
+            ->where('status', CandidatureStatus::Accepted->value)
+            ->with(['mission', 'paymentEntry'])
+            ->get();
+
+        $entries = [];
+
+        foreach ($candidatures as $candidature) {
+            $mission = $candidature->mission;
+
+            if ($mission === null) {
+                continue;
+            }
+
+            if ($mission->type_mission === MissionType::Ugc) {
+                // Hybride : reconfirmable seulement si l'escrow est verrouillé (garde de `reconfirm`).
+                if ($mission->type_compensation === CompensationType::Hybrid
+                    && $candidature->paymentEntry?->escrow_status !== EscrowStatus::Locked) {
+                    continue;
+                }
+
+                $deadline = $candidature->reconfirmDeadline();
+                $type = 'ugc_reconfirm';
+                $title = 'Reconfirmer votre participation';
+                $actionLabel = 'Reconfirmer';
+            } else {
+                // Cash : la sélection doit être payée (entrée d'escrow de la Face).
+                if ($candidature->paymentEntry === null) {
+                    continue;
+                }
+
+                $deadline = $candidature->confirmationDeadline();
+                $type = 'confirm_participation';
+                $title = 'Confirmer votre participation';
+                $actionLabel = 'Confirmer';
+            }
+
+            // Échéance passée : la place est expirée par le cron horaire, rien n'est plus à faire.
+            if ($deadline === null || $deadline->lte(now())) {
+                continue;
+            }
+
+            $entries[] = $this->deadlineEntry(
+                type: $type,
+                title: $title,
+                baseMeta: [$this->missionMeta($mission)],
+                deadline: $deadline,
+                urgentWording: 'reste',
+                actionLabel: $actionLabel,
+                url: "/face/missions/{$mission->uuid}",
+                rank: self::RANK_CONFIRM,
+            );
+        }
+
+        return $entries;
+    }
+
+    /**
+     * Colis UGC expédié dont la Face doit confirmer la réception (démarre le chrono Unboxing).
+     * Mêmes gardes que UgcShipmentService::markReceived (booking Accepted / candidature
+     * Confirmed, pas de remboursement de commission en cours, paiement réglé).
+     *
+     * @return list<array{rank: int, at: int, item: array<string, mixed>}>
+     */
+    private function ugcReceiptEntries(User $user, Face $face): array
+    {
+        $awaitingReceipt = fn (Builder $q) => $q
+            ->where('tunnel_status', UgcTunnelStatus::Shipped->value)
+            ->whereNull('recu_le');
+
+        $bookings = Booking::query()
+            ->where('face_id', $user->id)
+            ->where('status', BookingStatus::Accepted->value)
+            ->whereRaw("BINARY type_contenu = 'UGC'")
+            ->whereNull('commission_refund_requested_at')
+            ->whereNull('commission_refunded_at')
+            ->whereHas('shipment', $awaitingReceipt)
+            ->with(['shipment', 'producer.userable'])
+            ->get();
+
+        $candidatures = Candidature::query()
+            ->where('face_id', $face->id)
+            ->where('status', CandidatureStatus::Confirmed->value)
+            ->whereHas('shipment', $awaitingReceipt)
+            ->whereHas('mission', fn (Builder $q) => $q
+                ->where('type_mission', MissionType::Ugc->value)
+                ->whereNull('commission_refund_requested_at')
+                ->whereNull('commission_refunded_at'))
+            ->with(['shipment', 'paymentEntry', 'mission.producer'])
+            ->get();
+
+        $entries = [];
+
+        foreach ($bookings as $booking) {
+            $entries[] = $this->receiptEntry(
+                $booking->shipment,
+                (string) ($booking->nom_produit ?? 'produit UGC'),
+                $this->producerName($booking->producer?->userable),
+                "/face/bookings/{$booking->uuid}",
+            );
+        }
+
+        foreach ($candidatures as $candidature) {
+            $mission = $candidature->mission;
+
+            // Paiement réglé : hybride = escrow Locked, produit-seul = commission payée.
+            $paymentSettled = $mission->type_compensation === CompensationType::Hybrid
+                ? $candidature->paymentEntry?->escrow_status === EscrowStatus::Locked
+                : $mission->commission_paid_at !== null;
+
+            if (! $paymentSettled) {
+                continue;
+            }
+
+            $entries[] = $this->receiptEntry(
+                $candidature->shipment,
+                $this->missionMeta($mission, (string) ($mission->nom_produit ?? $mission->titre)),
+                $this->producerName($mission->producer),
+                "/face/missions/{$mission->uuid}",
+            );
+        }
+
+        return array_values(array_filter($entries));
+    }
+
+    /**
+     * @return array{rank: int, at: int, item: array<string, mixed>}|null
+     */
+    private function receiptEntry(?Shipment $shipment, string $label, string $producerName, string $url): ?array
+    {
+        if ($shipment === null) {
+            return null;
+        }
+
+        return [
+            'rank' => self::RANK_UGC,
+            'at' => $shipment->shipped_at->getTimestamp(),
+            'item' => [
+                'type' => 'ugc_receipt',
+                'title' => 'Confirmer la réception du produit',
+                'meta' => implode(' · ', array_filter([$label, $producerName])),
+                'urgent_meta' => null,
+                'action_label' => 'Confirmer',
+                'url' => $url,
+            ],
+        ];
+    }
+
+    /**
+     * Missions et bookings terminés depuis 7 jours au plus que la Face n'a pas encore notés.
+     * La notation est facultative et sans relance : l'entrée disparaît passé ce délai.
+     * Le modèle ne porte pas de date de fin : `updated_at` (posé à la clôture) en tient lieu.
+     *
+     * @return list<array{rank: int, at: int, item: array<string, mixed>}>
+     */
+    private function rateEntries(User $user, Face $face): array
+    {
+        $since = now()->subDays(self::RATE_WINDOW_DAYS);
+
+        $candidatures = Candidature::query()
+            ->where('face_id', $face->id)
+            ->where('status', CandidatureStatus::Completed->value)
+            ->where('updated_at', '>=', $since)
+            ->whereDoesntHave('ratings', fn (Builder $q) => $q->where('rater_id', $user->id))
+            ->with('mission.producer')
+            ->get();
+
+        $bookings = Booking::query()
+            ->where('face_id', $user->id)
+            ->where('status', BookingStatus::Completed->value)
+            ->where('updated_at', '>=', $since)
+            ->whereDoesntHave('bookingRatings', fn (Builder $q) => $q->where('rater_id', $user->id))
+            ->with('producer.userable')
+            ->get();
+
+        $entries = [];
+
+        foreach ($candidatures as $candidature) {
+            $mission = $candidature->mission;
+
+            if ($mission === null) {
+                continue;
+            }
+
+            $entries[] = $this->rateEntry(
+                $this->producerName($mission->producer),
+                $this->missionMeta($mission),
+                "/face/missions/{$mission->uuid}",
+                $candidature->updated_at,
+            );
+        }
+
+        foreach ($bookings as $booking) {
+            $entries[] = $this->rateEntry(
+                $this->producerName($booking->producer?->userable),
+                $booking->type_contenu === 'UGC' ? (string) ($booking->nom_produit ?? 'UGC') : $booking->type_contenu,
+                "/face/bookings/{$booking->uuid}",
+                $booking->updated_at,
+            );
+        }
+
+        return $entries;
+    }
+
+    /**
+     * @return array{rank: int, at: int, item: array<string, mixed>}
+     */
+    private function rateEntry(string $producerName, ?string $meta, string $url, ?CarbonInterface $completedAt): array
+    {
+        return [
+            'rank' => self::RANK_RATE,
+            'at' => $completedAt?->getTimestamp() ?? 0,
+            'item' => [
+                'type' => 'rate',
+                'title' => "Noter {$producerName}",
+                'meta' => $meta === '' ? null : $meta,
+                'urgent_meta' => null,
+                'action_label' => 'Noter',
                 'url' => $url,
             ],
         ];
@@ -341,6 +633,7 @@ class FaceDashboardTodoService
                 (string) ($mission->nom_produit ?? $mission->titre),
                 $this->producerName($mission->producer),
                 "/face/missions/{$mission->uuid}",
+                $this->missionMeta($mission),
             );
             if ($entry !== null) {
                 $entries[] = $entry;
@@ -359,6 +652,7 @@ class FaceDashboardTodoService
         string $label,
         string $producerName,
         string $url,
+        ?string $missionMeta = null,
     ): ?array {
         if ($shipment === null) {
             return null;
@@ -377,7 +671,7 @@ class FaceDashboardTodoService
         return $this->deadlineEntry(
             type: 'ugc_deliverable',
             title: "Envoyer la vidéo {$kind} — {$label}",
-            baseMeta: [$producerName],
+            baseMeta: [$missionMeta, $producerName],
             deadline: $deadline,
             urgentWording: 'reste',
             actionLabel: 'Envoyer la vidéo',
@@ -505,6 +799,26 @@ class FaceDashboardTodoService
         $hours = intdiv($seconds, 3600);
 
         return $hours < self::URGENT_HOURS ? "{$hours} h" : intdiv($hours, 24).' j';
+    }
+
+    /**
+     * Ligne méta d'une entrée liée à une mission : distingue deux missions de même titre par
+     * la date de tournage, ou à défaut (UGC sans tournage) par la date de création.
+     */
+    private function missionMeta(Mission $mission, ?string $label = null): string
+    {
+        $label ??= $mission->titre;
+
+        if ($mission->date_tournage !== null) {
+            return "{$label} · tournage le ".$this->shortDate($mission->date_tournage);
+        }
+
+        $created = $mission->created_at?->copy()
+            ->setTimezone((string) config('app.business_timezone'))
+            ->locale('fr')
+            ->translatedFormat('j M');
+
+        return $created === null ? $label : "{$label} · créée le {$created}";
     }
 
     private function producerName(mixed $producer): string

@@ -7,6 +7,7 @@ namespace Tests\Feature\Commands;
 use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
+use App\Mail\CandidatureNotSelectedMail;
 use App\Mail\CandidatureResponseReminderMail;
 use App\Models\Candidature;
 use App\Models\Face;
@@ -112,8 +113,20 @@ class ProducerCandidatureResponseDeadlineTest extends TestCase
         $this->assertStringContainsString("Le producteur n'a pas répondu à votre candidature pour la mission « Spot TV jus de bissap »", $notification->data['message']);
         $this->assertSame("/face/missions/{$mission->uuid}", $notification->data['url']);
 
+        // Lot D5 : e-mail « candidature non retenue » (motif : pas de réponse du Producteur) à la seule Face expirée.
+        $faceEmail = User::query()->where('userable_type', Face::class)->where('userable_id', $pending->face_id)->value('email');
+        Mail::assertQueued(CandidatureNotSelectedMail::class, 1);
+        Mail::assertQueued(CandidatureNotSelectedMail::class, function (CandidatureNotSelectedMail $mail) use ($faceEmail): bool {
+            $this->assertSame(CandidatureNotSelectedMail::REASON_NO_RESPONSE, $mail->reason);
+            $this->assertSame("Votre candidature n'a pas été retenue", $mail->envelope()->subject);
+            $this->assertStringContainsString('Spot TV jus de bissap', $mail->render());
+
+            return $mail->hasTo($faceEmail);
+        });
+
         // Idempotent.
         $this->artisan('missions:expire-unanswered-candidatures')->expectsOutputToContain('Candidatures expired: 0');
+        Mail::assertQueued(CandidatureNotSelectedMail::class, 1);
     }
 
     public function test_candidatures_whose_deadline_passed_long_ago_expire_silently(): void
@@ -135,6 +148,11 @@ class ProducerCandidatureResponseDeadlineTest extends TestCase
         $userIdOf = fn (Candidature $c): int => (int) User::query()->where('userable_type', Face::class)->where('userable_id', $c->face_id)->value('id');
         $this->assertFalse(Notification::query()->where('user_id', $userIdOf($old))->where('type', 'candidature_expired_no_response')->exists());
         $this->assertTrue(Notification::query()->where('user_id', $userIdOf($recent))->where('type', 'candidature_expired_no_response')->exists());
+
+        // Lot D5 : SILENT_EXPIRY_AFTER_HOURS vaut aussi pour l'e-mail — seule l'expiration récente en envoie un.
+        Mail::assertQueued(CandidatureNotSelectedMail::class, 1);
+        $recentEmail = User::query()->where('id', $userIdOf($recent))->value('email');
+        Mail::assertQueued(CandidatureNotSelectedMail::class, fn (CandidatureNotSelectedMail $mail): bool => $mail->hasTo($recentEmail));
     }
 
     public function test_an_expired_candidature_tells_the_face_the_producer_did_not_answer(): void
