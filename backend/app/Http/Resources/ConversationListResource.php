@@ -31,6 +31,7 @@ class ConversationListResource extends JsonResource
         $latestMessage = $this->latestMessage;
 
         return [
+            'kind' => 'mission',
             'id' => $this->uuid,
             'candidature_id' => $this->candidature_id,
             'mission_title' => data_get($this->candidature, 'mission.titre', ''),

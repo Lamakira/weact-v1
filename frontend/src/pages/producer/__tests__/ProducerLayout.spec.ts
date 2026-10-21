@@ -5,6 +5,7 @@ import { ref } from 'vue'
 import ProducerLayout from '../ProducerLayout.vue'
 import { producerApi } from '@/features/producer/services/producerApi'
 import apiClient from '@/services/apiClient'
+import { resetAllSharedCachedResources } from '@/lib/createSharedCachedResource'
 import type { SidebarItem } from '@/components/layout'
 
 vi.mock('@/features/producer/services/producerApi', () => ({
@@ -80,6 +81,16 @@ const DashboardLayoutStub = {
   template: '<div><slot /></div>',
 }
 
+// Routage des GET : compteurs d'actions (lot D3) et compteur de conversations non lues.
+function mockApi(actionCounts: Record<string, number> = {}, unread = 0) {
+  vi.mocked(apiClient.get).mockImplementation(async (url: string) => {
+    if (url === '/me/action-counts') return { data: { data: actionCounts } }
+    return { data: { data: { count: unread } } }
+  })
+}
+
+const actionCountCalls = () => vi.mocked(apiClient.get).mock.calls.filter(([url]) => url === '/me/action-counts').length
+
 describe('ProducerLayout', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -88,23 +99,45 @@ describe('ProducerLayout', () => {
     routeHolder.route.fullPath = '/producer/dashboard'
     basicInfoHolder.info.value = null
     basicInfoHolder.fetch.mockResolvedValue(undefined)
+    resetAllSharedCachedResources()
+    mockApi()
   })
 
   afterEach(() => {
     wrappers.splice(0).forEach((w) => w.unmount())
   })
 
-  it('feeds the in_review count as a badge on the Validation des livrables item', async () => {
-    vi.mocked(producerApi.listDeliverablesToReview).mockResolvedValue({ data: [{}, {}, {}] as never })
+  it('feeds the action counters as badges on Missions, Bookings and Validation des livrables', async () => {
+    mockApi({ missions: 2, bookings: 4, livrables: 3 })
     const wrapper = mount(ProducerLayout, {
       global: { stubs: { DashboardLayout: DashboardLayoutStub, EmailVerificationBanner: true, RouterView: true } },
     })
     wrappers.push(wrapper)
     await flushPromises()
 
-    const items = wrapper.findComponent({ name: 'DashboardLayout' }).props('sidebarItems') as SidebarItem[]
+    const layout = wrapper.findComponent({ name: 'DashboardLayout' })
+    const items = layout.props('sidebarItems') as SidebarItem[]
     expect(items.find((i) => i.to === '/producer/ugc/validation')?.badge).toBe(3)
+    expect(items.find((i) => i.to === '/producer/missions')?.badge).toBe(2)
+    expect(items.find((i) => i.to === '/producer/bookings')?.badge).toBe(4)
     expect(items.find((i) => i.to === '/producer/dashboard')?.badge).toBeUndefined()
+    // Aucun chargement de la liste complète des livrables pour le badge.
+    expect(producerApi.listDeliverablesToReview).not.toHaveBeenCalled()
+  })
+
+  it('bottom bar: Accueil, Missions, Bookings, Messages, Livrables with their badges', async () => {
+    mockApi({ missions: 2, bookings: 4, livrables: 3 }, 5)
+    const wrapper = mount(ProducerLayout, {
+      global: { stubs: { DashboardLayout: DashboardLayoutStub, EmailVerificationBanner: true, RouterView: true } },
+    })
+    wrappers.push(wrapper)
+    await flushPromises()
+
+    const tabs = wrapper.findComponent({ name: 'DashboardLayout' }).props('mobileTabs') as SidebarItem[]
+    expect(tabs.map((t) => t.label)).toEqual(['Accueil', 'Missions', 'Bookings', 'Messages', 'Livrables'])
+    expect(tabs.map((t) => t.badge)).toEqual([undefined, 2, 4, 5, 3])
+    expect(tabs.find((t) => t.label === 'Messages')?.badgeKind).toBe('messages')
+    expect(tabs.find((t) => t.label === 'Livrables')?.to).toBe('/producer/ugc/validation')
   })
 
   describe('WhatsApp reminder banner', () => {
@@ -221,12 +254,9 @@ describe('ProducerLayout', () => {
   })
 
   // F13: the layout persists for the whole session (keep-alive rework removed the
-  // per-route remount that used to re-run onMounted), so the badge count must be
-  // re-fetched on every child-route navigation. The store's fetchCount delegates
-  // 1:1 to producerApi.listDeliverablesToReview (no dedup), so the API mock's call
-  // count is a faithful proxy for fetchCount invocations.
-  it('re-fetches the validation count on each child-route navigation', async () => {
-    vi.mocked(producerApi.listDeliverablesToReview).mockResolvedValue({ data: [{}] as never })
+  // per-route remount that used to re-run onMounted), so the badges must be
+  // re-fetched on every child-route navigation (the user's own actions emit no event to them).
+  it('re-fetches the action counters on each child-route navigation', async () => {
     wrappers.push(
       mount(ProducerLayout, {
         global: { stubs: { DashboardLayout: DashboardLayoutStub, EmailVerificationBanner: true, RouterView: true } },
@@ -234,21 +264,19 @@ describe('ProducerLayout', () => {
     )
     await flushPromises()
     // Baseline: one fetch from onMounted
-    expect(producerApi.listDeliverablesToReview).toHaveBeenCalledTimes(1)
+    expect(actionCountCalls()).toBe(1)
 
     // Simulate a child-route navigation while the layout instance persists
     routeHolder.route.path = '/producer/missions'
     routeHolder.route.fullPath = '/producer/missions'
     await flushPromises()
 
-    // Expected contract: a route.path watcher re-fetches the count (cf. FaceLayout)
-    expect(producerApi.listDeliverablesToReview).toHaveBeenCalledTimes(2)
+    expect(actionCountCalls()).toBe(2)
   })
 
   describe('Messages unread badge', () => {
     async function mountLayoutWithCount(count: number) {
-      vi.mocked(apiClient.get).mockResolvedValue({ data: { data: { count } } })
-      vi.mocked(producerApi.listDeliverablesToReview).mockResolvedValue({ data: [] as never })
+      mockApi({}, count)
       const wrapper = mount(ProducerLayout, {
         global: { stubs: { DashboardLayout: DashboardLayoutStub, EmailVerificationBanner: true, RouterView: true } },
       })
@@ -278,7 +306,8 @@ describe('ProducerLayout', () => {
 
     it('fetches once at boot and never again on route changes', async () => {
       await mountLayoutWithCount(2)
-      expect(apiClient.get).toHaveBeenCalledTimes(1)
+      const unreadCalls = () => vi.mocked(apiClient.get).mock.calls.filter(([url]) => url === '/producer/conversations/unread-count').length
+      expect(unreadCalls()).toBe(1)
 
       for (const path of ['/producer/missions', '/producer/wallet', '/producer/messages']) {
         routeHolder.route.path = path
@@ -286,7 +315,7 @@ describe('ProducerLayout', () => {
         await flushPromises()
       }
 
-      expect(apiClient.get).toHaveBeenCalledTimes(1)
+      expect(unreadCalls()).toBe(1)
     })
   })
 

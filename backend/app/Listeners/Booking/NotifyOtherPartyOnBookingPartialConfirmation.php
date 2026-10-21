@@ -6,6 +6,7 @@ namespace App\Listeners\Booking;
 
 use App\Events\BookingPartiallyConfirmed;
 use App\Mail\BookingFaceConfirmedMail;
+use App\Mail\BookingProducerConfirmedMail;
 use App\Models\Booking;
 use App\Models\Notification;
 use Illuminate\Support\Facades\Log;
@@ -70,6 +71,35 @@ class NotifyOtherPartyOnBookingPartialConfirmation
             }
         } catch (\Throwable $e) {
             Log::warning('Partial confirmation email queue failed', [
+                'booking_id' => $event->booking->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        // Le Producteur a confirmé en premier : e-mail à la Face avec l'échéance de son paiement automatique.
+        try {
+            $booking = $event->booking;
+
+            if ($event->confirmer->id === $booking->producer_id) {
+                $booking->loadMissing('face.userable', 'producer.userable');
+                $faceEmail = trim((string) $booking->face?->email);
+
+                if ($faceEmail !== '') {
+                    // Confirmé par le Producteur seul : AutoCompleteBookingsCommand paie à date_fin + 72 h (échéance
+                    // absente de BookingResource pour ce statut). Déjà passée ⇒ le prochain passage horaire suffit.
+                    $dueAt = $booking->date_fin?->copy()->addHours(72);
+                    $dueLabel = $dueAt !== null && $dueAt->isFuture()
+                        ? Booking::formatForBusiness($dueAt, 'd/m/Y')
+                        : null;
+
+                    // afterCommit : BookingPartiallyConfirmed est dispatché dans la transaction de confirm().
+                    Mail::to($faceEmail)->queue(
+                        (new BookingProducerConfirmedMail($booking, $dueLabel))->afterCommit()
+                    );
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Partial confirmation email (Face) queue failed', [
                 'booking_id' => $event->booking->id,
                 'error' => $e->getMessage(),
             ]);

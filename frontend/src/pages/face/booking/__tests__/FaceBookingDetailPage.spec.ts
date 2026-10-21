@@ -263,7 +263,7 @@ async function mountPage(
         },
         UgcEngagementModal: {
           name: 'UgcEngagementModal',
-          props: ['isOpen', 'nombreVideos', 'nomProduit', 'isSubmitting'],
+          props: ['isOpen', 'nombreVideos', 'nomProduit', 'typeCompensation', 'montantFaceRecoit', 'isSubmitting'],
           emits: ['confirm', 'cancel'],
           template: '<div data-testid="ugc-engagement-modal-stub" :data-open="String(isOpen)"/>',
         },
@@ -751,7 +751,7 @@ describe('FaceBookingDetailPage — UGC commission CTA (story 1.6)', () => {
     expect(mockAccept).toHaveBeenCalledWith('booking-uuid-1')
   })
 
-  it('accepts a cash booking directly without opening the engagement modal (story 2.4 witness)', async () => {
+  it('opens the recap dialog (no request) for a cash booking, then accepts once on confirm (story 2.4 witness + lot D9)', async () => {
     mockAccept.mockResolvedValueOnce(makeBooking({ status: 'accepted' }))
     const wrapper = await mountPage(
       makeBooking({ status: 'pending', can_accept: true, accepted_at: null }),
@@ -762,8 +762,101 @@ describe('FaceBookingDetailPage — UGC commission CTA (story 1.6)', () => {
     await acceptButton!.trigger('click')
     await flushPromises()
 
-    expect(mockAccept).toHaveBeenCalledWith('booking-uuid-1')
+    expect(mockAccept).not.toHaveBeenCalled()
+    expect(document.body.querySelector('[data-testid="accept-recap-dialog"]')).not.toBeNull()
     expect(wrapper.find('[data-testid="ugc-engagement-modal-stub"]').attributes('data-open')).toBe('false')
+
+    document.body.querySelector<HTMLButtonElement>('[data-testid="accept-recap-confirm"]')!.click()
+    await flushPromises()
+
+    expect(mockAccept).toHaveBeenCalledTimes(1)
+    expect(mockAccept).toHaveBeenCalledWith('booking-uuid-1')
+    expect(document.body.querySelector('[data-testid="accept-recap-dialog"]')).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('passes the compensation type and net amount to the UGC engagement modal (lot D9)', async () => {
+    const wrapper = await mountPage(
+      makeBooking({
+        status: 'commission_paid',
+        type_contenu: 'UGC',
+        can_accept: true,
+        type_compensation: 'hybrid',
+        montant_face_recoit: 8500,
+        nombre_videos: 2,
+        nom_produit: 'Tenue Shade Fit',
+        accepted_at: null,
+      }),
+    )
+
+    const stub = wrapper.findComponent({ name: 'UgcEngagementModal' })
+    expect(stub.props('typeCompensation')).toBe('hybrid')
+    expect(stub.props('montantFaceRecoit')).toBe(8500)
+  })
+
+  describe('cash accept recap dialog (lot D9)', () => {
+    async function openRecap(overrides: Record<string, unknown> = {}) {
+      const wrapper = await mountPage(
+        makeBooking({
+          status: 'pending',
+          can_accept: true,
+          accepted_at: null,
+          date_debut: '2026-11-10T12:00:00Z',
+          date_fin: '2026-11-12T12:00:00Z',
+          duree_heures: 6,
+          lieu: 'Cotonou',
+          montant_face_recoit: 42500,
+          ...overrides,
+        }),
+      )
+      await wrapper.findAll('button').find((b) => b.text() === 'Accepter')!.trigger('click')
+      await flushPromises()
+      return wrapper
+    }
+
+    it('shows dates, place, duration, net amount and the verified cancellation rules', async () => {
+      const wrapper = await openRecap()
+      const text = document.body.querySelector('[data-testid="accept-recap-dialog"]')!.textContent ?? ''
+
+      expect(text).toContain('Du 10 novembre 2026 au 12 novembre 2026')
+      expect(text).toContain('Cotonou')
+      expect(text).toContain('max 6h')
+      expect(document.body.querySelector('[data-testid="accept-recap-amount"]')!.textContent).toContain('42')
+      expect(text).toContain("jusqu'à 24 h avant le jour du tournage")
+      expect(text).toContain("pénalité d'un point")
+      expect(text).toContain('24 h pour payer')
+      wrapper.unmount()
+    })
+
+    it('Retour closes the dialog without sending any request', async () => {
+      const wrapper = await openRecap()
+      document.body.querySelector<HTMLButtonElement>('[data-testid="accept-recap-back"]')!.click()
+      await flushPromises()
+
+      expect(document.body.querySelector('[data-testid="accept-recap-dialog"]')).toBeNull()
+      expect(mockAccept).not.toHaveBeenCalled()
+      wrapper.unmount()
+    })
+
+    it('Escape closes the dialog without sending any request', async () => {
+      const wrapper = await openRecap()
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+
+      expect(document.body.querySelector('[data-testid="accept-recap-dialog"]')).toBeNull()
+      expect(mockAccept).not.toHaveBeenCalled()
+      wrapper.unmount()
+    })
+
+    it('puts the initial focus on the confirm action', async () => {
+      const wrapper = await openRecap()
+      await flushPromises()
+
+      expect(document.activeElement).toBe(
+        document.body.querySelector('[data-testid="accept-recap-confirm"]'),
+      )
+      wrapper.unmount()
+    })
   })
 
   it('hides the 24h payment deadline for an accepted UGC booking and keeps it for cash (story 2.4)', async () => {

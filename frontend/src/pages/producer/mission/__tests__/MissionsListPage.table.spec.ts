@@ -15,6 +15,9 @@ vi.mock('@/stores/auth', () => ({
   }),
 }))
 
+vi.mock('@/stores/actionCounts', () => ({
+  useActionCountsStore: () => ({ counts: { bookings: 0, candidatures: 0, missions: 0, livrables: 0, messages: 0 } }),
+}))
 vi.mock('@/composables/useToast', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn(), clear: vi.fn(), toast: {} }),
 }))

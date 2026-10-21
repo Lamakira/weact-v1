@@ -233,5 +233,27 @@ describe('DashboardSidebar', () => {
       const wrapper = mountSidebar({ items: itemsWithZeroBadge })
       expect(wrapper.find('[data-testid="sidebar-badge"]').exists()).toBe(false)
     })
+
+    it('shows a pastille on the icon when collapsed instead of nothing (lot D3)', () => {
+      mockIsExpanded.value = false
+      const wrapper = mountSidebar({
+        items: [
+          { label: 'Mes bookings', icon: FileText, to: '/face/bookings', badge: 3 },
+          { label: 'Messages', icon: MessageCircle, to: '/face/messages', badge: 150 },
+          { label: 'Mon profil', icon: User, to: '/face/profile', badge: 0 },
+        ],
+      })
+      // Pas de badge « ouvert » ; une pastille par item avec une valeur > 0, plafonnée à 99+.
+      expect(wrapper.find('[data-testid="sidebar-badge"]').exists()).toBe(false)
+      const pastilles = wrapper.findAll('[data-testid="sidebar-badge-collapsed"]')
+      expect(pastilles.map((p) => p.text())).toEqual(['3', '99+'])
+    })
+
+    it('shows no pastille when expanded', () => {
+      const wrapper = mountSidebar({
+        items: [{ label: 'Mes bookings', icon: FileText, to: '/face/bookings', badge: 3 }],
+      })
+      expect(wrapper.find('[data-testid="sidebar-badge-collapsed"]').exists()).toBe(false)
+    })
   })
 })

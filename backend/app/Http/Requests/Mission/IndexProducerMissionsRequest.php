@@ -19,6 +19,9 @@ class IndexProducerMissionsRequest extends FormRequest
 
     public const DEFAULT_PER_PAGE = 15;
 
+    /** Filtre « À traiter » (lot D7) : valeur de `status` qui n'est pas un statut de mission. */
+    public const TO_PROCESS = 'to_process';
+
     public const SORT_KEYS = ['created_at', 'date_tournage', 'date_limite_candidature', 'status', 'candidatures_count'];
 
     public function authorize(): bool
@@ -35,7 +38,7 @@ class IndexProducerMissionsRequest extends FormRequest
         return [
             'sort' => ['sometimes', 'string', Rule::in(self::SORT_KEYS)],
             'direction' => ['sometimes', 'string', Rule::in(['asc', 'desc'])],
-            'status' => ['sometimes', 'string', Rule::enum(MissionStatus::class)],
+            'status' => ['sometimes', 'string', Rule::in([...MissionStatus::values(), self::TO_PROCESS])],
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', Rule::in(self::PER_PAGE_OPTIONS)],
         ];

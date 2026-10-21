@@ -10,7 +10,9 @@ use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
+use App\Enums\UgcTunnelStatus;
 use App\Services\MissionPaymentService;
+use App\Support\BusinessTimeSql;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -269,6 +271,74 @@ class Candidature extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Filtre « À traiter » de « Mes candidatures » (lot D7) : candidatures où la Face doit agir
+     * maintenant, c'est-à-dire sélectionnées (Accepted) avec un délai encore ouvert :
+     *  - reconfirmation UGC : accepted_at + ugc.reconfirm_window_hours (reconfirmDeadline) ;
+     *  - participation à confirmer, mission standard : confirmationDeadline() = max(min(accepted_at + 48 h,
+     *    début du tournage) ;
+     *  - vidéo UGC à envoyer (scopeAwaitingFaceVideo), candidature déjà confirmée.
+     *
+     * @param  Builder<Candidature>  $query
+     */
+    public function scopeToProcess(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $root) => $root
+            ->where(fn (Builder $b) => $b->toProcessSelection())
+            ->orWhere(fn (Builder $b) => $b->awaitingFaceVideo()));
+    }
+
+    /**
+     * Sélection acceptée dont le délai de (re)confirmation est encore ouvert (voir scopeToProcess).
+     *
+     * @param  Builder<Candidature>  $query
+     */
+    public function scopeToProcessSelection(Builder $query): Builder
+    {
+        $now = now();
+        $ugc = MissionType::Ugc->value;
+
+        return $query->where('status', CandidatureStatus::Accepted->value)
+            ->whereNotNull('accepted_at')
+            ->where(function (Builder $cases) use ($now, $ugc): void {
+                $cases
+                    ->orWhere(fn (Builder $b) => $b
+                        ->where('accepted_at', '>', $now->copy()->subHours((int) config('ugc.reconfirm_window_hours', 48)))
+                        ->whereHas('mission', fn (Builder $m) => $m->where('type_mission', $ugc)))
+                    // Plancher : toujours au moins 12 h pour confirmer, même si le tournage est imminent.
+                    ->orWhere(fn (Builder $b) => $b
+                        ->where('accepted_at', '>', $now->copy()->subHours(MissionPaymentService::FACE_CONFIRMATION_MIN_HOURS))
+                        ->whereHas('mission', fn (Builder $m) => $m->where('type_mission', '!=', $ugc)))
+                    // Sinon 48 h, tant que le jour de tournage n'est pas atteint.
+                    ->orWhere(fn (Builder $b) => $b
+                        ->where('accepted_at', '>', $now->copy()->subHours(MissionPaymentService::FACE_CONFIRMATION_WINDOW_HOURS))
+                        ->whereHas('mission', fn (Builder $m) => $m
+                            ->where('type_mission', '!=', $ugc)
+                            ->where(fn (Builder $d) => $d
+                                ->whereNull('date_tournage')
+                                ->orWhereRaw(BusinessTimeSql::localInstant('date_tournage').' > ?', [$now]))));
+            });
+    }
+
+    /**
+     * Candidatures UGC engagées (Confirmed) où la Face a une vidéo à envoyer : même règle de tunnel que
+     * Booking::awaitingFaceVideo (Unboxing après réception, Avis attendu). Source du compteur « livrables » et du filtre « À traiter ».
+     *
+     * @param  Builder<Candidature>  $query
+     */
+    public function scopeAwaitingFaceVideo(Builder $query): Builder
+    {
+        return $query->where('status', CandidatureStatus::Confirmed->value)
+            // Garde de remboursement de UgcDeliverableService::guardCandidature : pas d'upload pendant / après un remboursement.
+            ->whereHas('mission', fn (Builder $m) => $m->where('type_mission', MissionType::Ugc->value)
+                ->whereNull('commission_refund_requested_at')
+                ->whereNull('commission_refunded_at'))
+            ->whereHas('shipment', fn (Builder $s) => $s->whereIn('tunnel_status', [
+                UgcTunnelStatus::Received->value,
+                UgcTunnelStatus::AvisPending->value,
+            ]));
     }
 
     /**

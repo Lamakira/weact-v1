@@ -8,6 +8,10 @@ const userRef = vi.hoisted(() => ({ value: { id: 7, userable_type: 'Producer' } 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: userRef.value }),
 }))
+// Pastille « À traiter » (lot D3) : compteurs fixes, le store réel n'est pas sous test ici.
+vi.mock('@/stores/actionCounts', () => ({
+  useActionCountsStore: () => ({ counts: { bookings: 0, candidatures: 0, missions: 0, livrables: 0, messages: 0 } }),
+}))
 
 const getBookings = vi.hoisted(() => vi.fn())
 vi.mock('../../services/bookingApi', () => ({
@@ -290,6 +294,35 @@ describe('BookingsListContent', () => {
     const { wrapper } = await mountContent('producer', '/producer/bookings?status=cancelled')
     expect(wrapper.text()).toContain('Aucun booking avec le statut "Annulés" trouvé.')
     expect(wrapper.text()).not.toContain('Aller')
+  })
+
+  it('offre la pastille « À traiter » juste après « Tous » et l’envoie à l’API', async () => {
+    const { wrapper, router } = await mountContent('producer')
+    const pills = wrapper.findAll('button.rounded-full').map((b) => b.text())
+    expect(pills.slice(0, 3)).toEqual(['Tous', 'À traiter', 'En attente'])
+
+    await wrapper.findAll('button.rounded-full').find((b) => b.text() === 'À traiter')!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toMatchObject({ status: 'to_process' })
+    expect(getBookings).toHaveBeenLastCalledWith(1, 'to_process', { sort: null, direction: 'asc', perPage: 15 })
+  })
+
+  it('names the « À traiter » filter in the empty state', async () => {
+    getBookings.mockResolvedValue(listResponse([]))
+    const { wrapper } = await mountContent('face', '/face/bookings?status=to_process')
+    expect(wrapper.text()).toContain('Aucun booking à traiter pour le moment.')
+  })
+
+  it('tableau : le bouton d’action remplace « Voir » quand une action existe', async () => {
+    getBookings.mockResolvedValue(listResponse([
+      makeBooking('b1', { status: 'accepted', can_pay: true, payment_deadline: '2026-10-21T10:00:00Z' }),
+      makeBooking('b2', { status: 'completed' }),
+    ]))
+    const { wrapper } = await mountContent('producer')
+
+    const actions = wrapper.findAll('[data-testid="booking-table-action"]')
+    expect(actions.map((a) => a.text())).toEqual(['Payer', 'Voir'])
+    expect(actions[0]!.attributes('href')).toBe('/producer/bookings/b1')
   })
 
   it('shows the error with a retry that refetches', async () => {

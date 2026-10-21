@@ -18,6 +18,8 @@ class BookingExpired implements ShouldBroadcast
 
     public function __construct(
         public readonly Booking $booking,
+        // Paiement tardif ayant expiré le booking : le Producteur est déjà prévenu par WalletCreditedMail.
+        public readonly bool $producerCredited = false,
     ) {}
 
     /**

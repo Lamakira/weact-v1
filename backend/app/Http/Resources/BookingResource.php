@@ -96,6 +96,11 @@ class BookingResource extends JsonResource
             'can_pay' => $user && $user->can('pay', $this->resource),
             // Short-circuit: skip the DB exists() check for non-completed bookings
             // to avoid N+1 on list endpoints.
+            // Liste uniquement (BookingController::index) : « faut-il agir maintenant ? » = Booking::toProcess.
+            'requires_my_action' => $this->when(
+                array_key_exists('requires_my_action', $this->resource->getAttributes()),
+                fn () => (bool) $this->resource->getAttribute('requires_my_action'),
+            ),
             'can_rate' => $user && $this->status === BookingStatus::Completed && $this->canRate($user),
             'my_rating' => $this->when(
                 $this->resource->relationLoaded('raterBookingRating'),

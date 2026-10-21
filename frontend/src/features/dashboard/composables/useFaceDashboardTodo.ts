@@ -3,6 +3,7 @@ import { isAxiosError } from 'axios'
 import type { FaceTodoItem } from '../types'
 import { dashboardApi } from '../services/dashboardApi'
 import { formatApiError } from '@/services/errorFormatter'
+import { useTodoAutoRefresh } from './useTodoAutoRefresh'
 
 /**
  * Composable for the Face dashboard « À faire » queue.
@@ -29,6 +30,9 @@ export function useFaceDashboardTodo() {
       isLoading.value = false
     }
   }
+
+  // Recharge au retour sur l'onglet et à chaque notification temps réel
+  useTodoAutoRefresh(fetchTodo)
 
   return { items, isLoading, error, fetchTodo, retry: fetchTodo }
 }

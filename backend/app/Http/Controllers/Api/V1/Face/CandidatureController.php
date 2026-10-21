@@ -8,8 +8,6 @@ use App\Enums\CandidatureStatus;
 use App\Enums\CompensationType;
 use App\Enums\ErrorCodes;
 use App\Enums\EscrowStatus;
-use App\Enums\FaceSubscriptionTier;
-use App\Enums\MissionGender;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
@@ -25,7 +23,7 @@ use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
-use App\Services\FaceEntitlementService;
+use App\Services\MissionEligibility;
 use App\Services\MissionPaymentService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -37,7 +35,7 @@ use Illuminate\Support\Facades\Mail;
 class CandidatureController extends Controller
 {
     public function __construct(
-        private readonly FaceEntitlementService $entitlement,
+        private readonly MissionEligibility $eligibility,
     ) {}
 
     /**
@@ -64,7 +62,10 @@ class CandidatureController extends Controller
             ->latest();
 
         // Optional status filter
-        if ($request->has('status') && $request->status !== '') {
+        if ($request->query('status') === 'to_process') {
+            // Lot D7 : candidatures où la Face doit agir maintenant (Candidature::toProcess).
+            $query->toProcess();
+        } elseif ($request->has('status') && $request->status !== '') {
             $status = CandidatureStatus::tryFrom($request->status);
             if ($status) {
                 $query->where('status', $status);
@@ -121,11 +122,12 @@ class CandidatureController extends Controller
             ], 422);
         }
 
-        // Gate UGC (FR5) : seules les Faces abonnées Pro+ postulent aux missions UGC.
-        // Après le check duplicate : une Face détentrice d'une candidature reçoit
-        // ALREADY_APPLIED, pas le paywall (cohérent avec l'exception candidature de show()).
-        if ($mission->type_mission === MissionType::Ugc
-            && ! $this->entitlement->canAccessUgc($face)) {
+        // Éligibilité (abonnement UGC / standard, puis genre) : source unique MissionEligibility (lot D8).
+        // Après le check duplicate : une Face détentrice d'une candidature reçoit ALREADY_APPLIED, pas le paywall
+        // (cohérent avec l'exception candidature de show()). Le booking direct reste ouvert à toutes les Faces.
+        $eligibility = $this->eligibility->evaluate($face, $mission);
+
+        if ($eligibility === MissionEligibility::UGC_SUBSCRIPTION_REQUIRED) {
             return response()->json(
                 ErrorCodes::UgcSubscriptionRequired->envelope(
                     'Postuler aux missions UGC est réservé aux Faces abonnées Pro ou Élite.'
@@ -134,10 +136,8 @@ class CandidatureController extends Controller
             );
         }
 
-        // Candidatures réservées aux Faces abonnées (Starter et plus) ; le booking direct reste ouvert à toutes.
-        // Après le check duplicate : une Face qui a déjà postulé reçoit ALREADY_APPLIED, pas le paywall.
-        if ($mission->type_mission !== MissionType::Ugc
-            && $this->entitlement->capabilities($face)->tier === FaceSubscriptionTier::Free) {
+        // Candidatures standard réservées aux Faces abonnées (Starter et plus).
+        if ($eligibility === MissionEligibility::SUBSCRIPTION_REQUIRED) {
             return response()->json(
                 ErrorCodes::SubscriptionRequired->envelope(
                     'Postuler aux missions est réservé aux Faces abonnées (Starter et plus). Les Producteurs peuvent toujours vous réserver directement.',
@@ -147,11 +147,8 @@ class CandidatureController extends Controller
             );
         }
 
-        // Check gender compatibility
-        if ($mission->genre_voulu !== MissionGender::Tous) {
-            $faceSexe = $face->sexe;
-
-            if ($faceSexe === null) {
+        if ($eligibility === MissionEligibility::GENDER_MISMATCH) {
+            if ($face->sexe === null) {
                 return response()->json([
                     'error' => [
                         'code' => 'gender_mismatch',
@@ -160,14 +157,12 @@ class CandidatureController extends Controller
                 ], 422);
             }
 
-            if ($faceSexe->value !== $mission->genre_voulu->value) {
-                return response()->json([
-                    'error' => [
-                        'code' => 'gender_mismatch',
-                        'message' => "Cette mission recherche un profil {$mission->genre_voulu->label()}. Votre profil ne correspond pas au genre requis.",
-                    ],
-                ], 422);
-            }
+            return response()->json([
+                'error' => [
+                    'code' => 'gender_mismatch',
+                    'message' => "Cette mission recherche un profil {$mission->genre_voulu->label()}. Votre profil ne correspond pas au genre requis.",
+                ],
+            ], 422);
         }
 
         // Create the candidature (status defaults to 'pending')

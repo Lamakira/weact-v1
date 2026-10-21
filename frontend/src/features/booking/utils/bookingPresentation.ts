@@ -496,3 +496,84 @@ export function bookingListSubtitle(booking: Booking, role: BookingRole): string
       return 'Booking'
   }
 }
+
+/** « jeu. 23 oct. à 14h00 » dans le fuseau métier (échéances des cartes de la liste). */
+export function formatDeadlineLong(iso: string): string {
+  const time = new Intl.DateTimeFormat('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+    timeZone: BOOKING_BUSINESS_TIMEZONE,
+  })
+    .format(new Date(iso))
+    .replace(':', 'h')
+  return `${formatShortDate(iso)} à ${time}`
+}
+
+/**
+ * Action principale d'une ligne de la liste des bookings (lot D7) : ce que l'utilisateur doit
+ * faire MAINTENANT, selon son rôle et le statut — miroir du filtre « À traiter » du backend
+ * (Booking::toProcess). Elle MÈNE à la page du booking, où l'action se fait ; aucune mutation
+ * depuis la liste. `deadline` : phrase d'échéance complète, quand le backend en fournit une.
+ */
+export interface BookingListAction {
+  label: string
+  deadline: string | null
+}
+
+export function bookingListAction(booking: Booking, role: BookingRole, now: number = Date.now()): BookingListAction | null {
+  // Source unique : le serveur (Booking::toProcess) dit si une action est attendue (fenêtre encore ouverte…).
+  if (booking.requires_my_action === false) return null
+  const producer = role === 'producer'
+  const ugc = isUgc(booking)
+  const act = (label: string, deadlinePrefix?: string, deadlineIso?: string | null): BookingListAction => ({
+    label,
+    deadline: deadlinePrefix && deadlineIso ? `${deadlinePrefix} ${formatDeadlineLong(deadlineIso)}` : null,
+  })
+  const tunnel = booking.shipment?.tunnel_status
+  const shootStarted = booking.date_debut ? new Date(booking.date_debut).getTime() <= now : false
+
+  switch (booking.status) {
+    case BookingStatus.PENDING:
+      if (producer && ugc) {
+        return act('Payer la commission', 'Payer la commission avant le', booking.ugc_commission_payment_deadline)
+      }
+      if (!producer && !ugc && booking.can_accept) {
+        return act('Répondre', 'Répondre avant le', booking.face_response_deadline)
+      }
+      return null
+
+    case BookingStatus.COMMISSION_PAID:
+      return !producer && booking.can_accept ? act('Répondre') : null
+
+    case BookingStatus.ACCEPTED:
+      if (ugc) {
+        if (producer) {
+          if (!booking.shipment) return act("Confirmer l'expédition")
+          return tunnel === 'unboxing_in_review' || tunnel === 'avis_in_review' ? act('Valider la vidéo') : null
+        }
+        if (tunnel === 'shipped') return act('Confirmer la réception')
+        return tunnel === 'received' || tunnel === 'avis_pending' ? act('Envoyer la vidéo') : null
+      }
+      return producer && booking.can_pay ? act('Payer', 'Payer avant le', booking.payment_deadline) : null
+
+    case BookingStatus.PAID:
+      return shootStarted ? act('Confirmer la fin') : null
+
+    case BookingStatus.CONFIRMED_BY_FACE:
+      return producer ? act('Confirmer la fin') : null
+
+    case BookingStatus.CONFIRMED_BY_PRODUCER:
+      return producer ? null : act('Confirmer la fin')
+
+    case BookingStatus.NO_SHOW:
+    case BookingStatus.CANCELLED_BY_PRODUCER: {
+      const due = booking.settlement_due_at
+      const open = !!due && new Date(due).getTime() > now && !booking.disputed_at && !booking.dispute_resolved_at
+      return !producer && open ? act('Contester', 'Contester avant le', due) : null
+    }
+
+    default:
+      return null
+  }
+}

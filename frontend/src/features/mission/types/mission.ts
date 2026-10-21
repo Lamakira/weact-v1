@@ -17,6 +17,12 @@ export const MissionStatus = {
 
 export type MissionStatusType = (typeof MissionStatus)[keyof typeof MissionStatus]
 
+// Lot D7 : filtre « À traiter » de la liste Producteur (pas un statut : valeur de `status` de l'URL / de l'API)
+export const MISSION_TO_PROCESS_FILTER = 'to_process'
+
+// Valeur du filtre de la liste : un statut, « À traiter » ou rien (Tous)
+export type MissionFilterStatus = MissionStatusType | typeof MISSION_TO_PROCESS_FILTER | ''
+
 // Mission status labels (French)
 export const MissionStatusLabel: Record<MissionStatusType, string> = {
   [MissionStatus.DRAFT]: 'Brouillon',
@@ -152,6 +158,12 @@ export interface MissionSummary {
 }
 
 // Mission data from API
+export type MissionEligibility =
+  | 'ok'
+  | 'gender_mismatch'
+  | 'subscription_required'
+  | 'ugc_subscription_required'
+
 export interface Mission {
   id: string
   titre: string
@@ -183,6 +195,10 @@ export interface Mission {
   display_status?: MissionDisplayStatusType
   display_status_label?: string
   is_accepting_candidatures: boolean
+  // Lot D8 : marques des cartes (listes Face uniquement, absentes ailleurs)
+  my_candidature?: string | null
+  my_candidature_label?: string | null
+  eligibility?: MissionEligibility
   has_paid_payment: boolean
   // Propriétaire seulement : miroir serveur des règles de POST /complete.
   can_complete?: boolean
@@ -310,7 +326,7 @@ export type MissionSortKey = (typeof MISSION_SORT_KEYS)[number]
 export interface MissionListParams {
   page: number
   perPage: number
-  status?: MissionStatusType | ''
+  status?: MissionFilterStatus
   sort?: MissionSortKey | null
   direction?: 'asc' | 'desc'
 }

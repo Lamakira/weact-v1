@@ -79,7 +79,11 @@ function time(item: ConversationListItem, now: Date): string {
     <ul v-else class="divide-y divide-line" data-testid="unread-messages-list">
       <li v-for="item in items" :key="item.id" data-testid="unread-message-row">
         <RouterLink
-          :to="{ name: 'producer-conversation', params: { conversationId: item.id } }"
+          :to="{
+            name: 'producer-conversation',
+            params: { conversationId: item.id },
+            ...(item.kind === 'booking' ? { query: { kind: 'booking' } } : {}),
+          }"
           class="flex items-center gap-3 px-4 py-3 hover:bg-sidebar sm:px-5"
         >
           <span

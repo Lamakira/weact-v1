@@ -79,6 +79,9 @@ final class SendWalletCreditedEmailOnBookingDisputeSettled
             amount: $event->creditedAmount,
             motif: $motif,
             newBalance: $newBalance,
+            outcomeNote: $booking->disputed_at !== null
+                ? "L'administrateur a tranché en votre faveur à la suite de la contestation de la Face."
+                : "La Face n'a pas contesté dans le délai imparti : le règlement est en votre faveur.",
         ));
     }
 
@@ -100,6 +103,7 @@ final class SendWalletCreditedEmailOnBookingDisputeSettled
             face: $face,
             amount: $event->creditedAmount,
             newBalance: $newBalance,
+            outcomeNote: "L'administrateur a tranché en ta faveur dans le litige sur ce booking.",
         ));
     }
 }

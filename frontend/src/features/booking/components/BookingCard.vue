@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
-import { Calendar, Clock, MapPin, Wallet } from 'lucide-vue-next'
+import { ArrowRight, Calendar, CalendarClock, Clock, MapPin, Wallet } from 'lucide-vue-next'
 import type { Booking, BookingFaceUserable, BookingProducerUserable } from '../types'
 import BookingStatusBadge from './BookingStatusBadge.vue'
 import { useAuthStore } from '@/stores/auth'
-import { bookingListSubtitle } from '../utils/bookingPresentation'
+import { bookingListAction, bookingListSubtitle } from '../utils/bookingPresentation'
 
 const props = defineProps<{
   booking: Booking
@@ -42,6 +42,9 @@ const counterpartAvatar = computed(() => {
 
 /** Sous-titre court selon le statut et le rôle (plus de « Demande de booking » figé). */
 const subtitle = computed(() => bookingListSubtitle(props.booking, isFace.value ? 'face' : 'producer'))
+
+/** Action principale + échéance (lot D7) : mène à la page du booking, sans rien muter depuis la liste. */
+const listAction = computed(() => bookingListAction(props.booking, isFace.value ? 'face' : 'producer'))
 
 const counterpartInitials = computed(() => counterpartName.value.charAt(0).toUpperCase())
 
@@ -89,9 +92,12 @@ const formattedDateRange = computed(() => {
 </script>
 
 <template>
-  <RouterLink
-    :to="{ name: detailRouteName, params: { id: booking.id } }"
-    class="block rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md sm:p-5"
+  <!--
+    Carte entière cliquable SANS lien imbriqué : le nom de la contrepartie porte le lien étiré
+    (after:absolute inset-0) ; le bouton d'action, au-dessus (z-10), est un second lien frère.
+  -->
+  <article
+    class="relative block rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md sm:p-5"
   >
     <!-- Status Badge + Type -->
     <div class="mb-3 flex items-center justify-between">
@@ -123,7 +129,13 @@ const formattedDateRange = computed(() => {
       </div>
       <div class="flex-1 min-w-0">
         <p class="text-sm font-semibold text-foreground truncate">
-          {{ counterpartName }}
+          <RouterLink
+            :to="{ name: detailRouteName, params: { id: booking.id } }"
+            class="after:absolute after:inset-0 after:rounded-xl focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-primary"
+            data-testid="booking-card-link"
+          >
+            {{ counterpartName }}
+          </RouterLink>
         </p>
         <p class="text-xs text-muted-foreground" data-testid="booking-card-subtitle">
           {{ subtitle }}
@@ -150,5 +162,29 @@ const formattedDateRange = computed(() => {
         <span class="font-medium text-foreground">{{ formatCurrency(displayAmount) }}</span>
       </div>
     </div>
-  </RouterLink>
+
+    <!-- Échéance + action principale (lot D7), quand l'utilisateur doit agir -->
+    <div
+      v-if="listAction"
+      class="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border pt-3"
+    >
+      <p
+        v-if="listAction.deadline"
+        class="flex items-center gap-1.5 text-sm font-medium text-foreground"
+        data-testid="booking-card-deadline"
+      >
+        <CalendarClock class="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+        {{ listAction.deadline }}
+      </p>
+      <RouterLink
+        :to="{ name: detailRouteName, params: { id: booking.id } }"
+        class="relative z-10 ml-auto inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+        :aria-label="`${listAction.label} : booking avec ${counterpartName}`"
+        data-testid="booking-card-action"
+      >
+        {{ listAction.label }}
+        <ArrowRight class="h-3.5 w-3.5" aria-hidden="true" />
+      </RouterLink>
+    </div>
+  </article>
 </template>

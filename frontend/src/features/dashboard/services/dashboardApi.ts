@@ -8,6 +8,7 @@ import type {
   BookingStatsResponse,
   BookingChartStatsResponse,
   FaceTodoResponse,
+  ProducerTodoResponse,
 } from '../types'
 
 /**
@@ -92,6 +93,14 @@ export const dashboardApi = {
       '/producer/dashboard/active-missions',
       { params: { limit } },
     )
+    return response.data
+  },
+
+  /**
+   * Get the Producer « À faire » queue (up to 8 items, most urgent first)
+   */
+  async getProducerTodo(): Promise<ProducerTodoResponse> {
+    const response = await apiClient.get<ProducerTodoResponse>('/producer/dashboard/todo')
     return response.data
   },
 }

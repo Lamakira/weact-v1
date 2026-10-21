@@ -193,6 +193,8 @@ export interface Booking {
   can_refuse: boolean
   can_pay: boolean
   can_rate: boolean
+  /** Liste uniquement : l'utilisateur doit agir maintenant (même règle que le filtre « À traiter »). */
+  requires_my_action?: boolean
   my_rating: BookingRating | null
   // Expédition UGC (story 3.2) — `whenLoaded` backend : la clé est OMISE quand la
   // relation n'est pas chargée ou n'existe pas (jamais `null` explicite).
@@ -253,11 +255,13 @@ export interface BookingRatingResponse {
 }
 
 // Booking filter status for list view
-export type BookingFilterStatus = '' | 'pending' | 'active' | 'completed' | 'cancelled'
+// `to_process` (lot D7) : bookings où l'utilisateur doit agir maintenant — un scope backend, pas un statut.
+export type BookingFilterStatus = '' | 'to_process' | 'pending' | 'active' | 'completed' | 'cancelled'
 
 // Booking filter label mapping (French)
 export const BookingFilterLabel: Record<BookingFilterStatus, string> = {
   '': 'Tous',
+  to_process: 'À traiter',
   pending: 'En attente',
   active: 'Actifs',
   completed: 'Terminés',
@@ -340,6 +344,7 @@ export interface BookingMessage {
   sender_name: string
   content: string
   is_own_message: boolean
+  read_at?: string | null // ISO 8601, null tant que l'autre partie n'a pas lu
   created_at: string // ISO 8601
 }
 

@@ -52,7 +52,10 @@ class MissionController extends Controller
             ->withPaidPaymentFlag()
             ->withCount('candidatures');
 
-        if ($request->filled('status')) {
+        if ($request->validated('status') === IndexProducerMissionsRequest::TO_PROCESS) {
+            // Lot D7 : missions où le Producteur doit agir maintenant (Mission::toProcessForProducer).
+            $query->toProcessForProducer($user->userable_id);
+        } elseif ($request->filled('status')) {
             $query->where('status', $request->validated('status'));
         }
 

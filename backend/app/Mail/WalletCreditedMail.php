@@ -15,6 +15,7 @@ final class WalletCreditedMail extends BaseMail
         public readonly int $amount,
         public readonly WalletCreditMotif $motif,
         public readonly int $newBalance,
+        public readonly ?string $outcomeNote = null,
     ) {}
 
     protected function subjectLine(): string
@@ -30,6 +31,7 @@ final class WalletCreditedMail extends BaseMail
                 'producerName' => $this->resolveProducerName(),
                 'formattedAmount' => $this->formatAmount(),
                 'motifLabel' => $this->motif->label(),
+                'outcomeNote' => $this->outcomeNote,
                 'formattedNewBalance' => $this->formatNewBalance(),
                 'walletUrl' => $this->buildWalletUrl(),
             ],

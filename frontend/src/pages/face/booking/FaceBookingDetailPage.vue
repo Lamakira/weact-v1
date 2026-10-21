@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -119,6 +119,9 @@ const canPayUgcCommission = computed<boolean>(
 
 // UGC engagement modal (2.4) — règles + chronos avant l'accept d'un booking UGC.
 const showEngagementModal = ref(false)
+// Récapitulatif avant d'accepter un booking cash (lot D9) : s'ouvre avant toute requête.
+const showAcceptDialog = ref(false)
+const acceptConfirmButton = ref<HTMLButtonElement | null>(null)
 
 // Expédition UGC (3.2) — panneau écran 4A + tracking Producteur.
 const {
@@ -600,8 +603,49 @@ function handleAccept(): void {
     return
   }
 
-  void doAccept()
+  // Cash : récapitulatif (dates, lieu, durée, net, règles d'annulation) avant la requête.
+  showAcceptDialog.value = true
 }
+
+function closeAcceptDialog(): void {
+  // Pas de fermeture en plein vol : la requête part quand même.
+  if (isAccepting.value) return
+  showAcceptDialog.value = false
+}
+
+async function handleAcceptDialogConfirm(): Promise<void> {
+  if (isAccepting.value) return
+  await doAccept()
+  showAcceptDialog.value = false
+}
+
+function handleAcceptDialogKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') closeAcceptDialog()
+}
+
+// Focus initial sur l'action ; Échap ferme tant que la fenêtre est ouverte.
+watch(showAcceptDialog, async (open) => {
+  if (open) {
+    window.addEventListener('keydown', handleAcceptDialogKeydown)
+    await nextTick()
+    acceptConfirmButton.value?.focus()
+  } else {
+    window.removeEventListener('keydown', handleAcceptDialogKeydown)
+  }
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleAcceptDialogKeydown)
+})
+
+// Dates du récapitulatif : un seul jour si début et fin tombent le même jour.
+const acceptRecapDates = computed<string>(() => {
+  const b = booking.value
+  if (!b?.date_debut) return ''
+  const start = formatDate(b.date_debut)
+  const end = b.date_fin ? formatDate(b.date_fin) : ''
+  return end && end !== start ? `Du ${start} au ${end}` : start
+})
 
 async function handleEngagementConfirm(): Promise<void> {
   // Modal maintenue ouverte pendant l'appel (parité mission) : `:is-submitting`
@@ -978,7 +1022,12 @@ onUnmounted(() => {
               </span>
             </div>
           </div>
-          <div v-if="primaryAction" class="hidden sm:flex sm:items-center sm:gap-2" data-testid="booking-primary-action">
+          <div
+            v-if="primaryAction"
+            class="hidden sm:flex sm:items-center sm:gap-2"
+            :class="{ 'booking-primary-action--chat': primaryAction.key === 'chat' }"
+            data-testid="booking-primary-action"
+          >
             <BookingPrimaryAction :action="primaryAction" @click="handlePrimaryAction" />
           </div>
         </header>
@@ -1398,6 +1447,8 @@ onUnmounted(() => {
       :is-open="showEngagementModal"
       :nombre-videos="booking.nombre_videos ?? null"
       :nom-produit="booking.nom_produit"
+      :type-compensation="booking.type_compensation"
+      :montant-face-recoit="booking.montant_face_recoit"
       :is-submitting="isAccepting"
       @confirm="handleEngagementConfirm"
       @cancel="showEngagementModal = false"
@@ -1444,6 +1495,78 @@ onUnmounted(() => {
         hint="(obligatoire, 1 à 2)"
       />
     </ConfirmModal>
+
+    <!-- Récapitulatif avant d'accepter un booking cash (lot D9) -->
+    <Teleport to="body">
+      <div
+        v-if="showAcceptDialog && booking"
+        class="booking-dialog fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        data-testid="accept-recap-dialog"
+        @click.self="closeAcceptDialog"
+      >
+        <div
+          class="booking-dialog-card bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="accept-recap-title"
+        >
+          <h3 id="accept-recap-title" class="text-lg font-semibold text-gray-900 mb-1">Accepter ce booking</h3>
+          <p class="text-sm text-gray-500 mb-4">Vérifiez les informations avant de vous engager.</p>
+
+          <dl class="space-y-2 text-sm mb-4" data-testid="accept-recap-summary">
+            <div v-if="acceptRecapDates" class="flex justify-between gap-4">
+              <dt class="text-gray-500">Date</dt>
+              <dd class="font-medium text-gray-900 text-right" data-testid="accept-recap-dates">{{ acceptRecapDates }}</dd>
+            </div>
+            <div v-if="booking.lieu" class="flex justify-between gap-4">
+              <dt class="text-gray-500">Lieu</dt>
+              <dd class="font-medium text-gray-900 text-right" data-testid="accept-recap-lieu">{{ booking.lieu }}</dd>
+            </div>
+            <div v-if="booking.duree_heures" class="flex justify-between gap-4">
+              <dt class="text-gray-500">Durée</dt>
+              <dd class="font-medium text-gray-900 text-right" data-testid="accept-recap-duree">max {{ booking.duree_heures }}h</dd>
+            </div>
+            <div class="flex justify-between gap-4 border-t border-gray-100 pt-2">
+              <dt class="text-gray-500">Montant net que vous recevrez</dt>
+              <dd class="font-semibold text-gray-900 text-right" data-testid="accept-recap-amount">{{ formatFcfa(booking.montant_face_recoit) }}</dd>
+            </div>
+          </dl>
+
+          <div class="rounded-lg bg-gray-50 p-3 mb-5" data-testid="accept-recap-rules">
+            <p class="text-xs font-semibold text-gray-700 mb-2">Après votre acceptation</p>
+            <ul class="list-disc pl-4 space-y-1 text-xs text-gray-600">
+              <li>Le Producteur dispose de 24 h pour payer ; sans paiement dans ce délai, le booking expire.</li>
+              <li>Vous pouvez annuler jusqu'à 24 h avant le jour du tournage ; passé ce délai, l'annulation n'est plus possible.</li>
+              <li>Une annulation de votre part entraîne une pénalité d'un point sur votre note moyenne, et le remboursement du Producteur s'il a déjà payé.</li>
+              <li>Vos autres demandes en attente sur les mêmes dates sont refusées automatiquement.</li>
+            </ul>
+          </div>
+
+          <div class="flex gap-3 justify-end">
+            <button
+              type="button"
+              class="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 border border-gray-300 hover:bg-gray-50 transition-colors"
+              :disabled="isAccepting"
+              data-testid="accept-recap-back"
+              @click="closeAcceptDialog"
+            >
+              Retour
+            </button>
+            <button
+              ref="acceptConfirmButton"
+              type="button"
+              class="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-weact-500 hover:bg-weact-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              :disabled="isAccepting"
+              data-testid="accept-recap-confirm"
+              @click="handleAcceptDialogConfirm"
+            >
+              <Loader2 v-if="isAccepting" class="w-4 h-4 animate-spin inline mr-1" />
+              Accepter le booking
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
 
     <!-- No-show confirmation dialog -->
     <Teleport to="body">
@@ -1616,6 +1739,12 @@ onUnmounted(() => {
   .booking-chat-box {
     height: calc(100dvh - 13.25rem);
     min-height: 28rem;
+  }
+}
+/* Chat affiché dans la colonne de droite : « Ouvrir le chat » est redondant en en-tête. */
+@container page (min-width: 56rem) {
+  .booking-primary-action--chat {
+    display: none;
   }
 }
 /* Chat à droite et infos sur une seule colonne : « Et ensuite ? » passe en tête. */

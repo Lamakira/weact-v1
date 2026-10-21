@@ -8,7 +8,9 @@ use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
 use App\Jobs\HandleFedapayWebhook;
+use App\Mail\CandidatureNotSelectedMail;
 use App\Mail\FaceSelectedMail;
+use App\Mail\MissionPaymentConfirmedMail;
 use App\Models\Candidature;
 use App\Models\Conversation;
 use App\Models\Face;
@@ -1090,8 +1092,9 @@ class MissionPaymentInitiationTest extends TestCase
         app(MissionPaymentService::class)
             ->markAsPaid($payment->fresh(), 'fedapay-approved-ref');
 
-        // Exactement 2 mails — un par Face sélectionnée, zéro pour la rejetée.
-        Mail::assertQueuedCount(2);
+        // Exactement 2 FaceSelectedMail — un par Face sélectionnée, zéro pour la rejetée (lot D5 : les
+        // autres mails du paiement — Producer, Face écartée — sont couverts par leurs tests dédiés).
+        Mail::assertQueued(FaceSelectedMail::class, 2);
 
         $selectedFirstEmail = User::query()
             ->where('userable_type', Face::class)
@@ -1153,15 +1156,63 @@ class MissionPaymentInitiationTest extends TestCase
 
         $service->markAsPaid($payment->fresh(), 'fedapay-approved-ref');
 
-        // Baseline : 2 mails queued pour les 2 Faces sélectionnées.
-        Mail::assertQueuedCount(2);
+        // Baseline : 2 FaceSelectedMail + 1 MissionPaymentConfirmedMail (Producer) + 1 CandidatureNotSelectedMail (Face écartée).
+        Mail::assertQueuedCount(4);
 
         // Deuxième appel (webhook en retard, producer retry race, etc.) — l'early-return
         // sur Paid status doit court-circuiter la boucle email AVANT d'ajouter des
         // duplicatas à la file.
         $service->markAsPaid($payment->fresh(), 'fedapay-approved-ref');
 
-        Mail::assertQueuedCount(2);
+        Mail::assertQueuedCount(4);
+    }
+
+    public function test_mark_as_paid_queues_payment_confirmed_mail_to_the_producer_only_once(): void
+    {
+        Mail::fake();
+
+        $payment = $this->createPendingMissionPayment('555123');
+        $service = app(MissionPaymentService::class);
+
+        $service->markAsPaid($payment->fresh(), 'fedapay-approved-ref');
+        $service->markAsPaid($payment->fresh(), 'fedapay-approved-ref');
+
+        Mail::assertQueued(MissionPaymentConfirmedMail::class, 1);
+        Mail::assertQueued(MissionPaymentConfirmedMail::class, function (MissionPaymentConfirmedMail $m) use ($payment): bool {
+            $this->assertSame(2, $m->faceCount);
+            $this->assertSame((int) $payment->montant_total_producteur, $m->totalPaid);
+            $this->assertSame('Paiement confirmé pour « '.$this->mission->titre.' »', $m->envelope()->subject);
+            $this->assertStringContainsString("/producer/missions/{$this->mission->uuid}", $m->render());
+
+            return $m->hasTo($this->producerUser->email);
+        });
+    }
+
+    public function test_mark_as_paid_queues_not_selected_mail_to_rejected_faces_only(): void
+    {
+        Mail::fake();
+
+        $payment = $this->createPendingMissionPayment('555124');
+
+        app(MissionPaymentService::class)->markAsPaid($payment->fresh(), 'fedapay-approved-ref');
+
+        $rejectedEmail = User::query()
+            ->where('userable_type', Face::class)
+            ->where('userable_id', $this->rejectedCandidate->face_id)
+            ->value('email');
+        $selectedEmail = User::query()
+            ->where('userable_type', Face::class)
+            ->where('userable_id', $this->selectedFirst->face_id)
+            ->value('email');
+
+        Mail::assertQueued(CandidatureNotSelectedMail::class, 1);
+        Mail::assertQueued(CandidatureNotSelectedMail::class, function (CandidatureNotSelectedMail $m) use ($rejectedEmail): bool {
+            $this->assertSame(CandidatureNotSelectedMail::REASON_SELECTION_MADE, $m->reason);
+            $this->assertStringContainsString('a retenu', preg_replace('/\s+/', ' ', strip_tags($m->render())));
+
+            return $m->hasTo($rejectedEmail);
+        });
+        Mail::assertNotQueued(CandidatureNotSelectedMail::class, fn (CandidatureNotSelectedMail $m): bool => $m->hasTo($selectedEmail));
     }
 
     public function test_mark_as_paid_uses_producer_fallback_when_display_name_is_empty(): void

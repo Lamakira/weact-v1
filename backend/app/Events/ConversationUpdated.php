@@ -12,6 +12,9 @@ use Illuminate\Foundation\Events\Dispatchable;
 /**
  * Lightweight list update, sent on ONE participant's private user channel
  * (unread_count is specific to that recipient).
+ *
+ * `kind` : 'mission' (conversation de candidature) ou 'booking' (chat d'un booking) ;
+ * `conversation_id` porte alors l'UUID du fil correspondant.
  */
 class ConversationUpdated implements ShouldBroadcast
 {
@@ -27,6 +30,7 @@ class ConversationUpdated implements ShouldBroadcast
         public readonly int $unreadCount,
         public readonly string $updatedAt,
         public readonly int $unreadConversationsCount = 0,
+        public readonly string $kind = 'mission',
     ) {}
 
     /**
@@ -48,6 +52,7 @@ class ConversationUpdated implements ShouldBroadcast
     public function broadcastWith(): array
     {
         return [
+            'kind' => $this->kind,
             'conversation_id' => $this->conversationUuid,
             'latest_message' => $this->latestMessage,
             'unread_count' => $this->unreadCount,

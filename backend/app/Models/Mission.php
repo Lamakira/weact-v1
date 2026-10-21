@@ -8,6 +8,7 @@ use App\Concerns\HasRouteUuid;
 use App\Enums\AttendanceStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\CompensationType;
+use App\Enums\DeliverableValidationStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionDisplayStatus;
 use App\Enums\MissionGender;
@@ -15,6 +16,8 @@ use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Enums\UgcRefundReason;
+use App\Services\MissionPaymentService;
+use App\Support\BusinessTimeSql;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -35,6 +38,7 @@ use Illuminate\Support\Str;
  * @property \Carbon\CarbonInterface|null $shooting_reminder_sent_at
  * @property \Carbon\CarbonInterface|null $date_limite_candidature
  * @property \Carbon\CarbonInterface|null $candidature_response_reminder_sent_at
+ * @property \Carbon\CarbonInterface|null $candidature_digest_sent_at
  * @property string|null $profil_recherche
  * @property int $budget
  * @property int $nombre_faces_voulu
@@ -138,6 +142,7 @@ class Mission extends Model
      */
     protected $fillable = [
         'candidature_response_reminder_sent_at',
+        'candidature_digest_sent_at',
         'producer_id',
         'titre',
         'description',
@@ -179,6 +184,7 @@ class Mission extends Model
             'shooting_reminder_sent_at' => 'datetime',
             'date_limite_candidature' => 'date',
             'candidature_response_reminder_sent_at' => 'datetime',
+            'candidature_digest_sent_at' => 'datetime',
             'budget' => 'integer',
             'nombre_faces_voulu' => 'integer',
             'status' => MissionStatus::class,
@@ -322,6 +328,84 @@ class Mission extends Model
     {
         return $query->where('status', MissionStatus::Published)
             ->where('date_limite_candidature', '>=', self::businessToday());
+    }
+
+    /**
+     * Filtre « À traiter » de la liste des missions d'un Producteur (lot D7) : missions où il doit
+     * agir maintenant. `$producerId` = producers.id (missions.producer_id). Cas :
+     *  - candidatures en attente de réponse, échéance de réponse (producerResponseDeadline) non écoulée ;
+     *  - sélection à payer (mission standard en attente de paiement, délai de 24 h non écoulé) ;
+     *  - commission UGC à payer (mission UGC en attente de paiement) ;
+     *  - présences à valider (mission standard payée, jour de tournage atteint, présence encore en attente) ;
+     *  - livrables UGC à valider (au moins une vidéo en revue) ;
+     *  - envoi de produit à confirmer sur une mission UGC (une Face confirmée sans colis, paiement réglé).
+     *
+     * @param  Builder<Mission>  $query
+     */
+    public function scopeToProcessForProducer(Builder $query, int $producerId): void
+    {
+        $now = now();
+        $ugc = MissionType::Ugc->value;
+
+        $query->where('producer_id', $producerId)->where(function (Builder $cases) use ($now, $ugc): void {
+            $cases
+                ->orWhere(fn (Builder $b) => $b
+                    ->where('status', MissionStatus::Published->value)
+                    ->whereHas('candidatures', fn (Builder $c) => $c->where('status', CandidatureStatus::Pending->value))
+                    // Clôture des candidatures (fin du dernier jour, heure métier) + 72 h, ou début du tournage s'il est plus tôt.
+                    ->whereRaw(BusinessTimeSql::localInstant('date_limite_candidature', 24 + self::PRODUCER_RESPONSE_WINDOW_HOURS).' > ?', [$now])
+                    ->where(fn (Builder $d) => $d
+                        ->whereNull('date_tournage')
+                        ->orWhereRaw(BusinessTimeSql::localInstant('date_tournage').' > ?', [$now])))
+                ->orWhere(fn (Builder $b) => $b
+                    ->where('status', MissionStatus::PendingPayment->value)
+                    ->where('type_mission', '!=', $ugc)
+                    ->whereHas('payment', fn (Builder $p) => $p
+                        ->where('status', MissionPaymentStatus::Pending->value)
+                        ->where('created_at', '>', $now->copy()->subHours(MissionPaymentService::SELECTION_PAYMENT_WINDOW_HOURS))))
+                ->orWhere(fn (Builder $b) => $b
+                    ->where('status', MissionStatus::PendingPayment->value)
+                    ->where('type_mission', $ugc))
+                ->orWhere(fn (Builder $b) => $b
+                    ->whereIn('status', [MissionStatus::Closed->value, MissionStatus::PendingAttendanceValidation->value])
+                    ->where('type_mission', '!=', $ugc)
+                    ->where(fn (Builder $d) => $d
+                        ->whereNull('date_tournage')
+                        ->orWhereRaw(BusinessTimeSql::localInstant('date_tournage').' <= ?', [$now]))
+                    ->whereHas('payment', fn (Builder $p) => $p
+                        ->where('status', MissionPaymentStatus::Paid->value)
+                        ->whereHas('entries', fn (Builder $e) => $e
+                            ->where('escrow_status', EscrowStatus::Locked->value)
+                            ->where('attendance_status', AttendanceStatus::Pending->value)
+                            ->whereHas('candidature', fn (Builder $c) => $c->where('status', '!=', CandidatureStatus::Expired->value)))))
+                ->orWhere(fn (Builder $b) => $b
+                    ->whereIn('status', [MissionStatus::Published->value, MissionStatus::Closed->value])
+                    ->where('type_mission', $ugc)
+                    ->whereHas('candidatures', fn (Builder $c) => $c->whereHas('deliverables', fn (Builder $d) => $d
+                        ->where('validation_status', DeliverableValidationStatus::InReview->value))))
+                // Envoi du produit à confirmer (to-do Producteur `ugc_shipment`) : mission UGC sans remboursement
+                // de commission, au moins une Face confirmée sans colis, paiement réglé (hybride = escrow Locked
+                // de cette Face, produit seul = commission payée).
+                ->orWhere(fn (Builder $b) => $b
+                    ->where('type_mission', $ugc)
+                    ->whereNull('commission_refund_requested_at')
+                    ->whereNull('commission_refunded_at')
+                    ->where(fn (Builder $paid) => $paid
+                        ->where(fn (Builder $hybrid) => $hybrid
+                            ->where('type_compensation', CompensationType::Hybrid->value)
+                            ->whereHas('candidatures', fn (Builder $c) => $c
+                                ->where('status', CandidatureStatus::Confirmed->value)
+                                ->whereDoesntHave('shipment')
+                                ->whereHas('paymentEntry', fn (Builder $e) => $e->where('escrow_status', EscrowStatus::Locked->value))))
+                        ->orWhere(fn (Builder $productOnly) => $productOnly
+                            ->where(fn (Builder $t) => $t
+                                ->whereNull('type_compensation')
+                                ->orWhere('type_compensation', '!=', CompensationType::Hybrid->value))
+                            ->whereNotNull('commission_paid_at')
+                            ->whereHas('candidatures', fn (Builder $c) => $c
+                                ->where('status', CandidatureStatus::Confirmed->value)
+                                ->whereDoesntHave('shipment')))));
+        });
     }
 
     /**

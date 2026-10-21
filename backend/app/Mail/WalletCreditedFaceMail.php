@@ -14,6 +14,7 @@ final class WalletCreditedFaceMail extends BaseMail
         public readonly Face $face,
         public readonly int $amount,
         public readonly int $newBalance,
+        public readonly ?string $outcomeNote = null,
     ) {}
 
     protected function subjectLine(): string
@@ -28,6 +29,7 @@ final class WalletCreditedFaceMail extends BaseMail
             with: [
                 'faceFirstName' => $this->resolveFaceFirstName(),
                 'formattedAmount' => $this->formatAmount(),
+                'outcomeNote' => $this->outcomeNote,
                 'formattedNewBalance' => $this->formatNewBalance(),
                 'walletUrl' => $this->buildWalletUrl(),
             ],

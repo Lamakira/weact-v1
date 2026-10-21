@@ -30,7 +30,9 @@ use App\Console\Commands\RemindPendingBookingConfirmationCommand;
 use App\Console\Commands\RemindShootingDayCommand;
 use App\Console\Commands\RemindUnconfirmedFacesCommand;
 use App\Console\Commands\RemindUnpaidMissionSelectionsCommand;
+use App\Console\Commands\RemindUnreadMessagesCommand;
 use App\Console\Commands\RotateFaceListingRanksCommand;
+use App\Console\Commands\SendCandidatureDigestCommand;
 use App\Console\Commands\SettleBookingDisputesCommand;
 use App\Console\Commands\SettleDisputedMissionAttendanceCommand;
 use Illuminate\Console\Scheduling\Schedule;
@@ -43,6 +45,8 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // Register scheduled commands
+// Messagerie : e-mail quand un message reste non lu plus d'1 h (au plus 1 e-mail / fil / destinataire / 24 h).
+app(Schedule::class)->command(RemindUnreadMessagesCommand::class)->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
 app(Schedule::class)->command(AutoCompleteBookingsCommand::class)->hourly();
 app(Schedule::class)->command(SettleBookingDisputesCommand::class)->hourly()->withoutOverlapping();
 app(Schedule::class)->command(RemindPendingBookingConfirmationCommand::class)->hourly()->withoutOverlapping();
@@ -68,6 +72,8 @@ app(Schedule::class)->command(CompleteFinishedUgcMissionsCommand::class)->hourly
 // Lot B6 (D3) : réponse du Producer aux candidatures sous 72 h après leur clôture.
 app(Schedule::class)->command(RemindCandidatureResponseCommand::class)->hourly()->withoutOverlapping();
 app(Schedule::class)->command(ExpireUnansweredCandidaturesCommand::class)->hourly()->withoutOverlapping();
+// Lot D5 : e-mail groupé au Producer pour les nouvelles candidatures, au plus un par mission et par heure.
+app(Schedule::class)->command(SendCandidatureDigestCommand::class)->hourly()->withoutOverlapping();
 // Lot B4 (D1) : place libérée sans remplaçante au début du jour de tournage -> remboursée.
 app(Schedule::class)->command(RefundFreedPlacesCommand::class)->hourly()->withoutOverlapping();
 // 4.5 — relance d'escalade des deadlines d'upload Face (~15 min, NFR3/AR3).
@@ -79,7 +85,9 @@ app(Schedule::class)->command(ReconcileWalletCommand::class)->daily();
 app(Schedule::class)->command(AutoReleaseMissionFundsCommand::class)->daily();
 app(Schedule::class)->command(AutoValidateMissionAttendanceCommand::class)->hourly();
 app(Schedule::class)->command(SettleDisputedMissionAttendanceCommand::class)->hourly();
-app(Schedule::class)->command(RemindShootingDayCommand::class)->dailyAt('08:00');
+app(Schedule::class)->command(RemindShootingDayCommand::class)->dailyAt('08:00')->withoutOverlapping();
+// Rattrapage du soir : un booking payé après 08:00 pour un tournage demain est rappelé (claims ⇒ aucun doublon).
+app(Schedule::class)->command(RemindShootingDayCommand::class)->dailyAt('18:00')->withoutOverlapping();
 app(Schedule::class)->command(ExpireFaceSubscriptionsCommand::class)->hourly();
 app(Schedule::class)->command(FailStalePendingFaceSubscriptionsCommand::class)->hourly();
 app(Schedule::class)->command(RemindFaceSubscriptionRenewalsCommand::class)->hourly();

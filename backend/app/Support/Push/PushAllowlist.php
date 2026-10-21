@@ -70,6 +70,8 @@ final class PushAllowlist
         'candidature_rejected' => self::MISSION,
         'face_confirmed_participation' => self::MISSION,
         'mission_attendance_absent' => self::MISSION,
+        'mission_attendance_disputed' => self::MISSION,
+        'mission_attendance_dispute_resolved' => self::PAYMENT,
         'mission_deleted_candidature_cancelled' => self::MISSION,
         'mission_selection_reset_producer' => self::MISSION,
         'mission_selection_reset' => self::MISSION,

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { Lock, MapPin, Video } from 'lucide-vue-next'
 import StatusPill from '@/components/ugc/StatusPill.vue'
 import type { ProductPhoto } from '@/components/ugc'
+import MissionMarks from './MissionMarks.vue'
 import type { Mission, UgcMissionTeaser } from '../types'
 
 const props = defineProps<{
@@ -205,6 +206,12 @@ function handleClick(): void {
           <span class="truncate">{{ item.lieu }}</span>
         </span>
       </div>
+
+      <MissionMarks
+        :my-candidature="fullMission?.my_candidature"
+        :my-candidature-label="fullMission?.my_candidature_label"
+        :eligibility="locked ? 'ugc_subscription_required' : fullMission?.eligibility"
+      />
 
       <div>
         <StatusPill :kind="isOpen ? 'accepted' : 'overdue'">

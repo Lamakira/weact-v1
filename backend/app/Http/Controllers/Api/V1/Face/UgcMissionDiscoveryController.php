@@ -12,6 +12,7 @@ use App\Http\Resources\MissionResource;
 use App\Http\Resources\UgcMissionTeaserResource;
 use App\Models\Mission;
 use App\Services\FaceEntitlementService;
+use App\Services\MissionEligibility;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -19,6 +20,7 @@ class UgcMissionDiscoveryController extends Controller
 {
     public function __construct(
         private readonly FaceEntitlementService $entitlement,
+        private readonly MissionEligibility $eligibility,
     ) {}
 
     /**
@@ -40,10 +42,15 @@ class UgcMissionDiscoveryController extends Controller
             ->with('productPhotos')
             // Le teaser n'expose jamais le producer — eager-load réservé à la branche éligible
             ->when($canAccessUgc, fn ($query) => $query->with(['producer' => fn ($q) => $q->withRatingAggregates()])->withPaidPaymentFlag()->withCount('candidatures'))
+            // Lot D8 : genre incompatible en fin de liste (branche éligible seulement), ordre existant conservé par groupe.
+            ->when($canAccessUgc, fn ($query) => $this->eligibility->orderGenderMismatchLast($query, $face))
             ->orderBy('created_at', 'desc')
             ->paginate(12);
 
         if ($canAccessUgc) {
+            // Lot D8 : « déjà candidaté » + éligibilité par mission, une seule requête pour la page.
+            $this->eligibility->annotate($face, $missions->getCollection());
+
             $response = MissionResource::collection($missions)->response()->getData(true);
             $response['meta']['can_access_ugc'] = true;
 

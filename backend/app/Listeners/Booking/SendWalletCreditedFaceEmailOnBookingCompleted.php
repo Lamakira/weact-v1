@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Listeners\Booking;
 
+use App\Enums\DisputeResolutionOutcome;
 use App\Enums\EscrowStatus;
 use App\Events\BookingCompleted;
 use App\Mail\WalletCreditedFaceMail;
@@ -55,6 +56,10 @@ final class SendWalletCreditedFaceEmailOnBookingCompleted
                 face: $face,
                 amount: (int) $booking->montant_face_recoit,
                 newBalance: $newBalance,
+                // Absence contestée tranchée en faveur de la Face : son seul e-mail sur l'issue du litige.
+                outcomeNote: $booking->dispute_outcome === DisputeResolutionOutcome::FavorFace->value
+                    ? "L'administrateur a tranché en ta faveur dans le litige sur ce booking."
+                    : null,
             ));
         } catch (\Throwable $e) {
             Log::warning('WalletCreditedFaceMail queue failed', [
