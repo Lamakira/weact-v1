@@ -85,7 +85,9 @@ app(Schedule::class)->command(ReconcileWalletCommand::class)->daily();
 app(Schedule::class)->command(AutoReleaseMissionFundsCommand::class)->daily();
 app(Schedule::class)->command(AutoValidateMissionAttendanceCommand::class)->hourly();
 app(Schedule::class)->command(SettleDisputedMissionAttendanceCommand::class)->hourly();
-app(Schedule::class)->command(RemindShootingDayCommand::class)->dailyAt('08:00');
+app(Schedule::class)->command(RemindShootingDayCommand::class)->dailyAt('08:00')->withoutOverlapping();
+// Rattrapage du soir : un booking payé après 08:00 pour un tournage demain est rappelé (claims ⇒ aucun doublon).
+app(Schedule::class)->command(RemindShootingDayCommand::class)->dailyAt('18:00')->withoutOverlapping();
 app(Schedule::class)->command(ExpireFaceSubscriptionsCommand::class)->hourly();
 app(Schedule::class)->command(FailStalePendingFaceSubscriptionsCommand::class)->hourly();
 app(Schedule::class)->command(RemindFaceSubscriptionRenewalsCommand::class)->hourly();

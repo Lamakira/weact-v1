@@ -9,6 +9,11 @@
     <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
         Bonne nouvelle — votre portefeuille WEACT a été crédité.
     </p>
+    @if(! empty($outcomeNote))
+        <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
+            {{ $outcomeNote }}
+        </p>
+    @endif
 
     {{-- Wallet credit details card --}}
     <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f9fafb; border-radius: 6px; margin: 0 0 24px;">

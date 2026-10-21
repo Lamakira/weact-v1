@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Listeners\Booking;
 
 use App\Events\BookingExpired;
+use App\Mail\BookingExpiredMail;
 use App\Models\Notification;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
@@ -65,15 +66,10 @@ class NotifyPartiesOnBookingExpired
 
     private function expiryReason(\App\Models\Booking $booking): string
     {
-        // Lot B10 : demande UGC dont la commission n'a jamais été réglée.
-        if ($booking->type_contenu === 'UGC' && $booking->commission_paid_at === null) {
-            return "la commission n'a pas été réglée dans les 48 h";
-        }
-
-        if ($booking->accepted_at === null) {
-            return "la Face n'a pas répondu dans le délai imparti";
-        }
-
-        return "le paiement n'a pas été effectué dans les 24h";
+        return match (BookingExpiredMail::kindFor($booking)) {
+            BookingExpiredMail::KIND_UGC_COMMISSION => "la commission n'a pas été réglée dans les 48 h",
+            BookingExpiredMail::KIND_FACE_NO_RESPONSE => "la Face n'a pas répondu dans le délai imparti",
+            default => "le paiement n'a pas été effectué dans les 24h",
+        };
     }
 }

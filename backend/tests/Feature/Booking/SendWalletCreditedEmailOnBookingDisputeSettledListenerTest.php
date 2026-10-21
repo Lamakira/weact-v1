@@ -71,7 +71,9 @@ class SendWalletCreditedEmailOnBookingDisputeSettledListenerTest extends TestCas
             fn (WalletCreditedMail $mail): bool => $mail->hasTo('studio@example.test')
                 && $mail->amount === 50000
                 && $mail->motif === WalletCreditMotif::BookingNoShowRefund
-                && $mail->newBalance === 50000,
+                && $mail->newBalance === 50000
+                // Lot D6 : phrase sur l'issue (booking sans contestation ⇒ règlement automatique).
+                && str_contains((string) $mail->outcomeNote, "n'a pas contesté"),
         );
     }
 
@@ -100,7 +102,9 @@ class SendWalletCreditedEmailOnBookingDisputeSettledListenerTest extends TestCas
         Mail::assertQueuedCount(1);
         Mail::assertQueued(
             WalletCreditedFaceMail::class,
-            fn (WalletCreditedFaceMail $mail): bool => $mail->hasTo('face@example.test') && $mail->amount === 90000,
+            fn (WalletCreditedFaceMail $mail): bool => $mail->hasTo('face@example.test')
+                && $mail->amount === 90000
+                && str_contains((string) $mail->outcomeNote, "L'administrateur a tranché en ta faveur"),
         );
     }
 

@@ -1142,7 +1142,7 @@ class BookingService
 
         if ($expiredHere) {
             try {
-                BookingExpired::dispatch($result->fresh());
+                BookingExpired::dispatch($result->fresh(), true);
             } catch (\Throwable $e) {
                 Log::warning('BookingExpired broadcast failed', [
                     'booking_id' => $result->id,

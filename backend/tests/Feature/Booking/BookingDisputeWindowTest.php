@@ -11,6 +11,7 @@ use App\Enums\FinancialEventType;
 use App\Enums\WalletCreditMotif;
 use App\Events\BookingCompleted;
 use App\Events\BookingDisputeSettled;
+use App\Mail\BookingCompletionReminderFaceMail;
 use App\Mail\BookingCompletionReminderMail;
 use App\Mail\WalletCreditedFaceMail;
 use App\Mail\WalletCreditedMail;
@@ -714,11 +715,18 @@ class BookingDisputeWindowTest extends TestCase
         $this->assertTrue(Notification::query()->where('user_id', $this->faceUser->id)->where('type', 'booking_completion_reminder')->exists());
         $this->assertTrue(Notification::query()->where('user_id', $this->producerUser->id)->where('type', 'booking_completion_reminder')->exists());
         Mail::assertQueued(BookingCompletionReminderMail::class, 1);
+        // Lot D6 : la Face reçoit aussi son e-mail de relance, sous le même claim.
+        Mail::assertQueued(BookingCompletionReminderFaceMail::class, 1);
+        Mail::assertQueued(
+            BookingCompletionReminderFaceMail::class,
+            fn (BookingCompletionReminderFaceMail $mail): bool => $mail->hasTo($this->faceUser->email),
+        );
 
         $this->artisan('bookings:remind-pending-confirmation')->assertSuccessful();
 
         $this->assertSame(2, Notification::query()->where('type', 'booking_completion_reminder')->count());
         Mail::assertQueued(BookingCompletionReminderMail::class, 1);
+        Mail::assertQueued(BookingCompletionReminderFaceMail::class, 1);
     }
 
     public function test_legacy_paid_booking_is_neither_reminded_nor_auto_completed(): void
