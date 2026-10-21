@@ -95,7 +95,7 @@ const emit = defineEmits<{
       id="valeur_produit"
       :model-value="valeurProduit ?? ''"
       type="number"
-      label="Valeur marchande (FCFA)"
+      label="Valeur marchande (F CFA)"
       :icon="Coins"
       :error="valeurProduitError"
       required

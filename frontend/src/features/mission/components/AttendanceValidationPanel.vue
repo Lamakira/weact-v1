@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, reactive, ref, watch } from 'vue'
 import { Users, AlertCircle } from 'lucide-vue-next'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -54,19 +55,6 @@ const decisions = reactive<Record<number, AttendanceDecision>>({})
 const failedImages = reactive(new Set<number>())
 const isDialogOpen = ref(false)
 let loadRequestId = 0
-
-function formatCurrency(amount: number): string {
-  return (
-    new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      currencyDisplay: 'code',
-    })
-      .format(amount)
-      .replace('XOF', '')
-      .trim() + ' XOF'
-  )
-}
 
 function formatDate(iso: string | null): string {
   if (!iso) return ''
@@ -305,7 +293,7 @@ watch(missionUuid, loadForm, { immediate: true })
             Tournage du {{ formatDate(data.mission.date_tournage) }} —
           </span>
           {{ data.payment.nombre_faces_retenues }} Face(s) sélectionnée(s) —
-          Paiement total {{ formatCurrency(data.payment.montant_total_producteur) }}
+          Paiement total {{ formatMoney(data.payment.montant_total_producteur) }}
         </p>
       </header>
 
@@ -372,7 +360,7 @@ watch(missionUuid, loadForm, { immediate: true })
             <div class="flex-1 min-w-0">
               <p class="font-medium text-foreground truncate">{{ entry.face.display_name }}</p>
               <p class="text-sm text-muted-foreground">
-                {{ formatCurrency(entry.montant_face_recoit) }}
+                {{ formatMoney(entry.montant_face_recoit) }}
               </p>
               <p
                 v-if="entry.can_mark === false && entry.blocked_reason"
@@ -420,11 +408,11 @@ watch(missionUuid, loadForm, { immediate: true })
       <div class="bg-muted/50 border border-border rounded-lg p-4 space-y-1" data-testid="attendance-recap">
         <p class="text-sm">
           <strong>{{ presentEntries.length }} Face(s) présente(s)</strong> —
-          {{ formatCurrency(totalReleased) }} versés aux Faces présentes.
+          {{ formatMoney(totalReleased) }} versés aux Faces présentes.
         </p>
         <p class="text-sm">
           <strong>{{ absentEntries.length }} Face(s) absente(s)</strong> —
-          {{ formatCurrency(totalRefunded) }} remboursement(s) en cours (72h pour contestation).
+          {{ formatMoney(totalRefunded) }} remboursement(s) en cours (72h pour contestation).
         </p>
       </div>
 

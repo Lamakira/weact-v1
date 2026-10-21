@@ -51,7 +51,8 @@ final class MissionCompletedMailTest extends TestCase
 
         $this->assertStringContainsString('Bonjour Amina', $rendered);
         $this->assertStringContainsString('Pub TV Printemps 2026', $rendered);
-        $this->assertStringContainsString('90 000 XOF', $rendered);
+        $this->assertStringContainsString('90 000 F CFA', $rendered);
+        $this->assertStringNotContainsString('XOF', $rendered);
         $this->assertStringContainsString('/face/wallet', $rendered);
         $this->assertStringContainsString('Voir mon portefeuille', $rendered);
         $this->assertStringContainsString('#198496', $rendered);

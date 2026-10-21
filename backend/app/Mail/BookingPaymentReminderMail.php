@@ -28,7 +28,7 @@ final class BookingPaymentReminderMail extends BaseMail
                 'bookingDate' => $this->booking->date_debut !== null
                     ? Booking::formatForBusiness($this->booking->date_debut, 'd/m/Y')
                     : null,
-                'formattedAmount' => number_format((int) $this->booking->montant_total_producteur, 0, ',', ' ').' XOF',
+                'formattedAmount' => \App\Support\Money::format((int) $this->booking->montant_total_producteur),
                 'deadlineLabel' => (string) $this->booking->paymentDeadlineLabel(),
                 'bookingUrl' => rtrim((string) config('app.frontend_url'), '/')."/producer/bookings/{$this->booking->uuid}",
             ],

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed } from 'vue'
 import { calculatePricingPreview } from '@/features/booking/types'
 
@@ -33,32 +34,25 @@ const totalProducerPays = computed(() => props.montantTotalProducteur ?? preview
 
 const platformRevenue = computed(() => producerCommission.value + faceCommission.value)
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
 </script>
 
 <template>
   <div class="space-y-2">
     <div class="flex justify-between items-center text-sm">
       <span class="text-gray-500">Tarif de base</span>
-      <span class="font-medium text-gray-900">{{ formatCurrency(tarifBase) }}</span>
+      <span class="font-medium text-gray-900">{{ formatMoney(tarifBase) }}</span>
     </div>
 
     <!-- Face view: commission deducted -->
     <template v-if="role === 'face'">
       <div class="flex justify-between items-center text-sm">
         <span class="text-gray-500">Frais de service</span>
-        <span class="text-red-500">-{{ formatCurrency(faceCommission) }}</span>
+        <span class="text-red-500">-{{ formatMoney(faceCommission) }}</span>
       </div>
       <div class="border-t border-gray-100 pt-2 mt-2">
         <div class="flex justify-between items-center">
           <span class="text-sm font-semibold text-gray-700">Vous recevrez</span>
-          <span class="text-lg font-bold text-emerald-600">{{ formatCurrency(faceReceives) }}</span>
+          <span class="text-lg font-bold text-emerald-600">{{ formatMoney(faceReceives) }}</span>
         </div>
       </div>
     </template>
@@ -67,12 +61,12 @@ function formatCurrency(amount: number): string {
     <template v-else>
       <div class="flex justify-between items-center text-sm">
         <span class="text-gray-500">Frais de service</span>
-        <span class="text-gray-500">+{{ formatCurrency(producerCommission) }}</span>
+        <span class="text-gray-500">+{{ formatMoney(producerCommission) }}</span>
       </div>
       <div class="border-t border-gray-100 pt-2 mt-2">
         <div class="flex justify-between items-center">
           <span class="text-sm font-semibold text-gray-700">Total à payer</span>
-          <span class="text-lg font-bold text-blue-600">{{ formatCurrency(totalProducerPays) }}</span>
+          <span class="text-lg font-bold text-blue-600">{{ formatMoney(totalProducerPays) }}</span>
         </div>
       </div>
     </template>
@@ -80,7 +74,7 @@ function formatCurrency(amount: number): string {
     <!-- Platform revenue row (optional) -->
     <div v-if="showPlatformRevenue" class="flex justify-between items-center text-sm border-t border-gray-100 pt-2 mt-2">
       <span class="text-gray-500">Revenu plateforme</span>
-      <span class="font-medium text-gray-700">{{ formatCurrency(platformRevenue) }}</span>
+      <span class="font-medium text-gray-700">{{ formatMoney(platformRevenue) }}</span>
     </div>
   </div>
 </template>

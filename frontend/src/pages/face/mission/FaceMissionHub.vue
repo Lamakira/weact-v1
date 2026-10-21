@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 /**
  * FaceMissionHub (lot C5) — la page mission comme point central de la Face une fois la candidature posée.
  *
@@ -120,19 +121,15 @@ const toneClasses: Record<HubTone, string> = {
 const eyebrow = computed(() => `${props.producerName} · Mission ${props.isUgc ? 'UGC' : 'standard'}`)
 const shootDate = computed(() => formatShortDate(props.mission.date_tournage))
 
-function formatFcfa(amount: number): string {
-  return `${new Intl.NumberFormat('fr-FR').format(amount).replace(/[\u202f\u00a0]/g, ' ')} FCFA`
-}
-
 // « Vous recevrez » seulement quand le net est connu (place payée) ; sinon on reste sur le brut proposé.
 const moneyLabel = computed(() => {
   const net = props.candidature.montant_face_recoit
   if (!props.isUgc) {
-    return net != null ? `Vous recevrez ${formatFcfa(net)}` : `Rémunération proposée ${formatFcfa(props.mission.budget)}`
+    return net != null ? `Vous recevrez ${formatMoney(net)}` : `Rémunération proposée ${formatMoney(props.mission.budget)}`
   }
   const cash = props.mission.montant_remuneration
   const product = props.mission.nom_produit ? `Produit offert : ${props.mission.nom_produit}` : 'Dotation produit'
-  return cash ? `${product} + ${formatFcfa(cash)}` : product
+  return cash ? `${product} + ${formatMoney(cash)}` : product
 })
 
 const producer = computed(() => props.mission.producer)
@@ -290,7 +287,7 @@ const chatTarget = computed(() =>
                 {{
                   isUgc
                     ? moneyLabel
-                    : formatFcfa(candidature.montant_face_recoit != null ? candidature.montant_face_recoit : mission.budget)
+                    : formatMoney(candidature.montant_face_recoit != null ? candidature.montant_face_recoit : mission.budget)
                 }}
               </dd>
             </div>

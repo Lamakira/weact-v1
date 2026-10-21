@@ -222,7 +222,7 @@ describe('useTarifs', () => {
       const result = validateTarifHoraire(10000001)
 
       expect(result.valid).toBe(false)
-      expect(result.error).toBe('Le tarif demi-journée ne peut pas dépasser 10 000 000 XOF')
+      expect(result.error).toBe('Le tarif demi-journée ne peut pas dépasser 10 000 000 F CFA')
     })
 
     it('rejects non-integer tarif horaire', () => {
@@ -295,7 +295,7 @@ describe('useTarifs', () => {
       const result = validateTarifJournalier(100000001)
 
       expect(result.valid).toBe(false)
-      expect(result.error).toBe('Le tarif journalier ne peut pas dépasser 100 000 000 XOF')
+      expect(result.error).toBe('Le tarif journalier ne peut pas dépasser 100 000 000 F CFA')
     })
 
     it('rejects non-integer tarif journalier', () => {

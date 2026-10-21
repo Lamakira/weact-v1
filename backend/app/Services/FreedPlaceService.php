@@ -262,14 +262,14 @@ class FreedPlaceService
 
         /** @var Mission $mission */
         $mission = $result['mission'];
-        $formattedAmount = number_format($result['amount'], 0, ',', ' ');
+        $formattedAmount = \App\Support\Money::format($result['amount']);
 
         $this->notify(fn (int $userId) => Notification::create([
             'user_id' => $userId,
             'type' => 'mission_freed_place_refunded',
             'data' => [
                 'message' => ($result['replacement_chosen'] ? "Aucune remplaçante n'a confirmé" : "Aucune remplaçante n'a été choisie à temps")
-                    ." pour la place libérée sur « {$mission->titre} » : {$formattedAmount} FCFA ont été crédités sur votre wallet.",
+                    ." pour la place libérée sur « {$mission->titre} » : {$formattedAmount} ont été crédités sur votre wallet.",
                 'mission_id' => $mission->id,
                 'montant' => $result['amount'],
                 'url' => "/producer/missions/{$mission->uuid}?tab=candidatures",

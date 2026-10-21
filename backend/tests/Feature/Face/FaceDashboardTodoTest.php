@@ -161,7 +161,7 @@ class FaceDashboardTodoTest extends TestCase
         $item = $this->ofType($this->todo(), 'booking_proposal')[0];
 
         $this->assertSame('expire dans 22 h', $item['urgent_meta']);
-        $this->assertStringContainsString('75 000', $item['meta']);
+        $this->assertStringContainsString('75 000', $item['meta']);
         $this->assertStringContainsString('Publicité', $item['meta']);
     }
 

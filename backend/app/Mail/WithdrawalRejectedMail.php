@@ -34,7 +34,7 @@ class WithdrawalRejectedMail extends Mailable
             with: [
                 'withdrawalRequest' => $this->withdrawalRequest,
                 'userDisplayName' => $this->userDisplayName(),
-                'formattedAmount' => number_format((int) $this->withdrawalRequest->amount, 0, ',', ' '),
+                'formattedAmount' => \App\Support\Money::format((int) $this->withdrawalRequest->amount),
             ],
         );
     }

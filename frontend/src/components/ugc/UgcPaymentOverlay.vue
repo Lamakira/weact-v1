@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, watch } from 'vue'
 import {
   useUgcCommissionPayment,
@@ -50,10 +51,6 @@ const reassurance = computed((): string =>
     : "Paiement sécurisé par FedaPay. La commission n'est encaissée qu'après acceptation par la Face.",
 )
 
-function formatXOF(amount: number): string {
-  return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA'
-}
-
 async function handlePay(): Promise<void> {
   await initiate(props.kind, props.ownerId)
 }
@@ -99,7 +96,7 @@ watch(
           <div v-if="step === 'select'" class="space-y-5">
             <div class="text-center">
               <h2 class="text-lg font-semibold text-gray-900">{{ title }}</h2>
-              <p class="mt-1 text-2xl font-bold text-weact">{{ formatXOF(amount) }}</p>
+              <p class="mt-1 text-2xl font-bold text-weact">{{ formatMoney(amount) }}</p>
             </div>
 
             <div class="space-y-2">

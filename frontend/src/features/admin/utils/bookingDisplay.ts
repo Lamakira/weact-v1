@@ -1,3 +1,4 @@
+import { formatMoney } from '@/utils/money'
 /**
  * Shared display helpers for the admin booking views (list + detail).
  */
@@ -32,9 +33,9 @@ export function getBookingStatusClass(status: string): string {
 }
 
 /**
- * Money amount as `120 000 FCFA`, or `—` when null/undefined.
+ * Money amount as `120 000 F CFA`, or `—` when null/undefined.
  */
 export function formatBookingAmount(amount: number | null | undefined): string {
   if (amount === null || amount === undefined) return '—'
-  return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA'
+  return formatMoney(amount)
 }

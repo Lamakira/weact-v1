@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, watch } from 'vue'
 import { useBookingPayment } from '../composables/useBookingPayment'
 import type { Booking } from '../types'
@@ -39,10 +40,6 @@ const step = computed((): 'select' | 'waiting' | 'failed' => {
       return 'select'
   }
 })
-
-function formatXOF(amount: number): string {
-  return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA'
-}
 
 async function handlePay(): Promise<void> {
   await initiatePayment(props.booking.id)
@@ -105,17 +102,17 @@ watch(
               <div class="space-y-2 text-sm">
                 <div class="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>Tarif de base</span>
-                  <span>{{ formatXOF(pricing.tarifBase) }}</span>
+                  <span>{{ formatMoney(pricing.tarifBase) }}</span>
                 </div>
                 <div class="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>Frais de service</span>
-                  <span>+ {{ formatXOF(pricing.producerCommission) }}</span>
+                  <span>+ {{ formatMoney(pricing.producerCommission) }}</span>
                 </div>
                 <div
                   class="flex justify-between border-t border-gray-200 pt-2 font-semibold text-gray-900 dark:border-gray-700 dark:text-white"
                 >
                   <span>Total à payer</span>
-                  <span>{{ formatXOF(pricing.totalProducerPays) }}</span>
+                  <span>{{ formatMoney(pricing.totalProducerPays) }}</span>
                 </div>
               </div>
             </div>

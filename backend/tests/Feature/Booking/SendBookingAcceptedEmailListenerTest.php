@@ -156,7 +156,7 @@ class SendBookingAcceptedEmailListenerTest extends TestCase
 
         $this->assertStringContainsString('WEACT', $html); // layout de base rendu
         $this->assertStringContainsString('accepté', $html);
-        $this->assertStringContainsString('110 000 XOF', $html);
+        $this->assertStringContainsString('110 000 F CFA', $html);
         $this->assertStringContainsString('24 heures', $html);
         $this->assertStringContainsString('/producer/bookings/', $html);
     }

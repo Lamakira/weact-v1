@@ -1,3 +1,4 @@
+import { formatMoney } from '@/utils/money'
 import { BookingStatus, type Booking, type BookingFaceUserable, type BookingProducerUserable } from '../types'
 import { BOOKING_BUSINESS_TIMEZONE, formatBookingDeadline } from './formatBookingDeadline'
 
@@ -53,10 +54,6 @@ const DEAD_STATUSES: string[] = [
   BookingStatus.CANCELLED_BY_FACE,
   BookingStatus.NO_SHOW,
 ]
-
-export function formatFcfa(amount: number | null | undefined): string {
-  return `${new Intl.NumberFormat('fr-FR').format(amount ?? 0)} FCFA`
-}
 
 /** « jeu. 23 oct. » dans le fuseau métier. */
 export function formatShortDate(iso: string): string {
@@ -356,8 +353,8 @@ function nextFor(booking: Booking, role: BookingRole): BookingNext {
       return {
         headline,
         text: shootStarted
-          ? `Confirmez la réalisation pour recevoir ${formatFcfa(booking.montant_face_recoit)} sur votre portefeuille.${auto}`
-          : `${formatFcfa(booking.montant_face_recoit)} sont bloqués en séquestre pour vous. Après le tournage, ils sont versés sur votre portefeuille.${auto}`,
+          ? `Confirmez la réalisation pour recevoir ${formatMoney(booking.montant_face_recoit)} sur votre portefeuille.${auto}`
+          : `${formatMoney(booking.montant_face_recoit)} sont bloqués en séquestre pour vous. Après le tournage, ils sont versés sur votre portefeuille.${auto}`,
         who,
         deadlineAt,
       }
@@ -403,7 +400,7 @@ function nextFor(booking: Booking, role: BookingRole): BookingNext {
         )
       }
       return none(
-        `${formatFcfa(booking.montant_face_recoit)} versés sur votre portefeuille`,
+        `${formatMoney(booking.montant_face_recoit)} versés sur votre portefeuille`,
         'Vous pouvez les retirer depuis votre portefeuille. Votre avis aide le Producteur à être reconnu.',
         booking.can_rate ? 'Facultatif' : 'Terminé',
       )

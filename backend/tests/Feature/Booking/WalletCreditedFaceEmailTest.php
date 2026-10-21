@@ -125,7 +125,7 @@ class WalletCreditedFaceEmailTest extends TestCase
         $html = $mailable->render();
 
         $this->assertStringContainsString('WEACT', $html); // layout de base rendu
-        $this->assertStringContainsString('85 000 XOF', $html);
+        $this->assertStringContainsString('85 000 F CFA', $html);
         $this->assertStringContainsString('/face/wallet', $html);
     }
 }

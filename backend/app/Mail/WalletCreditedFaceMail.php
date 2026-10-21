@@ -45,12 +45,12 @@ final class WalletCreditedFaceMail extends BaseMail
 
     private function formatAmount(): string
     {
-        return number_format($this->amount, 0, ',', ' ').' XOF';
+        return \App\Support\Money::format($this->amount);
     }
 
     private function formatNewBalance(): string
     {
-        return number_format($this->newBalance, 0, ',', ' ').' XOF';
+        return \App\Support\Money::format($this->newBalance);
     }
 
     private function buildWalletUrl(): string

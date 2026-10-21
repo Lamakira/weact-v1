@@ -33,7 +33,7 @@ final class MissionPlaceFreedMail extends BaseMail
             with: [
                 'missionTitle' => $this->mission->titre,
                 'faceName' => $this->faceName,
-                'formattedAmount' => number_format($this->placeBudget, 0, ',', ' ').' FCFA',
+                'formattedAmount' => \App\Support\Money::format($this->placeBudget),
                 'refundAtLabel' => $this->refundAtLabel,
                 'candidaturesUrl' => rtrim((string) config('app.frontend_url'), '/')."/producer/missions/{$this->mission->uuid}?tab=candidatures",
             ],

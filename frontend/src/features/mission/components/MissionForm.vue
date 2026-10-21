@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { ref, computed, watch } from 'vue'
 import { useForm, useField } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -183,7 +184,7 @@ const submitLabel = computed(() => {
   // par-Face à l'acceptation) — pas de « Payer la commission » au publish (D-8.4.c).
   if (type_compensation.value === 'hybrid') return 'Publier la mission'
   // UGC produit-seul : gate commission produit (pending_payment) → réglée au publish.
-  return `Payer la commission · ${ugcCommission.value.toLocaleString('fr-FR')} FCFA`
+  return `Payer la commission · ${formatMoney(ugcCommission.value)}`
 })
 
 // Sync duration preset / custom days → duree field
@@ -208,19 +209,6 @@ watch([selectedDureePreset, customDureeJours], () => {
 })
 
 const apiError = computed(() => error.value)
-
-function formatCurrency(amount: number): string {
-  return (
-    new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      currencyDisplay: 'code',
-    })
-      .format(amount)
-      .replace('XOF', '')
-      .trim() + ' XOF'
-  )
-}
 
 const pricingHint = computed(() => {
   const b = Number(budget.value) || 0
@@ -421,7 +409,7 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
           id="budget"
           v-model="budget"
           type="number"
-          label="Rémunération par Face (XOF)"
+          label="Rémunération par Face (F CFA)"
           :icon="Wallet"
           :error="budgetError"
           required
@@ -448,10 +436,10 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
         >
           <Wallet class="mt-0.5 h-4 w-4 shrink-0 text-primary" />
           <div class="space-y-0.5 text-muted-foreground">
-            <p>Chaque Face sélectionnée recevra <span class="font-semibold text-foreground">{{ formatCurrency(Number(budget)) }}</span>.</p>
+            <p>Chaque Face sélectionnée recevra <span class="font-semibold text-foreground">{{ formatMoney(Number(budget)) }}</span>.</p>
             <p>
               Total à payer, frais de service inclus :
-              <span class="font-semibold text-foreground">{{ formatCurrency(pricingHint.total) }}</span>
+              <span class="font-semibold text-foreground">{{ formatMoney(pricingHint.total) }}</span>
               <span class="text-xs"> pour {{ pricingHint.n }} profil{{ pricingHint.n > 1 ? 's' : '' }}</span>
             </p>
           </div>

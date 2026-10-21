@@ -1,4 +1,5 @@
 <script setup lang="ts" generic="T extends RowData">
+import { formatNumber } from '@/utils/money'
 import { computed } from 'vue'
 import {
   FlexRender,
@@ -260,7 +261,7 @@ function onRowClick(event: MouseEvent, row: T): void {
     <!-- Footer: count, page size, pagination -->
     <div v-if="hasRows" class="flex flex-col items-center justify-between gap-3 sm:flex-row">
       <div class="flex items-center gap-3 text-sm text-muted-foreground">
-        <span>{{ total }} résultat{{ total > 1 ? 's' : '' }}</span>
+        <span>{{ formatNumber(total) }} résultat{{ total > 1 ? 's' : '' }}</span>
         <label class="inline-flex items-center gap-2">
           <span>Par page</span>
           <select

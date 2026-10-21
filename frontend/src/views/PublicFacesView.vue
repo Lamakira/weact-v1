@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatNumber } from '@/utils/money'
 import { ref, onMounted, watch, nextTick } from 'vue'
 import { Users, AlertCircle, RefreshCw } from 'lucide-vue-next'
 
@@ -185,7 +186,7 @@ watch(faces, async () => {
       <!-- Results Count -->
       <div class="flex items-center justify-between">
         <p class="text-sm text-gray-500">
-          <span class="font-medium text-gray-900">{{ totalItems }}</span>
+          <span class="font-medium text-gray-900">{{ formatNumber(totalItems) }}</span>
           talent{{ totalItems > 1 ? 's' : '' }} trouvé{{ totalItems > 1 ? 's' : '' }}
         </p>
       </div>

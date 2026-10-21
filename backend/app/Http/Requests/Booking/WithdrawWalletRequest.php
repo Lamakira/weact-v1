@@ -124,12 +124,12 @@ class WithdrawWalletRequest extends FormRequest
     public function messages(): array
     {
         $balance = (int) ($this->user()->balance ?? 0);
-        $formatted = number_format($balance, 0, ',', ' ');
-        $min = number_format(self::MIN_AMOUNT, 0, ',', ' ');
+        $formatted = \App\Support\Money::format($balance);
+        $min = \App\Support\Money::format(self::MIN_AMOUNT);
 
         return [
-            'amount.max' => "Solde insuffisant (solde disponible : {$formatted} XOF)",
-            'amount.min' => "Le montant minimum de retrait est de {$min} XOF",
+            'amount.max' => "Solde insuffisant (solde disponible : {$formatted})",
+            'amount.min' => "Le montant minimum de retrait est de {$min}",
         ];
     }
 }

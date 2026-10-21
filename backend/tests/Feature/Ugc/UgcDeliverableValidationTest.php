@@ -480,7 +480,7 @@ class UgcDeliverableValidationTest extends TestCase
             ->where('type', 'booking_wallet_credited')
             ->first();
         $this->assertNotNull($walletNotif);
-        $this->assertStringContainsString('14 250', (string) data_get($walletNotif->data, 'message'));
+        $this->assertStringContainsString('14 250', (string) data_get($walletNotif->data, 'message'));
 
         $this->assertNotNull(
             Notification::where('user_id', $this->producerUser->id)

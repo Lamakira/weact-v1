@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ArrowRight, Calendar, CalendarClock, Clock, MapPin, Wallet } from 'lucide-vue-next'
@@ -72,14 +73,6 @@ function formatDate(dateString: string | null): string {
     month: 'short',
     year: 'numeric',
   }).format(new Date(dateString))
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    maximumFractionDigits: 0,
-  }).format(amount)
 }
 
 const formattedDateRange = computed(() => {
@@ -159,7 +152,7 @@ const formattedDateRange = computed(() => {
       </div>
       <div class="flex items-center gap-1.5">
         <Wallet class="h-4 w-4" />
-        <span class="font-medium text-foreground">{{ formatCurrency(displayAmount) }}</span>
+        <span class="font-medium text-foreground">{{ formatMoney(displayAmount) }}</span>
       </div>
     </div>
 

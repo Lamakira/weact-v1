@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { watch, computed, watchEffect, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTitle } from '@vueuse/core'
@@ -99,9 +100,9 @@ function formatDate(dateString: string | null): string {
   })
 }
 
-// Format budget in XOF
+// Format budget in F CFA
 function formatBudget(amount: number): string {
-  return amount.toLocaleString('fr-FR') + ' XOF'
+  return formatMoney(amount)
 }
 
 // Check if deadline has passed (compare date-only strings to avoid timezone issues)

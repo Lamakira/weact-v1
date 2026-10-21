@@ -35,7 +35,7 @@ trait DescribesBooking
 
     protected function formatMoney(int|float $amount): string
     {
-        return number_format((float) $amount, 0, ',', ' ').' XOF';
+        return \App\Support\Money::format((float) $amount);
     }
 
     protected function bookingUrl(bool $forProducer): string

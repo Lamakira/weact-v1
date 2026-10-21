@@ -208,7 +208,7 @@ class AdminWithdrawalRequestTest extends TestCase
         $mail = new \App\Mail\WithdrawalRequestSubmittedMail($withdrawalRequest);
 
         $this->assertStringContainsString('Kofi Mensah', $mail->render());
-        $this->assertSame('Nouvelle demande de retrait - Kofi Mensah 15 000 XOF', $mail->envelope()->subject);
+        $this->assertSame('Nouvelle demande de retrait - Kofi Mensah 15 000 F CFA', $mail->envelope()->subject);
     }
 
     public function test_producer_approval_email_uses_producer_name(): void

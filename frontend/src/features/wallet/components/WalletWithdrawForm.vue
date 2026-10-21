@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { ref, computed } from 'vue'
 import { X, AlertCircle, Loader2, Smartphone } from 'lucide-vue-next'
 import type { WithdrawPayload } from '../services/walletApi'
@@ -48,21 +49,13 @@ const selectedMode = ref<WithdrawPayload['payment_mode'] | null>(null)
 const phoneNumber = ref('')
 const phoneCountry = ref<WithdrawPayload['phone_country']>('bj')
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)
-
 /** Inline error for amount field — null means valid. */
 const amountError = computed((): string | null => {
   if (amount.value === null) return null
   if (amount.value < MIN_AMOUNT)
-    return `Montant minimum : ${formatCurrency(MIN_AMOUNT)}`
+    return `Montant minimum : ${formatMoney(MIN_AMOUNT)}`
   if (amount.value > props.balance)
-    return `Solde insuffisant (disponible : ${formatCurrency(props.balance)})`
+    return `Solde insuffisant (disponible : ${formatMoney(props.balance)})`
   return null
 })
 
@@ -130,13 +123,13 @@ function handleSubmit(): void {
             <!-- Balance info -->
             <div class="rounded-md bg-gray-50 border border-gray-100 p-3">
               <p class="text-xs text-gray-500 uppercase tracking-wider font-medium">Solde disponible</p>
-              <p class="text-lg font-bold text-gray-900 mt-0.5">{{ formatCurrency(balance) }}</p>
+              <p class="text-lg font-bold text-gray-900 mt-0.5">{{ formatMoney(balance) }}</p>
             </div>
 
             <!-- Amount input -->
             <div class="space-y-1.5">
               <label class="text-sm font-medium text-gray-700" for="withdraw-amount">
-                Montant à retirer (XOF)
+                Montant à retirer (F CFA)
               </label>
               <input
                 id="withdraw-amount"

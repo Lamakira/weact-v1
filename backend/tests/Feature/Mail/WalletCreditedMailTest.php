@@ -34,7 +34,7 @@ final class WalletCreditedMailTest extends TestCase
         $envelope = $mail->envelope();
 
         $this->assertSame(
-            'Votre portefeuille a été crédité de 27 000 XOF',
+            'Votre portefeuille a été crédité de 27 000 F CFA',
             $envelope->subject,
         );
     }
@@ -58,8 +58,9 @@ final class WalletCreditedMailTest extends TestCase
 
         $this->assertStringContainsString('Bonjour Studio Alpha,', $rendered);
         $this->assertStringContainsString("Remboursement suite à l'annulation du booking", $rendered);
-        $this->assertStringContainsString('27 000 XOF', $rendered);
-        $this->assertStringContainsString('127 000 XOF', $rendered);
+        $this->assertStringContainsString('27 000 F CFA', $rendered);
+        $this->assertStringNotContainsString('XOF', $rendered);
+        $this->assertStringContainsString('127 000 F CFA', $rendered);
         $this->assertStringContainsString('Voir mon portefeuille', $rendered);
         $this->assertStringContainsString('/producer/wallet', $rendered);
         $this->assertStringContainsString('#198496', $rendered);
@@ -87,11 +88,11 @@ final class WalletCreditedMailTest extends TestCase
 
         $this->assertStringContainsString("Remboursement suite à l'absence signalée de la Face", $rendered);
         $this->assertStringContainsString(
-            '<td style="padding: 0 0 10px; color: #16a34a; font-size: 16px; font-weight: 700; text-align: right;">50 000 XOF</td>',
+            '<td style="padding: 0 0 10px; color: #16a34a; font-size: 16px; font-weight: 700; text-align: right;">50 000 F CFA</td>',
             $rendered,
         );
         $this->assertStringContainsString(
-            '<td style="padding: 0; color: #111827; font-size: 16px; font-weight: 700; text-align: right;">50 000 XOF</td>',
+            '<td style="padding: 0; color: #111827; font-size: 16px; font-weight: 700; text-align: right;">50 000 F CFA</td>',
             $rendered,
         );
     }

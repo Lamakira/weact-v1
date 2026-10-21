@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { ArrowDownLeft, ArrowUpRight, Receipt, Calendar } from 'lucide-vue-next'
 import type { WalletTransaction } from '../types/wallet'
 
@@ -10,14 +11,6 @@ interface Props {
 
 defineProps<Props>()
 defineEmits<{ 'load-more': [] }>()
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)
 
 const formatDate = (dateString: string) =>
   new Intl.DateTimeFormat('fr-FR', {
@@ -105,7 +98,7 @@ const formatDate = (dateString: string) =>
                 ]"
               >
                 {{ transaction.type === 'credit' ? '+' : '-' }}
-                {{ formatCurrency(transaction.amount) }}
+                {{ formatMoney(transaction.amount) }}
               </p>
               <p class="text-[11px] text-gray-400 mt-0.5 flex items-center justify-end gap-1">
                 <Calendar class="w-3 h-3" />

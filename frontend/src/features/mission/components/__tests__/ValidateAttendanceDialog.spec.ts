@@ -32,8 +32,8 @@ describe('ValidateAttendanceDialog', () => {
     expect(text).toContain('Confirmer la validation des présences')
     expect(text).toContain('2 Face(s) présente(s)')
     expect(text).toContain('1 Face(s) absente(s)')
-    expect(text.replace(/\s/g, ' ')).toContain('180 000 XOF')
-    expect(text.replace(/\s/g, ' ')).toContain('90 000 XOF')
+    expect(text.replace(/\s/g, ' ')).toContain('180 000 F CFA')
+    expect(text.replace(/\s/g, ' ')).toContain('90 000 F CFA')
     // 50-char truncation + ellipsis
     expect(text).toContain('x'.repeat(50) + '...')
   })

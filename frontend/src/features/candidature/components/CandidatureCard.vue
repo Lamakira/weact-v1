@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { Calendar, MapPin, Wallet, User, Check, Loader2, MessageCircle, XCircle, Star } from 'lucide-vue-next'
@@ -127,11 +128,7 @@ const formattedDate = computed(() => {
  * Computed: Format budget for display
  */
 const formattedBudget = computed(() => {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    maximumFractionDigits: 0,
-  }).format(props.candidature.mission.budget)
+  return formatMoney(props.candidature.mission.budget)
 })
 
 /**

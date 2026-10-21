@@ -81,7 +81,7 @@ function onReset(): void {
 
       <!-- Budget range filter -->
       <div>
-        <label class="block text-sm font-medium text-gray-700 mb-1"> Budget (XOF) </label>
+        <label class="block text-sm font-medium text-gray-700 mb-1"> Budget (F CFA) </label>
         <div class="flex items-center gap-2">
           <input
             id="filter-budget-min"

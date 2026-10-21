@@ -70,7 +70,7 @@ describe('TierCard', () => {
     expect(wrapper.find('[data-testid="tier-card-price"]').text()).toBe(
       new Intl.NumberFormat('fr-FR').format(25000),
     )
-    expect(wrapper.text()).toContain('F CFA')
+    expect(wrapper.text()).toMatch(/F\sCFA/)
   })
 
   it('renders "Gratuit" and no "F CFA" suffix for the free offer', () => {
@@ -79,7 +79,7 @@ describe('TierCard', () => {
     })
 
     expect(wrapper.find('[data-testid="tier-card-price"]').text()).toBe('Gratuit')
-    expect(wrapper.text()).not.toContain('F CFA')
+    expect(wrapper.text()).not.toMatch(/F\sCFA/)
   })
 
   it('renders the "Populaire" pill on the Pro card', () => {

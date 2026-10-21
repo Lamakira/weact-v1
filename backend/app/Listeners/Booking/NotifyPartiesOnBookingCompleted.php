@@ -37,13 +37,13 @@ class NotifyPartiesOnBookingCompleted
 
         if ($creditHappened) {
             try {
-                $formattedAmount = number_format((float) ($booking->montant_face_recoit ?? 0), 0, ',', ' ');
+                $formattedAmount = \App\Support\Money::format((float) ($booking->montant_face_recoit ?? 0));
 
                 Notification::create([
                     'user_id' => $booking->face_id,
                     'type' => 'booking_wallet_credited',
                     'data' => [
-                        'message' => "{$formattedAmount} XOF ont été ajoutés à votre wallet !",
+                        'message' => "{$formattedAmount} ont été ajoutés à votre wallet !",
                         'booking_id' => $booking->id,
                         'url' => "/face/bookings/{$booking->uuid}",
                     ],

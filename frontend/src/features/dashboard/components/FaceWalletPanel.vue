@@ -8,7 +8,7 @@ import { RouterLink } from 'vue-router'
 import RPanel from '@/components/regie/RPanel.vue'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatXof } from '@/lib/formatCurrency'
+import { formatMoney } from '@/utils/money'
 
 interface Props {
   balance: number
@@ -37,13 +37,13 @@ const lastWithdrawalLabel = computed<string | null>(() => {
     <div class="p-4 sm:p-5">
       <Skeleton v-if="isLoading && balance === 0" class="h-8 w-40" data-testid="wallet-skeleton" />
       <p v-else class="text-[26px] font-semibold leading-none tracking-[-0.02em] text-ink" data-testid="wallet-balance">
-        {{ formatXof(balance) }}
+        {{ formatMoney(balance) }}
       </p>
 
       <dl class="mt-4 space-y-2 border-t border-line pt-3 text-dash">
         <div class="flex items-center justify-between">
           <dt class="text-ink-3">En séquestre</dt>
-          <dd class="font-semibold text-ink" data-testid="wallet-escrow">{{ formatXof(pendingEscrow) }}</dd>
+          <dd class="font-semibold text-ink" data-testid="wallet-escrow">{{ formatMoney(pendingEscrow) }}</dd>
         </div>
         <div v-if="lastWithdrawalLabel" class="flex items-center justify-between">
           <dt class="text-ink-3">Dernier virement</dt>

@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { candidatureApi } from '@/features/candidature/services/candidatureApi'
 import FaceMissionHub from '../FaceMissionHub.vue'
 import type { Mission, MissionCandidature } from '@/features/mission/types'
+import { formatMoney } from '@/utils/money'
 
 vi.mock('@/features/candidature/services/candidatureApi', () => ({
   candidatureApi: { rateProducer: vi.fn() },
@@ -146,7 +147,7 @@ describe('FaceMissionHub — confirmation de participation', () => {
     const wrapper = mountHub(accepted())
 
     expect(wrapper.get('[data-testid="hub-countdown"]').text()).toMatch(/Reste 1 j 1\d h|Reste 1 j 2\d h|Reste 1 j \d+ h/)
-    expect(wrapper.get('[data-testid="hub-money"]').text()).toContain('Vous recevrez 85 000 FCFA')
+    expect(wrapper.get('[data-testid="hub-money"]').text()).toContain(`Vous recevrez ${formatMoney(85000)}`)
     const bar = wrapper.get('[data-testid="hub-actionbar"]')
     expect(bar.text()).toContain('Vous êtes retenue')
     expect(bar.get('[data-testid="hub-action-mobile"]').text()).toBe('Confirmer ma participation')

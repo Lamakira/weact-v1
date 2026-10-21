@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 /**
  * FaceBillingPage
  * Onglet "Facturation & Abonnement" du dashboard Face.
@@ -156,11 +157,8 @@ function fmtDate(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return ''
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`
 }
-function fmtFCFA(n: number): string {
-  return new Intl.NumberFormat('fr-FR').format(n) + ' FCFA'
-}
 function fmtAmount(n: number): string {
-  return n > 0 ? fmtFCFA(n) : 'Gratuit'
+  return n > 0 ? formatMoney(n) : 'Gratuit'
 }
 function daysBetween(a: string | Date, b: string | Date): number {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000)
@@ -583,7 +581,7 @@ function toggleHistory(id: string): void {
                 <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Montant</p>
                 <p class="text-base font-bold text-gray-900 mt-0.5">
                   <template v-if="currentMeta.price > 0">
-                    {{ fmtFCFA(currentMeta.price) }}<span class="text-xs font-medium text-gray-400"> / an</span>
+                    {{ formatMoney(currentMeta.price) }}<span class="text-xs font-medium text-gray-400"> / an</span>
                   </template>
                   <template v-else>Gratuit</template>
                 </p>
