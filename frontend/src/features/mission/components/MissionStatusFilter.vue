@@ -1,27 +1,28 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { MissionStatusType } from '../types'
-import { MissionStatus, MissionStatusLabel } from '../types'
+import type { MissionFilterStatus } from '../types'
+import { MISSION_TO_PROCESS_FILTER, MissionStatus, MissionStatusLabel } from '../types'
 
 /**
  * Props
  */
 const props = defineProps<{
-  modelValue: MissionStatusType | ''
+  modelValue: MissionFilterStatus
 }>()
 
 /**
  * Emits
  */
 const emit = defineEmits<{
-  (e: 'update:modelValue', value: MissionStatusType | ''): void
+  (e: 'update:modelValue', value: MissionFilterStatus): void
 }>()
 
 /**
  * Filter options - exclude draft since producers typically manage published+ missions
  */
-const filterOptions = computed(() => [
-  { value: '' as const, label: 'Tous' },
+const filterOptions = computed<{ value: MissionFilterStatus; label: string }[]>(() => [
+  { value: '', label: 'Tous' },
+  { value: MISSION_TO_PROCESS_FILTER, label: 'À traiter' },
   { value: MissionStatus.PUBLISHED, label: MissionStatusLabel[MissionStatus.PUBLISHED] },
   { value: MissionStatus.CLOSED, label: 'Recrutement clos' },
   { value: MissionStatus.COMPLETED, label: MissionStatusLabel[MissionStatus.COMPLETED] },
@@ -30,14 +31,14 @@ const filterOptions = computed(() => [
 /**
  * Handle filter selection
  */
-function selectFilter(value: MissionStatusType | ''): void {
+function selectFilter(value: MissionFilterStatus): void {
   emit('update:modelValue', value)
 }
 
 /**
  * Check if option is active
  */
-function isActive(value: MissionStatusType | ''): boolean {
+function isActive(value: MissionFilterStatus): boolean {
   return props.modelValue === value
 }
 </script>

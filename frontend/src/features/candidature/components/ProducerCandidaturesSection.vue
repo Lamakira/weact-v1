@@ -431,7 +431,11 @@ onMounted(() => {
     </div>
 
     <!-- Status Filter -->
-    <StatusFilter :model-value="statusFilter" @update:model-value="handleFilterChange" />
+    <!-- Pas de pastille « À traiter » côté Producteur (prop with-to-process absente) : le cast est sûr. -->
+    <StatusFilter
+      :model-value="statusFilter"
+      @update:model-value="handleFilterChange($event as CandidatureStatusType | '')"
+    />
 
     <!-- Loading State -->
     <div

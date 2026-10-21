@@ -7,6 +7,7 @@ import type { SortingState } from '@tanstack/vue-table'
 import DataTable from '@/components/data-table/DataTable.vue'
 import type { DataTableColumn } from '@/components/data-table/dataTableFeatures'
 import type { Booking, BookingFaceUserable, BookingProducerUserable } from '../types'
+import { bookingListAction } from '../utils/bookingPresentation'
 import RStatusDot from '@/components/regie/RStatusDot.vue'
 import { bookingStatusDot } from '@/components/regie/statusTone'
 import BookingCard from './BookingCard.vue'
@@ -102,6 +103,11 @@ const columns = computed<DataTableColumn<Booking>[]>(() => [
   { id: 'actions', header: 'Actions', enableSorting: false },
 ])
 
+/** Action principale de la ligne (lot D7) ; « Voir » quand rien n'est à faire. */
+function actionLabel(booking: Booking): string {
+  return bookingListAction(booking, props.role)?.label ?? 'Voir'
+}
+
 function goToDetail(booking: Booking): void {
   void router.push({ name: detailRouteName.value, params: { id: booking.id } })
 }
@@ -176,9 +182,11 @@ function goToDetail(booking: Booking): void {
       <RouterLink
         :to="{ name: detailRouteName, params: { id: row.id } }"
         class="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        :aria-label="`Voir le booking avec ${counterpart(row).name}`"
+        :class="bookingListAction(row, role) ? 'border-primary bg-primary text-white hover:bg-primary/90 hover:text-white' : ''"
+        :aria-label="`${actionLabel(row)} : booking avec ${counterpart(row).name}`"
+        data-testid="booking-table-action"
       >
-        Voir
+        {{ actionLabel(row) }}
         <ArrowRight class="h-3.5 w-3.5" aria-hidden="true" />
       </RouterLink>
     </template>

@@ -11,6 +11,7 @@ use App\Enums\EscrowStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Services\MissionPaymentService;
+use App\Support\BusinessTimeSql;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
@@ -269,6 +270,42 @@ class Candidature extends Model
         }
 
         return null;
+    }
+
+    /**
+     * Filtre « À traiter » de « Mes candidatures » (lot D7) : candidatures où la Face doit agir
+     * maintenant, c'est-à-dire sélectionnées (Accepted) avec un délai encore ouvert :
+     *  - reconfirmation UGC : accepted_at + ugc.reconfirm_window_hours (reconfirmDeadline) ;
+     *  - participation à confirmer, mission standard : confirmationDeadline() = max(min(accepted_at + 48 h,
+     *    début du tournage), accepted_at + 12 h).
+     *
+     * @param  Builder<Candidature>  $query
+     */
+    public function scopeToProcess(Builder $query): Builder
+    {
+        $now = now();
+        $ugc = MissionType::Ugc->value;
+
+        return $query->where('status', CandidatureStatus::Accepted->value)
+            ->whereNotNull('accepted_at')
+            ->where(function (Builder $cases) use ($now, $ugc): void {
+                $cases
+                    ->orWhere(fn (Builder $b) => $b
+                        ->where('accepted_at', '>', $now->copy()->subHours((int) config('ugc.reconfirm_window_hours', 48)))
+                        ->whereHas('mission', fn (Builder $m) => $m->where('type_mission', $ugc)))
+                    // Plancher : toujours au moins 12 h pour confirmer, même si le tournage est imminent.
+                    ->orWhere(fn (Builder $b) => $b
+                        ->where('accepted_at', '>', $now->copy()->subHours(MissionPaymentService::FACE_CONFIRMATION_MIN_HOURS))
+                        ->whereHas('mission', fn (Builder $m) => $m->where('type_mission', '!=', $ugc)))
+                    // Sinon 48 h, tant que le jour de tournage n'est pas atteint.
+                    ->orWhere(fn (Builder $b) => $b
+                        ->where('accepted_at', '>', $now->copy()->subHours(MissionPaymentService::FACE_CONFIRMATION_WINDOW_HOURS))
+                        ->whereHas('mission', fn (Builder $m) => $m
+                            ->where('type_mission', '!=', $ugc)
+                            ->where(fn (Builder $d) => $d
+                                ->whereNull('date_tournage')
+                                ->orWhereRaw(BusinessTimeSql::localInstant('date_tournage').' > ?', [$now]))));
+            });
     }
 
     /**

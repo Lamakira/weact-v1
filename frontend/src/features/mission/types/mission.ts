@@ -17,6 +17,12 @@ export const MissionStatus = {
 
 export type MissionStatusType = (typeof MissionStatus)[keyof typeof MissionStatus]
 
+// Lot D7 : filtre « À traiter » de la liste Producteur (pas un statut : valeur de `status` de l'URL / de l'API)
+export const MISSION_TO_PROCESS_FILTER = 'to_process'
+
+// Valeur du filtre de la liste : un statut, « À traiter » ou rien (Tous)
+export type MissionFilterStatus = MissionStatusType | typeof MISSION_TO_PROCESS_FILTER | ''
+
 // Mission status labels (French)
 export const MissionStatusLabel: Record<MissionStatusType, string> = {
   [MissionStatus.DRAFT]: 'Brouillon',
@@ -320,7 +326,7 @@ export type MissionSortKey = (typeof MISSION_SORT_KEYS)[number]
 export interface MissionListParams {
   page: number
   perPage: number
-  status?: MissionStatusType | ''
+  status?: MissionFilterStatus
   sort?: MissionSortKey | null
   direction?: 'asc' | 'desc'
 }

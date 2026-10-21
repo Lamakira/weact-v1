@@ -12,6 +12,7 @@ const emit = defineEmits<{
 
 const filterOptions: { value: BookingFilterStatus; label: string }[] = [
   { value: '', label: BookingFilterLabel[''] },
+  { value: 'to_process', label: BookingFilterLabel['to_process'] },
   { value: 'pending', label: BookingFilterLabel['pending'] },
   { value: 'active', label: BookingFilterLabel['active'] },
   { value: 'completed', label: BookingFilterLabel['completed'] },

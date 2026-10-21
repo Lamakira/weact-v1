@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Booking } from '../../types'
 import {
+  bookingListAction,
   bookingListSubtitle,
   buildBookingView,
+  formatDeadlineLong,
   formatRemaining,
   type BookingRole,
 } from '../bookingPresentation'
@@ -226,5 +228,97 @@ describe('bookingListSubtitle', () => {
     expect(bookingListSubtitle(makeBooking({ status: 'paid' }), 'face')).toBe('Confirmé, paiement sécurisé')
     expect(bookingListSubtitle(makeBooking({ status: 'completed' }), 'face')).toBe('Terminé')
     expect(bookingListSubtitle(makeBooking({ status: 'expired' }), 'face')).toBe('Demande expirée')
+  })
+})
+
+describe('formatDeadlineLong', () => {
+  it('formate une échéance « ven. 23 oct. à 14h00 » dans le fuseau métier (UTC+1)', () => {
+    expect(formatDeadlineLong('2026-10-23T13:00:00Z')).toBe('ven. 23 oct. à 14h00')
+    expect(formatDeadlineLong('2026-10-23T07:05:00+00:00')).toBe('ven. 23 oct. à 08h05')
+  })
+})
+
+describe('bookingListAction (lot D7)', () => {
+  const now = new Date('2026-10-20T10:00:00Z').getTime()
+  const action = (overrides: Record<string, unknown>, role: BookingRole) =>
+    bookingListAction(makeBooking(overrides), role, now)
+
+  it('Face : répondre à une demande cash, avec son échéance', () => {
+    expect(action({ status: 'pending', can_accept: true, face_response_deadline: '2026-10-23T13:00:00Z' }, 'face')).toEqual({
+      label: 'Répondre',
+      deadline: 'Répondre avant le ven. 23 oct. à 14h00',
+    })
+  })
+
+  it('Face : pas d’action quand la policy refuse (délai écoulé) ou pour un UGC dont la commission n’est pas réglée', () => {
+    expect(action({ status: 'pending', can_accept: false }, 'face')).toBeNull()
+    expect(action({ status: 'pending', type_contenu: 'UGC', can_accept: false }, 'face')).toBeNull()
+  })
+
+  it('Face : répondre à une demande UGC dont la commission est réglée (sans échéance exposée)', () => {
+    expect(action({ status: 'commission_paid', type_contenu: 'UGC', can_accept: true }, 'face')).toEqual({
+      label: 'Répondre',
+      deadline: null,
+    })
+    expect(action({ status: 'commission_paid', type_contenu: 'UGC', can_accept: true }, 'producer')).toBeNull()
+  })
+
+  it('Producer : payer un booking accepté (échéance de paiement) ou la commission UGC', () => {
+    expect(action({ status: 'accepted', can_pay: true, payment_deadline: '2026-10-21T10:00:00Z' }, 'producer')).toEqual({
+      label: 'Payer',
+      deadline: 'Payer avant le mer. 21 oct. à 11h00',
+    })
+    expect(action({ status: 'accepted', can_pay: false }, 'producer')).toBeNull()
+    expect(
+      action({ status: 'pending', type_contenu: 'UGC', ugc_commission_payment_deadline: '2026-10-22T09:30:00Z' }, 'producer'),
+    ).toEqual({ label: 'Payer la commission', deadline: 'Payer la commission avant le jeu. 22 oct. à 10h30' })
+    expect(action({ status: 'accepted', can_pay: true }, 'face')).toBeNull()
+  })
+
+  it('confirmer la fin : booking payé une fois le tournage commencé, ou déjà confirmé par l’autre partie', () => {
+    const started = '2026-10-19T00:00:00Z'
+    const future = '2026-10-25T00:00:00Z'
+    expect(action({ status: 'paid', date_debut: started }, 'face')?.label).toBe('Confirmer la fin')
+    expect(action({ status: 'paid', date_debut: started }, 'producer')?.label).toBe('Confirmer la fin')
+    expect(action({ status: 'paid', date_debut: future }, 'face')).toBeNull()
+    expect(action({ status: 'confirmed_by_face' }, 'producer')?.label).toBe('Confirmer la fin')
+    expect(action({ status: 'confirmed_by_face' }, 'face')).toBeNull()
+    expect(action({ status: 'confirmed_by_producer' }, 'face')?.label).toBe('Confirmer la fin')
+    expect(action({ status: 'confirmed_by_producer' }, 'producer')).toBeNull()
+  })
+
+  it('tunnel UGC : réception et vidéo côté Face, expédition et validation côté Producer', () => {
+    const ugc = (shipment: unknown) => ({ status: 'accepted', type_contenu: 'UGC', shipment })
+
+    expect(action(ugc({ tunnel_status: 'shipped' }), 'face')?.label).toBe('Confirmer la réception')
+    expect(action(ugc({ tunnel_status: 'received' }), 'face')?.label).toBe('Envoyer la vidéo')
+    expect(action(ugc({ tunnel_status: 'avis_pending' }), 'face')?.label).toBe('Envoyer la vidéo')
+    expect(action(ugc({ tunnel_status: 'unboxing_in_review' }), 'face')).toBeNull()
+    expect(action(ugc(undefined), 'face')).toBeNull()
+
+    expect(action(ugc(undefined), 'producer')?.label).toBe("Confirmer l'expédition")
+    expect(action(ugc({ tunnel_status: 'unboxing_in_review' }), 'producer')?.label).toBe('Valider la vidéo')
+    expect(action(ugc({ tunnel_status: 'avis_in_review' }), 'producer')?.label).toBe('Valider la vidéo')
+    expect(action(ugc({ tunnel_status: 'shipped' }), 'producer')).toBeNull()
+  })
+
+  it('Face : contester une absence ou une annulation tardive dans le délai', () => {
+    const open = { settlement_due_at: '2026-10-21T10:00:00Z' }
+    expect(action({ status: 'no_show', ...open }, 'face')).toEqual({
+      label: 'Contester',
+      deadline: 'Contester avant le mer. 21 oct. à 11h00',
+    })
+    expect(action({ status: 'cancelled_by_producer', ...open }, 'face')?.label).toBe('Contester')
+    expect(action({ status: 'no_show', ...open }, 'producer')).toBeNull()
+    expect(action({ status: 'no_show', settlement_due_at: '2026-10-20T09:00:00Z' }, 'face')).toBeNull()
+    expect(action({ status: 'no_show', ...open, disputed_at: '2026-10-20T08:00:00Z' }, 'face')).toBeNull()
+    expect(action({ status: 'no_show', settlement_due_at: null }, 'face')).toBeNull()
+  })
+
+  it('aucune action pour les statuts clos', () => {
+    for (const status of ['completed', 'refused', 'expired', 'cancelled_by_face']) {
+      expect(action({ status }, 'face')).toBeNull()
+      expect(action({ status }, 'producer')).toBeNull()
+    }
   })
 })

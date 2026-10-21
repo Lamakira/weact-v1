@@ -190,4 +190,58 @@ describe('BookingCard', () => {
       viewer.type = 'Face'
     })
   })
+
+  describe('échéance et action principale (lot D7)', () => {
+    // Le vrai RouterLink n'est pas monté : le stub rend un <a> portant les attributs reçus.
+    const mountCard = (booking: Booking) =>
+      mount(BookingCard, {
+        props: { booking },
+        global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
+      })
+
+    it('Face : demande à traiter → ligne d’échéance et bouton « Répondre »', () => {
+      viewer.type = 'Face'
+      const wrapper = mountCard(
+        makeBooking({ status: 'pending', can_accept: true, face_response_deadline: '2026-10-23T13:00:00Z' }),
+      )
+
+      expect(wrapper.find('[data-testid="booking-card-deadline"]').text()).toBe('Répondre avant le ven. 23 oct. à 14h00')
+      expect(wrapper.find('[data-testid="booking-card-action"]').text()).toBe('Répondre')
+    })
+
+    it('Producer : booking accepté à payer → « Payer avant le … » et bouton « Payer »', () => {
+      viewer.type = 'Producer'
+      const wrapper = mountCard(
+        makeBooking({ status: 'accepted', can_pay: true, payment_deadline: '2026-10-21T10:00:00Z' }),
+      )
+      viewer.type = 'Face'
+
+      expect(wrapper.find('[data-testid="booking-card-deadline"]').text()).toBe('Payer avant le mer. 21 oct. à 11h00')
+      expect(wrapper.find('[data-testid="booking-card-action"]').text()).toBe('Payer')
+    })
+
+    it('action sans échéance : bouton seul, pas de ligne d’échéance', () => {
+      viewer.type = 'Face'
+      const wrapper = mountCard(makeBooking({ status: 'confirmed_by_producer' }))
+
+      expect(wrapper.find('[data-testid="booking-card-deadline"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="booking-card-action"]').text()).toBe('Confirmer la fin')
+    })
+
+    it('rien à faire : ni bouton ni échéance', () => {
+      viewer.type = 'Face'
+      const wrapper = mountCard(makeBooking({ status: 'completed' }))
+
+      expect(wrapper.find('[data-testid="booking-card-action"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="booking-card-deadline"]').exists()).toBe(false)
+    })
+
+    it('le reste de la carte reste cliquable sans lien imbriqué dans un lien', () => {
+      viewer.type = 'Face'
+      const wrapper = mountCard(makeBooking({ status: 'pending', can_accept: true }))
+
+      expect(wrapper.find('[data-testid="booking-card-link"]').exists()).toBe(true)
+      expect(wrapper.find('a a').exists()).toBe(false)
+    })
+  })
 })
