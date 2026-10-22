@@ -293,7 +293,7 @@ export const PRODUCER_KPI_CONFIGS: ProducerKpiConfig[] = [
   },
   {
     key: 'closed',
-    title: 'Clôturées',
+    title: 'Recrutement clos',
     color: 'amber-500',
     bgColor: 'amber-50',
     icon: 'clock',

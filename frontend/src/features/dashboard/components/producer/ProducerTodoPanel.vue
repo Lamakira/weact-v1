@@ -2,28 +2,17 @@
 /**
  * ProducerTodoPanel — file « À faire » du dashboard Producteur (direction Régie).
  * Données : GET /producer/dashboard/todo (jusqu'à 8 items triés par urgence côté serveur).
- * Les items à partie urgente (échéance < 48 h) ont un bouton primaire.
+ * Chaque ligne : trait de couleur à gauche, titre, meta, un seul bouton ; les items à
+ * partie urgente (échéance < 48 h) ont un bouton primaire.
  */
-import { computed, type Component } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  Users,
-  CreditCard,
-  Wallet,
-  ClipboardCheck,
-  Video,
-  PackageCheck,
-  CheckCircle2,
-  Star,
-  ListChecks,
-  MessageCircle,
-} from 'lucide-vue-next'
 import RTodoList from '@/components/regie/RTodoList.vue'
 import RTodoItem from '@/components/regie/RTodoItem.vue'
 import RPanel from '@/components/regie/RPanel.vue'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import type { ProducerTodoItem, ProducerTodoType } from '../../types'
+import type { ProducerTodoItem } from '../../types'
 
 interface Props {
   items: ProducerTodoItem[]
@@ -42,18 +31,12 @@ defineEmits<{
 
 const router = useRouter()
 
-const ICONS: Record<ProducerTodoType, Component> = {
-  candidatures_to_process: Users,
-  selection_payment: CreditCard,
-  ugc_mission_commission: Wallet,
-  booking_payment: CreditCard,
-  ugc_booking_commission: Wallet,
-  attendance_validation: ClipboardCheck,
-  ugc_deliverable_review: Video,
-  ugc_shipment: PackageCheck,
-  booking_completion: CheckCircle2,
-  rate: Star,
-  missing_whatsapp: MessageCircle,
+// Trait de couleur de la ligne : attention dès qu'une échéance est sous 48 h (`urgent_meta`),
+// danger si elle est dépassée (le serveur envoie alors « échéance dépassée », « délai de revue
+// dépassé » ou « expire bientôt » à la place du compte à rebours).
+function accent(item: ProducerTodoItem): 'none' | 'attention' | 'danger' {
+  if (!item.urgent_meta) return 'none'
+  return /dépass|expire bientôt/i.test(item.urgent_meta) ? 'danger' : 'attention'
 }
 
 const showList = computed(() => !props.error && (!props.isLoading || props.items.length > 0))
@@ -101,7 +84,7 @@ function open(item: ProducerTodoItem): void {
         :title="item.title"
         :meta="item.meta ?? undefined"
         :urgent-meta="item.urgent_meta ?? undefined"
-        :icon="ICONS[item.type] ?? ListChecks"
+        :accent="accent(item)"
         :action-label="item.action_label"
         :action-variant="item.urgent_meta ? 'primary' : 'secondary'"
         :to="item.url"

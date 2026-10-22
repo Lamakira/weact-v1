@@ -142,6 +142,23 @@ function mission(overrides: Partial<ProducerActiveMission> = {}): ProducerActive
   }
 }
 
+const urgentItem: ProducerTodoItem = {
+  type: 'booking_payment',
+  title: 'Payer le booking de Awa Dossou',
+  meta: 'Publicité · 110 000 XOF',
+  urgent_meta: 'reste 14 h',
+  action_label: 'Payer',
+  url: '/producer/bookings/b-1',
+}
+const calmItem: ProducerTodoItem = {
+  type: 'candidatures_to_process',
+  title: '3 candidatures à traiter',
+  meta: 'Clip Gbêto',
+  urgent_meta: null,
+  action_label: 'Traiter',
+  url: '/producer/missions/m-1?tab=candidatures',
+}
+
 function mockAll(opts: {
   stats?: ProducerDashboardStats
   deliverables?: DeliverableReviewItem[]
@@ -188,33 +205,60 @@ describe('ProducerDashboardPage', () => {
   })
 
   describe('header', () => {
-    it('shows the agency logo, the name and the rating subtitle', async () => {
+    it('greets an agency by its display name (no first name)', async () => {
       const { wrapper } = await mountPage()
 
-      expect(wrapper.get('[data-testid="profile-name"]').text()).toBe('Studio Awalé')
-      expect(wrapper.get('[data-testid="profile-photo-card"] img').attributes('src')).toBe('https://example.test/logo.png')
-      expect(wrapper.get('[data-testid="profile-subtitle"]').text()).toBe('Agence · ★ 4,8 (23 avis)')
+      expect(wrapper.get('[data-testid="profile-name"]').text()).toBe('Bonjour Studio Awalé')
     })
 
-    it('uses the profile photo for an individual producer', async () => {
+    it('greets an individual producer by first name', async () => {
       mockProfile.value = {
         display_name: 'Koffi Mensah',
-        type: 'individual',
+        first_name: 'Koffi',
+        last_name: 'Mensah',
+        type: 'particulier',
         agency_logo_url: null,
         profile_photo_url: 'https://example.test/photo.png',
       }
       const { wrapper } = await mountPage()
 
-      expect(wrapper.get('[data-testid="profile-photo-card"] img').attributes('src')).toBe('https://example.test/photo.png')
-      expect(wrapper.get('[data-testid="profile-subtitle"]').text()).toContain('Producteur indépendant')
+      expect(wrapper.get('[data-testid="profile-name"]').text()).toBe('Bonjour Koffi')
     })
 
-    it('falls back to initials without any image', async () => {
-      mockProfile.value = { display_name: 'Koffi Mensah', type: 'individual', agency_logo_url: null, profile_photo_url: null }
+    it('no longer renders the logo block nor the rating subtitle in the header', async () => {
       const { wrapper } = await mountPage()
 
-      expect(wrapper.find('[data-testid="profile-photo-card"] img').exists()).toBe(false)
-      expect(wrapper.get('[data-testid="profile-photo-card"]').text()).toBe('KM')
+      expect(wrapper.find('[data-testid="profile-photo-card"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="profile-subtitle"]').exists()).toBe(false)
+    })
+
+    it('summarises the queue with the number of actions, most urgent first (header with actions)', async () => {
+      mockAll({ todo: [urgentItem, calmItem, calmItem] })
+      const { wrapper } = await mountPage()
+
+      expect(wrapper.get('[data-testid="todo-summary"]').text()).toBe(
+        '3 actions vous attendent, la plus urgente en premier.',
+      )
+    })
+
+    it('uses the singular for a single action', async () => {
+      mockAll({ todo: [calmItem] })
+      const { wrapper } = await mountPage()
+
+      expect(wrapper.get('[data-testid="todo-summary"]').text()).toBe('1 action vous attend.')
+    })
+
+    it('says nothing is left to do when the queue is empty (header without action)', async () => {
+      const { wrapper } = await mountPage()
+
+      expect(wrapper.get('[data-testid="todo-summary"]').text()).toBe('Rien à traiter pour le moment.')
+    })
+
+    it('shows no summary while the queue is loading or when it failed', async () => {
+      vi.mocked(dashboardApi.getProducerTodo).mockRejectedValueOnce(new Error('boom'))
+      const { wrapper } = await mountPage()
+
+      expect(wrapper.find('[data-testid="todo-summary"]').exists()).toBe(false)
     })
 
     it('links « Fiche publique » to /producers/:slug and hides it on mobile', async () => {
@@ -432,23 +476,6 @@ describe('ProducerDashboardPage', () => {
   })
 
   describe('« À faire » panel', () => {
-    const urgentItem: ProducerTodoItem = {
-      type: 'booking_payment',
-      title: 'Payer le booking de Awa Dossou',
-      meta: 'Publicité · 110 000 XOF',
-      urgent_meta: 'reste 14 h',
-      action_label: 'Payer',
-      url: '/producer/bookings/b-1',
-    }
-    const calmItem: ProducerTodoItem = {
-      type: 'candidatures_to_process',
-      title: '3 candidatures à traiter',
-      meta: 'Clip Gbêto',
-      urgent_meta: null,
-      action_label: 'Traiter',
-      url: '/producer/missions/m-1?tab=candidatures',
-    }
-
     it('sits above the KPI row and lists the items with their action', async () => {
       mockAll({ todo: [urgentItem, calmItem] })
       const { wrapper } = await mountPage()
@@ -462,6 +489,24 @@ describe('ProducerDashboardPage', () => {
 
       const html = wrapper.html()
       expect(html.indexOf('producer-todo-panel')).toBeLessThan(html.indexOf('kpi-cards-grid'))
+    })
+
+    it('draws a coloured edge: attention under 48 h, danger when overdue, neutral otherwise', async () => {
+      const overdue: ProducerTodoItem = { ...urgentItem, title: 'Valider la présence', urgent_meta: 'échéance dépassée' }
+      mockAll({ todo: [urgentItem, overdue, calmItem] })
+      const { wrapper } = await mountPage()
+
+      const accents = wrapper.findAll('[data-testid="r-todo-accent"]').map((a) => a.attributes('data-accent'))
+      expect(accents).toEqual(['attention', 'danger', 'none'])
+    })
+
+    it('offers a single action button per row', async () => {
+      mockAll({ todo: [urgentItem, calmItem] })
+      const { wrapper } = await mountPage()
+
+      for (const row of wrapper.findAll('[data-testid="r-todo-item"]')) {
+        expect(row.findAll('button[data-testid="r-todo-action"]')).toHaveLength(1)
+      }
     })
 
     it('shows a sober empty state', async () => {
@@ -510,13 +555,38 @@ describe('ProducerDashboardPage', () => {
   })
 
   describe('layout', () => {
-    it('stacks the modules in one column and splits 2 x 2 from lg', async () => {
+    it('puts the to-do first in the main column, then the KPIs, with missions and messages in the right column', async () => {
       const { wrapper } = await mountPage()
-      const grid = wrapper.get('[data-testid="producer-dashboard-modules"]')
+      const columns = wrapper.get('[data-testid="producer-dashboard-columns"]')
 
-      expect(grid.classes()).toContain('grid-cols-1')
-      expect(grid.classes()).toContain('lg:grid-cols-2')
-      expect(grid.findAll('[data-testid^="module-"]')).toHaveLength(4)
+      expect(columns.classes()).toContain('grid-cols-1')
+      expect(columns.classes().some((c) => c.startsWith('lg:grid-cols-'))).toBe(true)
+
+      const main = wrapper.get('[data-testid="producer-dashboard-main"]')
+      expect(main.find('[data-testid="producer-todo-panel"]').exists()).toBe(true)
+      expect(main.find('[data-testid="kpi-cards-grid"]').exists()).toBe(true)
+      const html = main.html()
+      expect(html.indexOf('producer-todo-panel')).toBeLessThan(html.indexOf('kpi-cards-grid'))
+
+      const aside = wrapper.get('[data-testid="producer-dashboard-aside"]')
+      expect(aside.find('[data-testid="module-active-missions"]').exists()).toBe(true)
+      expect(aside.find('[data-testid="module-unread-messages"]').exists()).toBe(true)
+    })
+
+    it('keeps the « Livrables à valider » and « Réputation » modules under the KPI tiles', async () => {
+      const { wrapper } = await mountPage()
+      const modulesGrid = wrapper.get('[data-testid="producer-dashboard-main"] [data-testid="producer-dashboard-modules"]')
+
+      expect(modulesGrid.find('[data-testid="module-to-validate"]').exists()).toBe(true)
+      expect(modulesGrid.find('[data-testid="module-reputation"]').exists()).toBe(true)
+      const html = wrapper.get('[data-testid="producer-dashboard-main"]').html()
+      expect(html.indexOf('kpi-cards-grid')).toBeLessThan(html.indexOf('producer-dashboard-modules'))
+    })
+
+    it('labels the closed-recruitment tile « Recrutement clos »', async () => {
+      const { wrapper } = await mountPage()
+
+      expect(wrapper.get('[data-testid="kpi-card-closed"]').text()).toContain('Recrutement clos')
     })
 
     it('no longer renders the 4 shortcut tiles', async () => {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * ProducerKpiRow — rangée compacte des 4 indicateurs missions (Publiées, En cours,
- * Clôturées, Terminées) : point d'état + libellé, chiffre, contexte. Reprend les
+ * Recrutement clos, Terminées) : point d'état + libellé, chiffre, contexte. Reprend les
  * chiffres de /producer/dashboard/stats ; pas de micro-tendance (l'API n'a pas de
  * série mensuelle Producteur). 2 × 2 sur mobile, 4 colonnes dès md.
  */
