@@ -263,9 +263,9 @@ export const BookingFilterLabel: Record<BookingFilterStatus, string> = {
   '': 'Tous',
   to_process: 'À traiter',
   pending: 'En attente',
-  active: 'Actifs',
+  active: 'En cours',
   completed: 'Terminés',
-  cancelled: 'Annulés',
+  cancelled: 'Annulés et refusés',
 }
 
 // Server-side sort keys accepted by GET /bookings (`montant` = the viewer's own amount)

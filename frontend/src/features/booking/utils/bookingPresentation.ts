@@ -494,6 +494,72 @@ export function bookingListSubtitle(booking: Booking, role: BookingRole): string
   }
 }
 
+/**
+ * Libellé de statut d'une ligne de la liste, du point de vue de la personne qui lit (lot F4) :
+ * « Confirmé par vous », « Refusé par vous »… Un booking est masculin (comme la pastille de la
+ * page booking). L'administration garde BookingStatusLabel tel quel.
+ */
+export function bookingListStatusLabel(booking: Booking, role: BookingRole): string {
+  const producer = role === 'producer'
+  const ugc = isUgc(booking)
+
+  switch (booking.status) {
+    case BookingStatus.PENDING:
+      if (producer) return ugc ? 'Commission à régler' : 'En attente de réponse'
+      return ugc ? 'En attente de la commission' : 'À répondre par vous'
+    case BookingStatus.COMMISSION_PAID:
+      return producer ? 'Commission réglée' : 'À répondre par vous'
+    case BookingStatus.ACCEPTED:
+      if (ugc) return 'Livraison en cours'
+      return producer ? 'À payer' : 'Paiement attendu'
+    case BookingStatus.PAID:
+      return 'Paiement sécurisé'
+    case BookingStatus.IN_PROGRESS:
+      return 'En cours'
+    case BookingStatus.CONFIRMED_BY_FACE:
+      return producer ? 'À confirmer par vous' : 'Confirmé par vous'
+    case BookingStatus.CONFIRMED_BY_PRODUCER:
+      return producer ? 'Confirmé par vous' : 'À confirmer par vous'
+    case BookingStatus.COMPLETED:
+      return 'Terminé'
+    case BookingStatus.REFUSED:
+      // Seule la Face refuse une demande.
+      return producer ? 'Refusé par la Face' : 'Refusé par vous'
+    case BookingStatus.EXPIRED:
+      return 'Expiré'
+    case BookingStatus.CANCELLED_BY_PRODUCER:
+      return producer ? 'Annulé par vous' : 'Annulé par le Producteur'
+    case BookingStatus.CANCELLED_BY_FACE:
+      return producer ? 'Annulé par la Face' : 'Annulé par vous'
+    case BookingStatus.NO_SHOW:
+      return 'Absence signalée'
+    default:
+      return booking.status_label
+  }
+}
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n > 1 ? 's' : ''}`
+}
+
+/** Montant d'une ligne de la liste + sa légende ; « Produit seul » quand aucun argent ne circule. */
+export function bookingListAmount(booking: Booking, role: BookingRole): { text: string; caption: string } {
+  const producer = role === 'producer'
+  const amount = producer ? booking.montant_total_producteur : booking.montant_face_recoit
+  if (isUgc(booking) && amount <= 0) return { text: 'Produit seul', caption: 'sans argent' }
+  if (producer) return { text: formatMoney(amount), caption: 'vous payez' }
+  return { text: formatMoney(amount), caption: isUgc(booking) ? 'produit + argent' : 'vous recevez' }
+}
+
+/** Faits d'un booking UGC (« Produit : coffret Bissap », « 2 vidéos ») ; vide pour un booking cash. */
+export function bookingUgcFacts(booking: Booking): { product: string | null; videos: string | null } {
+  if (!isUgc(booking)) return { product: null, videos: null }
+  return {
+    product: booking.nom_produit ? `Produit : ${booking.nom_produit}` : null,
+    videos: booking.nombre_videos ? plural(booking.nombre_videos, 'vidéo') : null,
+  }
+}
+
 /** « jeu. 23 oct. à 14h00 » dans le fuseau métier (échéances des cartes de la liste). */
 export function formatDeadlineLong(iso: string): string {
   const time = new Intl.DateTimeFormat('fr-FR', {

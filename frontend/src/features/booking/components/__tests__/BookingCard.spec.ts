@@ -191,6 +191,53 @@ describe('BookingCard', () => {
     })
   })
 
+  describe('statut, montant et méta UGC (lot F4)', () => {
+    const mountCard = (booking: Booking) =>
+      mount(BookingCard, {
+        props: { booking },
+        global: { stubs: { RouterLink: { template: '<a><slot /></a>' } } },
+      })
+    const ugcProductOnly = {
+      type_contenu: 'UGC',
+      date_debut: null,
+      date_fin: null,
+      duree_heures: null,
+      lieu: null,
+      nom_produit: 'coffret Bissap',
+      nombre_videos: 2,
+      montant_face_recoit: 0,
+    }
+
+    it('booking UGC produit seul côté Face : « Produit seul » au lieu de « 0 F CFA », produit et vidéos en méta', () => {
+      viewer.type = 'Face'
+      const wrapper = mountCard(makeBooking({ ...ugcProductOnly, status: 'accepted' }))
+
+      expect(wrapper.get('[data-testid="booking-card-amount"]').text()).toContain('Produit seul')
+      expect(wrapper.text()).not.toContain('0 F CFA')
+      expect(wrapper.get('[data-testid="booking-card-product"]').text()).toBe('Produit : coffret Bissap')
+      expect(wrapper.get('[data-testid="booking-card-videos"]').text()).toBe('2 vidéos')
+    })
+
+    it('booking cash : le montant passe par le formateur et reste affiché', () => {
+      viewer.type = 'Face'
+      const wrapper = mountCard(makeBooking())
+
+      expect(wrapper.get('[data-testid="booking-card-amount"]').text().replace(/\s/g, '')).toContain('45000FCFA')
+      expect(wrapper.find('[data-testid="booking-card-product"]').exists()).toBe(false)
+    })
+
+    it('statut dit du point de vue de la personne qui lit', () => {
+      viewer.type = 'Face'
+      expect(mountCard(makeBooking({ status: 'confirmed_by_producer' })).text()).toContain('À confirmer par vous')
+      expect(mountCard(makeBooking({ status: 'refused' })).text()).toContain('Refusé par vous')
+
+      viewer.type = 'Producer'
+      expect(mountCard(makeBooking({ status: 'confirmed_by_producer' })).text()).toContain('Confirmé par vous')
+      expect(mountCard(makeBooking({ status: 'refused' })).text()).toContain('Refusé par la Face')
+      viewer.type = 'Face'
+    })
+  })
+
   describe('échéance et action principale (lot D7)', () => {
     // Le vrai RouterLink n'est pas monté : le stub rend un <a> portant les attributs reçus.
     const mountCard = (booking: Booking) =>

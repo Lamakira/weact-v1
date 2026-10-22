@@ -22,6 +22,17 @@ class IndexProducerMissionsRequest extends FormRequest
     /** Filtre « À traiter » (lot D7) : valeur de `status` qui n'est pas un statut de mission. */
     public const TO_PROCESS = 'to_process';
 
+    /** Filtre « En cours » (lot F4) : groupe de statuts, pas un statut de mission. */
+    public const ACTIVE = 'active';
+
+    /** @var list<MissionStatus> Statuts regroupés sous le filtre `active`. */
+    public const ACTIVE_STATUSES = [
+        MissionStatus::Published,
+        MissionStatus::PendingPayment,
+        MissionStatus::Closed,
+        MissionStatus::PendingAttendanceValidation,
+    ];
+
     public const SORT_KEYS = ['created_at', 'date_tournage', 'date_limite_candidature', 'status', 'candidatures_count'];
 
     public function authorize(): bool
@@ -38,7 +49,7 @@ class IndexProducerMissionsRequest extends FormRequest
         return [
             'sort' => ['sometimes', 'string', Rule::in(self::SORT_KEYS)],
             'direction' => ['sometimes', 'string', Rule::in(['asc', 'desc'])],
-            'status' => ['sometimes', 'string', Rule::in([...MissionStatus::values(), self::TO_PROCESS])],
+            'status' => ['sometimes', 'string', Rule::in([...MissionStatus::values(), self::TO_PROCESS, self::ACTIVE])],
             'page' => ['sometimes', 'integer', 'min:1'],
             'per_page' => ['sometimes', 'integer', Rule::in(self::PER_PAGE_OPTIONS)],
         ];

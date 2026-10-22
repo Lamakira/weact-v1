@@ -1,5 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import StatusFilter from '../StatusFilter.vue'
 
 // Compteurs d'actions (lot D3) : store remplacé par un état réactif piloté par les tests.
@@ -10,6 +10,23 @@ vi.mock('@/stores/actionCounts', async () => {
   return { useActionCountsStore: () => ({ counts: countsHolder.counts }) }
 })
 
+let wrapper: VueWrapper | null = null
+
+async function openMore(w: VueWrapper): Promise<void> {
+  await w.find('[data-testid="filter-more-trigger"]').trigger('keydown', { key: 'Enter' })
+  await flushPromises()
+}
+
+function moreLabels(): string[] {
+  return Array.from(document.body.querySelectorAll('[role="menuitem"]')).map((el) => el.textContent!.trim())
+}
+
+afterEach(() => {
+  wrapper?.unmount()
+  wrapper = null
+  document.body.innerHTML = ''
+})
+
 describe('StatusFilter (lot D7)', () => {
   beforeEach(() => {
     countsHolder.counts.candidatures = 0
@@ -18,7 +35,7 @@ describe('StatusFilter (lot D7)', () => {
   it('Face : place la pastille « À traiter » juste après « Tous » (prop with-to-process)', () => {
     const wrapper = mount(StatusFilter, { props: { modelValue: '', withToProcess: true } })
 
-    expect(wrapper.findAll('button').map((b) => b.text()).slice(0, 3)).toEqual(['Tous', 'À traiter', 'En attente'])
+    expect(wrapper.findAll('button').map((b) => b.text()).slice(0, 3)).toEqual(['Tous', 'À traiter', 'En cours'])
   })
 
   it('Producer : pas de pastille « À traiter » par défaut', () => {
@@ -44,5 +61,29 @@ describe('StatusFilter (lot D7)', () => {
     expect(counts).toHaveLength(1)
     expect(counts[0]!.text()).toBe('2')
     expect(wrapper.findAll('button').find((b) => b.text().startsWith('À traiter'))!.find('[data-testid="to-process-count"]').exists()).toBe(true)
+  })
+
+  // Lot F4 : filtres réduits, statuts rares dans « Plus »
+  it('F4 : 4 pastilles visibles (Tous, À traiter, En cours, Terminées) et un bouton « Plus »', () => {
+    const w = mount(StatusFilter, { props: { modelValue: '', withToProcess: true } })
+
+    expect(w.findAll('button').map((b) => b.text())).toEqual(['Tous', 'À traiter', 'En cours', 'Terminées', 'Plus'])
+  })
+
+  it('F4 : le menu « Plus » liste les statuts rares et émet la valeur choisie', async () => {
+    wrapper = mount(StatusFilter, { props: { modelValue: '', withToProcess: true }, attachTo: document.body })
+    await openMore(wrapper)
+
+    expect(moreLabels()).toEqual(['En attente', 'Non retenues', 'Annulées', 'Expirées'])
+
+    ;(document.body.querySelector('[data-testid="filter-more-rejected"]') as HTMLElement).click()
+    await flushPromises()
+    expect(wrapper.emitted('update:modelValue')).toEqual([['rejected']])
+  })
+
+  it('F4 : le filtre choisi dans « Plus » s\'affiche dans le bouton', () => {
+    const w = mount(StatusFilter, { props: { modelValue: 'expired', withToProcess: true } })
+
+    expect(w.get('[data-testid="filter-more-trigger"]').text()).toBe('Plus : Expirées')
   })
 })

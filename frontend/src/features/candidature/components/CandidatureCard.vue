@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { formatMoney } from '@/utils/money'
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { Calendar, MapPin, Wallet, User, Check, Loader2, MessageCircle, XCircle, Star } from 'lucide-vue-next'
+import { Check, Loader2, MessageCircle, XCircle, Star } from 'lucide-vue-next'
 import type { FaceCandidature, MissionRating } from '../types'
 import { CandidatureStatusColor } from '../types'
 import { formatConfirmationDeadline } from '../utils/formatConfirmationDeadline'
+import { candidatureFacts, candidatureFaceStatusLabel } from '../utils/candidaturePresentation'
 import { StatusPill, tunnelStatusToPillKind } from '@/components/ugc'
 import MissionAbsenceContestBlock from './MissionAbsenceContestBlock.vue'
 import MissionRatingDialog from './MissionRatingDialog.vue'
@@ -55,7 +55,11 @@ const canConfirm = computed(() => props.candidature.status === 'accepted')
  * Computed: Show cancel button for pending candidatures
  */
 const displayStatus = computed(() => props.candidature.display_status ?? props.candidature.status)
-const displayStatusLabel = computed(() => props.candidature.display_status_label ?? props.candidature.status_label)
+// Libellé vu par la Face (« À confirmer par vous », « Non retenue »), sinon celui du serveur.
+const displayStatusLabel = computed(() => candidatureFaceStatusLabel(props.candidature))
+
+// Faits en libellé / valeur : jamais de ligne vide (UGC : Type, Vous recevez, Prochaine étape).
+const facts = computed(() => candidatureFacts(props.candidature))
 
 // « Mission clôturée » : pending côté base, mais plus rien à annuler ni à attendre.
 // « Sélection en cours de paiement » : la Face peut encore se retirer.
@@ -68,6 +72,20 @@ const canChat = computed(() => {
   const chatStatuses = ['accepted', 'confirmed', 'in_progress', 'completed']
   return chatStatuses.includes(props.candidature.status) && props.candidature.conversation_id != null
 })
+
+/**
+ * Pied de carte : une seule action principale (confirmer > retirer > noter > discuter), sinon
+ * « Voir d'autres missions » quand la candidature n'a pas abouti. Le chat reste accessible en
+ * second geste (icône) quand une autre action est mise en avant.
+ */
+const primaryAction = computed<'confirm' | 'cancel' | 'rate' | 'chat' | 'browse' | null>(() => {
+  if (canConfirm.value) return 'confirm'
+  if (canCancel.value) return 'cancel'
+  if (canRate.value) return 'rate'
+  if (canChat.value) return 'chat'
+  return ['rejected', 'cancelled', 'expired'].includes(props.candidature.status) ? 'browse' : null
+})
+const showSecondaryChat = computed(() => canChat.value && primaryAction.value !== 'chat')
 
 /**
  * Handle confirm button click
@@ -107,31 +125,6 @@ function resetCancelling(): void {
 defineExpose({ resetConfirming, resetCancelling })
 
 /**
- * Computed: Format date for display
- */
-const formattedDate = computed(() => {
-  if (!props.candidature.mission.date_tournage) return ''
-  try {
-    const date = new Date(props.candidature.mission.date_tournage)
-    if (isNaN(date.getTime())) return props.candidature.mission.date_tournage
-    return new Intl.DateTimeFormat('fr-FR', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    }).format(date)
-  } catch {
-    return props.candidature.mission.date_tournage
-  }
-})
-
-/**
- * Computed: Format budget for display
- */
-const formattedBudget = computed(() => {
-  return formatMoney(props.candidature.mission.budget)
-})
-
-/**
  * Computed: Format created_at for display
  */
 const formattedCreatedAt = computed(() => {
@@ -161,13 +154,6 @@ const statusBadgeClass = computed(() => {
     gray: 'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400',
   }
   return colorClasses[color] || colorClasses.yellow
-})
-
-/**
- * Computed: Producer initials for fallback avatar
- */
-const producerInitials = computed(() => {
-  return props.candidature.producer.display_name.charAt(0).toUpperCase()
 })
 
 /**
@@ -205,72 +191,49 @@ const formattedConfirmationDeadline = computed(() =>
 <template>
   <RouterLink
     :to="{ name: 'face-mission-detail', params: { id: candidature.mission.id } }"
-    class="block rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md sm:p-5"
+    class="candidature-card grid content-start gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/50 hover:shadow-md sm:p-5"
   >
-    <!-- Status Badge -->
-    <div class="mb-3 flex items-center justify-between">
+    <!-- Statut -->
+    <div class="flex items-center justify-between gap-2">
       <span
         class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium"
         :class="statusBadgeClass"
       >
         {{ displayStatusLabel }}
       </span>
-      <span class="text-xs text-muted-foreground">
-        Postulé le {{ formattedCreatedAt }}
-      </span>
     </div>
 
     <!-- Mission Title -->
-    <h3 class="mb-3 text-base font-semibold text-foreground line-clamp-2 sm:text-lg">
+    <h3 class="text-base font-extrabold text-foreground line-clamp-2 sm:text-lg">
       {{ candidature.mission.titre }}
     </h3>
 
-    <!-- Mission Details -->
-    <div class="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-      <div class="flex items-center gap-1.5">
-        <Calendar class="h-4 w-4" />
-        <span>{{ formattedDate }}</span>
+    <!-- Faits : libellé / valeur -->
+    <dl class="grid gap-1.5 text-sm" data-testid="candidature-facts">
+      <div v-for="fact in facts" :key="fact.key" class="flex items-baseline gap-2" :data-testid="`candidature-fact-${fact.key}`">
+        <dt class="min-w-[7.5rem] shrink-0 text-muted-foreground">{{ fact.label }}</dt>
+        <dd class="min-w-0 font-semibold text-foreground">{{ fact.value }}</dd>
       </div>
-      <div class="flex items-center gap-1.5">
-        <MapPin class="h-4 w-4" />
-        <span>{{ candidature.mission.lieu }}</span>
-      </div>
-      <div class="flex items-center gap-1.5">
-        <Wallet class="h-4 w-4" />
-        <span>{{ formattedBudget }}</span>
-      </div>
-    </div>
+    </dl>
 
-    <!-- Producer Info -->
-    <div class="flex items-center gap-3 border-t border-border pt-3">
-      <div class="relative h-8 w-8 overflow-hidden rounded-full border border-border bg-muted">
-        <img
-          v-if="candidature.producer.profile_photo_thumbnail_url || candidature.producer.profile_photo_url"
-          :src="candidature.producer.profile_photo_thumbnail_url || candidature.producer.profile_photo_url || undefined"
-          :alt="candidature.producer.display_name"
-          class="h-full w-full object-cover"
-          loading="lazy"
-          width="32"
-          height="32"
-          decoding="async"
-        />
-        <div
-          v-else
-          class="flex h-full w-full items-center justify-center bg-primary/10 text-xs font-bold uppercase text-primary"
-        >
-          {{ producerInitials }}
-        </div>
-      </div>
-      <div class="flex-1 min-w-0">
-        <p class="text-sm font-medium text-foreground truncate">
-          {{ candidature.producer.display_name }}
-        </p>
-        <p class="text-xs text-muted-foreground">
-          {{ candidature.producer.type === 'agency' ? 'Agence' : 'Particulier' }}
-        </p>
-      </div>
-      <User class="h-4 w-4 text-muted-foreground" />
-    </div>
+    <!-- Confirmation deadline label (cash accepted, lot B3) -->
+    <p
+      v-if="formattedConfirmationDeadline"
+      data-testid="confirmation-deadline-label"
+      class="text-center text-xs text-amber-600 dark:text-amber-400"
+    >
+      À confirmer avant le {{ formattedConfirmationDeadline }}
+    </p>
+
+    <!-- Reconfirmation deadline label (UGC accepted, 9-2, D-9.2.e) -->
+    <p
+      v-if="canConfirm && formattedReconfirmDeadline"
+      data-testid="reconfirm-deadline-label"
+      class="text-center text-xs text-amber-600 dark:text-amber-400"
+    >
+      Reconfirmez avant le {{ formattedReconfirmDeadline }}, sinon votre place sera libérée.
+    </p>
+
 
     <!-- Tracking expédition UGC (3.4) — bloc compact informatif, l'action vit sur le détail (D-3.4.h) -->
     <div
@@ -297,77 +260,83 @@ const formattedConfirmationDeadline = computed(() =>
       />
     </div>
 
-    <!-- Actions Section -->
-    <div
-      v-if="canCancel || canConfirm || canChat || canRate"
-      class="mt-4 flex flex-col gap-2 border-t border-border pt-4"
-    >
-      <!-- Confirm Button -->
-      <button
-        v-if="canConfirm"
-        type="button"
-        class="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        :disabled="isConfirming"
-        @click.stop.prevent="handleConfirm"
-      >
-        <Loader2 v-if="isConfirming" class="h-4 w-4 animate-spin" />
-        <Check v-else class="h-4 w-4" />
-        {{ isConfirming ? 'Confirmation...' : 'Confirmer ma participation' }}
-      </button>
+    <!-- Pied de carte : date de candidature + une action -->
+    <div class="flex items-center justify-between gap-2 border-t border-border pt-3 text-xs text-muted-foreground">
+      <span>Postulé le {{ formattedCreatedAt }}</span>
 
-      <!-- Confirmation deadline label (cash accepted, lot B3) -->
-      <p
-        v-if="formattedConfirmationDeadline"
-        data-testid="confirmation-deadline-label"
-        class="text-center text-xs text-amber-600 dark:text-amber-400"
-      >
-        À confirmer avant le {{ formattedConfirmationDeadline }}
-      </p>
+      <div class="flex items-center gap-2">
+        <RouterLink
+          v-if="showSecondaryChat"
+          :to="{ name: 'face-conversation', params: { conversationId: candidature.conversation_id } }"
+          class="inline-flex size-8 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground transition-colors hover:bg-muted"
+          aria-label="Discuter avec le producteur"
+          title="Discuter avec le producteur"
+          data-testid="candidature-chat-secondary"
+          @click.stop
+        >
+          <MessageCircle class="h-4 w-4" aria-hidden="true" />
+        </RouterLink>
 
-      <!-- Reconfirmation deadline label (UGC accepted, 9-2, D-9.2.e) -->
-      <p
-        v-if="canConfirm && formattedReconfirmDeadline"
-        data-testid="reconfirm-deadline-label"
-        class="text-center text-xs text-amber-600 dark:text-amber-400"
-      >
-        Reconfirmez avant le {{ formattedReconfirmDeadline }}, sinon votre place sera libérée.
-      </p>
+        <button
+          v-if="primaryAction === 'confirm'"
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Confirmer ma participation"
+          data-testid="candidature-confirm"
+          :disabled="isConfirming"
+          @click.stop.prevent="handleConfirm"
+        >
+          <Loader2 v-if="isConfirming" class="h-4 w-4 animate-spin" />
+          <Check v-else class="h-4 w-4" />
+          {{ isConfirming ? 'Confirmation...' : 'Confirmer' }}
+        </button>
 
-      <!-- Cancel Button -->
-      <button
-        v-if="canCancel"
-        type="button"
-        class="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
-        :disabled="isCancelling"
-        @click.stop.prevent="handleCancel"
-      >
-        <Loader2 v-if="isCancelling" class="h-4 w-4 animate-spin" />
-        <XCircle v-else class="h-4 w-4" />
-        {{ isCancelling ? 'Annulation...' : 'Annuler ma candidature' }}
-      </button>
+        <button
+          v-else-if="primaryAction === 'cancel'"
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-sm font-medium text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label="Annuler ma candidature"
+          data-testid="candidature-cancel"
+          :disabled="isCancelling"
+          @click.stop.prevent="handleCancel"
+        >
+          <Loader2 v-if="isCancelling" class="h-4 w-4 animate-spin" />
+          <XCircle v-else class="h-4 w-4" />
+          {{ isCancelling ? 'Annulation...' : 'Retirer' }}
+        </button>
 
-      <!-- Noter le producteur (facultatif, lot C8) -->
-      <button
-        v-if="canRate"
-        type="button"
-        class="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-        data-testid="candidature-rate"
-        @click.stop.prevent="ratingOpen = true"
-      >
-        <Star class="h-4 w-4 text-amber-400" />
-        Noter le producteur
-      </button>
+        <button
+          v-else-if="primaryAction === 'rate'"
+          type="button"
+          class="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          data-testid="candidature-rate"
+          @click.stop.prevent="ratingOpen = true"
+        >
+          <Star class="h-4 w-4 text-amber-400" />
+          Noter
+        </button>
 
-      <!-- Chat Button -->
-      <RouterLink
-        v-if="canChat"
-        :to="{ name: 'face-conversation', params: { conversationId: candidature.conversation_id } }"
-        class="w-full inline-flex items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-        @click.stop
-      >
-        <MessageCircle class="h-4 w-4 text-muted-foreground" />
-        Discuter avec le producteur
-      </RouterLink>
+        <RouterLink
+          v-else-if="primaryAction === 'chat'"
+          :to="{ name: 'face-conversation', params: { conversationId: candidature.conversation_id } }"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-primary/90"
+          data-testid="candidature-chat"
+          @click.stop
+        >
+          <MessageCircle class="h-4 w-4" aria-hidden="true" />
+          Discuter
+        </RouterLink>
+
+        <RouterLink
+          v-else-if="primaryAction === 'browse'"
+          :to="{ name: 'face-missions' }"
+          class="inline-flex items-center rounded-lg border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          data-testid="candidature-browse"
+          @click.stop
+        >
+          Voir d'autres missions
+        </RouterLink>
+      </div>
     </div>
 
     <MissionRatingDialog
@@ -379,3 +348,22 @@ const formattedConfirmationDeadline = computed(() =>
     />
   </RouterLink>
 </template>
+
+<style scoped>
+/* Entrée échelonnée (transform + opacity, ease-out fort) ; l'index vient de la page via --card-index. */
+.candidature-card {
+  animation: candidature-card-in 260ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: calc(min(var(--card-index, 0), 8) * 40ms);
+}
+@keyframes candidature-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .candidature-card {
+    animation: none;
+  }
+}
+</style>

@@ -55,6 +55,12 @@ class MissionController extends Controller
         if ($request->validated('status') === IndexProducerMissionsRequest::TO_PROCESS) {
             // Lot D7 : missions où le Producteur doit agir maintenant (Mission::toProcessForProducer).
             $query->toProcessForProducer($user->userable_id);
+        } elseif ($request->validated('status') === IndexProducerMissionsRequest::ACTIVE) {
+            // Lot F4 : « En cours » = tout ce qui est vivant (hors brouillon et terminé).
+            $query->whereIn('status', array_map(
+                fn (MissionStatus $status): string => $status->value,
+                IndexProducerMissionsRequest::ACTIVE_STATUSES,
+            ));
         } elseif ($request->filled('status')) {
             $query->where('status', $request->validated('status'));
         }

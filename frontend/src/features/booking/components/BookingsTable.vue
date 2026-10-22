@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { formatMoney } from '@/utils/money'
 import { computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { ArrowRight } from 'lucide-vue-next'
@@ -7,9 +6,14 @@ import type { SortingState } from '@tanstack/vue-table'
 import DataTable from '@/components/data-table/DataTable.vue'
 import type { DataTableColumn } from '@/components/data-table/dataTableFeatures'
 import type { Booking, BookingFaceUserable, BookingProducerUserable } from '../types'
-import { bookingListAction } from '../utils/bookingPresentation'
+import {
+  bookingListAction,
+  bookingListAmount,
+  bookingListStatusLabel,
+  bookingUgcFacts,
+} from '../utils/bookingPresentation'
 import RStatusDot from '@/components/regie/RStatusDot.vue'
-import { bookingStatusDot } from '@/components/regie/statusTone'
+import { bookingTones, type StatusTone } from '@/components/regie/statusTone'
 import BookingCard from './BookingCard.vue'
 
 const props = withDefaults(
@@ -82,6 +86,14 @@ function amountOf(booking: Booking): number {
   return props.role === 'face' ? booking.montant_face_recoit : booking.montant_total_producteur
 }
 
+/** Point d'état de la ligne : libellé du point de vue de la personne qui lit (lot F4). */
+function statusDot(booking: Booking): { tone: StatusTone; label: string } {
+  return {
+    tone: bookingTones[booking.status] ?? 'neutral',
+    label: bookingListStatusLabel(booking, props.role),
+  }
+}
+
 const columns = computed<DataTableColumn<Booking>[]>(() => [
   {
     id: 'counterpart',
@@ -97,6 +109,7 @@ const columns = computed<DataTableColumn<Booking>[]>(() => [
     accessorFn: (b) => amountOf(b),
     header: props.role === 'face' ? 'Montant reçu' : 'Montant',
     enableSorting: true,
+    meta: { class: 'text-right' },
   },
   { id: 'status', accessorFn: (b) => b.status, header: 'Statut', enableSorting: true },
   { id: 'created_at', accessorFn: (b) => b.created_at, header: 'Créé le', enableSorting: true },
@@ -158,20 +171,30 @@ function goToDetail(booking: Booking): void {
 
     <template #cell-type_contenu="{ row }">{{ row.type_contenu }}</template>
 
+    <!-- Booking UGC : pas de tournage, on affiche le produit à la place -->
     <template #cell-date_debut="{ row }">
-      <span class="text-muted-foreground">{{ formatDateRange(row) }}</span>
+      <span v-if="row.type_contenu === 'UGC'" class="text-muted-foreground" data-testid="booking-table-product">
+        {{ bookingUgcFacts(row).product ?? 'Contenu UGC' }}
+      </span>
+      <span v-else class="text-muted-foreground">{{ formatDateRange(row) }}</span>
     </template>
 
+    <!-- Booking UGC : pas de durée, on affiche le nombre de vidéos -->
     <template #cell-duree="{ row }">
-      <span class="text-muted-foreground">{{ row.duree_heures ? `max ${row.duree_heures}h` : '—' }}</span>
+      <span v-if="row.type_contenu === 'UGC'" class="text-muted-foreground" data-testid="booking-table-videos">
+        {{ bookingUgcFacts(row).videos ?? 'UGC' }}
+      </span>
+      <span v-else class="text-muted-foreground">{{ row.duree_heures ? `max ${row.duree_heures}h` : '—' }}</span>
     </template>
 
     <template #cell-montant="{ row }">
-      <span class="font-semibold text-foreground">{{ formatMoney(amountOf(row)) }}</span>
+      <span class="block text-right font-semibold tabular-nums text-foreground" data-testid="booking-table-amount">
+        {{ bookingListAmount(row, role).text }}
+      </span>
     </template>
 
     <template #cell-status="{ row }">
-      <RStatusDot v-bind="bookingStatusDot(row.status)" class="text-[13px] text-ink" />
+      <RStatusDot v-bind="statusDot(row)" class="text-[13px] text-ink" />
     </template>
 
     <template #cell-created_at="{ row }">

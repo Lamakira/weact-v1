@@ -4,6 +4,8 @@ import { BookingStatusLabel, type BookingStatusType } from '../types'
 
 const props = defineProps<{
   status: BookingStatusType
+  /** Libellé du point de vue de la personne qui lit (lot F4) ; sinon le libellé par défaut du statut. */
+  label?: string
 }>()
 
 const statusColorClasses: Record<BookingStatusType, string> = {
@@ -28,7 +30,7 @@ const userFacingLabels: Partial<Record<BookingStatusType, string>> = {
   paid: 'Paiement sécurisé',
 }
 
-const label = computed(() => userFacingLabels[props.status] ?? BookingStatusLabel[props.status] ?? props.status)
+const displayLabel = computed(() => props.label ?? userFacingLabels[props.status] ?? BookingStatusLabel[props.status] ?? props.status)
 const colorClass = computed(() => statusColorClasses[props.status] || 'bg-gray-100 text-gray-800')
 </script>
 
@@ -37,6 +39,6 @@ const colorClass = computed(() => statusColorClasses[props.status] || 'bg-gray-1
     class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
     :class="colorClass"
   >
-    {{ label }}
+    {{ displayLabel }}
   </span>
 </template>
