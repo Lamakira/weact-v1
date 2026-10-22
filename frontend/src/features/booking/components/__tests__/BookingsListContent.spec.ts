@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import type { Booking } from '../../types'
+import { chooseOption, cleanupPortals } from '@/components/ui/__tests__/selectTestUtils'
 
 const userRef = vi.hoisted(() => ({ value: { id: 7, userable_type: 'Producer' } as { id: number; userable_type: string } }))
 
@@ -101,6 +102,7 @@ async function mountContent(role: 'face' | 'producer', url = `/${role}/bookings`
   await router.push(url)
   await router.isReady()
   const wrapper = mount(BookingsListContent, {
+    attachTo: document.body,
     props: { role, routeName: `${role}-bookings`, emptyHint: 'Rien\nÀ faire', emptyCtaLabel: 'Aller' },
     global: { plugins: [router] },
   })
@@ -118,6 +120,7 @@ describe('BookingsListContent', () => {
   })
 
   afterEach(() => {
+    cleanupPortals()
     vi.restoreAllMocks()
   })
 
@@ -299,7 +302,7 @@ it('renders cards below md and hides the view toggle', async () => {
 
   it('changes the page size and resets to page 1', async () => {
     const { wrapper, router } = await mountContent('producer', '/producer/bookings?page=2')
-    await wrapper.find('select[data-testid="data-table-page-size"]').setValue('50')
+    await chooseOption(wrapper.get('[data-testid="data-table-page-size"]'), '50')
     await flushPromises()
     expect(router.currentRoute.value.query).toMatchObject({ per_page: '50' })
     expect(router.currentRoute.value.query.page).toBeUndefined()

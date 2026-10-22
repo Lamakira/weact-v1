@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue'
+import { SimpleSelect } from '@/components/ui/select'
 
 defineOptions({ inheritAttrs: false })
 
@@ -30,60 +31,42 @@ const hasValue = computed(() => {
   return props.modelValue !== '' && props.modelValue !== null && props.modelValue !== undefined
 })
 
-const onChange = (event: Event) => {
-  const target = event.target as HTMLSelectElement
-  emit('update:modelValue', target.value)
-}
+// Sans placeholder, la première option « Sélectionnez » (valeur vide) reste choisissable, comme avant.
+const emptyLabel = computed(() => (props.placeholder ? '' : 'Sélectionnez'))
+
+// Hauteur, bordure et anneau de focus identiques aux autres champs flottants ; rouge en cas d'erreur.
+const triggerClass = computed(() => [
+  'peer h-[46px] data-[size=default]:h-[46px] py-3 pr-3 text-gray-900 duration-200 disabled:bg-gray-50',
+  'data-[placeholder]:text-transparent focus-visible:data-[placeholder]:text-gray-400 data-[state=open]:data-[placeholder]:text-gray-400',
+  props.icon ? 'pl-10' : 'pl-4',
+  props.error
+    ? 'border-red-300 focus-visible:border-red-500 focus-visible:ring-red-200 data-[state=open]:border-red-500 data-[state=open]:ring-red-200'
+    : 'border-gray-300 focus-visible:border-weact focus-visible:ring-weact/20 data-[state=open]:border-weact data-[state=open]:ring-weact/20',
+])
 </script>
 
 <template>
   <div>
     <div class="relative">
-      <select
-        :id="id"
-        :value="modelValue"
-        @change="onChange"
-        :required="required"
-        :disabled="disabled"
+      <!-- Le Select shadcn remplace l'ancien <select> ; l'étiquette flottante réagit au focus et à l'ouverture -->
+      <SimpleSelect
         v-bind="$attrs"
-        class="peer w-full rounded-lg border bg-white text-gray-900 transition-all duration-200 outline-none appearance-none disabled:bg-gray-50 disabled:cursor-not-allowed"
-        :class="[
-          icon ? 'pl-10 pr-10' : 'pl-4 pr-10',
-          error
-            ? 'border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-200'
-            : 'border-gray-300 focus:border-weact focus:ring-2 focus:ring-weact/20',
-          'py-3 text-sm',
-          !hasValue ? 'text-transparent focus:text-gray-400' : '',
-        ]"
-      >
-        <option v-if="placeholder" value="" disabled>{{ placeholder }}</option>
-        <option v-else value="">{{ `Sélectionnez` }}</option>
-        <option
-          v-for="option in options"
-          :key="option.value"
-          :value="option.value"
-        >
-          {{ option.label }}
-        </option>
-      </select>
+        :id="id"
+        :model-value="modelValue"
+        :options="options"
+        :empty-label="emptyLabel"
+        :disabled="disabled"
+        :trigger-class="triggerClass"
+        @update:model-value="emit('update:modelValue', $event)"
+      />
 
       <!-- Icon -->
       <component
         v-if="icon"
         :is="icon"
         class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-200 pointer-events-none"
-        :class="error ? 'text-red-400' : 'text-gray-400 peer-focus:text-weact'"
+        :class="error ? 'text-red-400' : 'text-gray-400 peer-focus:text-weact peer-data-[state=open]:text-weact'"
       />
-
-      <!-- Chevron icon -->
-      <svg
-        class="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 20 20"
-        fill="currentColor"
-      >
-        <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
-      </svg>
 
       <!-- Floating Label -->
       <label
@@ -92,12 +75,12 @@ const onChange = (event: Event) => {
         :class="[
           icon ? 'left-9' : 'left-3',
           error
-            ? 'peer-focus:text-red-500'
-            : 'peer-focus:text-weact',
+            ? 'peer-focus:text-red-500 peer-data-[state=open]:text-red-500'
+            : 'peer-focus:text-weact peer-data-[state=open]:text-weact',
           hasValue
             ? 'top-0 text-xs -translate-y-1/2 text-gray-500'
             : 'top-1/2 -translate-y-1/2 text-sm',
-          'peer-focus:top-0 peer-focus:text-xs peer-focus:-translate-y-1/2',
+          'peer-focus:top-0 peer-focus:text-xs peer-focus:-translate-y-1/2 peer-data-[state=open]:top-0 peer-data-[state=open]:text-xs peer-data-[state=open]:-translate-y-1/2',
           hasValue && !error ? 'text-gray-500' : '',
         ]"
       >

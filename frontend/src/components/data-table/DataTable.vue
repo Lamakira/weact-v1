@@ -12,6 +12,7 @@ import {
 import { AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, RefreshCw } from 'lucide-vue-next'
 import { Pagination } from '@/components/ui/pagination'
 import { Skeleton } from '@/components/ui/skeleton'
+import { SimpleSelect } from '@/components/ui/select'
 import {
   Table,
   TableBody,
@@ -139,9 +140,12 @@ function onPageChange(page: number): void {
   table.setPageIndex(page - 1)
 }
 
-function onPageSizeChange(event: Event): void {
-  const size = Number((event.target as HTMLSelectElement).value)
-  table.setPageSize(size)
+const pageSizeSelectOptions = computed(() =>
+  props.pageSizeOptions.map((size) => ({ value: size, label: String(size) })),
+)
+
+function onPageSizeChange(value: string): void {
+  table.setPageSize(Number(value))
 }
 
 function isRowClickable(row: T): boolean {
@@ -264,14 +268,14 @@ function onRowClick(event: MouseEvent, row: T): void {
         <span>{{ formatNumber(total) }} résultat{{ total > 1 ? 's' : '' }}</span>
         <label class="inline-flex items-center gap-2">
           <span>Par page</span>
-          <select
+          <SimpleSelect
+            :model-value="pageSize"
+            :options="pageSizeSelectOptions"
+            trigger-class="h-8 data-[size=default]:h-8 w-auto min-w-16 rounded-md px-2"
+            aria-label="Lignes par page"
             data-testid="data-table-page-size"
-            class="rounded-md border border-border bg-card px-2 py-1 text-sm text-foreground"
-            :value="pageSize"
-            @change="onPageSizeChange"
-          >
-            <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }}</option>
-          </select>
+            @update:model-value="onPageSizeChange"
+          />
         </label>
       </div>
       <Pagination

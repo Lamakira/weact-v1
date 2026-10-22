@@ -10,6 +10,7 @@ import {
   type BookingCancellationPayload,
   type CancellationReasonValue,
 } from '../types'
+import { SimpleSelect } from '@/components/ui/select'
 import { CONTACT_DETAILS_MESSAGE, containsContactDetails } from '@/lib/contactDetails'
 
 const props = defineProps<{
@@ -90,6 +91,8 @@ function handleClose(): void {
 }
 
 function handleKeydown(e: KeyboardEvent): void {
+  // Échap referme d'abord la liste de motifs ouverte, pas la modale.
+  if (document.querySelector('[data-slot="select-content"]')) return
   if (e.key === 'Escape' && props.isOpen) handleClose()
 }
 
@@ -180,21 +183,14 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
             <label for="cancellation-reason" class="mb-1.5 block text-sm font-medium text-gray-700">
               Raison de l'annulation *
             </label>
-            <select
+            <SimpleSelect
               id="cancellation-reason"
-              v-model="selectedReason"
+              :model-value="selectedReason"
+              :options="availableReasons"
+              placeholder="Sélectionnez une raison"
               data-testid="cancellation-reason-select"
-              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-weact focus:ring-2 focus:ring-weact/20"
-            >
-              <option disabled value="">Sélectionnez une raison</option>
-              <option
-                v-for="reason in availableReasons"
-                :key="reason.value"
-                :value="reason.value"
-              >
-                {{ reason.label }}
-              </option>
-            </select>
+              @update:model-value="selectedReason = $event as CancellationReasonValue | ''"
+            />
           </div>
 
           <div v-if="selectedReason === 'other'" class="mb-5">
