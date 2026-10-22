@@ -8,7 +8,7 @@ use App\Models\Deliverable;
 use Illuminate\Mail\Mailables\Content;
 
 /**
- * Email Face (tutoiement, D-7.1.e) : une retouche est demandée sur ton livrable,
+ * Email Face (vouvoiement, D-7.1.e) : une retouche est demandée sur votre livrable,
  * avec le motif (review_note). La fenêtre d'upload du même kind est rouverte
  * (tunnel étape 5/6). Le motif est lu sur le Deliverable porté (D-7.1.c).
  */
@@ -23,7 +23,7 @@ final class UgcDeliverableRetoucheRequestedMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return 'Retouche demandée sur ton livrable';
+        return 'Retouche demandée sur votre livrable';
     }
 
     public function content(): Content

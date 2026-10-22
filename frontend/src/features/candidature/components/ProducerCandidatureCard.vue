@@ -285,6 +285,8 @@ const messagePreview = computed(() => {
  */
 const categoryLabel = computed(() => {
   if (!props.candidature.face.category) return null
+  // Libellé accordé au sexe de la Face, fourni par l'API
+  if (props.candidature.face.category_label) return props.candidature.face.category_label
   const labels: Record<string, string> = {
     acteur: 'Acteur',
     influenceur: 'Influenceur',

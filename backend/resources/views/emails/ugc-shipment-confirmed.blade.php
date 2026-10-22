@@ -7,8 +7,8 @@
         Bonne nouvelle{{ $faceName !== '' ? ', '.$faceName : '' }} !
     </h2>
     <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        <strong>{{ $producerName !== '' ? $producerName : 'Le Producteur' }}</strong> a expédié ton produit
-        @if($productName !== '')« <strong>{{ $productName }}</strong> »@endif. Surveille ta livraison&nbsp;:
+        <strong>{{ $producerName !== '' ? $producerName : 'Le Producteur' }}</strong> a expédié votre produit
+        @if($productName !== '')« <strong>{{ $productName }}</strong> »@endif. Surveillez votre livraison&nbsp;:
     </p>
 
     {{-- Shipment details card --}}
@@ -45,6 +45,6 @@
     </table>
 
     <p style="margin: 0; padding: 12px 16px; background-color: #ecfeff; border-radius: 6px; color: #155e75; font-size: 13px; line-height: 1.5;">
-        📦 Dès que tu reçois le colis, confirme la réception dans l'app pour démarrer le tournage de tes vidéos.
+        📦 Dès que vous recevez le colis, confirmez la réception dans l'app pour démarrer le tournage de vos vidéos.
     </p>
 @endsection

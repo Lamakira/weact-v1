@@ -601,7 +601,7 @@ class Face extends Model
         return array_values(array_filter(array_map(function (string $value): ?array {
             $enum = FaceCategory::tryFrom($value);
 
-            return $enum ? ['value' => $enum->value, 'label' => $enum->label()] : null;
+            return $enum ? ['value' => $enum->value, 'label' => $enum->label($this->sexe)] : null;
         }, $categories)));
     }
 

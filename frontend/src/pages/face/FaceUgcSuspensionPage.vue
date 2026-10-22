@@ -104,7 +104,7 @@ const supportMailto = `mailto:${import.meta.env.VITE_SUPPORT_EMAIL ?? 'contact@w
           <div class="flex-1 min-w-0">
             <h2 class="text-sm font-semibold text-red-800">Compte suspendu</h2>
             <p class="mt-1 text-sm text-red-700">
-              Tu as dépassé une deadline UGC. Tes missions sont en pause.
+              Vous avez dépassé une deadline UGC. Vos missions sont en pause.
             </p>
           </div>
         </div>
@@ -151,7 +151,7 @@ const supportMailto = `mailto:${import.meta.env.VITE_SUPPORT_EMAIL ?? 'contact@w
           <div class="flex items-start gap-3">
             <span class="w-5 h-5 rounded-full bg-[#198496] text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">1</span>
             <p class="text-sm text-slate-700 leading-snug">
-              Termine la mission en retard (uploade ta vidéo)
+              Terminez la mission en retard (uploadez votre vidéo)
               <span class="text-xs text-slate-500">
                 — possible jusqu'au {{ formatDateTime(suspension.reactivation_deadline) }} (J+30)
               </span>
@@ -160,13 +160,13 @@ const supportMailto = `mailto:${import.meta.env.VITE_SUPPORT_EMAIL ?? 'contact@w
           <div class="flex items-start gap-3">
             <span class="w-5 h-5 rounded-full bg-[#198496] text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">2</span>
             <p class="text-sm text-slate-700 leading-snug">
-              Fais appel auprès de WeAct si tu as une raison valable
+              Faites appel auprès de WeAct si vous avez une raison valable
             </p>
           </div>
           <div class="flex items-start gap-3">
             <span class="w-5 h-5 rounded-full bg-[#198496] text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">3</span>
             <p class="text-sm text-slate-700 leading-snug">
-              Ton compte est réactivé environ <strong>24 h</strong> après validation
+              Votre compte est réactivé environ <strong>24 h</strong> après validation
             </p>
           </div>
         </div>
@@ -220,14 +220,14 @@ const supportMailto = `mailto:${import.meta.env.VITE_SUPPORT_EMAIL ?? 'contact@w
           class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"
           data-testid="ugc-suspension-appeal-pending"
         >
-          Appel en cours de revue — l'équipe WeAct te répond sous ~24 h.
+          Appel en cours de revue — l'équipe WeAct vous répond sous ~24 h.
         </p>
         <p
           v-else-if="appealStatus === 'rejected'"
           class="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600"
           data-testid="ugc-suspension-appeal-rejected"
         >
-          Appel rejeté. Tu peux encore terminer la mission en retard si la fenêtre n'est pas dépassée.
+          Appel rejeté. Vous pouvez encore terminer la mission en retard si la fenêtre n'est pas dépassée.
         </p>
       </div>
     </div>
@@ -238,7 +238,7 @@ const supportMailto = `mailto:${import.meta.env.VITE_SUPPORT_EMAIL ?? 'contact@w
       class="rounded-xl border border-slate-200 bg-white p-8 text-center"
       data-testid="ugc-suspension-not-suspended"
     >
-      <p class="text-sm text-slate-600">Ton compte n'est pas suspendu.</p>
+      <p class="text-sm text-slate-600">Votre compte n'est pas suspendu.</p>
       <button
         type="button"
         class="mt-4 inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-[#198496] text-white hover:bg-[#146c7a] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2"

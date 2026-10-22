@@ -82,7 +82,7 @@ class NotifyPartiesOnFaceUgcSuspended
                     'user_id' => $faceUserId,
                     'type' => 'ugc_account_suspended',
                     'data' => [
-                        'message' => 'Ton compte UGC est suspendu pour livrable manquant. Tu peux régulariser depuis ta page de suspension.',
+                        'message' => 'Votre compte UGC est suspendu pour livrable manquant. Vous pouvez régulariser depuis votre page de suspension.',
                         'shipment_id' => $shipment->uuid,
                         'url' => $faceUrl,
                     ],

@@ -86,7 +86,7 @@ async function onValidate(): Promise<void> {
 
 function requireNote(): boolean {
   if (reviewNote.value.trim().length < 5) {
-    noteError.value = 'Indique un motif (5 caractères min.).'
+    noteError.value = 'Indiquez un motif (5 caractères min.).'
     return false
   }
   noteError.value = null

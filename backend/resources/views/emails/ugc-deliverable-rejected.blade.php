@@ -7,9 +7,9 @@
         Bonjour{{ $faceName !== '' ? ' '.$faceName : '' }},
     </h2>
     <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        Ton livrable <strong>{{ $kindLabel }}</strong>
+        Votre livrable <strong>{{ $kindLabel }}</strong>
         @if($productName !== '')pour « <strong>{{ $productName }}</strong> »@endif
-        a été refusé par le Producteur. Pas de panique&nbsp;: tu peux déposer une nouvelle version.
+        a été refusé par le Producteur. Pas de panique&nbsp;: vous pouvez déposer une nouvelle version.
     </p>
 
     @if($reviewNote !== '')

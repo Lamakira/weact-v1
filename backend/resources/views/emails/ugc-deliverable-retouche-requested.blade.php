@@ -7,9 +7,9 @@
         Bonjour{{ $faceName !== '' ? ' '.$faceName : '' }},
     </h2>
     <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        Le Producteur demande une retouche sur ton livrable <strong>{{ $kindLabel }}</strong>
+        Le Producteur demande une retouche sur votre livrable <strong>{{ $kindLabel }}</strong>
         @if($productName !== '')pour « <strong>{{ $productName }}</strong> »@endif.
-        Apporte les ajustements demandés et redépose ta vidéo.
+        Apportez les ajustements demandés et redéposez votre vidéo.
     </p>
 
     @if($reviewNote !== '')

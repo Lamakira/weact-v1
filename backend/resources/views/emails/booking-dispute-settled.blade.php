@@ -20,15 +20,15 @@
         @else
             @if($favorProducer)
                 @if($contested)
-                    L'administrateur a tranché en faveur de <strong>{{ $producerName }}</strong> pour ton booking.
+                    L'administrateur a tranché en faveur de <strong>{{ $producerName }}</strong> pour votre booking.
                 @else
                     Le délai de contestation est écoulé : <strong>{{ $producerName }}</strong> a été remboursé de ce booking.
                 @endif
                 @if($penalty)
-                    Une pénalité a été appliquée à ton profil.
+                    Une pénalité a été appliquée à votre profil.
                 @endif
             @else
-                L'administrateur a tranché en ta faveur pour ton booking avec <strong>{{ $producerName }}</strong>.
+                L'administrateur a tranché en votre faveur pour votre booking avec <strong>{{ $producerName }}</strong>.
             @endif
         @endif
     </p>

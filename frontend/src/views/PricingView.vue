@@ -64,7 +64,7 @@ const tiers: PricingTier[] = [
     tagline: 'Pour tester la plateforme',
     priceLabel: 'Gratuit',
     isFree: true,
-    description: "Crée ton profil et explore l'écosystème WeAct sans engagement.",
+    description: "Créez votre profil et explorez l'écosystème WeAct sans engagement.",
     cta: "S'inscrire",
     ctaTo: '/register/face',
     badge: null,
@@ -77,7 +77,7 @@ const tiers: PricingTier[] = [
   {
     key: 'starter',
     name: 'Starter',
-    tagline: 'Postule aux missions et décroche tes premiers contrats',
+    tagline: 'Postulez aux missions et décrochez vos premiers contrats',
     priceLabel: '12 000',
     isFree: false,
     description:
@@ -218,12 +218,12 @@ const faqs: FAQItem[] = [
   {
     question: 'Puis-je changer de palier à tout moment ?',
     answer:
-      "Oui. Tu peux passer à un autre palier quand tu veux. Le nouveau palier est facturé au prix annuel plein et démarre une nouvelle période de 12 mois - les jours restants de ton abonnement en cours ne sont pas reportés. Le nombre de jours perdus t'est indiqué avant la confirmation.",
+      "Oui. Vous pouvez passer à un autre palier quand vous voulez. Le nouveau palier est facturé au prix annuel plein et démarre une nouvelle période de 12 mois - les jours restants de votre abonnement en cours ne sont pas reportés. Le nombre de jours perdus vous est indiqué avant la confirmation.",
   },
   {
     question: 'Comment fonctionne la commission réduite Élite ?',
     answer:
-      'Sur toutes les missions rémunérées en argent, la plateforme prélève une commission qui dépend de ton palier : 15 % en Découverte (gratuit), 10 % en Starter et Pro, et seulement 5 % avec l\'abonnement Élite. Sur 100 000 F CFA de cachet, tu encaisses 95 000 F CFA en Élite, contre 85 000 F CFA en Découverte.',
+      'Sur toutes les missions rémunérées en argent, la plateforme prélève une commission qui dépend de votre palier : 15 % en Découverte (gratuit), 10 % en Starter et Pro, et seulement 5 % avec l\'abonnement Élite. Sur 100 000 F CFA de cachet, vous encaissez 95 000 F CFA en Élite, contre 85 000 F CFA en Découverte.',
   },
   {
     question: 'Quels moyens de paiement acceptez-vous ?',
@@ -233,12 +233,12 @@ const faqs: FAQItem[] = [
   {
     question: 'Que se passe-t-il si mon abonnement expire ?',
     answer:
-      'Ton profil bascule automatiquement sur l\'offre Découverte gratuite. Tu ne peux plus postuler aux missions, mais les producteurs peuvent toujours te réserver directement. Tes photos et vidéos restent stockées 90 jours, le temps de te réabonner si tu le souhaites.',
+      'Votre profil bascule automatiquement sur l\'offre Découverte gratuite. Vous ne pouvez plus postuler aux missions, mais les producteurs peuvent toujours vous réserver directement. Vos photos et vidéos restent stockées 90 jours, le temps de vous réabonner si vous le souhaitez.',
   },
   {
     question: 'Comment fonctionne la mise en avant ?',
     answer:
-      "Chaque page de la recherche des producteurs réserve des places à chaque palier : sur une page standard de 16 profils, 9 places pour Élite, 4 pour Pro, 2 pour Starter et 1 pour Découverte. Plus ton palier est élevé, plus tu occupes de places, et plus haut dans la page. À l'intérieur de chaque palier, une rotation quotidienne équitable fait passer chaque profil à son tour en première page — personne ne reste figé en bas de liste. Les profils mis en avant par WeAct ouvrent leur palier, et un profil sans photo est relégué en fin de file : complète ton profil pour profiter pleinement de ta visibilité.",
+      "Chaque page de la recherche des producteurs réserve des places à chaque palier : sur une page standard de 16 profils, 9 places pour Élite, 4 pour Pro, 2 pour Starter et 1 pour Découverte. Plus votre palier est élevé, plus vous occupez de places, et plus haut dans la page. À l'intérieur de chaque palier, une rotation quotidienne équitable fait passer chaque profil à son tour en première page — personne ne reste figé en bas de liste. Les profils mis en avant par WeAct ouvrent leur palier, et un profil sans photo est relégué en fin de file : complétez votre profil pour profiter pleinement de votre visibilité.",
   },
 ]
 
@@ -628,7 +628,7 @@ watchEffect(() => {
       <h1
         class="text-3xl sm:text-4xl lg:text-[44px] font-bold text-[#0F1419] leading-[1.1] tracking-tight mb-4"
       >
-        Plus tu montes, plus tu décroches.
+        Plus vous montez, plus vous décrochez.
       </h1>
       <p class="text-base text-gray-500 leading-relaxed max-w-3xl mx-auto">
         Quatre paliers pensés pour les talents béninois et ouest-africains. Du profil découverte
@@ -872,7 +872,7 @@ watchEffect(() => {
             Toutes les fonctionnalités, palier par palier
           </h2>
           <p class="text-sm text-gray-500">
-            Ce que tu débloques exactement à chaque niveau d'abonnement.
+            Ce que vous débloquez exactement à chaque niveau d'abonnement.
           </p>
         </div>
 
@@ -1006,7 +1006,7 @@ watchEffect(() => {
         <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight mb-2">
           Questions fréquentes
         </h2>
-        <p class="text-sm text-gray-500">Tout ce que tu dois savoir avant de souscrire.</p>
+        <p class="text-sm text-gray-500">Tout ce que vous devez savoir avant de souscrire.</p>
       </div>
       <div class="flex flex-col gap-2.5">
         <div
@@ -1058,11 +1058,11 @@ watchEffect(() => {
           class="border border-gray-200 rounded-2xl p-10 text-center shadow-sm"
         >
           <h3 class="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight mb-3">
-            Tu hésites encore ?
+            Vous hésitez encore ?
           </h3>
           <p class="text-sm text-gray-500 leading-relaxed mb-6 max-w-md mx-auto">
-            Commence avec l'offre Découverte, crée ton profil, et passe à un palier supérieur dès
-            que tu veux candidater à des missions.
+            Commencez avec l'offre Découverte, créez votre profil, et passez à un palier supérieur dès
+            que vous voulez candidater à des missions.
           </p>
           <div class="flex flex-col sm:flex-row gap-3 justify-center">
             <RouterLink
@@ -1103,7 +1103,7 @@ watchEffect(() => {
     <ConfirmModal
       :is-open="cancelConfirmOpen"
       title="Annuler le paiement en cours ?"
-      message="Cette action annule l'initiation du paiement. Tu pourras en relancer un nouveau depuis la page Tarifs."
+      message="Cette action annule l'initiation du paiement. Vous pourrez en relancer un nouveau depuis la page Tarifs."
       confirm-text="Oui, annuler"
       cancel-text="Continuer le paiement"
       variant="warning"

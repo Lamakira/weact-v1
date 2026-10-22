@@ -371,7 +371,7 @@ class UgcDeliverableValidationTest extends TestCase
         $avisDeadline = app(UgcDeadlineService::class)->avisDeadlineFor($shipmentFresh);
         $this->assertSame(now()->addDays(14)->toIso8601String(), $avisDeadline?->toIso8601String());
 
-        // Notif Face « Unboxing validé — dépose ton Avis ».
+        // Notif Face « Unboxing validé — déposez votre Avis ».
         $notif = Notification::where('user_id', $this->faceUser->id)
             ->where('type', 'ugc_deliverable_validated')
             ->first();

@@ -49,7 +49,7 @@ const faceContent: LandingContent = {
   },
   missions: {
     title: 'Missions en cours',
-    subtitle: 'Découvre les dernières opportunités disponibles',
+    subtitle: 'Découvrez les dernières opportunités disponibles',
     ctaText: 'Voir toutes les missions',
     ctaLink: '/missions',
   },
@@ -82,7 +82,7 @@ const faceContent: LandingContent = {
   },
   finalCta: {
     title: 'Prêt à commencer ?',
-    subtitle: 'Rejoins maintenant la communauté WeAct et monétise ton talent.',
+    subtitle: 'Rejoignez maintenant la communauté WeAct et monétisez votre talent.',
     buttonText: "S'inscrire comme Face",
     buttonLink: '/register/face',
   },

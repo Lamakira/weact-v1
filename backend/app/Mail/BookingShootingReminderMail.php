@@ -22,7 +22,7 @@ final class BookingShootingReminderMail extends BaseMail
     {
         return $this->forProducer
             ? 'Rappel : votre tournage avec '.$this->faceName().' a lieu demain'
-            : 'Rappel : ton tournage avec '.$this->producerName().' a lieu demain';
+            : 'Rappel : votre tournage avec '.$this->producerName().' a lieu demain';
     }
 
     public function content(): Content

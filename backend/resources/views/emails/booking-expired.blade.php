@@ -17,11 +17,11 @@
             @endif
         @else
             @if($kind === 'face_no_response')
-                La demande de booking de <strong>{{ $producerName }}</strong> a expiré, faute de réponse de ta part dans le délai imparti. Pense à répondre plus vite aux prochaines demandes pour ne pas les manquer.
+                La demande de booking de <strong>{{ $producerName }}</strong> a expiré, faute de réponse de votre part dans le délai imparti. Pensez à répondre plus vite aux prochaines demandes pour ne pas les manquer.
             @elseif($kind === 'ugc_commission')
-                La demande UGC de <strong>{{ $producerName }}</strong> a expiré : le Producteur n'a pas réglé la commission dans les 48 h. Tu n'as rien à faire.
+                La demande UGC de <strong>{{ $producerName }}</strong> a expiré : le Producteur n'a pas réglé la commission dans les 48 h. Vous n'avez rien à faire.
             @else
-                Le booking avec <strong>{{ $producerName }}</strong> a expiré : le Producteur n'a pas payé dans les 24 h suivant ton acceptation. Tu es de nouveau disponible pour ces dates.
+                Le booking avec <strong>{{ $producerName }}</strong> a expiré : le Producteur n'a pas payé dans les 24 h suivant votre acceptation. Vous êtes de nouveau disponible pour ces dates.
             @endif
         @endif
     </p>

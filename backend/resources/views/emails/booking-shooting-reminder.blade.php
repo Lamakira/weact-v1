@@ -4,13 +4,13 @@
 
 @section('content')
     <h2 style="margin: 0 0 16px; color: #111827; font-size: 20px; font-weight: 700; line-height: 1.3;">
-        {{ $forProducer ? 'Votre tournage a lieu demain' : 'Ton tournage a lieu demain' }}
+        Votre tournage a lieu demain
     </h2>
     <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
         @if($forProducer)
             Rappel : votre tournage avec <strong>{{ $otherName }}</strong> a lieu demain. Le chat du booking reste ouvert pour les derniers détails.
         @else
-            Rappel : ton tournage avec <strong>{{ $otherName }}</strong> a lieu demain. Le chat du booking reste ouvert pour les derniers détails.
+            Rappel : votre tournage avec <strong>{{ $otherName }}</strong> a lieu demain. Le chat du booking reste ouvert pour les derniers détails.
         @endif
     </p>
 

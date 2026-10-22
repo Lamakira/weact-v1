@@ -7,9 +7,9 @@
         Bravo{{ $faceName !== '' ? ' '.$faceName : '' }} ! 🎉
     </h2>
     <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        Ton livrable <strong>{{ $kindLabel }}</strong>
+        Votre livrable <strong>{{ $kindLabel }}</strong>
         @if($productName !== '')pour « <strong>{{ $productName }}</strong> »@endif
-        vient d'être validé par le Producteur. Retrouve la suite de ton deal&nbsp;:
+        vient d'être validé par le Producteur. Retrouvez la suite de votre deal&nbsp;:
     </p>
 
     {{-- CTA button --}}

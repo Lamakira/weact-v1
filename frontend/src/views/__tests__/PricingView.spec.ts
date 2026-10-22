@@ -121,7 +121,7 @@ describe('PricingView (public /pricing — FP-2.13)', () => {
       const wrapper = mountPricing()
       const h1 = wrapper.find('h1')
       expect(h1.exists()).toBe(true)
-      expect(h1.text()).toBe('Plus tu montes, plus tu décroches.')
+      expect(h1.text()).toBe('Plus vous montez, plus vous décrochez.')
     })
   })
 

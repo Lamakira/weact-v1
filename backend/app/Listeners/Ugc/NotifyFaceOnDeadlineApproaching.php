@@ -95,9 +95,9 @@ class NotifyFaceOnDeadlineApproaching implements ShouldQueue
     private function message(int $level, string $kindLabel, string $productName, string $remaining): string
     {
         return match (true) {
-            $level >= 3 => "⏰ Dernière ligne droite : il te reste {$remaining} pour déposer ton {$kindLabel} « {$productName} », sinon ton compte sera suspendu.",
-            $level === 2 => "Attention : il te reste {$remaining} pour déposer ton {$kindLabel} « {$productName} ». Ne tarde pas.",
-            default => "Plus que {$remaining} pour déposer ton {$kindLabel} « {$productName} ». Pense à filmer !",
+            $level >= 3 => "⏰ Dernière ligne droite : il vous reste {$remaining} pour déposer votre {$kindLabel} « {$productName} », sinon votre compte sera suspendu.",
+            $level === 2 => "Attention : il vous reste {$remaining} pour déposer votre {$kindLabel} « {$productName} ». Ne tardez pas.",
+            default => "Plus que {$remaining} pour déposer votre {$kindLabel} « {$productName} ». Pensez à filmer !",
         };
     }
 
