@@ -8,6 +8,7 @@ use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
 use App\Models\Face;
 use App\Models\FaceSubscription;
+use App\Models\Producer;
 use App\Models\User;
 use App\Services\FaceListingRankingService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -401,6 +402,151 @@ class PublicFacesListTest extends TestCase
         $this->getJson('/api/v1/public/faces?search=Dossou')
             ->assertOk()
             ->assertJsonPath('meta.total', 0);
+    }
+
+    // ─── Recherche multi-mots (chaque mot doit correspondre) ─────────
+
+    private function makeMultiNameFace(): Face
+    {
+        $face = Face::factory()->create([
+            'prenom' => 'Epiphanie Nassoudé Martine',
+            'nom' => 'Dossou',
+            'username' => 'epi_face',
+            'bio' => 'Créatrice de contenus',
+        ]);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
+
+        return $face;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function producerHeaders(): array
+    {
+        $user = User::factory()->create([
+            'userable_type' => Producer::class,
+            'userable_id' => Producer::factory()->create()->id,
+        ]);
+
+        return ['Authorization' => 'Bearer '.$user->createToken('test')->plainTextToken];
+    }
+
+    public function test_search_with_non_contiguous_first_names_finds_the_face(): void
+    {
+        $face = $this->makeMultiNameFace();
+
+        foreach (['Epiphanie Martine', 'Martine Epiphanie', 'Nassoudé Epiphanie', 'epiphanie   martine'] as $search) {
+            $response = $this->getJson('/api/v1/public/faces?search='.urlencode($search));
+
+            $response->assertOk();
+            $this->assertEquals(1, $response->json('meta.total'), "Recherche « {$search} »");
+            $this->assertEquals($face->uuid, $response->json('data.0.id'));
+        }
+    }
+
+    public function test_search_with_a_word_absent_from_the_face_excludes_it(): void
+    {
+        $this->makeMultiNameFace();
+
+        $this->getJson('/api/v1/public/faces?search='.urlencode('Epiphanie Zinsou'))
+            ->assertOk()
+            ->assertJsonPath('meta.total', 0);
+    }
+
+    public function test_search_words_may_match_different_fields(): void
+    {
+        $face = $this->makeMultiNameFace();
+
+        $this->getJson('/api/v1/public/faces?search='.urlencode('martine EPI_FACE créatrice'))
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $face->uuid);
+    }
+
+    public function test_search_ignores_words_beyond_the_fifth(): void
+    {
+        $this->makeMultiNameFace();
+
+        // Le 6e mot (absent de la Face) n'est pas pris en compte.
+        $this->getJson('/api/v1/public/faces?search='.urlencode('Epiphanie Martine Nassoudé epi_face créatrice introuvable'))
+            ->assertOk()
+            ->assertJsonPath('meta.total', 1);
+    }
+
+    public function test_producer_finds_a_face_by_last_name_and_by_first_and_last_name(): void
+    {
+        $face = $this->makeMultiNameFace();
+        $headers = $this->producerHeaders();
+
+        foreach (['Dossou', 'Martine Dossou', 'dossou epiphanie'] as $search) {
+            $response = $this->getJson('/api/v1/public/faces?search='.urlencode($search), $headers);
+
+            $response->assertOk();
+            $this->assertEquals(1, $response->json('meta.total'), "Recherche Producer « {$search} »");
+            $this->assertEquals($face->uuid, $response->json('data.0.id'));
+        }
+    }
+
+    public function test_visitor_cannot_find_a_face_by_last_name(): void
+    {
+        $this->makeMultiNameFace();
+
+        $this->getJson('/api/v1/public/faces?search=Dossou')->assertOk()->assertJsonPath('meta.total', 0);
+        $this->getJson('/api/v1/public/faces?search='.urlencode('Martine Dossou'))->assertOk()->assertJsonPath('meta.total', 0);
+    }
+
+    public function test_face_user_cannot_find_a_face_by_last_name(): void
+    {
+        $this->makeMultiNameFace();
+        $other = Face::factory()->create();
+        $otherUser = User::factory()->create(['userable_type' => Face::class, 'userable_id' => $other->id]);
+
+        $this->getJson(
+            '/api/v1/public/faces?search=Dossou',
+            ['Authorization' => 'Bearer '.$otherUser->createToken('test')->plainTextToken],
+        )->assertOk()->assertJsonPath('meta.total', 0);
+    }
+
+    public function test_producer_multiword_search_combines_with_city_category_and_niche_filters(): void
+    {
+        $attributes = [
+            'prenom' => 'Epiphanie Martine',
+            'nom' => 'Dossou',
+            'categories' => [FaceCategory::ACTEUR->value],
+            'niches' => [FaceNiche::BEAUTE->value],
+        ];
+        $match = Face::factory()->create($attributes + ['ville' => 'Cotonou']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $match->id]);
+
+        $otherCity = Face::factory()->create($attributes + ['ville' => 'Parakou']);
+        User::factory()->create(['userable_type' => Face::class, 'userable_id' => $otherCity->id]);
+
+        $response = $this->getJson(
+            '/api/v1/public/faces?search='.urlencode('Martine Dossou').'&ville=Cotonou&categorie=acteur&niche=beaute',
+            $this->producerHeaders(),
+        );
+
+        $response->assertOk();
+        $this->assertEquals(1, $response->json('meta.total'));
+        $this->assertEquals($match->uuid, $response->json('data.0.id'));
+    }
+
+    public function test_multiword_search_does_not_add_queries(): void
+    {
+        $this->makeMultiNameFace();
+
+        $count = function (string $search): int {
+            DB::flushQueryLog();
+            DB::enableQueryLog();
+            $this->getJson('/api/v1/public/faces?search='.urlencode($search))->assertOk();
+            $queries = count(DB::getQueryLog());
+            DB::disableQueryLog();
+
+            return $queries;
+        };
+
+        $this->assertSame($count('Epiphanie'), $count('Epiphanie Martine Nassoudé epi_face'));
     }
 
     public function test_search_by_username_returns_matching_faces(): void
