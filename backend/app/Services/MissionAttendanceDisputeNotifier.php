@@ -75,6 +75,7 @@ class MissionAttendanceDisputeNotifier
             }
 
             $amount = (int) $entry->montant_face_recoit;
+            $amountLabel = \App\Support\Money::format($amount);
             $favorFace = $outcome === DisputeResolutionOutcome::FavorFace;
 
             if ($faceUser !== null) {
@@ -82,7 +83,7 @@ class MissionAttendanceDisputeNotifier
                     user: $faceUser,
                     type: 'mission_attendance_dispute_resolved',
                     message: $favorFace
-                        ? "Litige tranché en votre faveur pour la mission « {$mission->titre} » : votre présence est reconnue et {$amount} XOF ont été crédités sur votre portefeuille."
+                        ? "Litige tranché en votre faveur pour la mission « {$mission->titre} » : votre présence est reconnue et {$amountLabel} ont été crédités sur votre portefeuille."
                         : "Litige tranché pour la mission « {$mission->titre} » : l'absence est maintenue, la place est remboursée au Producteur.",
                     mission: $mission,
                     space: 'face',
@@ -105,7 +106,7 @@ class MissionAttendanceDisputeNotifier
                     type: 'mission_attendance_dispute_resolved',
                     message: $favorFace
                         ? "Litige tranché en faveur de la Face pour la mission « {$mission->titre} » : sa présence est reconnue, la place n'est pas remboursée."
-                        : "Litige tranché en votre faveur pour la mission « {$mission->titre} » : {$amount} XOF ont été crédités sur votre portefeuille.",
+                        : "Litige tranché en votre faveur pour la mission « {$mission->titre} » : {$amountLabel} ont été crédités sur votre portefeuille.",
                     mission: $mission,
                     space: 'producer',
                     entry: $entry,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatNumber } from '@/utils/money'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { ArrowRight, Zap } from 'lucide-vue-next'
@@ -33,7 +34,7 @@ const marqueeSpeed = computed(() => {
 
 const countDisplay = computed((): string | null => {
   if (props.totalCount && props.totalCount > 20) {
-    return `+${props.totalCount} talents disponibles sur la plateforme`
+    return `+${formatNumber(props.totalCount)} talents disponibles sur la plateforme`
   }
   return null
 })

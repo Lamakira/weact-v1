@@ -55,7 +55,7 @@ interface ComparisonGroup {
 }
 
 // =============================================================
-// Data — 4 subscription tiers (annual pricing in FCFA)
+// Data — 4 subscription tiers (annual pricing in F CFA)
 // =============================================================
 const tiers: PricingTier[] = [
   {
@@ -223,7 +223,7 @@ const faqs: FAQItem[] = [
   {
     question: 'Comment fonctionne la commission réduite Élite ?',
     answer:
-      'Sur toutes les missions rémunérées en argent, la plateforme prélève une commission qui dépend de ton palier : 15 % en Découverte (gratuit), 10 % en Starter et Pro, et seulement 5 % avec l\'abonnement Élite. Sur 100 000 FCFA de cachet, tu encaisses 95 000 FCFA en Élite, contre 85 000 FCFA en Découverte.',
+      'Sur toutes les missions rémunérées en argent, la plateforme prélève une commission qui dépend de ton palier : 15 % en Découverte (gratuit), 10 % en Starter et Pro, et seulement 5 % avec l\'abonnement Élite. Sur 100 000 F CFA de cachet, tu encaisses 95 000 F CFA en Élite, contre 85 000 F CFA en Découverte.',
   },
   {
     question: 'Quels moyens de paiement acceptez-vous ?',
@@ -262,9 +262,9 @@ const tierLabels: Record<string, string> = {
 }
 const tierPrices: Record<string, string> = {
   decouverte: 'Gratuit',
-  starter: '12 000',
-  pro: '25 000',
-  elite: '40 000',
+  starter: '12 000',
+  pro: '25 000',
+  elite: '40 000',
 }
 
 // =============================================================
@@ -725,7 +725,7 @@ watchEffect(() => {
                   tier.key === 'elite' ? 'text-gray-400' : 'text-gray-500',
                 ]"
               >
-                FCFA
+                F&nbsp;CFA
               </span>
               <!-- « / an » porté à la hauteur du prix : c'est un tarif ANNUEL, le
                    suffixe discret laissait croire à un prix mensuel. -->
@@ -898,7 +898,7 @@ watchEffect(() => {
                     Comparatif
                   </div>
                   <div class="text-sm text-gray-700 mt-2 font-medium">
-                    Tarifs annuels en FCFA
+                    Tarifs annuels en F CFA
                   </div>
                 </th>
                 <th
@@ -931,7 +931,7 @@ watchEffect(() => {
                     <span
                       v-if="k !== 'decouverte'"
                       :class="['text-[11px]', k === 'elite' ? 'text-gray-400' : 'text-gray-500']"
-                      >FCFA / an</span
+                      >F&nbsp;CFA / an</span
                     >
                   </div>
                   <RouterLink

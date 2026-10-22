@@ -88,7 +88,7 @@ class UserDataDeletionAndExportTest extends TestCase
         $user = $this->faceUser();
         $user->forceFill(['balance' => 12500])->save();
 
-        $this->assertBlocked($user, 'Votre portefeuille contient encore 12 500 FCFA');
+        $this->assertBlocked($user, 'Votre portefeuille contient encore 12 500 F CFA');
     }
 
     public function test_deletion_is_blocked_by_a_pending_withdrawal(): void

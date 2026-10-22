@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatXof } from '@/lib/formatCurrency'
+import { formatMoney } from '@/utils/money'
 import { computed } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { ArrowRight } from 'lucide-vue-next'
@@ -167,7 +167,7 @@ function goToDetail(booking: Booking): void {
     </template>
 
     <template #cell-montant="{ row }">
-      <span class="font-semibold text-foreground">{{ formatXof(amountOf(row)) }}</span>
+      <span class="font-semibold text-foreground">{{ formatMoney(amountOf(row)) }}</span>
     </template>
 
     <template #cell-status="{ row }">

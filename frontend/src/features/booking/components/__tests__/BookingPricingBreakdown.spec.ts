@@ -2,20 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import BookingPricingBreakdown from '../BookingPricingBreakdown.vue'
 import { calculatePricingPreview } from '@/features/booking/types'
-
-/**
- * Format amount to XOF string the same way the component does,
- * then strip all whitespace for robust comparison.
- */
-function formatXOF(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    maximumFractionDigits: 0,
-  })
-    .format(amount)
-    .replace(/\s/g, '')
-}
+import { formatMoney } from '@/utils/money'
 
 describe('BookingPricingBreakdown', () => {
   const tarifBase = 20000
@@ -52,10 +39,10 @@ describe('BookingPricingBreakdown', () => {
     })
 
     const faceText = faceWrapper.text().replace(/\s/g, '')
-    expect(faceText).toContain(formatXOF(pricing.faceReceives))
+    expect(faceText).toContain(formatMoney(pricing.faceReceives).replace(/\s/g, ''))
 
     const producerText = producerWrapper.text().replace(/\s/g, '')
-    expect(producerText).toContain(formatXOF(pricing.totalProducerPays))
+    expect(producerText).toContain(formatMoney(pricing.totalProducerPays).replace(/\s/g, ''))
   })
 
   it('prefers server-stored amounts over client calculations', () => {
@@ -71,10 +58,10 @@ describe('BookingPricingBreakdown', () => {
     })
 
     const faceText = faceWrapper.text().replace(/\s/g, '')
-    expect(faceText).toContain(formatXOF(serverFaceRecoit))
+    expect(faceText).toContain(formatMoney(serverFaceRecoit).replace(/\s/g, ''))
 
     const producerText = producerWrapper.text().replace(/\s/g, '')
-    expect(producerText).toContain(formatXOF(serverTotalProducteur))
+    expect(producerText).toContain(formatMoney(serverTotalProducteur).replace(/\s/g, ''))
   })
 
   it('shows "Revenu plateforme" row when showPlatformRevenue is true', () => {
@@ -87,7 +74,7 @@ describe('BookingPricingBreakdown', () => {
     expect(wrapper.text()).toContain('Revenu plateforme')
 
     const platformRevenue = pricing.producerCommission + pricing.faceCommission
-    expect(wrapper.text().replace(/\s/g, '')).toContain(formatXOF(platformRevenue))
+    expect(wrapper.text().replace(/\s/g, '')).toContain(formatMoney(platformRevenue).replace(/\s/g, ''))
   })
 
   it('does not show "Revenu plateforme" row when showPlatformRevenue is omitted', () => {

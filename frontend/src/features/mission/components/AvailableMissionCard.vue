@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Calendar, Wallet, MapPin, Users } from 'lucide-vue-next'
@@ -53,15 +54,6 @@ function formatDate(dateString: string): string {
     month: 'short',
     year: 'numeric',
   }).format(new Date(dateString))
-}
-
-// Format currency in XOF
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    maximumFractionDigits: 0,
-  }).format(amount)
 }
 
 function handleClick(): void {
@@ -124,7 +116,7 @@ function handleProducerClick(event: MouseEvent | KeyboardEvent): void {
       </div>
       <div class="flex items-center gap-2 text-sm font-medium text-foreground">
         <Wallet class="h-4 w-4 text-primary" />
-        <span>{{ formatCurrency(mission.budget) }}</span>
+        <span>{{ formatMoney(mission.budget) }}</span>
       </div>
       <div class="flex items-center gap-2 text-sm text-muted-foreground">
         <Users class="h-4 w-4 text-primary" />

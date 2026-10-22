@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, watch } from 'vue'
 import { useUgcCandidaturePayment } from '../composables/useUgcCandidaturePayment'
 import { Button } from '@/components/ui/button'
@@ -58,10 +59,6 @@ const step = computed((): 'select' | 'waiting' | 'failed' => {
       return 'select'
   }
 })
-
-function formatXOF(amount: number): string {
-  return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA'
-}
 
 async function handlePay(): Promise<void> {
   await initiate(props.candidatureId)
@@ -127,17 +124,17 @@ watch(
               <div class="space-y-2 text-sm">
                 <div class="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>Cash Face</span>
-                  <span>{{ formatXOF(pricing.cash) }}</span>
+                  <span>{{ formatMoney(pricing.cash) }}</span>
                 </div>
                 <div class="flex justify-between text-gray-600 dark:text-gray-400">
                   <span>Frais de service</span>
-                  <span>+ {{ formatXOF(pricing.frais) }}</span>
+                  <span>+ {{ formatMoney(pricing.frais) }}</span>
                 </div>
                 <div
                   class="flex justify-between border-t border-gray-200 pt-2 font-semibold text-gray-900 dark:border-gray-700 dark:text-white"
                 >
                   <span>Total à payer</span>
-                  <span>{{ formatXOF(pricing.total) }}</span>
+                  <span>{{ formatMoney(pricing.total) }}</span>
                 </div>
               </div>
             </div>

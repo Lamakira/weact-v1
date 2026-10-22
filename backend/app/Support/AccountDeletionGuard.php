@@ -40,7 +40,7 @@ final class AccountDeletionGuard
 
         $balance = (int) $user->balance;
         if ($balance > 0) {
-            $blockers[] = 'Votre portefeuille contient encore '.number_format($balance, 0, ',', ' ').' FCFA : retirez-les avant de supprimer votre compte.';
+            $blockers[] = 'Votre portefeuille contient encore '.\App\Support\Money::format($balance).' : retirez-les avant de supprimer votre compte.';
         }
 
         $hasPendingWithdrawal = WithdrawalRequest::query()

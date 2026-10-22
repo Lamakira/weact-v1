@@ -186,7 +186,7 @@ class HandleFedapayWebhook implements ShouldQueue
                 $credited = $this->creditDetached($missionPaymentService, $transactionId, $transactionData);
 
                 if ($credited !== null) {
-                    Log::warning('Fedapay webhook: sélection détachée payée — déjà crédité automatiquement au wallet du Producteur ('.$credited.' FCFA) — aucune action manuelle', [
+                    Log::warning('Fedapay webhook: sélection détachée payée — déjà crédité automatiquement au wallet du Producteur ('.$credited.' F CFA) — aucune action manuelle', [
                         'payment_id' => $missionPayment->id,
                         'fedapay_transaction_id' => $transactionId,
                         'event_name' => $this->eventName,
@@ -344,7 +344,7 @@ class HandleFedapayWebhook implements ShouldQueue
             $credited = $this->creditDetached($missionPaymentService, $transactionId, $transactionData);
 
             if ($credited !== null) {
-                Log::warning('Fedapay webhook: paiement reçu pour une transaction détachée — déjà crédité automatiquement au wallet du Producteur ('.$credited.' FCFA) — aucune action manuelle', [
+                Log::warning('Fedapay webhook: paiement reçu pour une transaction détachée — déjà crédité automatiquement au wallet du Producteur ('.$credited.' F CFA) — aucune action manuelle', [
                     'transaction_id' => $transactionId,
                     'event_name' => $this->eventName,
                     'producer_wallet_credited_amount' => $credited,

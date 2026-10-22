@@ -24,7 +24,7 @@ class WithdrawalApprovedMail extends Mailable
     {
         return new Envelope(
             subject: sprintf(
-                'Votre retrait de %s XOF a ete traite',
+                'Votre retrait de %s a été traité',
                 $this->formattedAmount()
             ),
         );
@@ -57,6 +57,6 @@ class WithdrawalApprovedMail extends Mailable
 
     private function formattedAmount(): string
     {
-        return number_format((int) $this->withdrawalRequest->amount, 0, ',', ' ');
+        return \App\Support\Money::format((int) $this->withdrawalRequest->amount);
     }
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatNumber } from '@/utils/money'
 import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -363,7 +364,7 @@ watch(
       <template v-else>
         <!-- Results count -->
         <p class="mb-4 text-sm text-muted-foreground">
-          {{ total }} candidature{{ total > 1 ? 's' : '' }} trouvée{{ total > 1 ? 's' : '' }}
+          {{ formatNumber(total) }} candidature{{ total > 1 ? 's' : '' }} trouvée{{ total > 1 ? 's' : '' }}
         </p>
 
         <!-- Cards Grid -->

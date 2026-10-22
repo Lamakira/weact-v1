@@ -3,6 +3,7 @@
  * l'étape courante, le statut honnête, l'action principale unique et le bloc « Et ensuite ? ».
  * Fonction pure (aucun accès réseau/DOM) : testée en isolation.
  */
+import { formatMoney } from '@/utils/money'
 import type { Mission, MissionCandidature } from '@/features/mission/types'
 import { formatConfirmationDeadline } from './formatConfirmationDeadline'
 
@@ -45,10 +46,6 @@ export interface FaceHubState {
 }
 
 const CHAT_STATUSES = ['accepted', 'confirmed', 'in_progress', 'completed']
-
-function formatFcfa(amount: number): string {
-  return `${new Intl.NumberFormat('fr-FR').format(amount).replace(/[\u202f\u00a0]/g, ' ')} FCFA`
-}
 
 /** « jeu. 23 oct. » depuis un `YYYY-MM-DD` (interprété en date locale, sans décalage de fuseau). */
 export function formatShortDate(value: string | null | undefined): string {
@@ -208,7 +205,7 @@ export function deriveFaceHubState(
       },
       next: {
         headline: 'Vous êtes retenue',
-        text: `Le producteur a payé votre place${net !== null ? ` : ${formatFcfa(net)} vous sont réservés` : ''}. Confirmez avant l’échéance, sinon la place est proposée à une autre Face.`,
+        text: `Le producteur a payé votre place${net !== null ? ` : ${formatMoney(net)} vous sont réservés` : ''}. Confirmez avant l’échéance, sinon la place est proposée à une autre Face.`,
         who: 'À vous d’agir',
         deadline,
       },
@@ -248,7 +245,7 @@ export function deriveFaceHubState(
     // Notation du producteur (lot C8) : facultative, proposée seulement tant qu'elle n'a pas été donnée.
     const canRate = candidature.can_rate === true
     const paid = net !== null
-      ? `${formatFcfa(net)} ont été versés sur votre portefeuille.`
+      ? `${formatMoney(net)} ont été versés sur votre portefeuille.`
       : 'Votre paiement a été versé sur votre portefeuille.'
     return {
       steps, currentStep: steps.length, stopped: false, chatOpen,

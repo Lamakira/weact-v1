@@ -273,7 +273,7 @@ describe('HomeView', () => {
     it('displays formatted budget', () => {
       const card1 = wrapper.find('[data-testid="mission-card-1"]')
       // 50000 formatted as "50 000 FCFA"
-      expect(card1.text()).toContain('FCFA')
+      expect(card1.text()).toMatch(/F\sCFA/)
     })
 
     it('displays mission location', () => {

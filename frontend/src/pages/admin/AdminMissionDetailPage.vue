@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -52,7 +53,7 @@ function formatDate(dateString: string | null): string {
 
 function formatBudget(budget: number | null): string {
   if (budget === null || budget === undefined) return '—'
-  return new Intl.NumberFormat('fr-FR').format(budget) + ' XOF'
+  return formatMoney(budget)
 }
 
 function goToProducer(producerId: string): void {

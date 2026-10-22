@@ -826,7 +826,7 @@ describe('FaceMissionDetailPage', () => {
 
       expect(wrapper.find('[data-testid="ugc-mission-stats"]').exists()).toBe(true)
       expect(wrapper.find('[data-testid="ugc-stat-cash"]').exists()).toBe(true)
-      expect(wrapper.text().replace(/\s/g, ' ')).toContain('35 000 FCFA')
+      expect(wrapper.text().replace(/\s/g, ' ')).toContain('35 000 F CFA')
     })
 
     it('omits the Cash cell for a product-only UGC mission', async () => {

@@ -365,7 +365,7 @@ describe('page booking — une seule action principale par état', () => {
 
     const buttons = primaryButtons(wrapper)
     expect(buttons).toHaveLength(1)
-    expect(buttons[0].text()).toMatch(/^Payer\s+110\s000 FCFA$/)
+    expect(buttons[0].text()).toMatch(/^Payer\s+110\s000\sF\sCFA$/)
     wrapper.unmount()
   })
 

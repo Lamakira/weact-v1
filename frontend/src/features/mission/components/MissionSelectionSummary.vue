@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { Loader2, CreditCard, Users } from 'lucide-vue-next'
 import type { MissionPricingPreview } from '../composables/useMissionPayment'
 
@@ -11,9 +12,6 @@ const emit = defineEmits<{
   confirm: []
 }>()
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR').format(amount) + ' XOF'
-}
 </script>
 
 <template>
@@ -30,22 +28,22 @@ function formatCurrency(amount: number): string {
       </div>
       <div class="flex justify-between">
         <span class="text-muted-foreground">Budget par Face</span>
-        <span class="font-medium text-foreground">{{ formatCurrency(pricing.budgetParFace) }}</span>
+        <span class="font-medium text-foreground">{{ formatMoney(pricing.budgetParFace) }}</span>
       </div>
       <div class="flex justify-between">
         <span class="text-muted-foreground">
-          Sous-total ({{ pricing.nombreFaces }} × {{ formatCurrency(pricing.budgetParFace) }})
+          Sous-total ({{ pricing.nombreFaces }} × {{ formatMoney(pricing.budgetParFace) }})
         </span>
-        <span class="font-medium text-foreground">{{ formatCurrency(pricing.sousTotal) }}</span>
+        <span class="font-medium text-foreground">{{ formatMoney(pricing.sousTotal) }}</span>
       </div>
       <div class="flex justify-between">
         <span class="text-muted-foreground">Frais de service</span>
-        <span class="font-medium text-foreground">{{ formatCurrency(pricing.commissionProducteur) }}</span>
+        <span class="font-medium text-foreground">{{ formatMoney(pricing.commissionProducteur) }}</span>
       </div>
       <div class="my-2 border-t border-border/60" />
       <div class="flex justify-between text-base font-bold">
         <span class="text-foreground">Total à payer</span>
-        <span class="text-primary">{{ formatCurrency(pricing.montantTotal) }}</span>
+        <span class="text-primary">{{ formatMoney(pricing.montantTotal) }}</span>
       </div>
     </div>
 

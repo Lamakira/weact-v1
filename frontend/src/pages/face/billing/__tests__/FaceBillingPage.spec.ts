@@ -210,7 +210,7 @@ describe('FaceBillingPage', () => {
     expect(card).not.toContain('Temps restant sur la période')
     // The lapsed plan's price must not read as an ongoing charge — Montant tile hidden.
     expect(card).not.toContain('Montant')
-    expect(card).not.toContain('FCFA')
+    expect(card).not.toMatch(/F\sCFA/)
   })
 
   it('renders a cancelled-pending / failed payment as free Découverte — no attempted-plan name or price (reported bug)', async () => {
@@ -225,7 +225,7 @@ describe('FaceBillingPage', () => {
 
     const card = wrapper.get('[data-testid="current-subscription"]').text()
     expect(card).not.toContain('Starter')
-    expect(card).not.toContain('FCFA')
+    expect(card).not.toMatch(/F\sCFA/)
     expect(card).toContain('Gratuit')
   })
 
@@ -246,7 +246,7 @@ describe('FaceBillingPage', () => {
     expect(wrapper.get('[data-testid="current-status-pill"]').text()).toContain('Expiré')
     const card = wrapper.get('[data-testid="current-subscription"]').text()
     expect(card).not.toContain('Montant')
-    expect(card).not.toContain('FCFA')
+    expect(card).not.toMatch(/F\sCFA/)
     expect(card).toContain('Expiré le')
   })
 

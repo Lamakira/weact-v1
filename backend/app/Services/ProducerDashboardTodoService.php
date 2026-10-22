@@ -743,6 +743,6 @@ class ProducerDashboardTodoService
 
     private function formatAmount(int $amount): string
     {
-        return number_format($amount, 0, ',', ' ').' XOF';
+        return \App\Support\Money::format($amount);
     }
 }

@@ -42,7 +42,7 @@ final class MissionAttendanceDisputeResolvedMail extends BaseMail
                 'missionTitle' => $this->mission->titre,
                 'isFace' => $isFace,
                 'favorFace' => $this->outcome === DisputeResolutionOutcome::FavorFace,
-                'formattedAmount' => number_format($this->amount, 0, ',', ' ').' XOF',
+                'formattedAmount' => \App\Support\Money::format($this->amount),
                 'missionUrl' => rtrim((string) config('app.frontend_url'), '/').($isFace ? '/face' : '/producer')."/missions/{$this->mission->uuid}",
             ],
         );

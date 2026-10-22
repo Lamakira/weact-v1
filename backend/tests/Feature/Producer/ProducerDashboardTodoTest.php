@@ -345,7 +345,7 @@ class ProducerDashboardTodoTest extends TestCase
         $this->assertSame('reste 14 h', $items[0]['urgent_meta']);
         $this->assertSame("/producer/bookings/{$booking->uuid}", $items[0]['url']);
         $this->assertStringContainsString($this->face->display_name, $items[0]['title']);
-        $this->assertStringContainsString('110 000', $items[0]['meta']);
+        $this->assertStringContainsString('110 000', $items[0]['meta']);
     }
 
     public function test_ugc_booking_commission_to_pay_uses_the_48h_window(): void

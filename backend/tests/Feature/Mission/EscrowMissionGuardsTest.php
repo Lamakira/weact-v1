@@ -760,10 +760,10 @@ class EscrowMissionGuardsTest extends TestCase
 
         $this->assertSame(17000, (int) $this->producerUser->fresh()->balance);
         $tx = WalletTransaction::where('user_id', $this->producerUser->id)->sole();
-        $this->assertStringContainsString('17000', (string) $tx->description);
+        $this->assertStringContainsString(\App\Support\Money::format(17000), (string) $tx->description);
         $notification = \App\Models\Notification::where('user_id', $this->producerUser->id)->where('type', 'mission_candidature_refunded')->sole();
         $this->assertSame(17000, $notification->data['montant']);
-        $this->assertStringContainsString('17000', $notification->data['message']);
+        $this->assertStringContainsString(\App\Support\Money::format(17000), $notification->data['message']);
     }
 
     public function test_close_service_rechecks_pending_payment_under_lock(): void

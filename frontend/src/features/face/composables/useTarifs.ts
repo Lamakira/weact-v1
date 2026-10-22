@@ -45,7 +45,7 @@ export function useTarifs(): UseTarifsReturn {
   const error = tarifsResource.error
 
   /**
-   * Validate tarif demi-journée (half-day rate in XOF)
+   * Validate tarif demi-journée (half-day rate en F CFA)
    */
   function validateTarifHoraire(tarif: number | null): { valid: boolean; error?: string } {
     if (tarif === null || tarif === undefined) {
@@ -66,14 +66,14 @@ export function useTarifs(): UseTarifsReturn {
     if (tarif > MAX_TARIF_HORAIRE) {
       return {
         valid: false,
-        error: 'Le tarif demi-journée ne peut pas dépasser 10 000 000 XOF',
+        error: 'Le tarif demi-journée ne peut pas dépasser 10 000 000 F CFA',
       }
     }
     return { valid: true }
   }
 
   /**
-   * Validate tarif journalier (daily rate in XOF)
+   * Validate tarif journalier (daily rate en F CFA)
    */
   function validateTarifJournalier(tarif: number | null): { valid: boolean; error?: string } {
     if (tarif === null || tarif === undefined) {
@@ -94,7 +94,7 @@ export function useTarifs(): UseTarifsReturn {
     if (tarif > MAX_TARIF_JOURNALIER) {
       return {
         valid: false,
-        error: 'Le tarif journalier ne peut pas dépasser 100 000 000 XOF',
+        error: 'Le tarif journalier ne peut pas dépasser 100 000 000 F CFA',
       }
     }
     return { valid: true }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, ref } from 'vue'
 import { CircleAlert, Loader2, RefreshCw } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
@@ -44,19 +45,6 @@ const emptyMessage = computed(() => {
 
   return 'Aucune demande de retrait trouvée.'
 })
-
-function formatCurrency(amount: number): string {
-  return (
-    new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      currencyDisplay: 'code',
-    })
-      .format(amount)
-      .replace('XOF', '')
-      .trim() + ' XOF'
-  )
-}
 
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat('fr-FR', {
@@ -205,7 +193,7 @@ function submitReject(): void {
                 <div class="mt-1 text-xs text-gray-500">{{ request.user_email || '—' }}</div>
               </td>
               <td class="whitespace-nowrap px-6 py-4 font-semibold text-gray-900">
-                {{ formatCurrency(request.amount) }}
+                {{ formatMoney(request.amount) }}
               </td>
               <td class="px-6 py-4 text-gray-600">{{ paymentModeLabel(request.payment_mode) }}</td>
               <td class="px-6 py-4">
@@ -295,7 +283,7 @@ function submitReject(): void {
 
           <div class="space-y-4 px-6 py-5">
             <div class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              {{ rejectTarget.user_name || 'L\'utilisateur' }} a demandé {{ formatCurrency(rejectTarget.amount) }} via
+              {{ rejectTarget.user_name || 'L\'utilisateur' }} a demandé {{ formatMoney(rejectTarget.amount) }} via
               {{ paymentModeLabel(rejectTarget.payment_mode) }}.
             </div>
 

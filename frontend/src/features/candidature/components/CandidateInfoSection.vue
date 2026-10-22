@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed } from 'vue'
 import { Ruler, Weight, Wallet } from 'lucide-vue-next'
 import type { CandidateFullProfile } from '../types'
@@ -31,19 +32,6 @@ const hasPricing = computed(
 const tarifDemiJournee = computed((): number | null =>
   props.candidate.tarif_journalier ? Math.round(props.candidate.tarif_journalier / 2) : null,
 )
-
-function formatCurrency(amount: number): string {
-  return (
-    new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      currencyDisplay: 'code',
-    })
-      .format(amount)
-      .replace('XOF', '')
-      .trim() + ' XOF'
-  )
-}
 
 /**
  * Format height in meters (e.g., 180 -> "1m80")
@@ -122,7 +110,7 @@ function formatWeight(poids: number | null): string | null {
             <div>
               <p class="text-xs text-muted-foreground">Tarif demi-journée</p>
               <p class="font-semibold text-foreground">
-                {{ formatCurrency(tarifDemiJournee) }}
+                {{ formatMoney(tarifDemiJournee) }}
               </p>
             </div>
           </div>

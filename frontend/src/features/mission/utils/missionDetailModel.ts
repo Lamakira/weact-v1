@@ -1,3 +1,4 @@
+import { formatMoney } from '@/utils/money'
 import { getMissionActionState } from '../composables/missionActionState'
 import type { Mission, MissionSummary, MissionSummaryStep } from '../types'
 
@@ -73,10 +74,6 @@ export function formatShortDate(iso: string | null | undefined): string | null {
   const date = parseDate(iso)
   if (!date) return null
   return new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' }).format(date)
-}
-
-export function formatFcfa(amount: number): string {
-  return `${new Intl.NumberFormat('fr-FR').format(amount)} FCFA`
 }
 
 /** « Reste 14 h 22 », « Reste 1 j 16 h », « Reste 12 min » ; null sans échéance valide. */
@@ -165,7 +162,7 @@ export function resolvePrimaryAction(ctx: DetailContext): PrimaryAction | null {
       return {
         key: 'pay-commission',
         label: 'Payer la commission',
-        hint: commission > 0 ? formatFcfa(commission) : null,
+        hint: commission > 0 ? formatMoney(commission) : null,
       }
     }
     if (summary.step === 'tunnel' && (summary.ugc_deliverables?.to_review ?? 0) > 0) {
@@ -190,7 +187,7 @@ export function resolvePrimaryAction(ctx: DetailContext): PrimaryAction | null {
         return {
           key: 'resume-payment',
           label: payment.resumable ? 'Relancer le paiement' : 'Reprendre le paiement',
-          hint: total !== null ? formatFcfa(total) : null,
+          hint: total !== null ? formatMoney(total) : null,
         }
       }
       if (payment.initializationFailed) {
@@ -295,7 +292,7 @@ export function buildNextBlock(ctx: DetailContext): NextBlockContent {
       return block(
         'Réglez la commission pour publier',
         commission > 0
-          ? `Votre mission sera visible des Faces dès le paiement de la commission (${formatFcfa(commission)}). Elle n'est encaissée qu'après acceptation par la Face.`
+          ? `Votre mission sera visible des Faces dès le paiement de la commission (${formatMoney(commission)}). Elle n'est encaissée qu'après acceptation par la Face.`
           : 'Votre mission sera visible des Faces dès le paiement de la commission.',
         WHO_YOU,
       )
@@ -437,12 +434,12 @@ export function buildPaymentCard(mission: Mission, summary: MissionSummary): Pay
 
   if (isUgc) {
     const commission = mission.commission_ugc ?? 0
-    if (commission > 0) rows.push({ label: 'Commission', value: formatFcfa(commission) })
+    if (commission > 0) rows.push({ label: 'Commission', value: formatMoney(commission) })
     if ((mission.montant_remuneration ?? 0) > 0) {
-      rows.push({ label: 'Cash par Face', value: formatFcfa(mission.montant_remuneration ?? 0) })
+      rows.push({ label: 'Cash par Face', value: formatMoney(mission.montant_remuneration ?? 0) })
     }
     if (summary.payment.montant_total_producteur !== null) {
-      rows.push({ label: 'Total réglé', value: formatFcfa(summary.payment.montant_total_producteur) })
+      rows.push({ label: 'Total réglé', value: formatMoney(summary.payment.montant_total_producteur) })
     }
     if (mission.status === 'draft') return { rows, status: { label: 'Non publiée', tone: 'mute' } }
     return mission.commission_paid_at
@@ -450,7 +447,7 @@ export function buildPaymentCard(mission: Mission, summary: MissionSummary): Pay
       : { rows, status: { label: 'Commission à régler', tone: 'warn' } }
   }
 
-  rows.push({ label: 'Budget par Face', value: formatFcfa(mission.budget) })
+  rows.push({ label: 'Budget par Face', value: formatMoney(mission.budget) })
   rows.push({
     label: 'Faces sélectionnées',
     value: `${summary.selection.faces_selected} / ${summary.selection.faces_wanted}`,
@@ -458,7 +455,7 @@ export function buildPaymentCard(mission: Mission, summary: MissionSummary): Pay
 
   const total = summary.payment.montant_total_producteur
   if (total !== null) {
-    rows.push({ label: summary.payment.status === 'paid' ? 'Total payé' : 'Total à payer', value: formatFcfa(total) })
+    rows.push({ label: summary.payment.status === 'paid' ? 'Total payé' : 'Total à payer', value: formatMoney(total) })
   }
 
   switch (summary.payment.status) {

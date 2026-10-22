@@ -5,7 +5,7 @@
  */
 import { computed } from 'vue'
 import { Check } from 'lucide-vue-next'
-import { formatXof } from '@/lib/formatCurrency'
+import { formatMoney } from '@/utils/money'
 import type {
   ConversationContext,
   FaceContextAmounts,
@@ -31,23 +31,23 @@ const amountRows = computed<AmountRow[]>(() => {
   if (props.role === 'face') {
     const amounts = props.context.amounts as FaceContextAmounts
     if (amounts.face_receives !== null) {
-      rows.push({ label: 'Vous recevez', value: formatXof(amounts.face_receives), strong: true })
+      rows.push({ label: 'Vous recevez', value: formatMoney(amounts.face_receives), strong: true })
     }
     if (amounts.product_value !== null) {
-      rows.push({ label: 'Valeur du produit', value: formatXof(amounts.product_value) })
+      rows.push({ label: 'Valeur du produit', value: formatMoney(amounts.product_value) })
     }
     return rows
   }
   const amounts = props.context.amounts as ProducerContextAmounts
-  if (amounts.cachet !== null) rows.push({ label: 'Cachet', value: formatXof(amounts.cachet) })
+  if (amounts.cachet !== null) rows.push({ label: 'Cachet', value: formatMoney(amounts.cachet) })
   if (amounts.service_fee !== null) {
-    rows.push({ label: 'Frais de service', value: formatXof(amounts.service_fee) })
+    rows.push({ label: 'Frais de service', value: formatMoney(amounts.service_fee) })
   }
   if (amounts.total !== null) {
-    rows.push({ label: 'Total payé', value: formatXof(amounts.total), strong: true })
+    rows.push({ label: 'Total payé', value: formatMoney(amounts.total), strong: true })
   }
   if (amounts.product_value !== null) {
-    rows.push({ label: 'Valeur du produit', value: formatXof(amounts.product_value) })
+    rows.push({ label: 'Valeur du produit', value: formatMoney(amounts.product_value) })
   }
   return rows
 })

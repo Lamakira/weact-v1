@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { formatMoney } from '@/utils/money'
 import { flushPromises, mount } from '@vue/test-utils'
 import UgcCandidaturePaymentOverlay from '../UgcCandidaturePaymentOverlay.vue'
 import type { PaymentStatus } from '@/features/booking/types'
@@ -22,7 +23,7 @@ vi.mock('../../composables/useUgcCandidaturePayment', () => ({
   }),
 }))
 
-const fmt = (n: number): string => new Intl.NumberFormat('fr-FR').format(n) + ' FCFA'
+const fmt = (n: number): string => formatMoney(n)
 
 function mountOverlay(props: Partial<{ montantRemuneration: number | null }> = {}) {
   return mount(UgcCandidaturePaymentOverlay, {

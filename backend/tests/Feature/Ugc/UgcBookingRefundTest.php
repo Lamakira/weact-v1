@@ -235,8 +235,8 @@ class UgcBookingRefundTest extends TestCase
             ->sole();
 
         $message = (string) ($notification->data['message'] ?? '');
-        $this->assertStringContainsString('16 500', $message);    // = montant_total_producteur (règlement complet)
-        $this->assertStringNotContainsString('2 250', $message);  // PAS la commission seule
+        $this->assertStringContainsString('16 500', $message);    // = montant_total_producteur (règlement complet)
+        $this->assertStringNotContainsString('2 250', $message);  // PAS la commission seule
         $this->assertStringContainsString('règlement', $message); // libellé honnête (≠ « commission »)
     }
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { onMounted } from 'vue'
 import {
   RefreshCw,
@@ -62,19 +63,6 @@ async function handleRejectWithdrawalRequest(id: string, notes: string): Promise
   }
 }
 
-function formatCurrency(amount: number): string {
-  return (
-    new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      currencyDisplay: 'code',
-    })
-      .format(amount)
-      .replace('XOF', '')
-      .trim() + ' XOF'
-  )
-}
-
 function formatDate(iso: string): string {
   return new Intl.DateTimeFormat('fr-FR', {
     day: '2-digit',
@@ -134,17 +122,17 @@ function handleRefresh(): void {
         <div class="mt-4">
           <Skeleton v-if="isLoadingOverview" class="h-8 w-40" />
           <p v-else class="text-2xl font-bold text-gray-900">
-            {{ formatCurrency(overview?.retirable.amount ?? 0) }}
+            {{ formatMoney(overview?.retirable.amount ?? 0) }}
           </p>
           <p class="mt-1 text-sm text-gray-500">Soldes wallets (Faces + Producers)</p>
           <div v-if="overview && !isLoadingOverview" class="mt-3 space-y-1.5">
             <div class="flex items-center justify-between text-xs">
               <span class="flex items-center gap-1 text-gray-500"><Users class="h-3 w-3" /> Faces</span>
-              <span class="font-medium text-gray-700">{{ formatCurrency(overview.retirable.face_balance) }}</span>
+              <span class="font-medium text-gray-700">{{ formatMoney(overview.retirable.face_balance) }}</span>
             </div>
             <div class="flex items-center justify-between text-xs">
               <span class="flex items-center gap-1 text-gray-500"><Wallet class="h-3 w-3" /> Producers</span>
-              <span class="font-medium text-gray-700">{{ formatCurrency(overview.retirable.producer_balance) }}</span>
+              <span class="font-medium text-gray-700">{{ formatMoney(overview.retirable.producer_balance) }}</span>
             </div>
           </div>
         </div>
@@ -161,22 +149,22 @@ function handleRefresh(): void {
         <div class="mt-4">
           <Skeleton v-if="isLoadingOverview" class="h-8 w-40" />
           <p v-else class="text-2xl font-bold text-gray-900">
-            {{ formatCurrency(overview?.faces.amount ?? 0) }}
+            {{ formatMoney(overview?.faces.amount ?? 0) }}
           </p>
           <p class="mt-1 text-sm text-gray-500">Total appartenant aux Faces</p>
           <!-- Breakdown -->
           <div v-if="overview && !isLoadingOverview" class="mt-3 space-y-1.5">
             <div class="flex items-center justify-between text-xs">
               <span class="flex items-center gap-1 text-gray-500"><Wallet class="h-3 w-3" /> Wallets</span>
-              <span class="font-medium text-gray-700">{{ formatCurrency(overview.faces.wallet_balance) }}</span>
+              <span class="font-medium text-gray-700">{{ formatMoney(overview.faces.wallet_balance) }}</span>
             </div>
             <div class="flex items-center justify-between text-xs">
               <span class="flex items-center gap-1 text-gray-500"><Lock class="h-3 w-3" /> Escrow bookings</span>
-              <span class="font-medium text-gray-700">{{ formatCurrency(overview.faces.escrow_booking) }}</span>
+              <span class="font-medium text-gray-700">{{ formatMoney(overview.faces.escrow_booking) }}</span>
             </div>
             <div class="flex items-center justify-between text-xs">
               <span class="flex items-center gap-1 text-gray-500"><Lock class="h-3 w-3" /> Escrow missions</span>
-              <span class="font-medium text-gray-700">{{ formatCurrency(overview.faces.escrow_mission) }}</span>
+              <span class="font-medium text-gray-700">{{ formatMoney(overview.faces.escrow_mission) }}</span>
             </div>
           </div>
         </div>
@@ -193,18 +181,18 @@ function handleRefresh(): void {
         <div class="mt-4">
           <Skeleton v-if="isLoadingOverview" class="h-8 w-40" />
           <p v-else class="text-2xl font-bold text-gray-900">
-            {{ formatCurrency(overview?.platform.amount ?? 0) }}
+            {{ formatMoney(overview?.platform.amount ?? 0) }}
           </p>
           <p class="mt-1 text-sm text-gray-500">Commissions encaissées</p>
           <!-- Breakdown -->
           <div v-if="overview && !isLoadingOverview" class="mt-3 space-y-1.5">
             <div class="flex items-center justify-between text-xs">
               <span class="text-gray-500">Via bookings</span>
-              <span class="font-medium text-gray-700">{{ formatCurrency(overview.platform.from_bookings) }}</span>
+              <span class="font-medium text-gray-700">{{ formatMoney(overview.platform.from_bookings) }}</span>
             </div>
             <div class="flex items-center justify-between text-xs">
               <span class="text-gray-500">Via missions</span>
-              <span class="font-medium text-gray-700">{{ formatCurrency(overview.platform.from_missions) }}</span>
+              <span class="font-medium text-gray-700">{{ formatMoney(overview.platform.from_missions) }}</span>
             </div>
           </div>
         </div>
@@ -223,17 +211,17 @@ function handleRefresh(): void {
           <div>
             <p class="text-xs text-gray-500 uppercase tracking-wider">Volume total traité</p>
             <Skeleton v-if="isLoadingOverview" class="mt-1 h-6 w-32" />
-            <p v-else class="text-lg font-bold text-gray-900">{{ formatCurrency(overview?.volume.total ?? 0) }}</p>
+            <p v-else class="text-lg font-bold text-gray-900">{{ formatMoney(overview?.volume.total ?? 0) }}</p>
           </div>
         </div>
         <div v-if="overview && !isLoadingOverview" class="mt-3 flex gap-6 border-t border-gray-50 pt-3">
           <div class="text-xs">
             <span class="text-gray-400">Bookings</span>
-            <p class="font-semibold text-gray-700">{{ formatCurrency(overview.volume.bookings) }}</p>
+            <p class="font-semibold text-gray-700">{{ formatMoney(overview.volume.bookings) }}</p>
           </div>
           <div class="text-xs">
             <span class="text-gray-400">Missions</span>
-            <p class="font-semibold text-gray-700">{{ formatCurrency(overview.volume.missions) }}</p>
+            <p class="font-semibold text-gray-700">{{ formatMoney(overview.volume.missions) }}</p>
           </div>
         </div>
       </div>
@@ -247,7 +235,7 @@ function handleRefresh(): void {
           <div>
             <p class="text-xs text-gray-500 uppercase tracking-wider">Retraits effectués</p>
             <Skeleton v-if="isLoadingOverview" class="mt-1 h-6 w-32" />
-            <p v-else class="text-lg font-bold text-gray-900">{{ formatCurrency(overview?.withdrawals.total_amount ?? 0) }}</p>
+            <p v-else class="text-lg font-bold text-gray-900">{{ formatMoney(overview?.withdrawals.total_amount ?? 0) }}</p>
           </div>
         </div>
         <div v-if="overview && !isLoadingOverview" class="mt-3 border-t border-gray-50 pt-3">
@@ -270,7 +258,7 @@ function handleRefresh(): void {
             <p v-else class="text-lg font-bold text-gray-900">
               {{
                 overview?.fedapay_balance.available
-                  ? formatCurrency(overview?.fedapay_balance.total_amount ?? 0)
+                  ? formatMoney(overview?.fedapay_balance.total_amount ?? 0)
                   : 'Indisponible'
               }}
             </p>
@@ -303,7 +291,7 @@ function handleRefresh(): void {
           <p class="text-xs uppercase tracking-wider text-red-500">Volume en attente</p>
           <Skeleton v-if="isLoadingOverview" class="mt-2 h-8 w-36" />
           <p v-else class="mt-2 text-2xl font-bold text-gray-900">
-            {{ formatCurrency(overview?.withdrawal_requests.pending_amount ?? 0) }}
+            {{ formatMoney(overview?.withdrawal_requests.pending_amount ?? 0) }}
           </p>
           <p class="mt-2 text-sm text-gray-500">Montant cumulé des retraits manuels pas encore traités.</p>
         </div>
@@ -373,7 +361,7 @@ function handleRefresh(): void {
               <td class="px-6 py-3 text-gray-700">{{ tx.user_email ?? '—' }}</td>
               <td class="px-6 py-3 text-gray-500">{{ tx.description }}</td>
               <td class="whitespace-nowrap px-6 py-3 text-right font-semibold text-orange-600">
-                − {{ formatCurrency(tx.amount) }}
+                − {{ formatMoney(tx.amount) }}
               </td>
             </tr>
           </tbody>

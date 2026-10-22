@@ -250,8 +250,8 @@ class AdminFaceCrudTest extends TestCase
             ->assertJsonPath('data.poids', 68)
             ->assertJsonPath('data.tarif_horaire', 25000)
             ->assertJsonPath('data.tarif_journalier', 150000)
-            ->assertJsonPath('data.formatted_tarif_horaire', '25 000 XOF/demi-journée')
-            ->assertJsonPath('data.formatted_tarif_journalier', '150 000 XOF/jour');
+            ->assertJsonPath('data.formatted_tarif_horaire', '25 000 F CFA / demi-journée')
+            ->assertJsonPath('data.formatted_tarif_journalier', '150 000 F CFA / jour');
     }
 
     public function test_show_face_returns_empty_arrays_when_no_relations(): void

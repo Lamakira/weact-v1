@@ -191,7 +191,7 @@ describe('PublicMissionDetailView', () => {
     const wrapper = mountView()
     await flushPromises()
 
-    expect(wrapper.find('[data-testid="mission-budget"]').text()).toContain('XOF')
+    expect(wrapper.find('[data-testid="mission-budget"]').text()).toMatch(/F\sCFA/)
     expect(wrapper.find('[data-testid="mission-shooting-date"]').text()).toContain('2026')
     expect(wrapper.find('[data-testid="mission-description"]').text()).toBe('Recherche comédien(ne) pour spot TV')
     expect(wrapper.find('[data-testid="mission-profil-recherche"]').text()).toBe('Jeune femme 20-30 ans')

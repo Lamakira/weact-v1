@@ -57,7 +57,7 @@ describe('UgcPaymentOverlay', () => {
   it('renders the booking select step with the règlement title, amount, escrow copy and 3 pay tiles', () => {
     const wrapper = mountOverlay({ amount: 4500 })
     expect(wrapper.text()).toContain('Paiement du règlement')
-    expect(wrapper.text().replace(/\s/g, ' ')).toContain('4 500 FCFA')
+    expect(wrapper.text().replace(/\s/g, ' ')).toContain('4 500 F CFA')
     expect(wrapper.text()).toContain('séquestrée par WeAct')
     expect(wrapper.findAll('[data-testid="pay-tile"]')).toHaveLength(3)
     expect(wrapper.text()).toContain('Payer via FedaPay')

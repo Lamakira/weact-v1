@@ -25,7 +25,7 @@
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
                                     <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Montant</td>
-                                    <td style="padding: 0 0 12px; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{ $formattedAmount }} XOF</td>
+                                    <td style="padding: 0 0 12px; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{ $formattedAmount }}</td>
                                 </tr>
                                 <tr>
                                     <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Opérateur</td>

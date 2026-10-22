@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { ref, computed, watch, nextTick } from 'vue'
 import { useForm, useField } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -145,11 +146,11 @@ const ugcPayable = computed(() => {
 const submitLabel = computed(() => {
   if (isSubmitting.value) return isUgc.value ? 'Création...' : 'Envoi en cours...'
   if (isUgc.value) {
-    const amount = ugcPayable.value.toLocaleString('fr-FR')
+    const amount = formatMoney(ugcPayable.value)
     // En hybride le montant n'est pas une commission (rémunération + frais) → libellé neutre.
     return type_compensation.value === 'hybrid' && (Number(montant_remuneration.value) || 0) > 0
-      ? `Payer · ${amount} FCFA`
-      : `Payer la commission · ${amount} FCFA`
+      ? `Payer · ${amount}`
+      : `Payer la commission · ${amount}`
   }
   return 'Envoyer la demande'
 })

@@ -107,7 +107,7 @@ describe('UgcMissionCard', () => {
     const text = normalizedText(wrapper)
     expect(text).toContain('Test sneakers running · 2 vidéos')
     expect(text).toContain('Sneakers Shade Fit')
-    expect(text).toContain('35 000 FCFA')
+    expect(text).toContain('35 000 F CFA')
     expect(text).toContain('de produit')
     expect(text).toContain('2 vidéos')
     expect(text).toContain('Cotonou')
@@ -128,12 +128,12 @@ describe('UgcMissionCard', () => {
     expect(normalizedText(wrapper)).not.toContain('Cotonou')
   })
 
-  it('shows "+ X FCFA" when montant_remuneration is set', () => {
+  it('shows "+ X F CFA" when montant_remuneration is set', () => {
     const wrapper = mount(UgcMissionCard, {
       props: { item: createEligibleMission({ montant_remuneration: 10000 }), locked: false },
     })
 
-    expect(normalizedText(wrapper)).toContain('+ 10 000 FCFA')
+    expect(normalizedText(wrapper)).toContain('+ 10 000 F CFA')
   })
 
   it('hides the cash line when montant_remuneration is null', () => {
@@ -142,7 +142,7 @@ describe('UgcMissionCard', () => {
     })
 
     // Pas de ligne cash « + X FCFA » (le label « Produit + Argent » contient aussi un +)
-    expect(normalizedText(wrapper)).not.toMatch(/\+ [\d ]+FCFA/)
+    expect(normalizedText(wrapper)).not.toMatch(/\+ [\d ]+F CFA/)
   })
 
   it('shows lock overlay and aria-label when locked', () => {
@@ -185,8 +185,8 @@ describe('UgcMissionCard', () => {
 
     const text = normalizedText(wrapper)
     expect(text).toContain('Test sneakers running · 2 vidéos')
-    expect(text).toContain('35 000 FCFA')
-    expect(text).not.toMatch(/\+ [\d ]+FCFA/)
+    expect(text).toContain('35 000 F CFA')
+    expect(text).not.toMatch(/\+ [\d ]+F CFA/)
     expect(text).not.toContain('Maison Kéwé')
     // Pas de footer producteur en mode teaser
     expect(wrapper.find('[data-testid="ugc-card-producer"]').exists()).toBe(false)

@@ -4,6 +4,7 @@ import { ref, nextTick } from 'vue'
 import BookingFormSheet from '../BookingFormSheet.vue'
 import { calculatePricingPreview } from '@/features/booking/types'
 import { addDaysIso, bookingMinStartDateIso } from '@/lib/dates'
+import { formatMoney } from '@/utils/money'
 
 // Hoisted so the UGC submission tests can drive the resolved value.
 // The 3 existing describe blocks never call createBooking, so this is inert for them.
@@ -112,14 +113,6 @@ describe('BookingFormSheet — bornes des dates', () => {
   })
 })
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
-
 describe('BookingFormSheet — duration presets', () => {
   it('shows duration presets with "max" prefix in labels', () => {
     const wrapper = mountForm()
@@ -162,8 +155,8 @@ describe('BookingFormSheet — pricing preview', () => {
     const pricing = calculatePricingPreview(40000)
 
     expect(wrapper.find('[data-testid="pricing-preview"]').exists()).toBe(true)
-    expect(wrapper.text()).toContain(formatCurrency(pricing.totalProducerPays))
-    expect(wrapper.text()).toContain(formatCurrency(pricing.tarifBase))
+    expect(wrapper.text()).toContain(formatMoney(pricing.totalProducerPays))
+    expect(wrapper.text()).toContain(formatMoney(pricing.tarifBase))
   })
 })
 

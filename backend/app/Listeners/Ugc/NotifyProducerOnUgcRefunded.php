@@ -43,12 +43,12 @@ class NotifyProducerOnUgcRefunded
             // reste sur commission_ugc (cash non encaissé — AC8 ugc-rh-2 / ugc-epic-rh-mission).
             $isMission = $owner instanceof Mission;
             $amountInt = $isMission ? (int) $owner->commission_ugc : (int) $owner->montant_total_producteur;
-            $amount = number_format($amountInt, 0, ',', ' ');
+            $amount = \App\Support\Money::format($amountInt);
             $message = $isMission
-                ? "Votre commission UGC de {$amount} FCFA a été créditée sur votre portefeuille WeAct."
+                ? "Votre commission UGC de {$amount} a été créditée sur votre portefeuille WeAct."
                 : ($owner->commission_refund_reason === UgcRefundReason::CommissionPaidAfterExpiry
-                    ? "Commission réglée après l'expiration de votre demande : le montant de {$amount} FCFA a été crédité sur votre wallet WeAct."
-                    : "Votre règlement UGC de {$amount} FCFA a été remboursé sur votre portefeuille WeAct.");
+                    ? "Commission réglée après l'expiration de votre demande : le montant de {$amount} a été crédité sur votre wallet WeAct."
+                    : "Votre règlement UGC de {$amount} a été remboursé sur votre portefeuille WeAct.");
 
             Notification::create([
                 'user_id' => $producerUserId,

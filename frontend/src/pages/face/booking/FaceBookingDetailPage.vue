@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -70,7 +71,6 @@ import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
 import { formatBookingDeadline } from '@/features/booking/utils/formatBookingDeadline'
 import {
   buildBookingView,
-  formatFcfa,
   formatRemaining,
   formatShortDate,
   type BookingRole,
@@ -458,12 +458,12 @@ const primaryAction = computed<BookingPrimaryActionModel | null>(() => {
   if (!current) return null
 
   if (current.can_pay && !isPaymentOverdue.value) {
-    return { key: 'pay', label: `Payer ${formatFcfa(current.montant_total_producteur)}`, icon: Wallet }
+    return { key: 'pay', label: `Payer ${formatMoney(current.montant_total_producteur)}`, icon: Wallet }
   }
   if (canPayUgcCommission.value) {
     return {
       key: 'pay-commission',
-      label: `Payer la commission · ${formatFcfa(current.commission_ugc)}`,
+      label: `Payer la commission · ${formatMoney(current.commission_ugc)}`,
       icon: Wallet,
       testid: 'ugc-pay-commission-cta',
     }
@@ -1528,7 +1528,7 @@ onUnmounted(() => {
             </div>
             <div class="flex justify-between gap-4 border-t border-gray-100 pt-2">
               <dt class="text-gray-500">Montant net que vous recevrez</dt>
-              <dd class="font-semibold text-gray-900 text-right" data-testid="accept-recap-amount">{{ formatFcfa(booking.montant_face_recoit) }}</dd>
+              <dd class="font-semibold text-gray-900 text-right" data-testid="accept-recap-amount">{{ formatMoney(booking.montant_face_recoit) }}</dd>
             </div>
           </dl>
 

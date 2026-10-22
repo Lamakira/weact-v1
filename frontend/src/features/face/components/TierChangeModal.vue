@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, onMounted, onUnmounted } from 'vue'
 import { Loader2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -24,7 +25,7 @@ const features = computed(() =>
   buildTierFeatureLines(props.targetOffer.tier, props.targetOffer.capabilities),
 )
 const priceLabel = computed(() =>
-  new Intl.NumberFormat('fr-FR').format(props.targetOffer.price),
+  formatMoney(props.targetOffer.price),
 )
 
 const title = computed(() => {
@@ -107,7 +108,7 @@ onUnmounted(() => document.removeEventListener('keydown', onKeydown))
                 class="text-sm font-medium text-gray-700 mb-5"
                 data-testid="tier-change-price"
               >
-                {{ priceLabel }} F CFA · 12 mois
+                {{ priceLabel }} · 12 mois
               </p>
 
               <p class="text-[11px] font-bold uppercase tracking-[0.10em] text-gray-400 mb-3">

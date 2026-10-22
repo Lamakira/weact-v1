@@ -57,7 +57,7 @@ final class BookingAcceptedMail extends BaseMail
     /** Montant réclamé au Producteur (rémunération Face + frais de service). */
     private function formatAmount(): string
     {
-        return number_format((float) $this->booking->montant_total_producteur, 0, ',', ' ').' XOF';
+        return \App\Support\Money::format((float) $this->booking->montant_total_producteur);
     }
 
     /**

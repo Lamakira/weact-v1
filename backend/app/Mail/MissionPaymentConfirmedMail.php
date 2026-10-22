@@ -31,7 +31,7 @@ final class MissionPaymentConfirmedMail extends BaseMail
             with: [
                 'missionTitle' => $this->mission->titre,
                 'faceCount' => $this->faceCount,
-                'formattedAmount' => number_format($this->totalPaid, 0, ',', ' ').' XOF',
+                'formattedAmount' => \App\Support\Money::format($this->totalPaid),
                 'missionUrl' => rtrim((string) config('app.frontend_url'), '/')."/producer/missions/{$this->mission->uuid}",
             ],
         );

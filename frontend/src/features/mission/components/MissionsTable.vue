@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { formatXof } from '@/lib/formatCurrency'
+import { formatMoney } from '@/utils/money'
 import { computed } from 'vue'
 import { Calendar, Users, Wallet } from 'lucide-vue-next'
 import RStatusDot from '@/components/regie/RStatusDot.vue'
@@ -163,7 +163,7 @@ function onCardClick(event: MouseEvent, mission: Mission): void {
     </template>
 
     <template #cell-budget="{ row }">
-      <span class="font-semibold text-foreground">{{ formatXof(row.budget) }}</span>
+      <span class="font-semibold text-foreground">{{ formatMoney(row.budget) }}</span>
     </template>
 
     <template #cell-created_at="{ row }">
@@ -215,7 +215,7 @@ function onCardClick(event: MouseEvent, mission: Mission): void {
           </span>
           <span class="inline-flex items-center gap-1.5 font-semibold text-foreground">
             <Wallet class="h-4 w-4 text-primary/70" aria-hidden="true" />
-            {{ formatXof(row.budget) }}
+            {{ formatMoney(row.budget) }}
           </span>
         </div>
 

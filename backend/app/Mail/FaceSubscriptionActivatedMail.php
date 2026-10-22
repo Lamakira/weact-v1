@@ -63,7 +63,7 @@ final class FaceSubscriptionActivatedMail extends BaseMail
     {
         $amount = (int) ($this->subscription->paid_amount ?? 0);
 
-        return number_format($amount, 0, ',', ' ').' XOF';
+        return \App\Support\Money::format($amount);
     }
 
     private function buildProfileUrl(): string

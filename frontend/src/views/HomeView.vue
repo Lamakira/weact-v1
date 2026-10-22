@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { MapPin, ChevronRight, ChevronLeft, Users } from 'lucide-vue-next'
@@ -127,7 +128,7 @@ function handleMissionScroll(): void {
 }
 
 function formatBudget(budget: number): string {
-  return new Intl.NumberFormat('fr-FR').format(budget) + ' FCFA'
+  return formatMoney(budget)
 }
 
 function formatDate(date: string): string {

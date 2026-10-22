@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed } from 'vue'
 import { Lock, MapPin, Video } from 'lucide-vue-next'
 import StatusPill from '@/components/ugc/StatusPill.vue'
@@ -65,10 +66,6 @@ const hasCover = computed(() => coverSrc.value !== '')
 const coverAlt = computed(() =>
   props.item.nom_produit ? `Photo du produit ${props.item.nom_produit}` : 'Photo du produit',
 )
-
-function formatFcfa(amount: number): string {
-  return `${(amount || 0).toLocaleString('fr-FR')} FCFA`
-}
 
 function handleClick(): void {
   emit('click', props.item.id)
@@ -185,14 +182,14 @@ function handleClick(): void {
     <div class="flex flex-1 flex-col gap-3 p-4">
       <div class="flex items-center justify-between gap-2">
         <p v-if="item.valeur_produit !== null" class="text-sm text-muted-foreground">
-          <span class="font-semibold text-primary">{{ formatFcfa(item.valeur_produit) }}</span>
+          <span class="font-semibold text-primary">{{ formatMoney(item.valeur_produit) }}</span>
           de produit
         </p>
         <p
           v-if="fullMission?.montant_remuneration"
           class="text-sm font-semibold text-foreground"
         >
-          + {{ formatFcfa(fullMission.montant_remuneration) }}
+          + {{ formatMoney(fullMission.montant_remuneration) }}
         </p>
       </div>
 

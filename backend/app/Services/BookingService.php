@@ -1212,7 +1212,7 @@ class BookingService
                     'message' => $motif === WalletCreditMotif::BookingLatePaymentAfterCancellation
                         ? $motif->label()
                         : 'Votre paiement est arrivé après l\'expiration du booking : '
-                            .number_format($amount, 0, ',', ' ').' XOF ont été crédités sur votre wallet.',
+                            .\App\Support\Money::format($amount).' ont été crédités sur votre wallet.',
                     'booking_id' => $booking->id,
                     'url' => "/producer/bookings/{$booking->uuid}",
                 ],

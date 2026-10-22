@@ -112,7 +112,7 @@ const lastUpdate = '4 avril 2026'
           Conformément à l'article 340 du Code du Numérique, les informations sur les prix sont présentées de façon claire et non équivoque :
         </p>
         <ul class="list-disc pl-5 mt-2 space-y-1">
-          <li>Les prix des missions sont fixés par les Producteurs et affichés en <span class="font-medium">Francs CFA (FCFA)</span>, toutes taxes comprises.</li>
+          <li>Les prix des missions sont fixés par les Producteurs et affichés en <span class="font-medium">Francs CFA (F CFA)</span>, toutes taxes comprises.</li>
           <li>WEACT prélève une commission sur chaque transaction réalisée via la plateforme. Le montant de cette commission est clairement indiqué avant la validation du paiement.</li>
           <li>Les paiements sont effectués via les moyens de paiement proposés sur la plateforme (mobile money, virement bancaire).</li>
           <li>Les Faces peuvent demander le retrait de leurs gains depuis leur portefeuille, sous réserve du respect des conditions de retrait minimum.</li>

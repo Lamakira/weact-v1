@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import CancellationDialog from '../CancellationDialog.vue'
 import { BookingStatus, type Booking } from '../../types'
+import { formatMoney } from '@/utils/money'
 
 function makeBooking(overrides: Partial<Booking> = {}): Booking {
   return {
@@ -35,15 +36,6 @@ function makeBooking(overrides: Partial<Booking> = {}): Booking {
     updated_at: new Date().toISOString(),
     ...overrides,
   }
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
 }
 
 function mountDialog({
@@ -160,11 +152,11 @@ describe('CancellationDialog', () => {
 
     expect(wrapper.text()).toContain('Conséquences financières')
     expect(wrapper.text()).toContain('Montant payé')
-    expect(wrapper.text()).toContain(formatCurrency(55000))
+    expect(wrapper.text()).toContain(formatMoney(55000))
     expect(wrapper.text()).toContain('10% retenus par WEACT')
-    expect(wrapper.text()).toContain(formatCurrency(5500))
+    expect(wrapper.text()).toContain(formatMoney(5500))
     expect(wrapper.text()).toContain('Montant remboursé')
-    expect(wrapper.text()).toContain(formatCurrency(49500))
+    expect(wrapper.text()).toContain(formatMoney(49500))
     expect(wrapper.text()).not.toContain('Montant que vous auriez perçu')
     expect(wrapper.text()).not.toContain('Votre note moyenne sera pénalisée de -1 étoile')
   })
@@ -177,7 +169,7 @@ describe('CancellationDialog', () => {
 
     expect(wrapper.text()).toContain("Conséquences de l'annulation")
     expect(wrapper.text()).toContain('Montant que vous auriez perçu')
-    expect(wrapper.text()).toContain(formatCurrency(45000))
+    expect(wrapper.text()).toContain(formatMoney(45000))
     expect(wrapper.text()).toContain('Votre note moyenne sera pénalisée de -1 étoile')
     expect(wrapper.text()).not.toContain('Montant payé')
     expect(wrapper.text()).not.toContain('10% retenus par WEACT')

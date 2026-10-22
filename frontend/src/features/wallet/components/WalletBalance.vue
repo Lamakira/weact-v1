@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed } from 'vue'
 import { Wallet, Info, AlertCircle, ArrowUpRight } from 'lucide-vue-next'
 
@@ -19,14 +20,6 @@ const props = withDefaults(defineProps<Props>(), {
 })
 defineEmits<{ withdraw: [] }>()
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)
-
 const hasNoFunds = computed(() => props.balance === 0 && props.pendingEscrow === 0 && props.heldInDispute === 0)
 </script>
 
@@ -39,13 +32,13 @@ const hasNoFunds = computed(() => props.balance === 0 && props.pendingEscrow ===
           <span>Solde disponible</span>
         </div>
         <div v-if="hasNoFunds" class="flex items-center gap-2 mt-2">
-          <span class="text-3xl font-bold text-gray-900">0 XOF</span>
+          <span class="text-3xl font-bold text-gray-900">{{ formatMoney(0) }}</span>
           <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
             Vide
           </span>
         </div>
         <h2 v-else class="text-3xl font-bold text-gray-900 leading-tight">
-          {{ formatCurrency(props.balance) }}
+          {{ formatMoney(props.balance) }}
         </h2>
       </div>
 
@@ -73,11 +66,11 @@ const hasNoFunds = computed(() => props.balance === 0 && props.pendingEscrow ===
           v-if="props.showPendingEscrow"
           :class="['font-medium', props.pendingEscrow > 0 ? 'text-gray-700' : 'text-gray-400']"
         >
-          {{ formatCurrency(props.pendingEscrow) }}
+          {{ formatMoney(props.pendingEscrow) }}
         </p>
         <div v-if="props.showPendingEscrow && props.heldInDispute > 0" class="md:text-right" data-testid="held-in-dispute">
           <p class="text-sm text-gray-500">En litige</p>
-          <p class="font-medium text-amber-700">{{ formatCurrency(props.heldInDispute) }}</p>
+          <p class="font-medium text-amber-700">{{ formatMoney(props.heldInDispute) }}</p>
           <p class="max-w-xs text-xs text-gray-400">
             Montant retenu le temps du règlement d'une absence ou d'une annulation.
           </p>

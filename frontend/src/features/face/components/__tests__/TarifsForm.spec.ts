@@ -98,6 +98,6 @@ describe('TarifsForm', () => {
     expect(preview.exists()).toBe(true)
     expect(preview.text()).toContain('250')
     expect(preview.text()).toContain('125')
-    expect(preview.text()).toContain('F CFA')
+    expect(preview.text()).toMatch(/F\sCFA/)
   })
 })

@@ -325,7 +325,7 @@ describe('AttendanceValidationPage', () => {
     expect(radio2.checked).toBe(true)
 
     expect(wrapper.find('[data-testid="attendance-submit-button"]').attributes('disabled')).toBeUndefined()
-    expect(wrapper.text()).toMatch(/180\s000\s+XOF/)
+    expect(wrapper.text()).toMatch(/180\s000\sF\sCFA/)
   })
 
   it('"Toutes présentes" overrides previously-marked absent decisions for editable entries', async () => {

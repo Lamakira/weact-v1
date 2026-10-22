@@ -63,10 +63,10 @@ class UpdateTarifsRequest extends FormRequest
         return [
             'tarif_horaire.integer' => 'Le tarif demi-journée doit être un nombre entier',
             'tarif_horaire.min' => 'Le tarif demi-journée doit être positif',
-            'tarif_horaire.max' => 'Le tarif demi-journée ne peut pas dépasser 10 000 000 XOF',
+            'tarif_horaire.max' => 'Le tarif demi-journée ne peut pas dépasser '.\App\Support\Money::format(10000000),
             'tarif_journalier.integer' => 'Le tarif journalier doit être un nombre entier',
             'tarif_journalier.min' => 'Le tarif journalier doit être positif',
-            'tarif_journalier.max' => 'Le tarif journalier ne peut pas dépasser 100 000 000 XOF',
+            'tarif_journalier.max' => 'Le tarif journalier ne peut pas dépasser '.\App\Support\Money::format(100000000),
         ];
     }
 }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, nextTick, onMounted, ref, watch, type Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -481,7 +482,7 @@ const summaryAge = computed<number | null>(() => {
 })
 const tarifDisplay = computed(() => {
   const t = tarifsInfo.value?.tarif_journalier
-  return typeof t === 'number' ? `${new Intl.NumberFormat('fr-FR').format(t)} FCFA` : '—'
+  return typeof t === 'number' ? formatMoney(t) : '—'
 })
 
 // Fetch profile, album, videos, bio/location, physical characteristics, category/niche, experiences, tarifs, availability, and completion on mount

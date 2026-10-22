@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { ref } from 'vue'
 import { AlertCircle, Loader2 } from 'lucide-vue-next'
 import { Textarea } from '@/components/ui/textarea'
@@ -24,19 +25,6 @@ const resolveTarget = ref<AdminDispute | null>(null)
 const resolveOutcome = ref<DisputeOutcome | null>(null)
 const resolveNotes = ref('')
 const resolveFormError = ref<string | null>(null)
-
-function formatCurrency(amount: number): string {
-  return (
-    new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      currencyDisplay: 'code',
-    })
-      .format(amount)
-      .replace('XOF', '')
-      .trim() + ' XOF'
-  )
-}
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—'
@@ -142,7 +130,7 @@ function submitResolve(): void {
               </div>
             </td>
             <td class="px-4 py-3 align-top font-semibold text-gray-900">
-              {{ formatCurrency(dispute.montant_face_recoit) }}
+              {{ formatMoney(dispute.montant_face_recoit) }}
             </td>
             <td class="px-4 py-3 align-top text-gray-700">
               {{ formatDate(dispute.notified_at) }}
@@ -221,7 +209,7 @@ function submitResolve(): void {
               <div class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 Mission : <strong>{{ resolveTarget.mission?.titre ?? '—' }}</strong> ·
                 Face : <strong>{{ resolveTarget.face?.display_name ?? '—' }}</strong> ·
-                Montant : <strong>{{ formatCurrency(resolveTarget.montant_face_recoit) }}</strong>
+                Montant : <strong>{{ formatMoney(resolveTarget.montant_face_recoit) }}</strong>
               </div>
 
               <div class="space-y-2">

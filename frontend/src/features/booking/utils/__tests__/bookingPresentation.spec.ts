@@ -189,7 +189,7 @@ describe('buildBookingView — « Et ensuite ? »', () => {
 
   it('Face, booking payé : annonce le montant mis en séquestre pour elle', () => {
     const next = buildBookingView(makeBooking({ status: 'paid' }), 'face').next
-    expect(next.text).toMatch(/85\s000 FCFA sont bloqués en séquestre/)
+    expect(next.text).toMatch(/85\s000\sF\sCFA sont bloqués en séquestre/)
   })
 
   it('Face, double confirmation : celle qui doit confirmer à son tour', () => {

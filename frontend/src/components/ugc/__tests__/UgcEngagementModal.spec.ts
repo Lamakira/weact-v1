@@ -114,7 +114,7 @@ describe('UgcEngagementModal', () => {
     const money = wrapper.find('[data-testid="ugc-engagement-money"]')
     expect(money.exists()).toBe(true)
     expect(wrapper.find('[data-testid="ugc-engagement-money-amount"]').text().replace(/\s/g, ' ')).toContain('8')
-    expect(wrapper.find('[data-testid="ugc-engagement-money-amount"]').text()).toContain('FCFA')
+    expect(wrapper.find('[data-testid="ugc-engagement-money-amount"]').text()).toMatch(/F\sCFA/)
     expect(wrapper.find('[data-testid="ugc-engagement-money-product-only"]').exists()).toBe(false)
   })
 

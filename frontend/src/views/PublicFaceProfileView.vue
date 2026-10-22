@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { ref, watch, computed, watchEffect, onUnmounted, nextTick, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useTitle } from '@vueuse/core'
@@ -84,24 +85,16 @@ const bookingBlockedReason = computed((): string | null => {
   return null
 })
 
-function formatXOF(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
-
 const tarifJournalierFormatted = computed((): string | null => {
   if (accessLevel.value !== 'producer_with_access') return null
   const journalier = fullProfile.value?.tarif_journalier
-  return journalier ? formatXOF(journalier) : null
+  return journalier ? formatMoney(journalier) : null
 })
 
 const tarifDemiJourneeFormatted = computed((): string | null => {
   if (accessLevel.value !== 'producer_with_access') return null
   const journalier = fullProfile.value?.tarif_journalier
-  return journalier ? formatXOF(journalier / 2) : null
+  return journalier ? formatMoney(journalier / 2) : null
 })
 
 const reviewUsername = computed(() => displayProfile.value?.username?.trim() ?? '')
