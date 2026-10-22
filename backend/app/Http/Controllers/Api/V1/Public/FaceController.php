@@ -13,6 +13,7 @@ use App\Http\Resources\PublicFaceProfileResource;
 use App\Http\Resources\PublicFaceResource;
 use App\Models\Face;
 use App\Support\FaceListingRotation;
+use App\Support\PublicViewer;
 use App\Support\Sql;
 use Illuminate\Database\Query\JoinClause;
 use Illuminate\Http\JsonResponse;
@@ -27,6 +28,11 @@ class FaceController extends Controller
      * TTL of the cached public total (filter-less listing).
      */
     private const TOTAL_CACHE_SECONDS = 60;
+
+    /**
+     * Nombre maximal de mots pris en compte dans la recherche.
+     */
+    private const MAX_SEARCH_WORDS = 5;
 
     /**
      * Display a paginated list of public Faces.
@@ -101,14 +107,29 @@ class FaceController extends Controller
             ->when($request->validated('categorie'), fn ($q, $cat) => $q->whereJsonContains('categories', $cat))
             ->when($request->validated('niche'), fn ($q, $niche) => $q->whereJsonContains('niches', $niche))
             ->when($request->validated('ville'), fn ($q, $ville) => $q->where('ville', $ville))
-            ->when($request->validated('search'), function ($q, $search) {
-                $escaped = Sql::escapeLike($search);
+            ->when($request->validated('search'), function ($q, $search) use ($request) {
+                // Chaque mot saisi (5 au plus) doit correspondre à au moins un champ :
+                // l'ordre et la contiguïté des mots n'ont pas d'importance. Le nom de famille
+                // n'est cherché que pour un Producer connecté (le même critère que celui qui
+                // l'expose dans PublicFaceResource) ; sinon on pourrait le deviner.
+                $words = array_slice(preg_split('/\s+/u', trim($search), -1, PREG_SPLIT_NO_EMPTY) ?: [], 0, self::MAX_SEARCH_WORDS);
+                $searchLastName = PublicViewer::isProducer($request);
 
-                return $q->where(function ($query) use ($escaped) {
-                    $query->where('prenom', 'like', "%{$escaped}%")
-                        ->orWhere('username', 'like', "%{$escaped}%")
-                        ->orWhere('bio', 'like', "%{$escaped}%");
-                });
+                foreach ($words as $word) {
+                    $escaped = Sql::escapeLike($word);
+
+                    $q->where(function ($query) use ($escaped, $searchLastName) {
+                        $query->where('prenom', 'like', "%{$escaped}%")
+                            ->orWhere('username', 'like', "%{$escaped}%")
+                            ->orWhere('bio', 'like', "%{$escaped}%");
+
+                        if ($searchLastName) {
+                            $query->orWhere('nom', 'like', "%{$escaped}%");
+                        }
+                    });
+                }
+
+                return $q;
             })
             ->leftJoin('face_listing_ranks', function (JoinClause $join) use ($generation, $servesLatest): void {
                 $join->on('face_listing_ranks.face_id', '=', 'faces.id');
