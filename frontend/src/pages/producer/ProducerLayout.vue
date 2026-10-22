@@ -13,33 +13,14 @@ import { useAuthStore } from '@/stores/auth'
 import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/components/layout'
 import { resolveSidebarTitle } from '@/components/layout/resolveSidebarTitle'
 import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
-import { useProducerBasicInfo } from '@/features/producer/composables/useProducerBasicInfo'
 import { useActionCountsStore } from '@/stores/actionCounts'
 import { useMessagesUnreadStore } from '@/stores/messagesUnread'
-import EmailVerificationBanner from '@/components/EmailVerificationBanner.vue'
-import WhatsappMissingBanner from '@/components/WhatsappMissingBanner.vue'
+import AccountAlertBar from '@/components/AccountAlertBar.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
 const { logout, isLoading } = useAuth()
 const { profile, fetchProfile } = useProducerProfilePhoto()
-// Basic-info is a shared cached resource: saving the number on the profile page
-// updates it in place, so the banner disappears without a refetch.
-const { basicInfo, fetchBasicInfo } = useProducerBasicInfo()
-
-// "Loaded" is derived from the shared cache itself: a reset (logout) hides the banner.
-const basicInfoLoaded = computed(() => basicInfo.value !== null)
-// Present = dialable (at least one digit), same rule as the admin side
-// (App\Support\Whatsapp::isDialable / has_whatsapp).
-const hasWhatsapp = computed(() => /\d/.test(basicInfo.value?.whatsapp_number ?? ''))
-
-async function loadBasicInfo(): Promise<void> {
-  try {
-    await fetchBasicInfo()
-  } catch {
-    // Silently fail - the banner stays hidden; retried on the next route change
-  }
-}
 const actionCountsStore = useActionCountsStore()
 const messagesUnreadStore = useMessagesUnreadStore()
 
@@ -79,9 +60,6 @@ const mobileTabs = computed<SidebarItem[]>(() => [
 // Header title = label of the sidebar item owning the current route.
 const pageTitle = computed(() => resolveSidebarTitle(sidebarItems.value, route.path))
 
-// The profile page has its own WhatsApp field: no reminder there.
-const isProfilePage = computed(() => route.path === '/producer/profile')
-
 // Computed user name from Producer profile
 const userName = computed(() => {
   if (profile.value) {
@@ -106,8 +84,6 @@ onMounted(async () => {
   } catch {
     // Silently fail - avatar will show fallback
   }
-
-  await loadBasicInfo()
 })
 
 onBeforeUnmount(() => {
@@ -118,13 +94,10 @@ onBeforeUnmount(() => {
 // The layout now persists across child navigations (App.vue keys it by the
 // layout's own route): refresh the action badges on each one (an action made by the
 // user themself emits no event towards them), as the per-navigation remount used to.
-// (Mirrors the route.path watch FaceLayout already has for its banner.)
 watch(
   () => route.path,
   () => {
     void actionCountsStore.refresh()
-    // Retry a failed basic-info load (mirrors FaceLayout) — only while not loaded.
-    if (!basicInfoLoaded.value) void loadBasicInfo()
   },
 )
 
@@ -145,20 +118,11 @@ async function handleLogout(): Promise<void> {
     profile-route="/producer/profile"
     @logout="handleLogout"
   >
-    <!-- Email verification banner (shown if email not verified) -->
-    <EmailVerificationBanner
-      v-if="!authStore.isEmailVerified"
-      data-testid="email-verification-banner"
-    />
-
-    <!-- WhatsApp reminder (shown until the Producer sets their number; admin-only data) -->
-    <WhatsappMissingBanner
-      v-if="basicInfoLoaded && !hasWhatsapp && !isProfilePage"
-      title="Renseignez votre numéro WhatsApp"
-      message="Ajoutez votre numéro WhatsApp pour que l'équipe WeAct puisse vous joindre rapidement."
-      cta-label="Renseigner mon WhatsApp"
-      to="/producer/profile?focus=whatsapp"
-    />
+    <!-- Barre d'alertes unique (e-mail à vérifier). Le rappel WhatsApp est une ligne
+         de la to-do du tableau de bord. -->
+    <template #alerts>
+      <AccountAlertBar audience="producer" />
+    </template>
 
     <!-- Child routes render here — meta.keepAlive-driven caching + page
          transitions live in the shared KeepAliveRouterView (see its header). -->

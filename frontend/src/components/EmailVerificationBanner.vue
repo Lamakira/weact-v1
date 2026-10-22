@@ -5,72 +5,10 @@
  * Includes resend functionality with throttle countdown.
  * Banner cannot be dismissed - always visible until email is verified.
  */
-import { ref, computed, onUnmounted } from 'vue'
 import { AlertTriangle, Mail, Loader2 } from 'lucide-vue-next'
-import { authApi } from '@/features/auth/services/authApi'
-import { useAuthStore } from '@/stores/auth'
-import { useToast } from '@/composables/useToast'
+import { useResendVerificationEmail } from '@/composables/useResendVerificationEmail'
 
-const authStore = useAuthStore()
-const toast = useToast()
-
-// State
-const isLoading = ref(false)
-const cooldownSeconds = ref(0)
-const cooldownInterval = ref<ReturnType<typeof setInterval> | null>(null)
-
-// Computed
-const canResend = computed(() => !isLoading.value && cooldownSeconds.value === 0)
-
-// Start cooldown timer
-function startCooldown(): void {
-  cooldownSeconds.value = 60
-  cooldownInterval.value = setInterval(() => {
-    cooldownSeconds.value--
-    if (cooldownSeconds.value <= 0) {
-      if (cooldownInterval.value) {
-        clearInterval(cooldownInterval.value)
-        cooldownInterval.value = null
-      }
-    }
-  }, 1000)
-}
-
-// Resend verification email
-async function handleResend(): Promise<void> {
-  if (!canResend.value) return
-
-  isLoading.value = true
-  try {
-    const result = await authApi.resendVerificationEmail()
-
-    if (result.verified) {
-      toast.success('Votre email est déjà vérifié.')
-      // Refresh user data to update the UI
-      await authStore.refreshUser()
-    } else if (result.sent) {
-      toast.success('Un email de vérification a été envoyé.')
-      startCooldown()
-    }
-  } catch (error) {
-    // Handle throttle error (429)
-    if ((error as { response?: { status?: number } })?.response?.status === 429) {
-      toast.warning('Veuillez patienter avant de renvoyer un email.')
-      startCooldown()
-    } else {
-      toast.error('Impossible d\'envoyer l\'email. Veuillez réessayer.')
-    }
-  } finally {
-    isLoading.value = false
-  }
-}
-
-// Cleanup interval on unmount
-onUnmounted(() => {
-  if (cooldownInterval.value) {
-    clearInterval(cooldownInterval.value)
-  }
-})
+const { isLoading, cooldownSeconds, canResend, handleResend } = useResendVerificationEmail()
 </script>
 
 <template>

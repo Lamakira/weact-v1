@@ -274,6 +274,11 @@ function handleLogout() {
           </template>
         </DashboardHeader>
 
+        <!-- Barre d'alertes du compte : une ligne fine sous l'en-tête (hors zone défilante) -->
+        <div v-if="$slots.alerts" class="flex-shrink-0">
+          <slot name="alerts" />
+        </div>
+
         <!-- Content (scrollable) -->
         <main
           ref="contentEl"

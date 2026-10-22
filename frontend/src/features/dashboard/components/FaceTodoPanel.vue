@@ -18,6 +18,8 @@ import {
   UserCheck,
   PackageCheck,
   Star,
+  Coins,
+  MessageCircle,
 } from 'lucide-vue-next'
 import RTodoList from '@/components/regie/RTodoList.vue'
 import RTodoItem from '@/components/regie/RTodoItem.vue'
@@ -56,6 +58,8 @@ const ICONS: Record<FaceTodoType, Component> = {
   ugc_reconfirm: UserCheck,
   ugc_receipt: PackageCheck,
   rate: Star,
+  missing_tarifs: Coins,
+  missing_whatsapp: MessageCircle,
   profile_completion: UserCog,
 }
 

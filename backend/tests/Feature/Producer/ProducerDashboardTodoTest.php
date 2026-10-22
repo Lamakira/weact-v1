@@ -47,7 +47,8 @@ class ProducerDashboardTodoTest extends TestCase
 
         Carbon::setTestNow('2026-10-09 10:00:00');
 
-        $this->producer = Producer::factory()->create();
+        // WhatsApp renseigné : pas de ligne « WhatsApp manquant » parasite dans les tests des autres types.
+        $this->producer = Producer::factory()->create(['whatsapp_number' => '+22990000000']);
         $this->producerUser = User::factory()->create([
             'userable_type' => Producer::class,
             'userable_id' => $this->producer->id,
@@ -194,6 +195,42 @@ class ProducerDashboardTodoTest extends TestCase
     // ---------------------------------------------------------------
     // Route
     // ---------------------------------------------------------------
+
+    public function test_missing_whatsapp_item_when_the_number_is_absent_or_not_dialable(): void
+    {
+        foreach ([null, '', ' + - '] as $number) {
+            $this->producer->update(['whatsapp_number' => $number]);
+
+            $items = $this->ofType($this->todo(), 'missing_whatsapp');
+
+            $this->assertCount(1, $items);
+            $this->assertSame('Renseigner votre numéro WhatsApp', $items[0]['title']);
+            $this->assertSame('Renseigner', $items[0]['action_label']);
+            $this->assertSame('/producer/profile?focus=whatsapp', $items[0]['url']);
+        }
+    }
+
+    public function test_missing_whatsapp_item_absent_when_the_number_is_dialable(): void
+    {
+        $this->producer->update(['whatsapp_number' => '+229 90 00 00 00']);
+
+        $this->assertSame([], $this->ofType($this->todo(), 'missing_whatsapp'));
+    }
+
+    public function test_missing_whatsapp_item_comes_after_every_other_item(): void
+    {
+        $this->producer->update(['whatsapp_number' => null]);
+        $this->booking([
+            'status' => BookingStatus::Paid,
+            'date_debut' => '2026-10-01',
+            'date_fin' => '2026-10-02',
+        ]);
+
+        $types = array_column($this->todo(), 'type');
+
+        $this->assertGreaterThan(1, count($types));
+        $this->assertSame('missing_whatsapp', end($types));
+    }
 
     public function test_requires_authentication(): void
     {
@@ -757,7 +794,7 @@ class ProducerDashboardTodoTest extends TestCase
 
     public function test_only_the_owning_producer_sees_the_entries(): void
     {
-        $otherProducer = Producer::factory()->create();
+        $otherProducer = Producer::factory()->create(['whatsapp_number' => '+22991111111']);
         $otherUser = User::factory()->create([
             'userable_type' => Producer::class,
             'userable_id' => $otherProducer->id,

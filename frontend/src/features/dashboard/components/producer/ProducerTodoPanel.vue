@@ -16,6 +16,7 @@ import {
   CheckCircle2,
   Star,
   ListChecks,
+  MessageCircle,
 } from 'lucide-vue-next'
 import RTodoList from '@/components/regie/RTodoList.vue'
 import RTodoItem from '@/components/regie/RTodoItem.vue'
@@ -52,6 +53,7 @@ const ICONS: Record<ProducerTodoType, Component> = {
   ugc_shipment: PackageCheck,
   booking_completion: CheckCircle2,
   rate: Star,
+  missing_whatsapp: MessageCircle,
 }
 
 const showList = computed(() => !props.error && (!props.isLoading || props.items.length > 0))
