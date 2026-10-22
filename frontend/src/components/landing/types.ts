@@ -31,7 +31,6 @@ export interface LandingContent {
     title: string
     subtitle: string
     features: Feature[]
-    certifiedText: string
     footerText: string
   }
   finalCta: {

@@ -62,14 +62,11 @@ describe('FilterBar', () => {
       expect(wrapper.find('[data-testid="filter-niche"]').exists()).toBe(true)
     })
 
-    it('renders advanced filters button', () => {
+    it('does not render the disabled advanced filters button', () => {
       const wrapper = mountFilterBar()
-      expect(wrapper.find('[data-testid="filter-advanced"]').exists()).toBe(true)
-    })
-
-    it('shows "Bientôt" badge on advanced filters', () => {
-      const wrapper = mountFilterBar()
-      expect(wrapper.text()).toContain('Bientôt')
+      expect(wrapper.find('[data-testid="filter-advanced"]').exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('Filtres avancés')
+      expect(wrapper.text()).not.toContain('Bientôt')
     })
   })
 
@@ -96,12 +93,6 @@ describe('FilterBar', () => {
       const wrapper = mountFilterBar()
       const searchInput = wrapper.find('[data-testid="filter-search"]')
       expect(searchInput.attributes('disabled')).toBeUndefined()
-    })
-
-    it('advanced filters button is still disabled', () => {
-      const wrapper = mountFilterBar()
-      const advancedBtn = wrapper.find('[data-testid="filter-advanced"]')
-      expect(advancedBtn.attributes('disabled')).toBeDefined()
     })
   })
 
