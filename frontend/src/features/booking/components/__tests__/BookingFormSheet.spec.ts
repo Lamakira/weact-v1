@@ -63,6 +63,10 @@ const mountForm = (propsOverride: Record<string, unknown> = {}) =>
   })
 
 describe('BookingFormSheet — bornes des dates', () => {
+  beforeEach(() => {
+    createBookingMock.mockReset()
+  })
+
   afterEach(() => {
     vi.useRealTimers()
   })
@@ -98,6 +102,8 @@ describe('BookingFormSheet — bornes des dates', () => {
       success: false,
       errors: { date_debut: ['Après 16 h, vous ne pouvez plus envoyer de demande pour le lendemain. Choisissez une date ultérieure.'] },
     })
+    // Heure fixée (11 h à Porto-Novo) : la date minimale ne dépend plus de l'horloge réelle (règle des 16 h).
+    vi.useFakeTimers({ now: new Date('2026-10-20T10:00:00Z'), toFake: ['Date'] })
     const wrapper = mountForm({ faceId: '3f2b8c1e-9d4a-4e6b-8a1c-2d5f7e9b0a13' })
     const start = bookingMinStartDateIso()
     await wrapper.find('input#date_debut').setValue(start)
@@ -105,11 +111,11 @@ describe('BookingFormSheet — bornes des dates', () => {
     await setSelectValue(wrapper, '#lieu', 'Cotonou')
     await flushPromises()
     await wrapper.find('form').trigger('submit')
-    await flushPromises()
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    // La validation vee-validate/zod est asynchrone : on attend l'appel réel plutôt qu'un nombre fixe
+    // de ticks (sous charge, un flushPromises + setTimeout(0) ne suffisaient pas).
+    await vi.waitFor(() => expect(createBookingMock).toHaveBeenCalledTimes(1), { timeout: 3000 })
     await flushPromises()
 
-    expect(createBookingMock).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('Après 16 h, vous ne pouvez plus envoyer de demande pour le lendemain.')
   })
 })

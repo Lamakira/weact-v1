@@ -102,11 +102,13 @@ class FaceBrowseMissionsTest extends TestCase
 
     public function test_missions_ordered_by_newest_first(): void
     {
-        // Create missions with different dates
+        // genre_voulu fixé à « tous » : la factory le tire au hasard et le tri D8 relègue
+        // les missions de genre incompatible en fin de liste (cause du test instable).
         $oldMission = Mission::factory()->create([
             'producer_id' => $this->producer->id,
             'status' => MissionStatus::Published,
             'titre' => 'Old Mission',
+            'genre_voulu' => 'tous',
             'created_at' => now()->subDays(5),
         ]);
 
@@ -114,6 +116,7 @@ class FaceBrowseMissionsTest extends TestCase
             'producer_id' => $this->producer->id,
             'status' => MissionStatus::Published,
             'titre' => 'New Mission',
+            'genre_voulu' => 'tous',
             'created_at' => now(),
         ]);
 
@@ -125,6 +128,28 @@ class FaceBrowseMissionsTest extends TestCase
         $data = $response->json('data');
         $this->assertEquals('New Mission', $data[0]['titre']);
         $this->assertEquals('Old Mission', $data[1]['titre']);
+    }
+
+    public function test_missions_created_in_same_second_have_stable_order_without_duplicates_across_pages(): void
+    {
+        // 15 missions à la même seconde : sans départage, l'ordre (donc la pagination) n'est pas déterministe.
+        $createdAt = now()->startOfSecond();
+        $missions = [];
+        for ($i = 0; $i < 15; $i++) {
+            $missions[] = Mission::factory()->create([
+                'producer_id' => $this->producer->id,
+                'status' => MissionStatus::Published,
+                'genre_voulu' => 'tous',
+                'created_at' => $createdAt,
+            ]);
+        }
+        // L'API expose l'uuid ; l'ordre attendu est celui de l'id interne décroissant.
+        $expected = collect($missions)->sortByDesc('id')->pluck('uuid')->values()->all();
+
+        $page1 = $this->actingAs($this->faceUser)->getJson('/api/v1/face/missions?page=1')->json('data.*.id');
+        $page2 = $this->actingAs($this->faceUser)->getJson('/api/v1/face/missions?page=2')->json('data.*.id');
+
+        $this->assertSame($expected, array_merge($page1, $page2));
     }
 
     public function test_only_published_missions_are_returned(): void

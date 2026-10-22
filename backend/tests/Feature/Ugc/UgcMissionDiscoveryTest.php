@@ -176,6 +176,25 @@ class UgcMissionDiscoveryTest extends TestCase
             ->assertJsonPath('data.1.titre', 'Ancien appel');
     }
 
+    public function test_missions_created_in_same_second_have_stable_order_without_duplicates_across_pages(): void
+    {
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
+        $createdAt = now()->startOfSecond();
+        $missions = [];
+        for ($i = 0; $i < 15; $i++) {
+            $mission = $this->makePublishedUgcMission(['titre' => "Appel UGC {$i}"]);
+            $mission->forceFill(['created_at' => $createdAt])->save();
+            $missions[] = $mission;
+        }
+        // L'API expose l'uuid ; l'ordre attendu est celui de l'id interne décroissant.
+        $expected = collect($missions)->sortByDesc('id')->pluck('uuid')->values()->all();
+
+        $page1 = $this->actingAs($this->faceUser)->getJson('/api/v1/face/ugc/missions?page=1')->json('data.*.id');
+        $page2 = $this->actingAs($this->faceUser)->getJson('/api/v1/face/ugc/missions?page=2')->json('data.*.id');
+
+        $this->assertSame($expected, array_merge($page1, $page2));
+    }
+
     public function test_pending_payment_ugc_missions_are_not_listed(): void
     {
         FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
