@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { watchDebounced } from '@vueuse/core'
 import { Search, MapPin, Tag, Briefcase, X } from 'lucide-vue-next'
+import { SimpleSelect } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/combobox'
 import type { FilterOption, FacesFilterParams } from '../services/publicFacesApi'
 
 const props = defineProps<{
@@ -48,6 +50,23 @@ watchDebounced(
   },
   { debounce: 300 }
 )
+
+const cityOptions = computed(() => props.cities.map((city) => ({ value: city, label: city })))
+
+function onCityChange(value: string): void {
+  selectedCity.value = value
+  handleFilterChange()
+}
+
+function onCategoryChange(value: string): void {
+  selectedCategory.value = value
+  handleFilterChange()
+}
+
+function onNicheChange(value: string): void {
+  selectedNiche.value = value
+  handleFilterChange()
+}
 
 function handleFilterChange(): void {
   const search = searchQuery.value && searchQuery.value.length >= 2 ? searchQuery.value : undefined
@@ -99,65 +118,49 @@ function clearSearch(): void {
       </div>
 
       <!-- Filter Dropdowns -->
-      <div class="flex flex-wrap items-center gap-3">
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-center">
         <!-- City Filter -->
-        <div class="relative">
-          <MapPin
-            aria-hidden="true"
-            class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none"
-          />
-          <select
-            v-model="selectedCity"
+        <div class="lg:w-48">
+          <SearchableSelect
+            :model-value="selectedCity"
+            :options="cityOptions"
+            :icon="MapPin"
+            placeholder="Ville"
+            empty-label="Toutes les villes"
+            search-placeholder="Rechercher une ville…"
+            empty-text="Aucune ville trouvée"
             aria-label="Filtrer par ville"
-            class="h-10 appearance-none rounded-lg border border-gray-200 bg-white pl-10 pr-8 text-sm text-gray-700 transition-colors hover:border-[#198496]/30 focus:border-[#198496] focus:outline-none focus:ring-1 focus:ring-[#198496]"
             data-testid="filter-city"
-            @change="handleFilterChange"
-          >
-            <option value="">Ville</option>
-            <option v-for="city in cities" :key="city" :value="city">
-              {{ city }}
-            </option>
-          </select>
+            @update:model-value="onCityChange"
+          />
         </div>
 
         <!-- Category Filter -->
-        <div class="relative">
-          <Tag
-            aria-hidden="true"
-            class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none"
-          />
-          <select
-            v-model="selectedCategory"
+        <div class="lg:w-48">
+          <SimpleSelect
+            :model-value="selectedCategory"
+            :options="categories"
+            :icon="Tag"
+            placeholder="Catégorie"
+            empty-label="Toutes les catégories"
             aria-label="Filtrer par catégorie"
-            class="h-10 appearance-none rounded-lg border border-gray-200 bg-white pl-10 pr-8 text-sm text-gray-700 transition-colors hover:border-[#198496]/30 focus:border-[#198496] focus:outline-none focus:ring-1 focus:ring-[#198496]"
             data-testid="filter-category"
-            @change="handleFilterChange"
-          >
-            <option value="">Catégorie</option>
-            <option v-for="cat in categories" :key="cat.value" :value="cat.value">
-              {{ cat.label }}
-            </option>
-          </select>
+            @update:model-value="onCategoryChange"
+          />
         </div>
 
         <!-- Niche Filter -->
-        <div class="relative">
-          <Briefcase
-            aria-hidden="true"
-            class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 pointer-events-none"
-          />
-          <select
-            v-model="selectedNiche"
+        <div class="lg:w-48">
+          <SimpleSelect
+            :model-value="selectedNiche"
+            :options="niches"
+            :icon="Briefcase"
+            placeholder="Niche"
+            empty-label="Toutes les niches"
             aria-label="Filtrer par niche"
-            class="h-10 appearance-none rounded-lg border border-gray-200 bg-white pl-10 pr-8 text-sm text-gray-700 transition-colors hover:border-[#198496]/30 focus:border-[#198496] focus:outline-none focus:ring-1 focus:ring-[#198496]"
             data-testid="filter-niche"
-            @change="handleFilterChange"
-          >
-            <option value="">Niche</option>
-            <option v-for="niche in niches" :key="niche.value" :value="niche.value">
-              {{ niche.label }}
-            </option>
-          </select>
+            @update:model-value="onNicheChange"
+          />
         </div>
       </div>
     </div>

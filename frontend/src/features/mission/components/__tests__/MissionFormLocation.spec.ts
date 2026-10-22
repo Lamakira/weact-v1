@@ -4,6 +4,9 @@ import { createTestingPinia } from '@pinia/testing'
 import { createRouter, createWebHistory } from 'vue-router'
 import MissionForm from '../MissionForm.vue'
 import { BENIN_CITY_OPTIONS } from '@/shared/constants/beninCities'
+import { getSelectLabels, getSelectValue } from '@/components/ui/__tests__/selectTestUtils'
+
+const LIEU = '[data-testid="lieu-select"]'
 
 // Mock composables
 vi.mock('../../composables/useMissionCreate', () => ({
@@ -63,13 +66,13 @@ describe('MissionForm — Location Select', () => {
     const wrapper = mountForm()
     const select = wrapper.find('[data-testid="lieu-select"]')
     expect(select.exists()).toBe(true)
-    expect(select.element.tagName).toBe('SELECT')
+    expect(select.attributes('data-slot')).toBe('select-trigger')
 
-    const options = select.findAll('option')
+    const labels = getSelectLabels(wrapper, LIEU)
     // 1 default "Sélectionnez" + city options
-    expect(options.length).toBe(1 + BENIN_CITY_OPTIONS.length)
-    expect(select.text()).toContain('Cotonou')
-    expect(select.text()).toContain('Porto-Novo')
+    expect(labels.length).toBe(1 + BENIN_CITY_OPTIONS.length)
+    expect(labels).toContain('Cotonou')
+    expect(labels).toContain('Porto-Novo')
   })
 
   it('does not render old free-text lieu input', () => {
@@ -80,14 +83,14 @@ describe('MissionForm — Location Select', () => {
 
   it('pre-populates select with matching city in edit mode', () => {
     const wrapper = mountForm({ lieu: 'Cotonou' })
-    const select = wrapper.find('[data-testid="lieu-select"]')
-    expect((select.element as HTMLSelectElement).value).toBe('Cotonou')
+    expect(getSelectValue(wrapper, LIEU)).toBe('Cotonou')
+    expect(wrapper.find(LIEU).text()).toBe('Cotonou')
   })
 
   it('shows empty state for legacy free-text lieu value not in cities list', () => {
     const wrapper = mountForm({ lieu: 'Cotonou centre-ville' })
     const select = wrapper.find('[data-testid="lieu-select"]')
-    // Browser renders the default placeholder when value doesn't match any option
-    expect((select.element as HTMLSelectElement).value).toBe('')
+    // La liste retombe sur l'option par défaut quand la valeur ne correspond à aucune option
+    expect(select.text()).toBe('Sélectionnez')
   })
 })

@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { watchDebounced } from '@vueuse/core'
 import { Banknote, Briefcase, MapPin, RotateCcw } from 'lucide-vue-next'
+import { SimpleSelect } from '@/components/ui/select'
 import type { PublicMissionFilters } from '../services/publicMissionsApi'
 
 interface MissionTypeOption {
@@ -107,25 +108,15 @@ watchDebounced(
   >
     <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-4">
       <div class="relative lg:w-56">
-        <Briefcase
-          aria-hidden="true"
-          class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
-        />
-        <select
+        <SimpleSelect
           v-model="typeMission"
-          class="h-10 w-full appearance-none rounded-lg border border-gray-200 bg-white pl-10 pr-9 text-sm text-gray-700 transition-colors hover:border-[#198496]/30 focus:border-[#198496] focus:outline-none focus:ring-1 focus:ring-[#198496]"
+          :options="missionTypes"
+          placeholder="Type de mission"
+          empty-label="Tous les types"
+          :icon="Briefcase"
           aria-label="Filtrer par type de mission"
           data-testid="mission-filter-type"
-        >
-          <option value="">Type de mission</option>
-          <option
-            v-for="missionType in missionTypes"
-            :key="missionType.value"
-            :value="missionType.value"
-          >
-            {{ missionType.label }}
-          </option>
-        </select>
+        />
       </div>
 
       <div class="relative flex-1">
@@ -207,12 +198,5 @@ input::-webkit-inner-spin-button {
 
 input[type='number'] {
   -moz-appearance: textfield;
-}
-
-select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%239CA3AF' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
-  background-position: right 0.75rem center;
-  background-repeat: no-repeat;
-  background-size: 1rem 1rem;
 }
 </style>

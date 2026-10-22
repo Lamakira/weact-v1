@@ -5,6 +5,7 @@ import BookingFormSheet from '../BookingFormSheet.vue'
 import { calculatePricingPreview } from '@/features/booking/types'
 import { addDaysIso, bookingMinStartDateIso } from '@/lib/dates'
 import { formatMoney } from '@/utils/money'
+import { getSelectOptions, setSelectValue } from '@/components/ui/__tests__/selectTestUtils'
 
 // Hoisted so the UGC submission tests can drive the resolved value.
 // The 3 existing describe blocks never call createBooking, so this is inert for them.
@@ -101,7 +102,7 @@ describe('BookingFormSheet — bornes des dates', () => {
     const start = bookingMinStartDateIso()
     await wrapper.find('input#date_debut').setValue(start)
     await wrapper.find('input#date_fin').setValue(start)
-    await wrapper.find('#lieu').setValue('Cotonou')
+    await setSelectValue(wrapper, '#lieu', 'Cotonou')
     await flushPromises()
     await wrapper.find('form').trigger('submit')
     await flushPromises()
@@ -116,18 +117,18 @@ describe('BookingFormSheet — bornes des dates', () => {
 describe('BookingFormSheet — duration presets', () => {
   it('shows duration presets with "max" prefix in labels', () => {
     const wrapper = mountForm()
-    const options = wrapper.findAll('select#duree_preset option')
-    const halfDay = options.find((o) => o.element.value === '4')
+    const options = getSelectOptions(wrapper, '#duree_preset')
+    const halfDay = options.find((o) => o.value === '4')
     expect(halfDay).toBeDefined()
-    expect(halfDay!.text()).toContain('max 4h')
+    expect(halfDay!.label).toContain('max 4h')
   })
 
   it('all standard presets contain "(max" in their label', () => {
     const wrapper = mountForm()
-    const options = wrapper.findAll('select#duree_preset option')
-    const standardPresets = options.filter((o) => o.element.value !== '' && o.element.value !== 'custom')
+    const options = getSelectOptions(wrapper, '#duree_preset')
+    const standardPresets = options.filter((o) => o.value !== '' && o.value !== 'custom')
     for (const opt of standardPresets) {
-      expect(opt.text()).toMatch(/\(max \d+h\)/)
+      expect(opt.label).toMatch(/\(max \d+h\)/)
     }
   })
 })
@@ -149,7 +150,7 @@ describe('BookingFormSheet — pricing preview', () => {
   it('updates the preview total when the duration preset changes', async () => {
     const wrapper = mountForm({ tarifJournalier: 40000 })
 
-    await wrapper.find('select#duree_preset').setValue('8')
+    await setSelectValue(wrapper, '#duree_preset', '8')
     await flushPromises()
 
     const pricing = calculatePricingPreview(40000)
@@ -165,11 +166,14 @@ describe('BookingFormSheet — shooting location', () => {
     const wrapper = mountForm()
 
     const select = wrapper.get('[data-testid="lieu-select"]')
-    const options = wrapper.findAll('[data-testid="lieu-select"] option')
+    const options = getSelectOptions(wrapper, '[data-testid="lieu-select"]')
 
-    expect(select.attributes('required')).toBeDefined()
-    expect(options.some((option) => option.text().includes('Cotonou'))).toBe(true)
-    expect(options.some((option) => option.text().includes('Porto-Novo'))).toBe(true)
+    // Le Select shadcn n'a pas de validation native (required) : l'obligation est signalée par l'astérisque
+    // et contrôlée par vee-validate.
+    expect(select.attributes('data-slot')).toBe('select-trigger')
+    expect(wrapper.get('label[for="lieu"]').text()).toContain('*')
+    expect(options.some((option) => option.label.includes('Cotonou'))).toBe(true)
+    expect(options.some((option) => option.label.includes('Porto-Novo'))).toBe(true)
   })
 })
 
@@ -197,7 +201,7 @@ describe('BookingFormSheet — UGC', () => {
     wrapper: ReturnType<typeof mountForm>,
     { hybrid = false }: { hybrid?: boolean } = {},
   ) => {
-    await wrapper.find('select#type_contenu').setValue('UGC')
+    await setSelectValue(wrapper, '#type_contenu', 'UGC')
     await flushPromises()
 
     // UGC dotations have no shoot date/duration/location — those fields are hidden.
@@ -222,7 +226,7 @@ describe('BookingFormSheet — UGC', () => {
   it('disables the submit button until a product photo is attached (UGC)', async () => {
     const wrapper = mountForm({ faceId: FACE_UUID })
 
-    await wrapper.find('select#type_contenu').setValue('UGC')
+    await setSelectValue(wrapper, '#type_contenu', 'UGC')
     await flushPromises()
     await wrapper.find('#nom_produit').setValue('Tenue Shade Fit M')
     await wrapper.find('#valeur_produit').setValue('45000')
@@ -240,7 +244,7 @@ describe('BookingFormSheet — UGC', () => {
   it('blocks submission and shows a French error when UGC is submitted without a photo', async () => {
     const wrapper = mountForm({ faceId: FACE_UUID })
 
-    await wrapper.find('select#type_contenu').setValue('UGC')
+    await setSelectValue(wrapper, '#type_contenu', 'UGC')
     await flushPromises()
     await wrapper.find('#nom_produit').setValue('Tenue Shade Fit M')
     await wrapper.find('#valeur_produit').setValue('45000')
@@ -258,7 +262,7 @@ describe('BookingFormSheet — UGC', () => {
   it('reveals the UGC block and hides the cash pricing preview when UGC is selected', async () => {
     const wrapper = mountForm()
 
-    await wrapper.find('select#type_contenu').setValue('UGC')
+    await setSelectValue(wrapper, '#type_contenu', 'UGC')
     await flushPromises()
 
     expect(wrapper.find('[data-testid="ugc-booking-fields"]').exists()).toBe(true)
@@ -273,22 +277,22 @@ describe('BookingFormSheet — UGC', () => {
     // Visible for a cash booking…
     expect(wrapper.find('#date_debut').exists()).toBe(true)
     expect(wrapper.find('#duree_preset').exists()).toBe(true)
-    expect(wrapper.find('select#lieu').exists()).toBe(true)
+    expect(wrapper.find('#lieu').exists()).toBe(true)
 
-    await wrapper.find('select#type_contenu').setValue('UGC')
+    await setSelectValue(wrapper, '#type_contenu', 'UGC')
     await flushPromises()
 
     // …gone for a UGC dotation (the Face films at home, on her own schedule).
     expect(wrapper.find('#date_debut').exists()).toBe(false)
     expect(wrapper.find('#date_fin').exists()).toBe(false)
     expect(wrapper.find('#duree_preset').exists()).toBe(false)
-    expect(wrapper.find('select#lieu').exists()).toBe(false)
+    expect(wrapper.find('#lieu').exists()).toBe(false)
   })
 
   it('shows the "Payer la commission" CTA in UGC mode', async () => {
     const wrapper = mountForm()
 
-    await wrapper.find('select#type_contenu').setValue('UGC')
+    await setSelectValue(wrapper, '#type_contenu', 'UGC')
     await flushPromises()
 
     expect(wrapper.find('[data-testid="submit-booking"]').text()).toContain('Payer la commission')
@@ -313,7 +317,7 @@ describe('BookingFormSheet — UGC', () => {
   it('toggles the video count + Face remuneration fields with the compensation type', async () => {
     const wrapper = mountForm()
 
-    await wrapper.find('select#type_contenu').setValue('UGC')
+    await setSelectValue(wrapper, '#type_contenu', 'UGC')
     await flushPromises()
 
     // product (default): locked "2 vidéos", no remuneration field
@@ -386,7 +390,7 @@ describe('BookingFormSheet — UGC', () => {
   it('does not submit and shows an inline error when a required UGC field is invalid', async () => {
     const wrapper = mountForm({ faceId: FACE_UUID })
 
-    await wrapper.find('select#type_contenu').setValue('UGC')
+    await setSelectValue(wrapper, '#type_contenu', 'UGC')
     await flushPromises()
 
     // Fill everything valid EXCEPT valeur_produit (left empty → fails the Zod refine).
@@ -460,7 +464,7 @@ describe('BookingFormSheet — brief facultatif (lot B12)', () => {
   const fillValidCashForm = async (wrapper: ReturnType<typeof mountForm>) => {
     await wrapper.find('#date_debut').setValue(addDaysIso(bookingMinStartDateIso(), 5))
     await wrapper.find('#date_fin').setValue(addDaysIso(bookingMinStartDateIso(), 5))
-    await wrapper.find('select#lieu').setValue('Cotonou')
+    await setSelectValue(wrapper, '#lieu', 'Cotonou')
     await flushPromises()
   }
 

@@ -3,6 +3,9 @@ import { mount } from '@vue/test-utils'
 import CancellationDialog from '../CancellationDialog.vue'
 import { BookingStatus, type Booking } from '../../types'
 import { formatMoney } from '@/utils/money'
+import { getSelectLabels, setSelectValue } from '@/components/ui/__tests__/selectTestUtils'
+
+const REASON_SELECT = '[data-testid="cancellation-reason-select"]'
 
 function makeBooking(overrides: Partial<Booking> = {}): Booking {
   return {
@@ -96,25 +99,25 @@ describe('CancellationDialog', () => {
   it('does not show the removed price disagreement reason', () => {
     const wrapper = mountDialog()
 
-    expect(wrapper.text()).not.toContain('Désaccord sur le prix')
+    expect(getSelectLabels(wrapper, REASON_SELECT)).not.toContain('Désaccord sur le prix')
   })
 
   it('shows the acceptance expired reason', () => {
     const wrapper = mountDialog()
 
-    expect(wrapper.text()).toContain("Durée d'acceptation dépassée")
+    expect(getSelectLabels(wrapper, REASON_SELECT)).toContain("Durée d'acceptation dépassée")
   })
 
   it('does not show the acceptance expired reason for Face users', () => {
     const wrapper = mountDialog({ isFace: true })
 
-    expect(wrapper.text()).not.toContain("Durée d'acceptation dépassée")
+    expect(getSelectLabels(wrapper, REASON_SELECT)).toEqual(["Conflit d'agenda", 'Autre raison'])
   })
 
   it('shows a textarea when other reason is selected', async () => {
     const wrapper = mountDialog()
 
-    await wrapper.get('[data-testid="cancellation-reason-select"]').setValue('other')
+    await setSelectValue(wrapper, REASON_SELECT, 'other')
 
     expect(wrapper.find('[data-testid="custom-cancellation-reason-textarea"]').exists()).toBe(true)
   })
@@ -122,7 +125,7 @@ describe('CancellationDialog', () => {
   it('disables confirm when other reason is selected but textarea is empty', async () => {
     const wrapper = mountDialog()
 
-    await wrapper.get('[data-testid="cancellation-reason-select"]').setValue('other')
+    await setSelectValue(wrapper, REASON_SELECT, 'other')
 
     expect(wrapper.get('[data-testid="confirm-cancellation-button"]').attributes('disabled')).toBeDefined()
   })
@@ -130,7 +133,7 @@ describe('CancellationDialog', () => {
   it('emits the trimmed custom reason when confirmation is valid', async () => {
     const wrapper = mountDialog()
 
-    await wrapper.get('[data-testid="cancellation-reason-select"]').setValue('other')
+    await setSelectValue(wrapper, REASON_SELECT, 'other')
     await wrapper.get('[data-testid="custom-cancellation-reason-textarea"]').setValue('  Client indisponible  ')
     await wrapper.get('[data-testid="confirm-cancellation-button"]').trigger('click')
 
@@ -207,7 +210,7 @@ describe('CancellationDialog', () => {
 describe('CancellationDialog — filtre de coordonnées (lot B12)', () => {
   async function mountOther(status: Booking['status'], serverError: string | null = null) {
     const wrapper = mount(CancellationDialog, {
-      props: {
+        props: {
         booking: makeBooking({ status }),
         isOpen: true,
         isCancelling: false,
@@ -216,7 +219,7 @@ describe('CancellationDialog — filtre de coordonnées (lot B12)', () => {
       },
       global: { stubs: { Teleport: true } },
     })
-    await wrapper.get('[data-testid="cancellation-reason-select"]').setValue('other')
+    await setSelectValue(wrapper, REASON_SELECT, 'other')
     return wrapper
   }
 

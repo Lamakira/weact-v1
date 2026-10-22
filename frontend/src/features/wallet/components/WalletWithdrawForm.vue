@@ -2,6 +2,7 @@
 import { formatMoney } from '@/utils/money'
 import { ref, computed } from 'vue'
 import { X, AlertCircle, Loader2, Smartphone } from 'lucide-vue-next'
+import { SimpleSelect } from '@/components/ui/select'
 import type { WithdrawPayload } from '../services/walletApi'
 
 const props = defineProps<{
@@ -43,6 +44,8 @@ const PHONE_COUNTRIES: { value: WithdrawPayload['phone_country']; label: string;
   { value: 'sn', label: 'Sénégal', prefix: '+221' },
   { value: 'bf', label: 'Burkina Faso', prefix: '+226' },
 ]
+
+const phoneCountryOptions = PHONE_COUNTRIES.map((c) => ({ value: c.value, label: `${c.prefix} ${c.label}` }))
 
 const amount = ref<number | null>(null)
 const selectedMode = ref<WithdrawPayload['payment_mode'] | null>(null)
@@ -174,14 +177,16 @@ function handleSubmit(): void {
             <div class="space-y-1.5">
               <label class="text-sm font-medium text-gray-700">Numéro Mobile Money</label>
               <div class="flex gap-2">
-                <select
-                  v-model="phoneCountry"
-                  class="rounded-md border border-gray-200 bg-white px-2 py-2 text-sm text-gray-700 focus:border-[#198496] focus:outline-none focus:ring-1 focus:ring-[#198496] transition-colors"
-                >
-                  <option v-for="c in PHONE_COUNTRIES" :key="c.value" :value="c.value">
-                    {{ c.prefix }} {{ c.label }}
-                  </option>
-                </select>
+                <!-- Liste au-dessus de la modale (z-[200]) -->
+                <SimpleSelect
+                  :model-value="phoneCountry"
+                  :options="phoneCountryOptions"
+                  content-class="z-[210]"
+                  trigger-class="w-auto shrink-0"
+                  aria-label="Pays du numéro Mobile Money"
+                  data-testid="withdraw-phone-country"
+                  @update:model-value="phoneCountry = $event as WithdrawPayload['phone_country']"
+                />
                 <input
                   v-model="phoneNumber"
                   type="tel"
