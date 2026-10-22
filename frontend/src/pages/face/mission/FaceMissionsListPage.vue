@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatNumber } from '@/utils/money'
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
@@ -350,7 +351,7 @@ function toggleFiltersPanel(): void {
         <div v-else>
           <div class="mb-6 flex items-center justify-between">
             <div class="text-xs min-[376px]:text-sm font-medium text-muted-foreground">
-              {{ totalCount }} mission{{ totalCount > 1 ? 's' : '' }} disponible{{
+              {{ formatNumber(totalCount) }} mission{{ totalCount > 1 ? 's' : '' }} disponible{{
                 totalCount > 1 ? 's' : ''
               }}
               <span v-if="hasActiveFilters" class="text-primary">

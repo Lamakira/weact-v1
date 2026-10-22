@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatNumber } from '@/utils/money'
 import { computed, onMounted, ref } from 'vue'
 import {
   Loader2,
@@ -421,7 +422,7 @@ onMounted(() => {
           Candidatures
         </h2>
         <p v-if="!isLoading && !error" class="text-sm text-muted-foreground">
-          {{ total }} candidature{{ total > 1 ? 's' : '' }} reçue{{ total > 1 ? 's' : '' }}
+          {{ formatNumber(total) }} candidature{{ total > 1 ? 's' : '' }} reçue{{ total > 1 ? 's' : '' }}
         </p>
       </div>
       <div v-if="isSelectionMode" class="flex items-center gap-2 text-sm text-muted-foreground">

@@ -26,19 +26,19 @@ describe('UgcMissionStats', () => {
 
     expect(wrapper.find('[data-testid="ugc-mission-stats"]').classes()).toContain('grid-cols-3')
     expect(wrapper.find('[data-testid="ugc-stat-cash"]').exists()).toBe(true)
-    expect(normalizedText(wrapper)).toContain('20 000 FCFA')
+    expect(normalizedText(wrapper)).toContain('20 000 F CFA')
   })
 
-  it('formats amounts as fr-FR FCFA', () => {
+  it('formats amounts as fr-FR F CFA', () => {
     const wrapper = mountStats({ valeurProduit: 35000, montantRemuneration: null, nombreVideos: 2 })
 
-    expect(normalizedText(wrapper)).toContain('35 000 FCFA')
+    expect(normalizedText(wrapper)).toContain('35 000 F CFA')
   })
 
-  it('falls back to 0 FCFA when valeur_produit is null (defensive)', () => {
+  it('falls back to 0 F CFA when valeur_produit is null (defensive)', () => {
     const wrapper = mountStats({ valeurProduit: null, montantRemuneration: null, nombreVideos: 2 })
 
-    expect(normalizedText(wrapper)).toContain('0 FCFA')
+    expect(normalizedText(wrapper)).toContain('0 F CFA')
   })
 
   it('renders nombre_videos in the Vidéos cell', () => {

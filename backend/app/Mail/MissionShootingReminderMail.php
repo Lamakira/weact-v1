@@ -19,7 +19,7 @@ final class MissionShootingReminderMail extends BaseMail
     {
         return $this->forProducer
             ? 'Rappel : le tournage de « '.$this->mission->titre.' » a lieu demain'
-            : 'Rappel : ton tournage « '.$this->mission->titre.' » a lieu demain';
+            : 'Rappel : votre tournage « '.$this->mission->titre.' » a lieu demain';
     }
 
     public function content(): Content

@@ -67,7 +67,7 @@ final class BookingReceivedMail extends BaseMail
 
     private function formatAmount(): string
     {
-        return number_format($this->booking->montant_face_recoit, 0, ',', ' ').' XOF';
+        return \App\Support\Money::format($this->booking->montant_face_recoit);
     }
 
     private function buildBookingUrl(): string

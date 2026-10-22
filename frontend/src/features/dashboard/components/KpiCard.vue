@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatNumber } from '@/utils/money'
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { Clock, Check, Play, CheckCircle2, Users, UserCheck, Star, Shield, Pencil, FileText } from 'lucide-vue-next'
@@ -21,7 +22,7 @@ const props = withDefaults(defineProps<KpiCardProps>(), {
 })
 
 const formattedValue = computed(() => {
-  return new Intl.NumberFormat('fr-FR').format(props.value)
+  return formatNumber(props.value)
 })
 
 const iconComponent = computed(() => {

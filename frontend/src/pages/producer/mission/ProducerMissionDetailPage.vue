@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -49,7 +50,6 @@ import MissionDetailTabs, { type MissionTab } from '@/features/mission/component
 import {
   buildNextBlock,
   buildPaymentCard,
-  formatFcfa,
   formatShortDate,
   getCurrentStepIndex,
   getMissionSteps,
@@ -413,7 +413,7 @@ function goToEdit(): void {
               </span>
               <span class="inline-flex items-center gap-1.5">
                 <Coins class="size-3.5" aria-hidden="true" />
-                {{ formatFcfa(mission.budget) }} par Face
+                {{ formatMoney(mission.budget) }} par Face
               </span>
             </template>
             <span v-else-if="mission.nom_produit" class="inline-flex items-center gap-1.5">

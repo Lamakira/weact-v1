@@ -24,7 +24,7 @@ final class UgcShipmentConfirmedMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return 'Ton produit a été expédié 📦';
+        return 'Votre produit a été expédié 📦';
     }
 
     public function content(): Content

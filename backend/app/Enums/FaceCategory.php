@@ -17,9 +17,22 @@ enum FaceCategory: string
 
     /**
      * Get the French display name for this category.
+     *
+     * Avec un sexe connu féminin, le libellé est accordé (« Actrice », « Créatrice de contenu »).
+     * Sexe inconnu, homme ou autre : forme actuelle. Les libellés invariables restent identiques.
      */
-    public function label(): string
+    public function label(?FaceGender $gender = null): string
     {
+        if ($gender === FaceGender::FEMME) {
+            return match ($this) {
+                self::ACTEUR => 'Actrice',
+                self::INFLUENCEUR => 'Influenceuse',
+                self::CREATEUR => 'Créatrice de contenu',
+                self::FIGURANT => 'Figurante',
+                default => $this->label(),
+            };
+        }
+
         return match ($this) {
             self::ACTEUR => 'Acteur',
             self::INFLUENCEUR => 'Influenceur',

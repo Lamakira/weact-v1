@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 /**
  * AdminFaceContactsPage — "Faces à contacter"
  * Unified, read-only view of the Faces actively engaged on a booking or a
@@ -113,17 +114,7 @@ function formatDate(dateString: string | null): string {
 
 function formatCurrency(amount: number | null): string {
   if (amount == null) return '—'
-  return (
-    new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    })
-      .format(amount)
-      .replace('XOF', '')
-      .trim() + ' XOF'
-  )
+  return formatMoney(amount)
 }
 
 function formatSince(dateString: string | null): string {

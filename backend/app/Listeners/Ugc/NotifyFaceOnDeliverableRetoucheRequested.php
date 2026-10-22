@@ -54,7 +54,7 @@ class NotifyFaceOnDeliverableRetoucheRequested
                 'user_id' => $faceUserId,
                 'type' => 'ugc_deliverable_retouche_requested',
                 'data' => [
-                    'message' => "Retouche demandée sur ton {$deliverable->kind->label()} : {$deliverable->review_note}.",
+                    'message' => "Retouche demandée sur votre {$deliverable->kind->label()} : {$deliverable->review_note}.",
                     'deliverable_id' => $deliverable->uuid,
                     'kind' => $deliverable->kind->value,
                     'url' => $url,

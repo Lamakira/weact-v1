@@ -208,7 +208,7 @@ class BookingNotificationTest extends TestCase
             ->first();
 
         $this->assertNotNull($notification);
-        $this->assertStringContainsString('XOF', $notification->data['message']);
+        $this->assertStringContainsString('F CFA', $notification->data['message']);
         $this->assertStringContainsString('wallet', $notification->data['message']);
         $this->assertEquals($this->booking->id, $notification->data['booking_id']);
     }

@@ -43,7 +43,7 @@ describe('CommissionBreakdown', () => {
 
   it('renders the commission badge and testid anchor', () => {
     const wrapper = mountBreak({ productValue: 50000 })
-    expect(normalize(wrapper.text())).toContain('10% min. 2 500')
+    expect(normalize(wrapper.text())).toContain('10 % min. 2 500 F CFA')
     expect(wrapper.find('[data-testid="commission-breakdown"]').exists()).toBe(true)
   })
 
@@ -53,7 +53,7 @@ describe('CommissionBreakdown', () => {
 
     expect(text).toContain('Commission WeAct')
     expect(text).toContain('5 000') // le montant reste affiché
-    expect(text).not.toContain('10% min. 2 500') // le taux disparaît du récap de création
+    expect(text).not.toContain('10 % min. 2 500 F CFA') // le taux disparaît du récap de création
   })
 
   it('shows the service fee + escrow footer and drops the commission-only copy when onPlatform (booking hybride)', () => {

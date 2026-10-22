@@ -58,7 +58,7 @@ final class SendWalletCreditedFaceEmailOnBookingCompleted
                 newBalance: $newBalance,
                 // Absence contestée tranchée en faveur de la Face : son seul e-mail sur l'issue du litige.
                 outcomeNote: $booking->dispute_outcome === DisputeResolutionOutcome::FavorFace->value
-                    ? "L'administrateur a tranché en ta faveur dans le litige sur ce booking."
+                    ? "L'administrateur a tranché en votre faveur dans le litige sur ce booking."
                     : null,
             ));
         } catch (\Throwable $e) {

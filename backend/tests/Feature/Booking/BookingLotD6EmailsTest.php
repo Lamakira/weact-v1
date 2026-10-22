@@ -115,11 +115,11 @@ class BookingLotD6EmailsTest extends TestCase
 
         // Contenu Face : net perçu (90 000), lieu, lien ; contenu Producteur : montant payé (110 000).
         $faceHtml = (new BookingPaidFaceMail($booking->fresh()->load('face.userable', 'producer.userable')))->render();
-        $this->assertStringContainsString('90 000 XOF', $faceHtml);
+        $this->assertStringContainsString('90 000 F CFA', $faceHtml);
         $this->assertStringContainsString('Cotonou', $faceHtml);
         $this->assertStringContainsString("/face/bookings/{$booking->uuid}", $faceHtml);
         $producerHtml = (new BookingPaidProducerMail($booking->fresh()->load('face.userable', 'producer.userable')))->render();
-        $this->assertStringContainsString('110 000 XOF', $producerHtml);
+        $this->assertStringContainsString('110 000 F CFA', $producerHtml);
         $this->assertStringContainsString("/producer/bookings/{$booking->uuid}", $producerHtml);
     }
 
@@ -423,7 +423,7 @@ class BookingLotD6EmailsTest extends TestCase
         $this->assertSame(1, $this->disputeMailsTo('studio@example.test'));
         Mail::assertQueued(
             WalletCreditedFaceMail::class,
-            fn (WalletCreditedFaceMail $mail): bool => str_contains((string) $mail->outcomeNote, "L'administrateur a tranché en ta faveur"),
+            fn (WalletCreditedFaceMail $mail): bool => str_contains((string) $mail->outcomeNote, "L'administrateur a tranché en votre faveur"),
         );
         Mail::assertQueued(
             BookingDisputeSettledMail::class,

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatNumber } from '@/utils/money'
 /**
  * ProducerFacesListPage
  * Lists all faces with filters and pagination, reusing the same
@@ -162,7 +163,7 @@ function handlePageChange(page: number): void {
     <div v-else class="space-y-8">
       <div class="flex items-center justify-between">
         <p class="text-sm text-gray-500">
-          <span class="font-medium text-gray-900">{{ totalItems }}</span>
+          <span class="font-medium text-gray-900">{{ formatNumber(totalItems) }}</span>
           talent{{ totalItems > 1 ? 's' : '' }} trouvé{{ totalItems > 1 ? 's' : '' }}
         </p>
       </div>

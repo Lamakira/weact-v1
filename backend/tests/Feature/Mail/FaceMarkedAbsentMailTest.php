@@ -61,7 +61,8 @@ final class FaceMarkedAbsentMailTest extends TestCase
         $this->assertStringContainsString('Bonjour Amina', $rendered);
         $this->assertStringContainsString('Pub TV Été 2026', $rendered);
         $this->assertStringContainsString('Studio Beta', $rendered);
-        $this->assertStringContainsString('90 000 XOF', $rendered);
+        $this->assertStringContainsString('90 000 F CFA', $rendered);
+        $this->assertStringNotContainsString('XOF', $rendered);
         $this->assertStringContainsString('mercredi 29 avril 2026', $rendered);
         $this->assertStringContainsString('samedi 02 mai 2026', $rendered);
         $this->assertStringContainsString('⏰', $rendered);
@@ -107,6 +108,6 @@ final class FaceMarkedAbsentMailTest extends TestCase
             disputeDeadline: Carbon::create(2026, 5, 2, 23, 59, 0),
         );
 
-        $this->assertStringContainsString('1 234 567 XOF', $mail->render());
+        $this->assertStringContainsString('1 234 567 F CFA', $mail->render());
     }
 }

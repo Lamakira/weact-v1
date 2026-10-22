@@ -8,7 +8,7 @@ use App\Models\Deliverable;
 use Illuminate\Mail\Mailables\Content;
 
 /**
- * Email Face (tutoiement, D-7.1.e) : ton livrable a été validé par le Producteur
+ * Email Face (vouvoiement, D-7.1.e) : votre livrable a été validé par le Producteur
  * (tunnel étape 5/6).
  */
 final class UgcDeliverableValidatedMail extends BaseMail
@@ -22,7 +22,7 @@ final class UgcDeliverableValidatedMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return 'Ton livrable est validé ✅';
+        return 'Votre livrable est validé ✅';
     }
 
     public function content(): Content

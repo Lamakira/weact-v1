@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { AlertTriangle, Loader2 } from 'lucide-vue-next'
 import {
@@ -9,6 +10,7 @@ import {
   type BookingCancellationPayload,
   type CancellationReasonValue,
 } from '../types'
+import { SimpleSelect } from '@/components/ui/select'
 import { CONTACT_DETAILS_MESSAGE, containsContactDetails } from '@/lib/contactDetails'
 
 const props = defineProps<{
@@ -74,15 +76,6 @@ watch(selectedReason, (reason) => {
   }
 })
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
-
 function handleConfirm(): void {
   if (!selectedReason.value || props.isCancelling) return
 
@@ -98,6 +91,8 @@ function handleClose(): void {
 }
 
 function handleKeydown(e: KeyboardEvent): void {
+  // Échap referme d'abord la liste de motifs ouverte, pas la modale.
+  if (document.querySelector('[data-slot="select-content"]')) return
   if (e.key === 'Escape' && props.isOpen) handleClose()
 }
 
@@ -142,7 +137,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
             <p class="mb-2 text-sm font-medium text-amber-900">Conséquences financières</p>
             <p class="text-sm text-amber-800">
               Le tournage est arrivé : le remboursement n'est pas immédiat. Les fonds restent en séquestre pendant 72 h et la Face peut contester.
-              Sans contestation, {{ formatCurrency(refundAmount) }} vous sont remboursés ({{ formatCurrency(retainedAmount) }} retenus par WEACT) ; en cas de contestation, un administrateur tranche — s'il tranche en faveur de la Face, vous ne serez pas remboursé.
+              Sans contestation, {{ formatMoney(refundAmount) }} vous sont remboursés ({{ formatMoney(retainedAmount) }} retenus par WEACT) ; en cas de contestation, un administrateur tranche — s'il tranche en faveur de la Face, vous ne serez pas remboursé.
             </p>
           </div>
 
@@ -152,15 +147,15 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
             <div class="space-y-1.5 text-sm text-amber-800">
               <div class="flex items-center justify-between">
                 <span>Montant payé</span>
-                <span class="font-medium">{{ formatCurrency(booking.montant_total_producteur) }}</span>
+                <span class="font-medium">{{ formatMoney(booking.montant_total_producteur) }}</span>
               </div>
               <div class="flex items-center justify-between">
                 <span>10% retenus par WEACT</span>
-                <span class="font-medium">{{ formatCurrency(retainedAmount) }}</span>
+                <span class="font-medium">{{ formatMoney(retainedAmount) }}</span>
               </div>
               <div class="flex items-center justify-between border-t border-amber-200 pt-2 text-emerald-700">
                 <span class="font-semibold">Montant remboursé</span>
-                <span class="font-semibold">{{ formatCurrency(refundAmount) }}</span>
+                <span class="font-semibold">{{ formatMoney(refundAmount) }}</span>
               </div>
             </div>
           </div>
@@ -171,7 +166,7 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
             <div class="space-y-1.5 text-sm text-amber-800">
               <div v-if="isPaid" class="flex items-center justify-between">
                 <span>Montant que vous auriez perçu</span>
-                <span class="font-medium">{{ formatCurrency(booking.montant_face_recoit) }}</span>
+                <span class="font-medium">{{ formatMoney(booking.montant_face_recoit) }}</span>
               </div>
               <div class="flex items-center gap-2 pt-1 text-red-700">
                 <span>Votre note moyenne sera pénalisée de -1 étoile</span>
@@ -188,21 +183,14 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
             <label for="cancellation-reason" class="mb-1.5 block text-sm font-medium text-gray-700">
               Raison de l'annulation *
             </label>
-            <select
+            <SimpleSelect
               id="cancellation-reason"
-              v-model="selectedReason"
+              :model-value="selectedReason"
+              :options="availableReasons"
+              placeholder="Sélectionnez une raison"
               data-testid="cancellation-reason-select"
-              class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-weact focus:ring-2 focus:ring-weact/20"
-            >
-              <option disabled value="">Sélectionnez une raison</option>
-              <option
-                v-for="reason in availableReasons"
-                :key="reason.value"
-                :value="reason.value"
-              >
-                {{ reason.label }}
-              </option>
-            </select>
+              @update:model-value="selectedReason = $event as CancellationReasonValue | ''"
+            />
           </div>
 
           <div v-if="selectedReason === 'other'" class="mb-5">

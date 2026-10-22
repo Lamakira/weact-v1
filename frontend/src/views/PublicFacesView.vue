@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatNumber } from '@/utils/money'
 import { ref, onMounted, watch, nextTick } from 'vue'
 import { Users, AlertCircle, RefreshCw } from 'lucide-vue-next'
 
@@ -86,6 +87,12 @@ watch(faces, async () => {
   <div ref="rootEl" data-testid="public-faces-view">
     <!-- Page Header -->
     <header class="mb-8 text-center">
+      <h1
+        class="mb-3 text-3xl font-bold tracking-tight text-gray-900"
+        data-testid="faces-page-title"
+      >
+        Trouver une Face
+      </h1>
       <p class="text-gray-600 text-lg max-w-2xl mx-auto">
         Découvrez notre vivier de talents béninois pour tous vos projets audiovisuels.
       </p>
@@ -185,7 +192,7 @@ watch(faces, async () => {
       <!-- Results Count -->
       <div class="flex items-center justify-between">
         <p class="text-sm text-gray-500">
-          <span class="font-medium text-gray-900">{{ totalItems }}</span>
+          <span class="font-medium text-gray-900">{{ formatNumber(totalItems) }}</span>
           talent{{ totalItems > 1 ? 's' : '' }} trouvé{{ totalItems > 1 ? 's' : '' }}
         </p>
       </div>

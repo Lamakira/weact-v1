@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { ref } from 'vue'
 import { AlertCircle, Loader2 } from 'lucide-vue-next'
 import { Textarea } from '@/components/ui/textarea'
@@ -24,19 +25,6 @@ const resolveTarget = ref<AdminBookingDispute | null>(null)
 const resolveOutcome = ref<BookingDisputeOutcome | null>(null)
 const resolveNotes = ref('')
 const resolveFormError = ref<string | null>(null)
-
-function formatCurrency(amount: number): string {
-  return (
-    new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      currencyDisplay: 'code',
-    })
-      .format(amount)
-      .replace('XOF', '')
-      .trim() + ' XOF'
-  )
-}
 
 function formatDate(iso: string | null, withTime = true): string {
   if (!iso) return '—'
@@ -154,8 +142,8 @@ function autoPaymentLabel(booking: AdminStalePaidBooking): string {
                 </RouterLink>
               </td>
               <td class="px-4 py-3 align-top text-gray-700">
-                <div>Producteur : {{ formatCurrency(dispute.montant_total_producteur) }}</div>
-                <div>Face : {{ formatCurrency(dispute.montant_face_recoit) }}</div>
+                <div>Producteur : {{ formatMoney(dispute.montant_total_producteur) }}</div>
+                <div>Face : {{ formatMoney(dispute.montant_face_recoit) }}</div>
               </td>
               <td class="px-4 py-3 align-top text-gray-700">{{ formatDate(dispute.reported_at) }}</td>
               <td class="px-4 py-3 align-top text-gray-700">
@@ -240,7 +228,7 @@ function autoPaymentLabel(booking: AdminStalePaidBooking): string {
               </td>
               <td class="px-4 py-3 align-top text-gray-700">{{ formatDate(booking.date_fin, false) }}</td>
               <td class="px-4 py-3 align-top font-semibold text-gray-900">
-                {{ formatCurrency(booking.montant_total_producteur) }}
+                {{ formatMoney(booking.montant_total_producteur) }}
               </td>
               <td class="px-4 py-3 align-top text-gray-700">{{ booking.days_since_date_fin }} jours</td>
               <td class="px-4 py-3 align-top text-gray-700" data-testid="stale-auto-payment">

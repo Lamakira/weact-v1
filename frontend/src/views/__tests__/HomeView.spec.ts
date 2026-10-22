@@ -273,7 +273,7 @@ describe('HomeView', () => {
     it('displays formatted budget', () => {
       const card1 = wrapper.find('[data-testid="mission-card-1"]')
       // 50000 formatted as "50 000 FCFA"
-      expect(card1.text()).toContain('FCFA')
+      expect(card1.text()).toMatch(/F\sCFA/)
     })
 
     it('displays mission location', () => {
@@ -347,7 +347,43 @@ describe('HomeView', () => {
     it('displays correct feature titles', () => {
       expect(wrapper.find('[data-testid="feature-card-1"]').text()).toContain('Plateforme sécurisée')
       expect(wrapper.find('[data-testid="feature-card-2"]').text()).toContain('Paiement sécurisé')
-      expect(wrapper.find('[data-testid="feature-card-3"]').text()).toContain('Transactions protégées')
+      expect(wrapper.find('[data-testid="feature-card-3"]').text()).toContain('Argent mis de côté avant le tournage')
+    })
+
+    it('Face : la 3e carte explique l\'argent bloqué avant le tournage', () => {
+      const text = wrapper.find('[data-testid="feature-card-3"]').text()
+      expect(text).toContain('Argent mis de côté avant le tournage')
+      expect(text).toContain(
+        'Le producteur paie avant le tournage ; la somme est bloquée et vous est versée une fois la mission réalisée.',
+      )
+      expect(text).not.toContain('Transactions protégées')
+    })
+
+    it('n\'affiche ni « Plateforme certifiée » ni « depuis 2026 » (Face puis Producer)', async () => {
+      const footer =
+        "Weact est la première plateforme de casting digitale au Bénin, connectant talents et professionnels de l'audiovisuel."
+      expect(wrapper.text()).not.toContain('Plateforme certifiée')
+      expect(wrapper.text()).not.toContain('depuis 2026')
+      expect(wrapper.text()).toContain(footer)
+
+      await wrapper.find('[data-testid="toggle-producer"]').trigger('click')
+      await wrapper.vm.$nextTick()
+
+      expect(wrapper.text()).not.toContain('Plateforme certifiée')
+      expect(wrapper.text()).not.toContain('depuis 2026')
+      expect(wrapper.text()).toContain(footer)
+    })
+
+    it('les 3 cartes ont le même aspect au repos, sans mise en avant ni indicateur', () => {
+      const classes = [1, 2, 3].map((n) => wrapper.find(`[data-testid="feature-card-${n}"]`).attributes('class'))
+      expect(new Set(classes).size).toBe(1)
+      for (const n of [1, 2, 3]) {
+        const card = wrapper.find(`[data-testid="feature-card-${n}"]`)
+        expect(card.html()).not.toContain('group-hover')
+        expect(card.html()).not.toContain('hover:')
+        expect(card.find('h3').classes().join(' ')).not.toContain('text-[#198496]')
+        expect(card.find('.w-1\\.5').exists()).toBe(false)
+      }
     })
   })
 

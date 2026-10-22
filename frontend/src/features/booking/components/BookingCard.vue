@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
-import { ArrowRight, Calendar, CalendarClock, Clock, MapPin, Wallet } from 'lucide-vue-next'
+import { ArrowRight, Calendar, CalendarClock, Clock, MapPin, Package, Video } from 'lucide-vue-next'
 import type { Booking, BookingFaceUserable, BookingProducerUserable } from '../types'
 import BookingStatusBadge from './BookingStatusBadge.vue'
 import { useAuthStore } from '@/stores/auth'
-import { bookingListAction, bookingListSubtitle } from '../utils/bookingPresentation'
+import {
+  bookingListAction,
+  bookingListAmount,
+  bookingListStatusLabel,
+  bookingListSubtitle,
+  bookingUgcFacts,
+} from '../utils/bookingPresentation'
 
 const props = defineProps<{
   booking: Booking
@@ -48,12 +54,14 @@ const listAction = computed(() => bookingListAction(props.booking, isFace.value 
 
 const counterpartInitials = computed(() => counterpartName.value.charAt(0).toUpperCase())
 
-/**
- * Financial amount: Face sees montant_face_recoit, Producer sees montant_total_producteur
- */
-const displayAmount = computed(() => {
-  return isFace.value ? props.booking.montant_face_recoit : props.booking.montant_total_producteur
-})
+/** Statut du point de vue de la personne qui lit (« Confirmé par vous », « Refusé par vous »…). */
+const statusLabel = computed(() => bookingListStatusLabel(props.booking, isFace.value ? 'face' : 'producer'))
+
+/** Montant aligné à droite + légende ; « Produit seul » pour un booking UGC sans argent. */
+const amount = computed(() => bookingListAmount(props.booking, isFace.value ? 'face' : 'producer'))
+
+/** Produit et nombre de vidéos d'un booking UGC (rien pour un booking cash). */
+const ugcFacts = computed(() => bookingUgcFacts(props.booking))
 
 /**
  * Route name for detail page
@@ -74,14 +82,6 @@ function formatDate(dateString: string | null): string {
   }).format(new Date(dateString))
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    maximumFractionDigits: 0,
-  }).format(amount)
-}
-
 const formattedDateRange = computed(() => {
   // UGC dotations have no shoot dates → empty (the row is hidden via v-if).
   if (!props.booking.date_debut || !props.booking.date_fin) return ''
@@ -97,11 +97,11 @@ const formattedDateRange = computed(() => {
     (after:absolute inset-0) ; le bouton d'action, au-dessus (z-10), est un second lien frère.
   -->
   <article
-    class="relative block rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md sm:p-5"
+    class="booking-card relative block rounded-xl border border-border bg-card p-4 transition-all hover:border-primary/50 hover:shadow-md sm:p-5"
   >
     <!-- Status Badge + Type -->
     <div class="mb-3 flex items-center justify-between">
-      <BookingStatusBadge :status="booking.status" />
+      <BookingStatusBadge :status="booking.status" :label="statusLabel" />
       <span class="text-xs text-muted-foreground">
         {{ booking.type_contenu }}
       </span>
@@ -143,24 +143,34 @@ const formattedDateRange = computed(() => {
       </div>
     </div>
 
-    <!-- Booking Details -->
-    <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground border-t border-border pt-3">
-      <div v-if="formattedDateRange" class="flex items-center gap-1.5">
-        <Calendar class="h-4 w-4" />
-        <span>{{ formattedDateRange }}</span>
+    <!-- Booking Details : méta à gauche, montant aligné à droite -->
+    <div class="flex items-start justify-between gap-4 border-t border-border pt-3">
+      <div class="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
+        <div v-if="formattedDateRange" class="flex items-center gap-1.5">
+          <Calendar class="h-4 w-4" />
+          <span>{{ formattedDateRange }}</span>
+        </div>
+        <div v-if="booking.duree_heures" class="flex items-center gap-1.5">
+          <Clock class="h-4 w-4" />
+          <span>max {{ booking.duree_heures }}h</span>
+        </div>
+        <div v-if="booking.lieu" class="flex items-center gap-1.5">
+          <MapPin class="h-4 w-4" />
+          <span>{{ booking.lieu }}</span>
+        </div>
+        <div v-if="ugcFacts.product" class="flex min-w-0 items-center gap-1.5" data-testid="booking-card-product">
+          <Package class="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span class="truncate">{{ ugcFacts.product }}</span>
+        </div>
+        <div v-if="ugcFacts.videos" class="flex items-center gap-1.5" data-testid="booking-card-videos">
+          <Video class="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>{{ ugcFacts.videos }}</span>
+        </div>
       </div>
-      <div v-if="booking.duree_heures" class="flex items-center gap-1.5">
-        <Clock class="h-4 w-4" />
-        <span>max {{ booking.duree_heures }}h</span>
-      </div>
-      <div v-if="booking.lieu" class="flex items-center gap-1.5">
-        <MapPin class="h-4 w-4" />
-        <span>{{ booking.lieu }}</span>
-      </div>
-      <div class="flex items-center gap-1.5">
-        <Wallet class="h-4 w-4" />
-        <span class="font-medium text-foreground">{{ formatCurrency(displayAmount) }}</span>
-      </div>
+      <p class="shrink-0 text-right text-sm font-bold tabular-nums text-foreground" data-testid="booking-card-amount">
+        {{ amount.text }}
+        <small class="block text-[11px] font-medium text-muted-foreground">{{ amount.caption }}</small>
+      </p>
     </div>
 
     <!-- Échéance + action principale (lot D7), quand l'utilisateur doit agir -->
@@ -188,3 +198,21 @@ const formattedDateRange = computed(() => {
     </div>
   </article>
 </template>
+
+<style scoped>
+/* Entrée brève de la carte (transform + opacity, ease-out fort), supprimée si l'utilisateur réduit les animations. */
+.booking-card {
+  animation: booking-card-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+@keyframes booking-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .booking-card {
+    animation: none;
+  }
+}
+</style>

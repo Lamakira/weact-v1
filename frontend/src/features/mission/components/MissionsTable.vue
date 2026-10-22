@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { formatXof } from '@/lib/formatCurrency'
+import { formatMoney } from '@/utils/money'
 import { computed } from 'vue'
-import { Calendar, Users, Wallet } from 'lucide-vue-next'
+import { Calendar, Package, Users, Wallet } from 'lucide-vue-next'
 import RStatusDot from '@/components/regie/RStatusDot.vue'
 import { missionDisplayStatusDot } from '@/components/regie/statusTone'
 import type { SortingState } from '@tanstack/vue-table'
@@ -67,6 +67,19 @@ function candidaturesAriaLabel(m: Mission): string {
     : plural(count, 'candidature')
 }
 
+/** « Produit : coffret · 2 vidéos » d'une mission UGC (à la place du tournage), sans segment vide. */
+function ugcSummary(m: Mission): string {
+  const parts: string[] = []
+  if (m.nom_produit) parts.push(`Produit : ${m.nom_produit}`)
+  if (m.nombre_videos) parts.push(plural(m.nombre_videos, 'vidéo'))
+  return parts.length > 0 ? parts.join(' · ') : 'UGC'
+}
+
+/** Budget affiché ; « Produit seul » pour une mission UGC sans argent. */
+function budgetText(m: Mission): string {
+  return isUgc(m) && !(m.budget > 0) ? 'Produit seul' : formatMoney(m.budget)
+}
+
 function formatDate(value: string | null | undefined): string {
   if (!value) return '—'
   return new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' }).format(
@@ -90,7 +103,7 @@ const columns = computed<DataTableColumn<Mission>[]>(() => [
     header: 'Candidatures',
     enableSorting: true,
   },
-  { id: 'budget', accessorFn: (m) => m.budget, header: 'Budget', enableSorting: false },
+  { id: 'budget', accessorFn: (m) => m.budget, header: 'Budget', enableSorting: false, meta: { class: 'text-right' } },
   {
     id: 'created_at',
     accessorFn: (m) => m.created_at,
@@ -154,8 +167,8 @@ function onCardClick(event: MouseEvent, mission: Mission): void {
     </template>
 
     <template #cell-date_tournage="{ row }">
-      <!-- Shoot date is hidden for UGC missions (null shoot fields). -->
-      <span class="text-muted-foreground">{{ isUgc(row) ? '—' : formatDate(row.date_tournage) }}</span>
+      <!-- Pas de tournage pour une mission UGC : on affiche le produit et le nombre de vidéos. -->
+      <span class="text-muted-foreground">{{ isUgc(row) ? ugcSummary(row) : formatDate(row.date_tournage) }}</span>
     </template>
 
     <template #cell-candidatures_count="{ row }">
@@ -163,7 +176,7 @@ function onCardClick(event: MouseEvent, mission: Mission): void {
     </template>
 
     <template #cell-budget="{ row }">
-      <span class="font-semibold text-foreground">{{ formatXof(row.budget) }}</span>
+      <span class="block text-right font-semibold tabular-nums text-foreground" data-testid="mission-table-budget">{{ budgetText(row) }}</span>
     </template>
 
     <template #cell-created_at="{ row }">
@@ -213,9 +226,13 @@ function onCardClick(event: MouseEvent, mission: Mission): void {
             <Calendar class="h-4 w-4 text-primary/70" aria-hidden="true" />
             Tournage {{ formatDate(row.date_tournage) }}
           </span>
+          <span v-else class="inline-flex items-center gap-1.5" data-testid="mission-card-ugc-summary">
+            <Package class="h-4 w-4 text-primary/70" aria-hidden="true" />
+            {{ ugcSummary(row) }}
+          </span>
           <span class="inline-flex items-center gap-1.5 font-semibold text-foreground">
             <Wallet class="h-4 w-4 text-primary/70" aria-hidden="true" />
-            {{ formatXof(row.budget) }}
+            {{ budgetText(row) }}
           </span>
         </div>
 

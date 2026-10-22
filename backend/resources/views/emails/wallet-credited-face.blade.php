@@ -7,7 +7,7 @@
         Bonjour {{ $faceFirstName }},
     </h2>
     <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        Bonne nouvelle — ton portefeuille WEACT a été crédité de ta rémunération.
+        Bonne nouvelle — votre portefeuille WEACT a été crédité de votre rémunération.
     </p>
     @if(! empty($outcomeNote))
         <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
@@ -45,6 +45,6 @@
     </table>
 
     <p style="margin: 0; padding: 12px 16px; background-color: #d1fae5; border-radius: 6px; color: #065f46; font-size: 13px; line-height: 1.5;">
-        Ton solde est disponible et retirable dès maintenant depuis ton portefeuille.
+        Votre solde est disponible et retirable dès maintenant depuis votre portefeuille.
     </p>
 @endsection

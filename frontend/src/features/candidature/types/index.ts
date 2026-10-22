@@ -21,8 +21,15 @@ export type CandidatureStatusType = (typeof CandidatureStatus)[keyof typeof Cand
 // Lot D7 : filtre « À traiter » de « Mes candidatures » (pas un statut : valeur de `status` de l'URL / de l'API)
 export const CANDIDATURE_TO_PROCESS_FILTER = 'to_process'
 
-// Valeur du filtre de la liste : un statut, « À traiter » ou rien (Tous)
-export type CandidatureFilterStatus = CandidatureStatusType | typeof CANDIDATURE_TO_PROCESS_FILTER | ''
+// Lot F4 : filtre « En cours » (groupe backend : acceptée, confirmée, en cours de mission)
+export const CANDIDATURE_ACTIVE_FILTER = 'active'
+
+// Valeur du filtre de la liste : un statut, un groupe (« À traiter », « En cours ») ou rien (Tous)
+export type CandidatureFilterStatus =
+  | CandidatureStatusType
+  | typeof CANDIDATURE_TO_PROCESS_FILTER
+  | typeof CANDIDATURE_ACTIVE_FILTER
+  | ''
 
 // Candidature status labels (French)
 export const CandidatureStatusLabel: Record<CandidatureStatusType, string> = {
@@ -122,6 +129,10 @@ export interface MissionSummary {
    * existants — le runtime `!= null` traite absent ET null comme cash.
    */
   type_compensation?: string | null
+  /** Lot F4 : champs UGC de la carte de candidature (optionnels, comme type_compensation). */
+  nom_produit?: string | null
+  nombre_videos?: number | null
+  montant_remuneration?: number | null
 }
 
 // Producer summary for candidature list (nested in FaceCandidature)
@@ -234,6 +245,8 @@ export interface FaceSummary {
   // variant job is pending
   profile_photo_thumbnail_url: string | null
   category: string | null
+  /** Libellé de catégorie accordé au sexe de la Face (calculé par l'API) ; absent des anciens payloads. */
+  category_label?: string | null
   city: string | null
   tarif_horaire: number | null
   tarif_journalier: number | null

@@ -103,7 +103,7 @@ final class SendWalletCreditedEmailOnBookingDisputeSettled
             face: $face,
             amount: $event->creditedAmount,
             newBalance: $newBalance,
-            outcomeNote: "L'administrateur a tranché en ta faveur dans le litige sur ce booking.",
+            outcomeNote: "L'administrateur a tranché en votre faveur dans le litige sur ce booking.",
         ));
     }
 }

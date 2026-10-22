@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatNumber } from '@/utils/money'
 import { computed } from 'vue'
 import { Briefcase, AlertCircle, RefreshCw } from 'lucide-vue-next'
 import UgcDiscoveryBanner from '@/components/ugc/UgcDiscoveryBanner.vue'
@@ -193,7 +194,7 @@ function handleFilterChange(newFilters: PublicMissionFilters): void {
       <!-- Results Count -->
       <div class="flex items-center justify-between">
         <p class="text-sm text-gray-500" data-testid="missions-count">
-          <span class="font-medium text-gray-900">{{ totalMissions }}</span>
+          <span class="font-medium text-gray-900">{{ formatNumber(totalMissions) }}</span>
           {{ resultsLabel }}
         </p>
         <button

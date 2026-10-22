@@ -1,6 +1,8 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { ref, computed } from 'vue'
 import { X, AlertCircle, Loader2, Smartphone } from 'lucide-vue-next'
+import { SimpleSelect } from '@/components/ui/select'
 import type { WithdrawPayload } from '../services/walletApi'
 
 const props = defineProps<{
@@ -43,26 +45,20 @@ const PHONE_COUNTRIES: { value: WithdrawPayload['phone_country']; label: string;
   { value: 'bf', label: 'Burkina Faso', prefix: '+226' },
 ]
 
+const phoneCountryOptions = PHONE_COUNTRIES.map((c) => ({ value: c.value, label: `${c.prefix} ${c.label}` }))
+
 const amount = ref<number | null>(null)
 const selectedMode = ref<WithdrawPayload['payment_mode'] | null>(null)
 const phoneNumber = ref('')
 const phoneCountry = ref<WithdrawPayload['phone_country']>('bj')
 
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)
-
 /** Inline error for amount field — null means valid. */
 const amountError = computed((): string | null => {
   if (amount.value === null) return null
   if (amount.value < MIN_AMOUNT)
-    return `Montant minimum : ${formatCurrency(MIN_AMOUNT)}`
+    return `Montant minimum : ${formatMoney(MIN_AMOUNT)}`
   if (amount.value > props.balance)
-    return `Solde insuffisant (disponible : ${formatCurrency(props.balance)})`
+    return `Solde insuffisant (disponible : ${formatMoney(props.balance)})`
   return null
 })
 
@@ -130,13 +126,13 @@ function handleSubmit(): void {
             <!-- Balance info -->
             <div class="rounded-md bg-gray-50 border border-gray-100 p-3">
               <p class="text-xs text-gray-500 uppercase tracking-wider font-medium">Solde disponible</p>
-              <p class="text-lg font-bold text-gray-900 mt-0.5">{{ formatCurrency(balance) }}</p>
+              <p class="text-lg font-bold text-gray-900 mt-0.5">{{ formatMoney(balance) }}</p>
             </div>
 
             <!-- Amount input -->
             <div class="space-y-1.5">
               <label class="text-sm font-medium text-gray-700" for="withdraw-amount">
-                Montant à retirer (XOF)
+                Montant à retirer (F CFA)
               </label>
               <input
                 id="withdraw-amount"
@@ -181,14 +177,16 @@ function handleSubmit(): void {
             <div class="space-y-1.5">
               <label class="text-sm font-medium text-gray-700">Numéro Mobile Money</label>
               <div class="flex gap-2">
-                <select
-                  v-model="phoneCountry"
-                  class="rounded-md border border-gray-200 bg-white px-2 py-2 text-sm text-gray-700 focus:border-[#198496] focus:outline-none focus:ring-1 focus:ring-[#198496] transition-colors"
-                >
-                  <option v-for="c in PHONE_COUNTRIES" :key="c.value" :value="c.value">
-                    {{ c.prefix }} {{ c.label }}
-                  </option>
-                </select>
+                <!-- Liste au-dessus de la modale (z-[200]) -->
+                <SimpleSelect
+                  :model-value="phoneCountry"
+                  :options="phoneCountryOptions"
+                  content-class="z-[210]"
+                  trigger-class="w-auto shrink-0"
+                  aria-label="Pays du numéro Mobile Money"
+                  data-testid="withdraw-phone-country"
+                  @update:model-value="phoneCountry = $event as WithdrawPayload['phone_country']"
+                />
                 <input
                   v-model="phoneNumber"
                   type="tel"

@@ -216,7 +216,12 @@ class FaceViewCandidaturesTest extends TestCase
         $mission = Mission::factory()
             ->for($this->producer)
             ->published()
-            ->create(['type_compensation' => CompensationType::Product]);
+            ->create([
+                'type_compensation' => CompensationType::Product,
+                'nom_produit' => 'Coffret Bissap',
+                'nombre_videos' => 2,
+                'montant_remuneration' => null,
+            ]);
 
         Candidature::factory()
             ->for($this->face)
@@ -226,8 +231,12 @@ class FaceViewCandidaturesTest extends TestCase
         $response = $this->actingAs($this->faceUser)
             ->getJson('/api/v1/face/candidatures');
 
+        // Lot F4 : la carte UGC a de quoi afficher « UGC · 2 vidéos » et « Vous recevez ».
         $response->assertStatus(200)
-            ->assertJsonPath('data.0.mission.type_compensation', 'product');
+            ->assertJsonPath('data.0.mission.type_compensation', 'product')
+            ->assertJsonPath('data.0.mission.nom_produit', 'Coffret Bissap')
+            ->assertJsonPath('data.0.mission.nombre_videos', 2)
+            ->assertJsonPath('data.0.mission.montant_remuneration', null);
     }
 
     public function test_accepted_ugc_candidature_exposes_reconfirm_deadline(): void

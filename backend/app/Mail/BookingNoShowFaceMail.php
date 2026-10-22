@@ -20,7 +20,7 @@ final class BookingNoShowFaceMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return 'Une absence a été signalée : tu peux contester jusqu\'au '.$this->dueAt;
+        return 'Une absence a été signalée : vous pouvez contester jusqu\'au '.$this->dueAt;
     }
 
     public function content(): Content

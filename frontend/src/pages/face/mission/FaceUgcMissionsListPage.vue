@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatNumber } from '@/utils/money'
 import { onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Inbox, AlertCircle, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-vue-next'
@@ -155,7 +156,7 @@ function handleCardClick(id: string): void {
     <div v-else>
       <div class="mb-6 flex items-center justify-between">
         <div class="text-xs min-[376px]:text-sm font-medium text-muted-foreground">
-          {{ totalCount }} mission{{ totalCount > 1 ? 's' : '' }} UGC
+          {{ formatNumber(totalCount) }} mission{{ totalCount > 1 ? 's' : '' }} UGC
         </div>
         <button
           type="button"

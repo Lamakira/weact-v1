@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import BioLocationForm from '../BioLocationForm.vue'
 import type { BioLocationInfo } from '../../types'
+import { getSelectLabels, getSelectValue, setSelectValue } from '@/components/ui/__tests__/selectTestUtils'
+
+const VILLE = '[data-testid="ville-input"]'
+const PAYS = '[data-testid="pays-input"]'
 
 describe('BioLocationForm', () => {
   const mockBioLocationInfo: BioLocationInfo = {
@@ -25,12 +29,10 @@ describe('BioLocationForm', () => {
     })
 
     const bioInput = wrapper.find('[data-testid="bio-input"]')
-    const villeInput = wrapper.find('[data-testid="ville-input"]')
-    const paysInput = wrapper.find('[data-testid="pays-input"]')
 
     expect((bioInput.element as HTMLTextAreaElement).value).toBe(mockBioLocationInfo.bio)
-    expect((villeInput.element as HTMLSelectElement).value).toBe(mockBioLocationInfo.ville)
-    expect((paysInput.element as HTMLSelectElement).value).toBe(mockBioLocationInfo.pays)
+    expect(getSelectValue(wrapper, VILLE)).toBe(mockBioLocationInfo.ville)
+    expect(getSelectValue(wrapper, PAYS)).toBe(mockBioLocationInfo.pays)
     expect(wrapper.find('[data-testid="quartier-input"]').exists()).toBe(false)
   })
 
@@ -44,12 +46,10 @@ describe('BioLocationForm', () => {
     })
 
     const bioInput = wrapper.find('[data-testid="bio-input"]')
-    const villeInput = wrapper.find('[data-testid="ville-input"]')
-    const paysInput = wrapper.find('[data-testid="pays-input"]')
 
     expect((bioInput.element as HTMLTextAreaElement).value).toBe('')
-    expect((villeInput.element as HTMLSelectElement).value).toBe('')
-    expect((paysInput.element as HTMLSelectElement).value).toBe('Bénin') // default value
+    expect(getSelectValue(wrapper, VILLE)).toBe('')
+    expect(getSelectValue(wrapper, PAYS)).toBe('Bénin') // default value
     expect(wrapper.find('[data-testid="quartier-input"]').exists()).toBe(false)
   })
 
@@ -196,12 +196,10 @@ describe('BioLocationForm', () => {
     })
 
     const bioInput = wrapper.find('[data-testid="bio-input"]')
-    const villeInput = wrapper.find('[data-testid="ville-input"]')
-    const paysInput = wrapper.find('[data-testid="pays-input"]')
 
     await bioInput.setValue('Ma nouvelle bio')
-    await villeInput.setValue('Porto-Novo')
-    await paysInput.setValue('Bénin')
+    await setSelectValue(wrapper, VILLE, 'Porto-Novo')
+    await setSelectValue(wrapper, PAYS, 'Bénin')
 
     await wrapper.find('form').trigger('submit')
     await flushPromises()
@@ -256,9 +254,7 @@ describe('BioLocationForm', () => {
     expect((wrapper.find('[data-testid="bio-input"]').element as HTMLTextAreaElement).value).toBe(
       mockBioLocationInfo.bio,
     )
-    expect((wrapper.find('[data-testid="ville-input"]').element as HTMLSelectElement).value).toBe(
-      mockBioLocationInfo.ville,
-    )
+    expect(getSelectValue(wrapper, VILLE)).toBe(mockBioLocationInfo.ville)
   })
 
   it('has proper accessibility labels', () => {
@@ -288,10 +284,10 @@ describe('BioLocationForm', () => {
       },
     })
 
-    const paysField = wrapper.find('[data-testid="pays-input"]')
+    const paysField = wrapper.find(PAYS)
 
-    expect(paysField.element.tagName).toBe('SELECT')
-    expect((paysField.element as HTMLSelectElement).value).toBe('Bénin')
+    expect(paysField.attributes('data-slot')).toBe('select-trigger')
+    expect(getSelectValue(wrapper, PAYS)).toBe('Bénin')
   })
 
   it('preserves a legacy free-text pays value in the dropdown', async () => {
@@ -311,11 +307,8 @@ describe('BioLocationForm', () => {
 
     await flushPromises()
 
-    const paysField = wrapper.find('[data-testid="pays-input"]')
-    const legacyOption = wrapper.find(`#pays option[value="${legacyPays}"]`)
-
-    expect((paysField.element as HTMLSelectElement).value).toBe(legacyPays)
-    expect(legacyOption.exists()).toBe(true)
+    expect(getSelectValue(wrapper, PAYS)).toBe(legacyPays)
+    expect(getSelectLabels(wrapper, PAYS)).toContain(legacyPays)
   })
 
   it('disables city select and clears it when pays is not Bénin', async () => {
@@ -327,13 +320,10 @@ describe('BioLocationForm', () => {
       },
     })
 
-    const villeInput = wrapper.find('[data-testid="ville-input"]')
-    const paysInput = wrapper.find('[data-testid="pays-input"]')
+    await setSelectValue(wrapper, PAYS, 'Togo')
 
-    await paysInput.setValue('Togo')
-
-    expect(villeInput.attributes('disabled')).toBeDefined()
-    expect((villeInput.element as HTMLSelectElement).value).toBe('')
+    expect(wrapper.find(VILLE).attributes('disabled')).toBeDefined()
+    expect(getSelectValue(wrapper, VILLE)).toBe('')
   })
 
   it('loads a non-Benin profile with city select disabled and cleared', async () => {
@@ -352,9 +342,8 @@ describe('BioLocationForm', () => {
 
     await flushPromises()
 
-    const villeInput = wrapper.find('[data-testid="ville-input"]')
-    expect(villeInput.attributes('disabled')).toBeDefined()
-    expect((villeInput.element as HTMLSelectElement).value).toBe('')
+    expect(wrapper.find(VILLE).attributes('disabled')).toBeDefined()
+    expect(getSelectValue(wrapper, VILLE)).toBe('')
   })
 
   it('error message has role="alert" for accessibility', () => {

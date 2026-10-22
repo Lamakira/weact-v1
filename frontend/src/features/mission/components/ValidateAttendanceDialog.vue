@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, onMounted, onUnmounted } from 'vue'
 import { Users } from 'lucide-vue-next'
 
@@ -45,19 +46,6 @@ const truncatedTitle = computed<string>(() => {
   }
   return props.missionTitle
 })
-
-function formatCurrency(amount: number): string {
-  return (
-    new Intl.NumberFormat('fr-FR', {
-      style: 'currency',
-      currency: 'XOF',
-      currencyDisplay: 'code',
-    })
-      .format(amount)
-      .replace('XOF', '')
-      .trim() + ' XOF'
-  )
-}
 
 const handleKeydown = (event: KeyboardEvent): void => {
   if (event.key === 'Escape' && props.isOpen && !props.isLoading) {
@@ -114,11 +102,11 @@ onUnmounted(() => {
             <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 space-y-2">
               <p class="text-sm text-amber-900 text-center">
                 {{ presentCount }} Face(s) présente(s) —
-                <strong>{{ formatCurrency(totalReleased) }}</strong> versés.
+                <strong>{{ formatMoney(totalReleased) }}</strong> versés.
               </p>
               <p class="text-sm text-amber-900 text-center">
                 {{ absentCount }} Face(s) absente(s) —
-                <strong>{{ formatCurrency(totalRefunded) }}</strong> remboursement(s) en cours
+                <strong>{{ formatMoney(totalRefunded) }}</strong> remboursement(s) en cours
                 (72h pour contestation).
               </p>
             </div>

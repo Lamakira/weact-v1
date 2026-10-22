@@ -60,6 +60,6 @@ final class MissionAnnouncement
     public static function money(int $amount): string
     {
         // Espace insécable pour ne pas couper « 50 000 » en fin de ligne.
-        return number_format($amount, 0, ',', "\u{202F}").' FCFA';
+        return \App\Support\Money::format($amount);
     }
 }

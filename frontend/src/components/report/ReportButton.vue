@@ -5,6 +5,7 @@
  */
 import { ref } from 'vue'
 import { Flag, X, Loader2, CheckCircle } from 'lucide-vue-next'
+import { SimpleSelect } from '@/components/ui/select'
 import apiClient, { getCsrfCookie } from '@/services/apiClient'
 import { formatApiError } from '@/services/errorFormatter'
 import { useAuthStore } from '@/stores/auth'
@@ -13,6 +14,8 @@ import { useRouter } from 'vue-router'
 const props = defineProps<{
   reportableType: 'face' | 'mission'
   reportableId: string | number
+  /** Libellé du lien déclencheur (défaut : « Signaler »). */
+  label?: string
 }>()
 
 const authStore = useAuthStore()
@@ -84,7 +87,7 @@ async function handleSubmit() {
     data-testid="report-button"
   >
     <Flag :size="14" />
-    <span>Signaler</span>
+    <span>{{ label ?? 'Signaler' }}</span>
   </button>
 
   <!-- Modal -->
@@ -138,16 +141,14 @@ async function handleSubmit() {
               <label class="block text-xs font-medium text-gray-700 mb-1">
                 Motif du signalement <span class="text-red-500">*</span>
               </label>
-              <select
+              <!-- Liste au-dessus de la modale (z-[9999]) -->
+              <SimpleSelect
                 v-model="reason"
-                class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-[#198496]/30 focus:border-[#198496] outline-none bg-white cursor-pointer"
+                :options="reasons"
+                placeholder="Sélectionnez un motif"
+                content-class="z-[10000]"
                 data-testid="report-reason-select"
-              >
-                <option value="" disabled>Sélectionnez un motif</option>
-                <option v-for="r in reasons" :key="r.value" :value="r.value">
-                  {{ r.label }}
-                </option>
-              </select>
+              />
             </div>
 
             <!-- Description -->

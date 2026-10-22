@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { MapPin, ChevronRight, ChevronLeft, Users } from 'lucide-vue-next'
@@ -127,7 +128,7 @@ function handleMissionScroll(): void {
 }
 
 function formatBudget(budget: number): string {
-  return new Intl.NumberFormat('fr-FR').format(budget) + ' FCFA'
+  return formatMoney(budget)
 }
 
 function formatDate(date: string): string {
@@ -690,12 +691,12 @@ function formatDate(date: string): string {
             class="stagger-item"
           >
             <div
-              class="relative h-full text-center p-6 lg:p-8 rounded-2xl border border-gray-200 bg-white hover:border-[#198496]/30 hover:shadow-[0_20px_50px_rgba(25,132,150,0.08)] hover:-translate-y-2 transition-all duration-500 group overflow-hidden"
+              class="relative h-full text-center p-6 lg:p-8 rounded-2xl border border-gray-200 bg-white overflow-hidden"
               :data-testid="`feature-card-${index + 1}`"
             >
               <!-- Decorative Background Elements -->
               <div
-                class="absolute -top-10 -right-10 w-32 h-32 bg-[#198496]/5 rounded-full blur-3xl group-hover:bg-[#198496]/10 transition-colors duration-500"
+                class="absolute -top-10 -right-10 w-32 h-32 bg-[#198496]/5 rounded-full blur-3xl"
               ></div>
               <div
                 class="absolute -bottom-10 -left-10 w-24 h-24 bg-gray-50 rounded-full blur-2xl opacity-50"
@@ -704,42 +705,28 @@ function formatDate(date: string): string {
               <div class="relative z-10">
                 <!-- Icon with refined border & shadow -->
                 <div
-                  class="w-16 h-16 bg-white border border-gray-100 text-[#198496] rounded-2xl flex items-center justify-center mx-auto shadow-sm ring-4 ring-gray-50/50 group-hover:scale-110 group-hover:border-[#198496]/20 group-hover:ring-[#198496]/5 transition-all duration-500"
+                  class="w-16 h-16 bg-white border border-gray-100 text-[#198496] rounded-2xl flex items-center justify-center mx-auto shadow-sm ring-4 ring-gray-50/50"
                 >
                   <component :is="feature.icon" class="w-7 h-7" />
                 </div>
 
                 <!-- Content -->
                 <div class="mt-5">
-                  <h3 class="font-bold text-gray-900 text-lg mb-2 group-hover:text-[#198496] transition-colors duration-300">
+                  <h3 class="font-bold text-gray-900 text-lg mb-2">
                     {{ feature.title }}
                   </h3>
                   <p class="text-sm text-gray-700 leading-relaxed">
                     {{ feature.description }}
                   </p>
                 </div>
-
-                <!-- Premium Accent Indicator -->
-                <div class="mt-5 flex justify-center items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-500 translate-y-2 group-hover:translate-y-0">
-                  <div class="w-1.5 h-1.5 rounded-full bg-[#198496]"></div>
-                  <div class="w-8 h-[1px] bg-gradient-to-r from-[#198496] to-transparent"></div>
-                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- Certified Badge -->
+        <!-- Pied de section -->
         <div class="reveal mt-10 flex flex-col items-center">
-          <div
-            class="bg-gray-50 border border-gray-100 px-6 py-3 rounded-full flex items-center gap-3"
-          >
-            <svg class="w-5 h-5 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span class="text-sm font-bold text-gray-900">{{ content.whyWeact.certifiedText }}</span>
-          </div>
-          <p class="mt-4 text-sm text-gray-500 text-center max-w-2xl">
+          <p class="text-sm text-gray-500 text-center max-w-2xl">
             {{ content.whyWeact.footerText }}
           </p>
         </div>

@@ -104,7 +104,7 @@ class SendWalletCreditedEmailOnBookingDisputeSettledListenerTest extends TestCas
             WalletCreditedFaceMail::class,
             fn (WalletCreditedFaceMail $mail): bool => $mail->hasTo('face@example.test')
                 && $mail->amount === 90000
-                && str_contains((string) $mail->outcomeNote, "L'administrateur a tranché en ta faveur"),
+                && str_contains((string) $mail->outcomeNote, "L'administrateur a tranché en votre faveur"),
         );
     }
 

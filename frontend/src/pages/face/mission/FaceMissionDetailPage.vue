@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -266,14 +267,6 @@ function formatDate(dateString: string): string {
     month: 'long',
     year: 'numeric',
   }).format(new Date(dateString))
-}
-
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    maximumFractionDigits: 0,
-  }).format(amount)
 }
 
 /**
@@ -749,7 +742,7 @@ onMounted(() => {
                 </span>
                 <div>
                   <p class="text-[10px] uppercase tracking-wider text-gray-500">Rémunération proposée</p>
-                  <p class="text-sm font-medium text-gray-900">{{ formatCurrency(mission.budget) }}</p>
+                  <p class="text-sm font-medium text-gray-900">{{ formatMoney(mission.budget) }}</p>
                 </div>
               </div>
 
@@ -822,7 +815,7 @@ onMounted(() => {
               <dl class="mb-4 space-y-2 text-sm">
                 <div v-if="!isUgc" class="flex items-center justify-between">
                   <dt class="text-gray-500">Rémunération</dt>
-                  <dd class="font-medium text-gray-900">{{ formatCurrency(mission.budget) }}</dd>
+                  <dd class="font-medium text-gray-900">{{ formatMoney(mission.budget) }}</dd>
                 </div>
                 <div class="flex items-center justify-between">
                   <dt class="text-gray-500">Faces recherchées</dt>

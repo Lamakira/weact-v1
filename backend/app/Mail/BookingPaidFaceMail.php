@@ -19,7 +19,7 @@ final class BookingPaidFaceMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return 'Paiement sécurisé : ton booking avec '.$this->producerName().' est confirmé';
+        return 'Paiement sécurisé : votre booking avec '.$this->producerName().' est confirmé';
     }
 
     public function content(): Content

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, onMounted, onUnmounted } from 'vue'
 import { X, AlertTriangle, PackageCheck, Truck } from 'lucide-vue-next'
 import ChronoRing from './ChronoRing.vue'
@@ -31,7 +32,7 @@ const showMoneyRecap = computed(
   () => props.typeCompensation !== null && (!isHybrid.value || props.montantFaceRecoit !== null),
 )
 const montantLabel = computed(
-  () => `${(props.montantFaceRecoit ?? 0).toLocaleString('fr-FR')} FCFA`,
+  () => formatMoney(props.montantFaceRecoit),
 )
 
 const extraVideos = computed(() => Math.max(0, (props.nombreVideos ?? 0) - 2))

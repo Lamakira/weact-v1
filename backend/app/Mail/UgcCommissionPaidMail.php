@@ -18,7 +18,7 @@ final class UgcCommissionPaidMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return "C'est réglé — accepte ton deal UGC 🎁";
+        return "C'est réglé — acceptez votre deal UGC 🎁";
     }
 
     public function content(): Content

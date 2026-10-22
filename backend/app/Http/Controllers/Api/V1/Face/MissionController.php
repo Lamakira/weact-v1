@@ -113,6 +113,7 @@ class MissionController extends Controller
         // Lot D8 : genre incompatible en fin de liste (tri SQL → pagination juste), ordre existant conservé par groupe.
         $missions = $this->eligibility->orderGenderMismatchLast($missions, $face)
             ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
             ->paginate(12);
 
         // Lot D8 : « déjà candidaté » + éligibilité par mission, une seule requête pour la page.

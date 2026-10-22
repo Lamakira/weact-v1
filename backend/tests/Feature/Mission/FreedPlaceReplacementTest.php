@@ -163,7 +163,7 @@ class FreedPlaceReplacementTest extends TestCase
         $message = Notification::query()->where('user_id', $this->producerUser->id)->where('type', 'mission_place_freed')->sole()->data['message'];
         $this->assertStringContainsString('sa place est libérée', $message);
         $this->assertStringContainsString('Choisissez une remplaçante parmi les candidatures non retenues avant le 30/10 à 00:00', $message);
-        $this->assertStringContainsString('100 000 FCFA', $message);
+        $this->assertStringContainsString('100 000 F CFA', $message);
     }
 
     public function test_the_place_is_refunded_at_once_when_no_rejected_candidature_can_replace(): void
@@ -416,7 +416,7 @@ class FreedPlaceReplacementTest extends TestCase
         $this->assertSame(EscrowStatus::Locked, $faces[1]['entry']->fresh()->escrow_status);
 
         $message = Notification::query()->where('user_id', $this->producerUser->id)->where('type', 'mission_freed_place_refunded')->sole()->data['message'];
-        $this->assertStringContainsString('100 000 FCFA ont été crédités sur votre wallet', $message);
+        $this->assertStringContainsString('100 000 F CFA ont été crédités sur votre wallet', $message);
         $this->assertStringContainsString("Aucune remplaçante n'a été choisie à temps", $message);
         $this->assertStringNotContainsString("n'a confirmé", $message);
 

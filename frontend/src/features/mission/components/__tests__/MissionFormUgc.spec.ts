@@ -4,6 +4,7 @@ import { nextTick } from 'vue'
 import { createTestingPinia } from '@pinia/testing'
 import { createRouter, createWebHistory } from 'vue-router'
 import MissionForm from '../MissionForm.vue'
+import { getSelectOptions, setSelectValue } from '@/components/ui/__tests__/selectTestUtils'
 
 /**
  * Intégration MissionForm × UGC (story 1.4 AC1/2/3/5/7/8).
@@ -98,7 +99,7 @@ async function fillValidUgcForm(
   wrapper: ReturnType<typeof mountForm>,
   { hybrid = false }: { hybrid?: boolean } = {},
 ) {
-  await wrapper.find('select#type_mission').setValue('ugc')
+  await setSelectValue(wrapper, '#type_mission', 'ugc')
   await flushPromises()
   await fillStandardFields(wrapper)
   await wrapper.find('#nom_produit').setValue('Sérum éclat')
@@ -125,22 +126,22 @@ describe('MissionForm — UGC integration', () => {
 
   it('1. mode create : le select type_mission expose une option "ugc"', () => {
     const wrapper = mountForm({ mode: 'create' })
-    const options = wrapper.findAll('select#type_mission option')
-    const ugcOption = options.find((o) => o.element.value === 'ugc')
+    const options = getSelectOptions(wrapper, '#type_mission')
+    const ugcOption = options.find((o) => o.value === 'ugc')
     expect(ugcOption).toBeDefined()
-    expect(ugcOption!.text()).toBe('UGC')
+    expect(ugcOption!.label).toBe('UGC')
   })
 
   it('2. mode edit : le select type_mission n\'expose PAS "ugc" (blast-radius, D-1.4.c)', () => {
     const wrapper = mountForm({ mode: 'edit' })
-    const options = wrapper.findAll('select#type_mission option')
-    expect(options.some((o) => o.element.value === 'ugc')).toBe(false)
+    const options = getSelectOptions(wrapper, '#type_mission')
+    expect(options.some((o) => o.value === 'ugc')).toBe(false)
   })
 
   it('3. sélection UGC → bloc dotation + récap visibles, budget + hint + champs de tournage masqués', async () => {
     const wrapper = mountForm({ mode: 'create' })
 
-    await wrapper.find('select#type_mission').setValue('ugc')
+    await setSelectValue(wrapper, '#type_mission', 'ugc')
     await flushPromises()
 
     expect(wrapper.find('[data-testid="ugc-dotation-fields"]').exists()).toBe(true)
@@ -157,7 +158,7 @@ describe('MissionForm — UGC integration', () => {
   it('4. en UGC PRODUIT-SEUL, le CTA affiche "Payer la commission"', async () => {
     const wrapper = mountForm({ mode: 'create' })
 
-    await wrapper.find('select#type_mission').setValue('ugc')
+    await setSelectValue(wrapper, '#type_mission', 'ugc')
     await flushPromises()
 
     expect(wrapper.find('[data-testid="submit-button"]').text()).toContain('Payer la commission')
@@ -166,7 +167,7 @@ describe('MissionForm — UGC integration', () => {
   it('4b. en UGC HYBRIDE, le CTA repasse à "Publier la mission" (publication gratuite, commission sur le cash à l\'acceptation)', async () => {
     const wrapper = mountForm({ mode: 'create' })
 
-    await wrapper.find('select#type_mission').setValue('ugc')
+    await setSelectValue(wrapper, '#type_mission', 'ugc')
     await flushPromises()
     await wrapper.find('[data-testid="compensation-hybrid"]').trigger('click')
     await flushPromises()
@@ -179,7 +180,7 @@ describe('MissionForm — UGC integration', () => {
   it('5. UGC product verrouille "2 vidéos" ; hybrid révèle nombre_videos + rémunération', async () => {
     const wrapper = mountForm({ mode: 'create' })
 
-    await wrapper.find('select#type_mission').setValue('ugc')
+    await setSelectValue(wrapper, '#type_mission', 'ugc')
     await flushPromises()
 
     expect(wrapper.text()).toContain('2 vidéos')
@@ -196,7 +197,7 @@ describe('MissionForm — UGC integration', () => {
   it('5b. UGC création : le bouton reste désactivé tant qu\'aucune photo produit n\'est jointe', async () => {
     const wrapper = mountForm({ mode: 'create' })
 
-    await wrapper.find('select#type_mission').setValue('ugc')
+    await setSelectValue(wrapper, '#type_mission', 'ugc')
     await flushPromises()
     await fillStandardFields(wrapper)
     await wrapper.find('#nom_produit').setValue('Sérum éclat')
@@ -215,7 +216,7 @@ describe('MissionForm — UGC integration', () => {
   it('5c. UGC création sans photo : soumission bloquée + erreur française sous l\'uploader', async () => {
     const wrapper = mountForm({ mode: 'create' })
 
-    await wrapper.find('select#type_mission').setValue('ugc')
+    await setSelectValue(wrapper, '#type_mission', 'ugc')
     await flushPromises()
     await fillStandardFields(wrapper)
     await wrapper.find('#nom_produit').setValue('Sérum éclat')

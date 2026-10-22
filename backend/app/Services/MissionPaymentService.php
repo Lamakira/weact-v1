@@ -944,7 +944,7 @@ class MissionPaymentService
             userId: $userId,
             type: 'mission_completed',
             data: [
-                'message' => "La mission \"{$mission->titre}\" est terminée. Votre portefeuille a été crédité de {$entry->montant_face_recoit} XOF.",
+                'message' => "La mission \"{$mission->titre}\" est terminée. Votre portefeuille a été crédité de ".\App\Support\Money::format($entry->montant_face_recoit).'.',
                 'mission_id' => $mission->id,
                 'amount' => $entry->montant_face_recoit,
                 'url' => "/face/missions/{$mission->uuid}",
@@ -1166,7 +1166,7 @@ class MissionPaymentService
         /** @var Face|null $face */
         $face = Face::query()->find($result['face_id']);
         $faceName = trim((string) $face?->display_name) !== '' ? (string) $face?->display_name : 'Une Face';
-        $formattedAmount = number_format($result['amount'], 0, ',', ' ');
+        $formattedAmount = \App\Support\Money::format($result['amount']);
 
         $this->notifySafely(
             userId: $faceUserId,
@@ -1193,7 +1193,7 @@ class MissionPaymentService
                 data: [
                     'message' => "{$faceName} n'a pas confirmé sa participation à « {$mission->titre} » : sa place est libérée. "
                         ."Choisissez une remplaçante parmi les candidatures non retenues avant le {$refundLabel}, "
-                        ."sans frais supplémentaires ; sinon {$formattedAmount} FCFA seront crédités sur votre wallet.",
+                        ."sans frais supplémentaires ; sinon {$formattedAmount} seront crédités sur votre wallet.",
                     'mission_id' => $mission->id,
                     'candidature_id' => $result['candidature_id'],
                     'montant' => $result['amount'],
@@ -1210,7 +1210,7 @@ class MissionPaymentService
             userId: $producerUserId,
             type: 'mission_face_confirmation_expired',
             data: [
-                'message' => "{$faceName} n'a pas confirmé sa participation à « {$mission->titre} » : sa place est libérée et {$formattedAmount} FCFA ont été crédités sur votre wallet.",
+                'message' => "{$faceName} n'a pas confirmé sa participation à « {$mission->titre} » : sa place est libérée et {$formattedAmount} ont été crédités sur votre wallet.",
                 'mission_id' => $mission->id,
                 'candidature_id' => $result['candidature_id'],
                 'montant' => $result['amount'],
@@ -1466,7 +1466,7 @@ class MissionPaymentService
                     $lockedEntry,
                     $lockedMission,
                     'late_approval_candidature_unavailable',
-                    walletLabel: "Mission : paiement de {$refundAmount} XOF reçu pour une candidature plus disponible — {$lockedMission->titre}",
+                    walletLabel: 'Mission : paiement de '.\App\Support\Money::format($refundAmount)." reçu pour une candidature plus disponible — {$lockedMission->titre}",
                     amountOverride: $refundAmount,
                 );
 
@@ -1474,7 +1474,7 @@ class MissionPaymentService
                     userId: $this->getUserIdForProducer($lockedMission->producer_id),
                     type: 'mission_candidature_refunded',
                     data: [
-                        'message' => "Votre paiement de {$refundAmount} XOF est arrivé alors que la candidature n'était plus disponible : il vous a été intégralement remboursé.",
+                        'message' => 'Votre paiement de '.\App\Support\Money::format($refundAmount)." est arrivé alors que la candidature n'était plus disponible : il vous a été intégralement remboursé.",
                         'mission_id' => $lockedMission->id,
                         'candidature_id' => $lockedCandidature->id,
                         'montant' => $refundAmount,
@@ -2366,7 +2366,7 @@ class MissionPaymentService
             $this->walletService->creditDirect(
                 $producerUserId,
                 $paidAmount,
-                "Paiement de sélection reçu après annulation de la sélection — remboursement de {$paidAmount} XOF",
+                'Paiement de sélection reçu après annulation de la sélection — remboursement de '.\App\Support\Money::format($paidAmount).'',
             );
 
             return true;
@@ -2377,7 +2377,7 @@ class MissionPaymentService
                 userId: $producerUserId,
                 type: 'mission_detached_payment_credited',
                 data: [
-                    'message' => "Votre paiement de {$paidAmount} XOF est arrivé après l'annulation de la sélection : il a été crédité sur votre portefeuille.",
+                    'message' => 'Votre paiement de '.\App\Support\Money::format($paidAmount)." est arrivé après l'annulation de la sélection : il a été crédité sur votre portefeuille.",
                     'mission_id' => $metadata['mission_id'] ?? null,
                     'url' => '/producer/wallet',
                     'montant' => $paidAmount,

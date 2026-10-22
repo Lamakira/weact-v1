@@ -1,6 +1,6 @@
 @extends('emails.layouts.base')
 
-@section('title', 'Ton échéance UGC approche')
+@section('title', 'Votre échéance UGC approche')
 
 @section('content')
     <h2 style="margin: 0 0 16px; color: #111827; font-size: 20px; font-weight: 700; line-height: 1.3;">
@@ -13,10 +13,10 @@
         @endif
     </h2>
     <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        Il te reste <strong>{{ $remaining }}</strong> pour déposer ton <strong>{{ $kindLabel }}</strong>
+        Il vous reste <strong>{{ $remaining }}</strong> pour déposer votre <strong>{{ $kindLabel }}</strong>
         @if($productName !== '')pour « <strong>{{ $productName }}</strong> »@endif.
         @if($level >= 3)
-            Sans dépôt à temps, ton compte sera suspendu.
+            Sans dépôt à temps, votre compte sera suspendu.
         @else
             Ne tarde pas à filmer&nbsp;!
         @endif
@@ -34,6 +34,6 @@
     </table>
 
     <p style="margin: 0; padding: 12px 16px; background-color: #ecfeff; border-radius: 6px; color: #155e75; font-size: 13px; line-height: 1.5;">
-        ⏳ Le compte à rebours exact reste affiché dans l'app — c'est ta source de vérité.
+        ⏳ Le compte à rebours exact reste affiché dans l'app — c'est votre source de vérité.
     </p>
 @endsection

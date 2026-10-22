@@ -391,25 +391,25 @@ class Face extends Model
     }
 
     /**
-     * Get the formatted half-day rate (e.g., "75 000 XOF/demi-journée").
+     * Get the formatted half-day rate (e.g., "75 000 F CFA / demi-journée").
      */
     protected function formattedTarifHoraire(): Attribute
     {
         return Attribute::make(
             get: fn (): ?string => $this->tarif_horaire !== null
-                ? number_format($this->tarif_horaire, 0, ',', ' ').' XOF/demi-journée'
+                ? \App\Support\Money::perPeriod($this->tarif_horaire, 'demi-journée')
                 : null,
         );
     }
 
     /**
-     * Get the formatted daily rate (e.g., "250 000 XOF/jour").
+     * Get the formatted daily rate (e.g., "250 000 F CFA / jour").
      */
     protected function formattedTarifJournalier(): Attribute
     {
         return Attribute::make(
             get: fn (): ?string => $this->tarif_journalier !== null
-                ? number_format($this->tarif_journalier, 0, ',', ' ').' XOF/jour'
+                ? \App\Support\Money::perPeriod($this->tarif_journalier, 'jour')
                 : null,
         );
     }
@@ -601,7 +601,7 @@ class Face extends Model
         return array_values(array_filter(array_map(function (string $value): ?array {
             $enum = FaceCategory::tryFrom($value);
 
-            return $enum ? ['value' => $enum->value, 'label' => $enum->label()] : null;
+            return $enum ? ['value' => $enum->value, 'label' => $enum->label($this->sexe)] : null;
         }, $categories)));
     }
 

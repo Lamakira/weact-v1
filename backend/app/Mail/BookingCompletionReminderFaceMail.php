@@ -19,7 +19,7 @@ final class BookingCompletionReminderFaceMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return 'Confirme la fin de ta prestation';
+        return 'Confirmez la fin de votre prestation';
     }
 
     public function content(): Content

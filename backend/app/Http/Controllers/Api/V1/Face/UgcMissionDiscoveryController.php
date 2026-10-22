@@ -45,6 +45,7 @@ class UgcMissionDiscoveryController extends Controller
             // Lot D8 : genre incompatible en fin de liste (branche éligible seulement), ordre existant conservé par groupe.
             ->when($canAccessUgc, fn ($query) => $this->eligibility->orderGenderMismatchLast($query, $face))
             ->orderBy('created_at', 'desc')
+            ->orderBy('id', 'desc')
             ->paginate(12);
 
         if ($canAccessUgc) {

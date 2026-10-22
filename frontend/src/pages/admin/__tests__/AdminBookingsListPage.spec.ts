@@ -125,7 +125,7 @@ describe('AdminBookingsListPage', () => {
     expect(text).toContain('Studio Lumière')
     expect(text).toContain('prod@example.com')
     // Amount = montant_total_producteur, formatted FCFA (non-breaking space grouping).
-    expect(text.replace(/\s+/g, ' ')).toContain('110 000 FCFA')
+    expect(text.replace(/\s+/g, ' ')).toContain('110 000 F CFA')
     expect(text).toContain('En attente')
     expect(text).toContain('Terminée')
   })

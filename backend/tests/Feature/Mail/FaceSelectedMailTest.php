@@ -57,7 +57,8 @@ final class FaceSelectedMailTest extends TestCase
         $this->assertStringContainsString('Bonjour Amina', $rendered);
         $this->assertStringContainsString('Pub TV Printemps 2026', $rendered);
         $this->assertStringContainsString('Studio Alpha', $rendered);
-        $this->assertStringContainsString('75 000 XOF', $rendered);
+        $this->assertStringContainsString('75 000 F CFA', $rendered);
+        $this->assertStringNotContainsString('XOF', $rendered);
         $this->assertStringContainsString('mai 2026', $rendered);
         $this->assertStringContainsString("/face/missions/{$mission->uuid}", $rendered);
         $this->assertStringContainsString('Confirmer ma participation', $rendered);

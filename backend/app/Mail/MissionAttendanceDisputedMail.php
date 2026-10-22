@@ -31,7 +31,7 @@ final class MissionAttendanceDisputedMail extends BaseMail
             with: [
                 'missionTitle' => $this->mission->titre,
                 'faceName' => $this->faceName,
-                'formattedAmount' => number_format($this->amount, 0, ',', ' ').' XOF',
+                'formattedAmount' => \App\Support\Money::format($this->amount),
                 'missionUrl' => rtrim((string) config('app.frontend_url'), '/')."/producer/missions/{$this->mission->uuid}",
             ],
         );

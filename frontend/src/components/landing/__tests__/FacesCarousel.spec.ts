@@ -13,6 +13,7 @@ function makeFace(overrides: Partial<LandingFace> = {}): LandingFace {
     categories: [{ value: 'acteur', label: 'Acteur' }],
     is_available: true,
     profile_photo_url: 'https://example.com/photo.jpg',
+    profile_photo_medium_url: null,
     profile_photo_grid_url: null,
     profile_photo_thumbnail_url: 'https://example.com/thumb.jpg',
     average_rating: 4.0,
@@ -45,6 +46,21 @@ describe('FacesCarousel', () => {
     expect(images.length).toBeGreaterThan(0)
     images.forEach((img) => {
       expect(img.attributes('src')).toBe('https://example.com/grid.webp')
+    })
+  })
+
+  it('prefers the medium variant over the original when grid is missing', () => {
+    const wrapper = mountComponent([
+      makeFace({
+        profile_photo_grid_url: null,
+        profile_photo_medium_url: 'https://example.com/medium.webp',
+      }),
+    ])
+
+    const images = wrapper.findAll('[data-testid="faces-carousel"] img')
+    expect(images.length).toBeGreaterThan(0)
+    images.forEach((img) => {
+      expect(img.attributes('src')).toBe('https://example.com/medium.webp')
     })
   })
 

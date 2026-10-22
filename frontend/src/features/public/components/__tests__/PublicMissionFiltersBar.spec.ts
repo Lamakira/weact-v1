@@ -1,9 +1,16 @@
-import { describe, it, expect, vi } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { watch } from 'vue'
 import PublicMissionFiltersBar from '../PublicMissionFiltersBar.vue'
+import {
+  chooseOption,
+  cleanupPortals,
+  getOptionLabels,
+  openSelect,
+} from '@/components/ui/__tests__/selectTestUtils'
 
-vi.mock('@vueuse/core', () => ({
+vi.mock('@vueuse/core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@vueuse/core')>()),
   watchDebounced: (
     source: Parameters<typeof watch>[0],
     cb: Parameters<typeof watch>[1],
@@ -18,6 +25,7 @@ const missionTypes = [
 
 function mountFiltersBar(currentFilters = {}) {
   return mount(PublicMissionFiltersBar, {
+    attachTo: document.body,
     props: {
       currentFilters,
       missionTypes,
@@ -26,6 +34,36 @@ function mountFiltersBar(currentFilters = {}) {
 }
 
 describe('PublicMissionFiltersBar', () => {
+  afterEach(() => {
+    cleanupPortals()
+  })
+
+  it('liste les types de mission et émet la valeur choisie', async () => {
+    const wrapper = mountFiltersBar()
+    const trigger = wrapper.get('[data-testid="mission-filter-type"]')
+    expect(trigger.text()).toBe('Type de mission')
+    expect(trigger.attributes('aria-label')).toBe('Filtrer par type de mission')
+
+    await openSelect(trigger)
+    expect(getOptionLabels()).toEqual(['Tous les types', 'Publicité', 'Film'])
+
+    await chooseOption(trigger, 'Film')
+
+    expect(wrapper.emitted('filter-change')?.at(-1)?.[0]).toEqual({ type_mission: 'film' })
+    wrapper.unmount()
+  })
+
+  it('émet un filtre vide avec « Tous les types »', async () => {
+    const wrapper = mountFiltersBar({ type_mission: 'film' })
+    const trigger = wrapper.get('[data-testid="mission-filter-type"]')
+    expect(trigger.text()).toBe('Film')
+
+    await chooseOption(trigger, 'Tous les types')
+
+    expect(wrapper.emitted('filter-change')?.at(-1)?.[0]).toEqual({})
+    wrapper.unmount()
+  })
+
   it('does not emit budget filter changes on each keystroke', async () => {
     const wrapper = mountFiltersBar()
     const minInput = wrapper.find('[data-testid="mission-filter-budget-min"]')

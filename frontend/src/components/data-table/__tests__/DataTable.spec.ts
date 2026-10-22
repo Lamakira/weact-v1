@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import DataTable from '../DataTable.vue'
 import type { DataTableColumn } from '../dataTableFeatures'
+import { chooseOption, cleanupPortals } from '@/components/ui/__tests__/selectTestUtils'
 
 interface Row {
   id: string
@@ -34,6 +35,7 @@ const baseProps = {
 
 function mountTable(props: Record<string, unknown> = {}, slots: Record<string, unknown> = {}) {
   return mount(DataTable as unknown as ReturnType<typeof defineComponent>, {
+    attachTo: document.body,
     props: { ...baseProps, ...props },
     slots: {
       'cell-name': ({ row }: { row: Row }) => h('span', { 'data-testid': `name-${row.id}` }, row.name),
@@ -47,6 +49,10 @@ function mountTable(props: Record<string, unknown> = {}, slots: Record<string, u
 }
 
 describe('DataTable', () => {
+  afterEach(() => {
+    cleanupPortals()
+  })
+
   it('applies the column meta (sticky right + class) to header and cells', () => {
     const metaColumns: DataTableColumn<Row>[] = [
       { id: 'name', accessorFn: (r) => r.name, header: 'Nom', enableSorting: false },
@@ -114,9 +120,9 @@ describe('DataTable', () => {
 
   it('emits page-size-change from the page size select', async () => {
     const wrapper = mountTable({ total: 40, lastPage: 3 })
-    const select = wrapper.find('select[data-testid="data-table-page-size"]')
+    const select = wrapper.find('[data-testid="data-table-page-size"]')
     expect(select.exists()).toBe(true)
-    await select.setValue('25')
+    await chooseOption(select, '25')
     expect(wrapper.emitted('page-size-change')).toEqual([[25]])
   })
 

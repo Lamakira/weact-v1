@@ -24,7 +24,7 @@ class WithdrawalRequestSubmittedMail extends Mailable
     {
         return new Envelope(
             subject: sprintf(
-                'Nouvelle demande de retrait - %s %s XOF',
+                'Nouvelle demande de retrait - %s %s',
                 $this->userDisplayName(),
                 $this->formattedAmount()
             ),
@@ -59,6 +59,6 @@ class WithdrawalRequestSubmittedMail extends Mailable
 
     private function formattedAmount(): string
     {
-        return number_format((int) $this->withdrawalRequest->amount, 0, ',', ' ');
+        return \App\Support\Money::format((int) $this->withdrawalRequest->amount);
     }
 }

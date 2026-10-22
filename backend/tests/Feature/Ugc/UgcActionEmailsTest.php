@@ -226,7 +226,7 @@ class UgcActionEmailsTest extends TestCase
     }
 
     // ===================================================================
-    // AC3 — BookingCommissionPaid → Face « accepte le deal »
+    // AC3 — BookingCommissionPaid → Face « acceptez le deal »
     // ===================================================================
 
     public function test_commission_paid_queues_face_accept_email(): void
@@ -243,7 +243,7 @@ class UgcActionEmailsTest extends TestCase
     }
 
     // ===================================================================
-    // AC4 — ProductReceived → Face « filme ton Unboxing » (additif, D-7.3.c)
+    // AC4 — ProductReceived → Face « filmez votre Unboxing » (additif, D-7.3.c)
     // ===================================================================
 
     public function test_product_received_queues_face_film_email_for_booking_owner(): void

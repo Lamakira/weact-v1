@@ -63,8 +63,8 @@ class TarifsTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.tarif_horaire', 75000)
             ->assertJsonPath('data.tarif_journalier', 250000)
-            ->assertJsonPath('data.formatted_tarif_horaire', '75 000 XOF/demi-journée')
-            ->assertJsonPath('data.formatted_tarif_journalier', '250 000 XOF/jour');
+            ->assertJsonPath('data.formatted_tarif_horaire', '75 000 F CFA / demi-journée')
+            ->assertJsonPath('data.formatted_tarif_journalier', '250 000 F CFA / jour');
     }
 
     public function test_can_update_tarif_horaire_successfully(): void
@@ -76,7 +76,7 @@ class TarifsTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.tarif_horaire', 75000)
-            ->assertJsonPath('data.formatted_tarif_horaire', '75 000 XOF/demi-journée')
+            ->assertJsonPath('data.formatted_tarif_horaire', '75 000 F CFA / demi-journée')
             ->assertJsonPath('message', 'Tarifs mis à jour avec succès');
 
         $this->assertDatabaseHas('faces', [
@@ -94,7 +94,7 @@ class TarifsTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('data.tarif_journalier', 250000)
-            ->assertJsonPath('data.formatted_tarif_journalier', '250 000 XOF/jour')
+            ->assertJsonPath('data.formatted_tarif_journalier', '250 000 F CFA / jour')
             ->assertJsonPath('message', 'Tarifs mis à jour avec succès');
 
         $this->assertDatabaseHas('faces', [
@@ -239,7 +239,7 @@ class TarifsTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['tarif_horaire'])
-            ->assertJsonPath('errors.tarif_horaire.0', 'Le tarif demi-journée ne peut pas dépasser 10 000 000 XOF');
+            ->assertJsonPath('errors.tarif_horaire.0', 'Le tarif demi-journée ne peut pas dépasser 10 000 000 F CFA');
     }
 
     public function test_rejects_tarif_journalier_above_maximum(): void
@@ -251,7 +251,7 @@ class TarifsTest extends TestCase
 
         $response->assertUnprocessable()
             ->assertJsonValidationErrors(['tarif_journalier'])
-            ->assertJsonPath('errors.tarif_journalier.0', 'Le tarif journalier ne peut pas dépasser 100 000 000 XOF');
+            ->assertJsonPath('errors.tarif_journalier.0', 'Le tarif journalier ne peut pas dépasser 100 000 000 F CFA');
     }
 
     public function test_accepts_tarif_horaire_at_maximum_boundary(): void

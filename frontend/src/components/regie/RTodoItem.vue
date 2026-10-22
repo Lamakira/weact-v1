@@ -19,6 +19,11 @@ interface Props {
   actionVariant?: 'primary' | 'secondary'
   /** Si fourni, le titre est un lien ; sinon un bouton qui émet `select` */
   to?: RouteLocationRaw
+  /**
+   * Trait de couleur à gauche de la ligne : `attention` (échéance proche), `danger`
+   * (échéance dépassée), `none` (trait neutre). Absent = pas de trait.
+   */
+  accent?: 'none' | 'attention' | 'danger'
 }
 
 withDefaults(defineProps<Props>(), {
@@ -28,6 +33,7 @@ withDefaults(defineProps<Props>(), {
   actionLabel: undefined,
   actionVariant: 'secondary',
   to: undefined,
+  accent: undefined,
 })
 
 const emit = defineEmits<{
@@ -44,6 +50,18 @@ const titleClass =
     class="relative flex items-center gap-3 px-4 py-3 hover:bg-sidebar sm:px-5"
     data-testid="r-todo-item"
   >
+    <span
+      v-if="accent"
+      class="absolute inset-y-2.5 left-0 w-1 rounded-r-full"
+      :class="{
+        'bg-line': accent === 'none',
+        'bg-urgent': accent === 'attention',
+        'bg-destructive': accent === 'danger',
+      }"
+      :data-accent="accent"
+      aria-hidden="true"
+      data-testid="r-todo-accent"
+    />
     <span
       v-if="icon"
       class="grid size-8 shrink-0 place-items-center rounded-[9px]"

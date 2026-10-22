@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { deriveFaceHubState, formatRemaining, formatShortDate } from '../faceMissionHub'
 import type { Mission, MissionCandidature } from '@/features/mission/types'
+import { formatMoney } from '@/utils/money'
 
 function mission(overrides: Partial<Mission> = {}): Mission {
   return {
@@ -59,7 +60,7 @@ describe('deriveFaceHubState — mission standard', () => {
     expect(s.action.label).toBe('Confirmer ma participation')
     expect(s.action.sub).toContain('Avant le')
     expect(s.next.deadline).toBe('2026-10-22T08:51:00+00:00')
-    expect(s.next.text).toContain('85 000 FCFA')
+    expect(s.next.text).toContain(formatMoney())
   })
 
   it('accepted sans échéance : pas de sous-libellé ni de compte à rebours', () => {
@@ -88,7 +89,7 @@ describe('deriveFaceHubState — mission standard', () => {
     const s = deriveFaceHubState(mission(), cand({ status: 'completed', conversation_id: 'c', montant_face_recoit: 90000 }), std)
     expect(s.currentStep).toBe(s.steps.length)
     expect(s.pill).toEqual({ tone: 'ok', label: 'Payée' })
-    expect(s.next.text).toContain('90 000 FCFA')
+    expect(s.next.text).toContain(formatMoney())
   })
 
   it('rejected : « Non retenue » grise, jamais verte, parcours interrompu', () => {

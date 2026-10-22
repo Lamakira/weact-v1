@@ -29,9 +29,6 @@ vi.mock('@/stores/auth', () => ({
 vi.mock('@/features/face/composables/useProfilePhoto', () => ({
   useProfilePhoto: () => ({ profile: ref(null), fetchProfile: vi.fn().mockResolvedValue(undefined) }),
 }))
-vi.mock('@/features/face/composables/usePersonalInfo', () => ({
-  usePersonalInfo: () => ({ personalInfo: ref(null), fetchPersonalInfo: vi.fn().mockResolvedValue(undefined) }),
-}))
 
 vi.mock('@/components/layout', async () => {
   const { defineComponent } = await import('vue')
@@ -52,11 +49,7 @@ describe('FaceLayout - libellés en français', () => {
     const wrapper = mount(FaceLayout, {
       global: {
         stubs: {
-          EmailVerificationBanner: stub,
-          TarifsMissingBanner: stub,
-          WhatsappMissingBanner: stub,
-          PendingSubscriptionPaymentBanner: stub,
-          UgcSuspensionBanner: stub,
+          AccountAlertBar: stub,
         },
       },
     })

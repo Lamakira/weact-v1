@@ -80,6 +80,8 @@ class FaceDashboardTodoService
         'ugc_deliverable' => 'livrables',
         'ugc_receipt' => 'livrables',
         'rate' => 'other',
+        'missing_tarifs' => 'other',
+        'missing_whatsapp' => 'other',
         'profile_completion' => 'other',
     ];
 
@@ -118,6 +120,8 @@ class FaceDashboardTodoService
             ...$this->ugcTunnelEntries($user, $face),
             ...$this->staleCandidatureEntries($face),
             ...$this->rateEntries($user, $face),
+            ...$this->missingTarifsEntries($face),
+            ...$this->missingWhatsappEntries($face),
             ...$this->profileEntries($face),
         ])
             ->sortBy([['rank', 'asc'], ['at', 'asc']])
@@ -723,6 +727,57 @@ class FaceDashboardTodoService
     }
 
     /**
+     * Rappel « tarifs manquants » (ex-bandeau du layout) : même règle, pas de tarif journalier.
+     * Même rang que le profil ; l'ordre d'insertion le place juste avant.
+     *
+     * @return list<array{rank: int, at: int, item: array<string, mixed>}>
+     */
+    private function missingTarifsEntries(Face $face): array
+    {
+        if ($face->tarif_journalier) {
+            return [];
+        }
+
+        return [[
+            'rank' => self::RANK_PROFILE,
+            'at' => 0,
+            'item' => [
+                'type' => 'missing_tarifs',
+                'title' => 'Renseigner vos tarifs pour être visible',
+                'meta' => 'Tant que vous n\'avez pas renseigné vos tarifs, vous ne pouvez pas être booké par un producteur.',
+                'urgent_meta' => null,
+                'action_label' => 'Renseigner',
+                'url' => '/face/profile?tab=carriere&section=tarif',
+            ],
+        ]];
+    }
+
+    /**
+     * Rappel « WhatsApp manquant » (ex-bandeau du layout) : même règle, numéro vide.
+     *
+     * @return list<array{rank: int, at: int, item: array<string, mixed>}>
+     */
+    private function missingWhatsappEntries(Face $face): array
+    {
+        if ($face->whatsapp_number) {
+            return [];
+        }
+
+        return [[
+            'rank' => self::RANK_PROFILE,
+            'at' => 0,
+            'item' => [
+                'type' => 'missing_whatsapp',
+                'title' => 'Renseigner votre numéro WhatsApp',
+                'meta' => 'Votre numéro WhatsApp est utilisé uniquement pour vous contacter lorsque vous êtes retenu(e) pour une mission ou booké(e). Renseignez-le pour ne manquer aucune opportunité.',
+                'urgent_meta' => null,
+                'action_label' => 'Renseigner',
+                'url' => '/face/profile?focus=whatsapp',
+            ],
+        ]];
+    }
+
+    /**
      * @return list<array{rank: int, at: int, item: array<string, mixed>}>
      */
     private function profileEntries(Face $face): array
@@ -834,6 +889,6 @@ class FaceDashboardTodoService
 
     private function formatAmount(int $amount): string
     {
-        return number_format($amount, 0, ',', ' ').' XOF';
+        return \App\Support\Money::format($amount);
     }
 }

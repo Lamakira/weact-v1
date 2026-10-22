@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { reactive, watch, computed } from 'vue'
 import type { TarifsInfo } from '../types'
 import { FloatingField } from '@/components/ui/form'
@@ -22,14 +23,14 @@ const formattedTarifJournalier = computed(() => {
   if (form.tarif_journalier === '' || form.tarif_journalier === undefined) return ''
   const num = typeof form.tarif_journalier === 'string' ? parseInt(form.tarif_journalier, 10) : form.tarif_journalier
   if (isNaN(num)) return ''
-  return `${new Intl.NumberFormat('fr-FR').format(num)} F CFA`
+  return formatMoney(num)
 })
 
 const formattedTarifDemiJournee = computed(() => {
   if (form.tarif_journalier === '' || form.tarif_journalier === undefined) return ''
   const num = typeof form.tarif_journalier === 'string' ? parseInt(form.tarif_journalier, 10) : form.tarif_journalier
   if (isNaN(num) || num === 0) return ''
-  return `${new Intl.NumberFormat('fr-FR').format(Math.round(num / 2))} F CFA`
+  return formatMoney(Math.round(num / 2))
 })
 
 watch(

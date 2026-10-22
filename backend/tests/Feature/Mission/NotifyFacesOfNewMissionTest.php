@@ -151,7 +151,7 @@ class NotifyFacesOfNewMissionTest extends TestCase
         Bus::assertDispatched(SendWebPush::class, function (SendWebPush $job) use ($mission): bool {
             return $job->payload['title'] === 'Nouvelle mission : Pub lessive'
                 && str_contains($job->payload['body'], 'Cotonou')
-                && str_contains($job->payload['body'], 'FCFA')
+                && str_contains($job->payload['body'], 'F CFA')
                 && $job->payload['url'] === "/face/missions/{$mission->uuid}"
                 && $job->payload['tag'] === "new-mission-{$mission->uuid}"
                 && $job->payload['ttl'] === 86400;

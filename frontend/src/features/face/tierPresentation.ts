@@ -28,7 +28,7 @@ export const TIER_PRESENTATION: Record<FaceSubscriptionTier, TierPresentation> =
   },
   starter: {
     name: 'Starter',
-    tagline: 'Postule aux missions et décroche tes premiers contrats',
+    tagline: 'Postulez aux missions et décrochez vos premiers contrats',
     badge: null,
     miseEnAvant: 'Boostée',
   },

@@ -1,11 +1,18 @@
-import { describe, it, expect, vi } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { watch } from 'vue'
 import FilterBar from '../FilterBar.vue'
+import {
+  chooseOption,
+  cleanupPortals,
+  getOptionLabels,
+  openSelect,
+} from '@/components/ui/__tests__/selectTestUtils'
 import type { FilterOption, FacesFilterParams } from '../../services/publicFacesApi'
 
 // Mock @vueuse/core watchDebounced to fire immediately in tests
-vi.mock('@vueuse/core', () => ({
+vi.mock('@vueuse/core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@vueuse/core')>()),
   watchDebounced: (source: Parameters<typeof watch>[0], cb: Parameters<typeof watch>[1], _opts?: unknown) => {
     // Use a standard watch that fires immediately (no debounce in tests)
     return watch(source, cb)
@@ -32,10 +39,14 @@ const defaultProps = {
 }
 
 function mountFilterBar(props = defaultProps) {
-  return mount(FilterBar, { props })
+  return mount(FilterBar, { props, attachTo: document.body })
 }
 
 describe('FilterBar', () => {
+  afterEach(() => {
+    cleanupPortals()
+  })
+
   describe('Rendering', () => {
     it('renders the filter bar container', () => {
       const wrapper = mountFilterBar()
@@ -62,14 +73,11 @@ describe('FilterBar', () => {
       expect(wrapper.find('[data-testid="filter-niche"]').exists()).toBe(true)
     })
 
-    it('renders advanced filters button', () => {
+    it('does not render the disabled advanced filters button', () => {
       const wrapper = mountFilterBar()
-      expect(wrapper.find('[data-testid="filter-advanced"]').exists()).toBe(true)
-    })
-
-    it('shows "Bientôt" badge on advanced filters', () => {
-      const wrapper = mountFilterBar()
-      expect(wrapper.text()).toContain('Bientôt')
+      expect(wrapper.find('[data-testid="filter-advanced"]').exists()).toBe(false)
+      expect(wrapper.text()).not.toContain('Filtres avancés')
+      expect(wrapper.text()).not.toContain('Bientôt')
     })
   })
 
@@ -97,85 +105,83 @@ describe('FilterBar', () => {
       const searchInput = wrapper.find('[data-testid="filter-search"]')
       expect(searchInput.attributes('disabled')).toBeUndefined()
     })
-
-    it('advanced filters button is still disabled', () => {
-      const wrapper = mountFilterBar()
-      const advancedBtn = wrapper.find('[data-testid="filter-advanced"]')
-      expect(advancedBtn.attributes('disabled')).toBeDefined()
-    })
   })
 
   describe('Options from props', () => {
-    it('category dropdown populates from props', () => {
+    it('category dropdown populates from props', async () => {
       const wrapper = mountFilterBar()
-      const categorySelect = wrapper.find('[data-testid="filter-category"]')
-      const options = categorySelect.findAll('option')
+      const categorySelect = wrapper.get('[data-testid="filter-category"]')
+      expect(categorySelect.text()).toBe('Catégorie')
 
-      // Default + 2 categories
-      expect(options).toHaveLength(3)
-      expect(options[0].text()).toBe('Catégorie')
-      expect(options[1].text()).toBe('Acteur')
-      expect(options[2].text()).toBe('Mannequin')
+      await openSelect(categorySelect)
+
+      // Option « aucun filtre » + 2 catégories
+      expect(getOptionLabels()).toEqual(['Toutes les catégories', 'Acteur', 'Mannequin'])
+      wrapper.unmount()
     })
 
-    it('niche dropdown populates from props', () => {
+    it('niche dropdown populates from props', async () => {
       const wrapper = mountFilterBar()
-      const nicheSelect = wrapper.find('[data-testid="filter-niche"]')
-      const options = nicheSelect.findAll('option')
+      const nicheSelect = wrapper.get('[data-testid="filter-niche"]')
+      expect(nicheSelect.text()).toBe('Niche')
 
-      expect(options).toHaveLength(3)
-      expect(options[0].text()).toBe('Niche')
-      expect(options[1].text()).toBe('Beauté')
-      expect(options[2].text()).toBe('Mode')
+      await openSelect(nicheSelect)
+
+      expect(getOptionLabels()).toEqual(['Toutes les niches', 'Beauté', 'Mode'])
+      wrapper.unmount()
     })
 
-    it('city dropdown populates from props', () => {
+    it('city dropdown populates from props', async () => {
       const wrapper = mountFilterBar()
-      const citySelect = wrapper.find('[data-testid="filter-city"]')
-      const options = citySelect.findAll('option')
+      const citySelect = wrapper.get('[data-testid="filter-city"]')
+      expect(citySelect.text()).toBe('Ville')
 
-      expect(options).toHaveLength(3)
-      expect(options[0].text()).toBe('Ville')
-      expect(options[1].text()).toBe('Cotonou')
-      expect(options[2].text()).toBe('Parakou')
+      await openSelect(citySelect)
+
+      expect(getOptionLabels()).toEqual(['Toutes les villes', 'Cotonou', 'Parakou'])
+      wrapper.unmount()
+    })
+
+    it('conserve les aria-label des déclencheurs', () => {
+      const wrapper = mountFilterBar()
+      expect(wrapper.get('[data-testid="filter-city"]').attributes('aria-label')).toBe('Filtrer par ville')
+      expect(wrapper.get('[data-testid="filter-category"]').attributes('aria-label')).toBe('Filtrer par catégorie')
+      expect(wrapper.get('[data-testid="filter-niche"]').attributes('aria-label')).toBe('Filtrer par niche')
     })
   })
 
   describe('Filter change events', () => {
     it('emits filter-change when category is selected', async () => {
       const wrapper = mountFilterBar()
-      const categorySelect = wrapper.find('[data-testid="filter-category"]')
 
-      await categorySelect.setValue('acteur')
-      await categorySelect.trigger('change')
+      await chooseOption(wrapper.get('[data-testid="filter-category"]'), 'Acteur')
 
       expect(wrapper.emitted('filter-change')).toBeTruthy()
       const emitted = wrapper.emitted('filter-change')![0][0] as FacesFilterParams
       expect(emitted.categorie).toBe('acteur')
+      wrapper.unmount()
     })
 
     it('emits filter-change when niche is selected', async () => {
       const wrapper = mountFilterBar()
-      const nicheSelect = wrapper.find('[data-testid="filter-niche"]')
 
-      await nicheSelect.setValue('beaute')
-      await nicheSelect.trigger('change')
+      await chooseOption(wrapper.get('[data-testid="filter-niche"]'), 'Beauté')
 
       expect(wrapper.emitted('filter-change')).toBeTruthy()
       const emitted = wrapper.emitted('filter-change')![0][0] as FacesFilterParams
       expect(emitted.niche).toBe('beaute')
+      wrapper.unmount()
     })
 
     it('emits filter-change when city is selected', async () => {
       const wrapper = mountFilterBar()
-      const citySelect = wrapper.find('[data-testid="filter-city"]')
 
-      await citySelect.setValue('Cotonou')
-      await citySelect.trigger('change')
+      await chooseOption(wrapper.get('[data-testid="filter-city"]'), 'Cotonou')
 
       expect(wrapper.emitted('filter-change')).toBeTruthy()
       const emitted = wrapper.emitted('filter-change')![0][0] as FacesFilterParams
       expect(emitted.ville).toBe('Cotonou')
+      wrapper.unmount()
     })
 
     it('emits undefined for cleared filter', async () => {
@@ -183,14 +189,14 @@ describe('FilterBar', () => {
         ...defaultProps,
         currentFilters: { categorie: 'acteur' },
       })
-      const categorySelect = wrapper.find('[data-testid="filter-category"]')
+      expect(wrapper.get('[data-testid="filter-category"]').text()).toBe('Acteur')
 
-      await categorySelect.setValue('')
-      await categorySelect.trigger('change')
+      await chooseOption(wrapper.get('[data-testid="filter-category"]'), 'Toutes les catégories')
 
       expect(wrapper.emitted('filter-change')).toBeTruthy()
       const emitted = wrapper.emitted('filter-change')![0][0] as FacesFilterParams
       expect(emitted.categorie).toBeUndefined()
+      wrapper.unmount()
     })
   })
 

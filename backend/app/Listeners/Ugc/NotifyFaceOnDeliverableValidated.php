@@ -19,7 +19,7 @@ class NotifyFaceOnDeliverableValidated
 {
     /**
      * Notifie la Face que son livrable est validé. Message kind-aware : Unboxing
-     * validé → « dépose ton Avis (14 j) » ; Avis validé → « deal terminé ».
+     * validé → « déposez votre Avis (14 j) » ; Avis validé → « deal terminé ».
      * Non-fatal : la validation est déjà persistée (try/catch + Log::warning).
      */
     public function handle(DeliverableValidated $event): void
@@ -54,8 +54,8 @@ class NotifyFaceOnDeliverableValidated
             }
 
             $message = $deliverable->kind === DeliverableKind::Unboxing
-                ? "Ton Unboxing « {$productName} » est validé — tu peux maintenant déposer ton Avis (14 jours)."
-                : "Ton deal UGC « {$productName} » est terminé — bravo, ton Avis est validé !";
+                ? "Votre Unboxing « {$productName} » est validé — vous pouvez maintenant déposer votre Avis (14 jours)."
+                : "Votre deal UGC « {$productName} » est terminé — bravo, votre Avis est validé !";
 
             Notification::create([
                 'user_id' => $faceUserId,

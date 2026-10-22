@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatNumber } from '@/utils/money'
 import { computed } from 'vue'
 import { Check, Crown } from 'lucide-vue-next'
 import type { SubscriptionOffer } from '@/features/face/types'
@@ -26,7 +27,7 @@ const features = computed(() =>
 const priceLabel = computed(() =>
   props.offer.price === 0
     ? 'Gratuit'
-    : new Intl.NumberFormat('fr-FR').format(props.offer.price),
+    : formatNumber(props.offer.price),
 )
 
 const ctaLabel = computed(() => {
@@ -134,7 +135,7 @@ function onCtaClick(): void {
         class="text-sm font-medium"
         :class="isElite ? 'text-gray-400' : 'text-gray-500'"
       >
-        F CFA
+        F&nbsp;CFA
       </span>
     </div>
 

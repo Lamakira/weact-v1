@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 /**
  * FaceBillingPage
  * Onglet "Facturation & Abonnement" du dashboard Face.
@@ -139,7 +140,7 @@ onMounted(async () => {
 // the history list so it reflects the new state without a manual reload.
 watch(paymentState, (state) => {
   if (state === 'confirmed' && !returnActive.value) {
-    toast.success('Paiement confirmé — ton abonnement est actif.')
+    toast.success('Paiement confirmé — votre abonnement est actif.')
     void loadHistory().catch(() => {
       // Non-blocking — the status card already reflects the activation.
     })
@@ -156,11 +157,8 @@ function fmtDate(iso: string | null): string {
   if (Number.isNaN(d.getTime())) return ''
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`
 }
-function fmtFCFA(n: number): string {
-  return new Intl.NumberFormat('fr-FR').format(n) + ' FCFA'
-}
 function fmtAmount(n: number): string {
-  return n > 0 ? fmtFCFA(n) : 'Gratuit'
+  return n > 0 ? formatMoney(n) : 'Gratuit'
 }
 function daysBetween(a: string | Date, b: string | Date): number {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86400000)
@@ -308,27 +306,27 @@ const infoNote = computed<{ tone: 'positive' | 'warning'; text: string }>(() => 
       return {
         tone: 'warning',
         text: cd
-          ? `Abonnement annulé le ${cd}. Ton profil est repassé en offre Découverte (gratuite).`
-          : 'Abonnement annulé. Ton profil est repassé en offre Découverte (gratuite).',
+          ? `Abonnement annulé le ${cd}. Votre profil est repassé en offre Découverte (gratuite).`
+          : 'Abonnement annulé. Votre profil est repassé en offre Découverte (gratuite).',
       }
     }
     case 'expired':
       return {
         tone: 'warning',
         text: end
-          ? `Ton abonnement a expiré le ${end}. Ton profil est repassé en offre Découverte (gratuite).`
-          : 'Ton abonnement a expiré. Ton profil est repassé en offre Découverte (gratuite).',
+          ? `Votre abonnement a expiré le ${end}. Votre profil est repassé en offre Découverte (gratuite).`
+          : 'Votre abonnement a expiré. Votre profil est repassé en offre Découverte (gratuite).',
       }
     case 'free':
       return {
         tone: 'positive',
-        text: 'Tu es en offre Découverte (gratuite). Choisis un abonnement pour débloquer plus de visibilité et les missions UGC.',
+        text: 'Vous êtes en offre Découverte (gratuite). Choisissez un abonnement pour débloquer plus de visibilité et les missions UGC.',
       }
     default:
       return {
         tone: cardState.value === 'expiring' ? 'warning' : 'positive',
         text: end
-          ? `Abonnement annuel — il prend fin le ${end}. Pense à le renouveler avant cette date pour conserver tes avantages.`
+          ? `Abonnement annuel — il prend fin le ${end}. Pensez à le renouveler avant cette date pour conserver vos avantages.`
           : 'Abonnement annuel sans engagement.',
       }
   }
@@ -403,7 +401,7 @@ function toggleHistory(id: string): void {
     <!-- Page header -->
     <div class="mb-8">
       <h1 class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Facturation &amp; Abonnement</h1>
-      <p class="text-sm text-gray-500 mt-1.5">Gère ton abonnement, consulte ton historique et tes reçus.</p>
+      <p class="text-sm text-gray-500 mt-1.5">Gérez votre abonnement, consultez votre historique et vos reçus.</p>
     </div>
 
     <!-- Loading skeleton -->
@@ -494,7 +492,7 @@ function toggleHistory(id: string): void {
         <div class="flex items-start gap-2">
           <Loader2 class="mt-0.5 h-4 w-4 flex-shrink-0 animate-spin" />
           <span>
-            Ton paiement est en attente de confirmation. Reprends-le ou vérifie son état ci-dessous.
+            Votre paiement est en attente de confirmation. Reprenez-le ou vérifiez son état ci-dessous.
           </span>
         </div>
         <div class="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -583,7 +581,7 @@ function toggleHistory(id: string): void {
                 <p class="text-[11px] font-medium text-gray-500 uppercase tracking-wider">Montant</p>
                 <p class="text-base font-bold text-gray-900 mt-0.5">
                   <template v-if="currentMeta.price > 0">
-                    {{ fmtFCFA(currentMeta.price) }}<span class="text-xs font-medium text-gray-400"> / an</span>
+                    {{ formatMoney(currentMeta.price) }}<span class="text-xs font-medium text-gray-400"> / an</span>
                   </template>
                   <template v-else>Gratuit</template>
                 </p>
@@ -651,7 +649,7 @@ function toggleHistory(id: string): void {
       >
         <div class="mb-5">
           <h2 class="text-lg font-bold text-gray-900">Historique des abonnements</h2>
-          <p class="text-sm text-gray-500 mt-0.5">Tes abonnements passés et leurs détails de facturation.</p>
+          <p class="text-sm text-gray-500 mt-0.5">Vos abonnements passés et leurs détails de facturation.</p>
         </div>
 
         <div v-if="historyRows.length === 0" class="text-center py-10 text-sm text-gray-400" data-testid="history-empty">
@@ -731,7 +729,7 @@ function toggleHistory(id: string): void {
     <ConfirmModal
       :is-open="cancelConfirmOpen"
       title="Annuler le paiement en cours ?"
-      message="Cette action annule l'initiation du paiement. Tu pourras en relancer un nouveau depuis la page Tarifs."
+      message="Cette action annule l'initiation du paiement. Vous pourrez en relancer un nouveau depuis la page Tarifs."
       confirm-text="Oui, annuler"
       cancel-text="Continuer le paiement"
       variant="warning"

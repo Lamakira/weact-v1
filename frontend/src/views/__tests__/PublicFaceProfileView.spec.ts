@@ -7,6 +7,10 @@ import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 // "Unhandled Error" otherwise).
 enableAutoUnmount(afterEach)
 import type { Ref } from 'vue'
+import { createPinia, setActivePinia } from 'pinia'
+import { useAuthStore } from '@/stores/auth'
+import type { User } from '@/features/auth/types'
+import { publicApi } from '@/features/public/services/publicApi'
 import PublicFaceProfileView from '../PublicFaceProfileView.vue'
 import * as publicFacesApi from '@/features/public/services/publicFacesApi'
 import type { PublicFaceProfile } from '@/features/public/services/publicFacesApi'
@@ -68,8 +72,8 @@ vi.mock('@/components/ui/skeleton', () => ({
 
 vi.mock('@/components/report/ReportButton.vue', () => ({
   default: {
-    template: '<button data-testid="report-button"></button>',
-    props: ['reportableType', 'reportableId'],
+    template: '<button data-testid="report-button">{{ label }}</button>',
+    props: ['reportableType', 'reportableId', 'label'],
   },
 }))
 
@@ -115,7 +119,7 @@ vi.mock('@/features/public/components/LockedContentTeaser.vue', () => ({
   },
 }))
 vi.mock('@/features/candidature/components/CandidateVideosSection.vue', () => ({
-  default: { template: '<div></div>', props: ['candidateId'] },
+  default: { template: '<div data-testid="videos-section"></div>', props: ['candidate'] },
 }))
 vi.mock('@/features/candidature/components/CandidatePhotoGallery.vue', () => ({
   default: { template: '<div></div>', props: ['candidateId'] },
@@ -124,7 +128,7 @@ vi.mock('@/features/candidature/components/CandidateInfoSection.vue', () => ({
   default: { template: '<div></div>', props: ['candidate'] },
 }))
 vi.mock('@/features/candidature/components/CandidateExperiencesSection.vue', () => ({
-  default: { template: '<div></div>', props: ['candidateId'] },
+  default: { template: '<div data-testid="experiences-section"></div>', props: ['experiences'] },
 }))
 vi.mock('@/features/candidature/components/CandidateResumeSummary.vue', () => ({
   default: {
@@ -136,7 +140,7 @@ vi.mock('@/components/RatingDisplay.vue', () => ({
   default: { template: '<div></div>', props: ['rating', 'count'] },
 }))
 vi.mock('@/components/ReviewsList.vue', () => ({
-  default: { template: '<div></div>', props: ['reviews', 'isLoading'] },
+  default: { template: '<div data-testid="reviews-list"></div>', props: ['reviews', 'isLoading'] },
 }))
 vi.mock('@/features/booking/components/BookingFormSheet.vue', () => ({
   __esModule: true,
@@ -201,6 +205,7 @@ function mountView() {
 
 describe('PublicFaceProfileView (Integration)', () => {
   beforeEach(() => {
+    setActivePinia(createPinia())
     vi.clearAllMocks()
     mockParams.username = 'adjoua'
     mockFullPath = '/faces/adjoua'
@@ -431,6 +436,121 @@ describe('PublicFaceProfileView (Integration)', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="candidate-resume-summary"]').exists()).toBe(true)
+  })
+})
+
+describe('PublicFaceProfileView — blocs vides et signalement', () => {
+  const mockReview = { id: 'r1', rating: 5, comment: 'Super' }
+  const reviewsPage = (data: unknown[]) => ({
+    data,
+    meta: { current_page: 1, last_page: 1, total: data.length },
+  })
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+    mockParams.username = 'adjoua'
+    mockFullPath = '/faces/adjoua'
+    if (accessHolder.accessLevel) accessHolder.accessLevel.value = 'guest'
+    if (accessHolder.fullProfile) accessHolder.fullProfile.value = null
+    vi.mocked(publicApi.getFaceReviews).mockResolvedValue(reviewsPage([]) as never)
+  })
+
+  function loadProfile(extra: Record<string, unknown> = {}) {
+    vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
+      success: true,
+      profile: { ...mockProfile, id: 'face-uuid', ...extra } as unknown as PublicFaceProfile,
+    })
+  }
+
+  function loginAsFace(faceId: string) {
+    const authStore = useAuthStore()
+    authStore.token = 'token'
+    authStore.user = {
+      id: 7,
+      email: 'face@example.com',
+      userable_type: 'Face',
+      userable_id: 1,
+      userable: { id: faceId, username: 'adjoua' },
+    } as unknown as User
+    accessHolder.accessLevel!.value = 'face_user'
+  }
+
+  it('visiteur : masque les blocs vidéo, expériences et avis quand ils sont vides', async () => {
+    loadProfile()
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="videos-section"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="experiences-section"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Avis et évaluations')
+    expect(wrapper.find('[data-testid="reviews-list"]').exists()).toBe(false)
+  })
+
+  it('visiteur : chaque bloc réapparaît dès qu\'il a du contenu', async () => {
+    vi.mocked(publicApi.getFaceReviews).mockResolvedValue(reviewsPage([mockReview]) as never)
+    loadProfile({
+      presentation_video_url: 'https://example.com/v.mp4',
+      experiences: [{ id: 'e1', titre: 'Pub' }],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="videos-section"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="experiences-section"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Avis et évaluations')
+  })
+
+  it('la Face propriétaire garde les blocs vides', async () => {
+    loginAsFace('face-uuid')
+    loadProfile()
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="videos-section"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="experiences-section"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Avis et évaluations')
+  })
+
+  it('une autre Face est traitée comme un visiteur (blocs vides masqués)', async () => {
+    loginAsFace('autre-face')
+    loadProfile()
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="videos-section"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="experiences-section"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Avis et évaluations')
+  })
+
+  it('« Signaler ce profil » est en bas de page, aligné à droite, après le dernier bloc', async () => {
+    vi.mocked(publicApi.getFaceReviews).mockResolvedValue(reviewsPage([mockReview]) as never)
+    loadProfile({ presentation_video_url: 'https://example.com/v.mp4' })
+    const wrapper = mountView()
+    await flushPromises()
+
+    const report = wrapper.find('[data-testid="report-button"]')
+    expect(report.text()).toBe('Signaler ce profil')
+    expect(report.element.parentElement?.classList.contains('justify-end')).toBe(true)
+
+    const container = wrapper.find('[data-testid="face-profile"]').element
+    const reviewsBlock = wrapper.find('[data-testid="reviews-list"]').element.parentElement!
+    const wrap = report.element.parentElement!
+    expect(
+      reviewsBlock.compareDocumentPosition(wrap) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    // Dernier bloc du contenu du profil (hors bandeau de réservation téléporté)
+    const last = Array.from(container.children).filter((c) => c.nodeType === 1)
+    expect(last.some((c) => c === wrap || c.contains(wrap))).toBe(true)
+  })
+
+  it('« Signaler ce profil » suit le dernier bloc affiché quand les autres sont masqués', async () => {
+    loadProfile()
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="report-button"]').text()).toBe('Signaler ce profil')
+    expect(wrapper.find('[data-testid="reviews-list"]').exists()).toBe(false)
   })
 })
 

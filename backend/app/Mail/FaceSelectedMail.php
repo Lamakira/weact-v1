@@ -54,7 +54,7 @@ final class FaceSelectedMail extends BaseMail
 
     private function formatAmount(): string
     {
-        return number_format($this->amount, 0, ',', ' ').' XOF';
+        return \App\Support\Money::format($this->amount);
     }
 
     private function buildConfirmUrl(): string

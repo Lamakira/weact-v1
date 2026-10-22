@@ -1,3 +1,4 @@
+import { formatMoney } from '@/utils/money'
 import type { AdminSubscriptionStatus } from '../services/adminFaceSubscriptionsApi'
 
 const FALLBACK_BADGE_CLASS = 'bg-gray-100 text-gray-600'
@@ -39,6 +40,7 @@ export function formatAmount(
   currency: string = 'XOF',
 ): string {
   if (amount === null || amount === undefined || !Number.isFinite(amount)) return '—'
+  if (!currency || currency === 'XOF') return formatMoney(amount)
   try {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',

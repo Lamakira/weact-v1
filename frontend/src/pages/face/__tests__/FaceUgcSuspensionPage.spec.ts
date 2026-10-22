@@ -223,7 +223,7 @@ describe('FaceUgcSuspensionPage', () => {
     await flushPromises()
 
     const neutral = wrapper.get('[data-testid="ugc-suspension-not-suspended"]')
-    expect(neutral.text()).toContain("Ton compte n'est pas suspendu.")
+    expect(neutral.text()).toContain("Votre compte n'est pas suspendu.")
     expect(wrapper.find('[data-testid="ugc-suspension-page"]').exists()).toBe(false)
 
     await wrapper.get('[data-testid="ugc-suspension-dashboard"]').trigger('click')

@@ -99,7 +99,7 @@ describe('CandidatureCard', () => {
 
       expect(wrapper.text()).toContain('Mission clôturée')
       expect(wrapper.text()).not.toContain('En attente')
-      expect(wrapper.text()).not.toContain('Annuler ma candidature')
+      expect(wrapper.find('[data-testid="candidature-cancel"]').exists()).toBe(false)
       expect(wrapper.find('span.bg-gray-100').exists()).toBe(true)
     })
 
@@ -115,7 +115,7 @@ describe('CandidatureCard', () => {
 
       expect(wrapper.text()).toContain('Sélection en cours de paiement')
       expect(wrapper.text()).not.toContain('Mission clôturée')
-      expect(wrapper.text()).toContain('Annuler ma candidature')
+      expect(wrapper.find('[data-testid="candidature-cancel"]').exists()).toBe(true)
       expect(wrapper.find('span.bg-yellow-100').exists()).toBe(true)
     })
 
@@ -130,7 +130,7 @@ describe('CandidatureCard', () => {
       )
 
       expect(wrapper.text()).toContain('En attente')
-      expect(wrapper.text()).toContain('Annuler ma candidature')
+      expect(wrapper.find('[data-testid="candidature-cancel"]').exists()).toBe(true)
     })
   })
 
@@ -226,7 +226,7 @@ describe('CandidatureCard — notation (lot C8)', () => {
 
   it('propose « Noter le producteur » pour une candidature terminée non notée', () => {
     const wrapper = mountCard(completed())
-    expect(wrapper.get('[data-testid="candidature-rate"]').text()).toBe('Noter le producteur')
+    expect(wrapper.get('[data-testid="candidature-rate"]').text()).toBe('Noter')
   })
 
   it.each([
@@ -250,5 +250,60 @@ describe('CandidatureCard — notation (lot C8)', () => {
     expect(candidatureApi.rateProducer).toHaveBeenCalledWith('cand-uuid-1', 3, undefined)
     expect(wrapper.emitted('rated')?.[0]).toEqual(['cand-uuid-1', rating])
     expect(wrapper.find('[data-testid="candidature-rate"]').exists()).toBe(false)
+  })
+})
+
+describe('CandidatureCard — libellé / valeur et pied de carte (lot F4)', () => {
+  const ugcMission = {
+    id: 'mission-uuid-2',
+    titre: 'Publicité pour Jolyderm',
+    date_tournage: null,
+    lieu: null,
+    budget: 0,
+    type_compensation: 'product',
+    nom_produit: 'crème Jolyderm',
+    nombre_videos: 2,
+    montant_remuneration: null,
+  }
+  const factText = (wrapper: ReturnType<typeof mountCard>, key: string) =>
+    wrapper.get(`[data-testid="candidature-fact-${key}"]`).text()
+
+  it('carte UGC : Producteur, Type, Vous recevez, Prochaine étape, sans icône ni champ vide', () => {
+    const wrapper = mountCard(makeCandidature({ mission: ugcMission, conversation_id: null }))
+
+    expect(factText(wrapper, 'producer')).toBe('ProducteurShade Fit')
+    expect(factText(wrapper, 'type')).toBe('TypeUGC · 2 vidéos')
+    expect(factText(wrapper, 'receives')).toBe('Vous recevezProduit : crème Jolyderm')
+    expect(factText(wrapper, 'next')).toBe('Prochaine étapeExpédition du produit')
+    // Ni date, ni lieu, ni « 0 F CFA » pour une mission sans tournage ni argent.
+    expect(wrapper.find('[data-testid="candidature-fact-shoot"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="candidature-fact-place"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('0 F CFA')
+    expect(wrapper.find('svg').exists()).toBe(false)
+  })
+
+  it('carte standard : Producteur, Tournage, Lieu, Rémunération', () => {
+    const wrapper = mountCard(makeCandidature({ mission: { id: 'm', titre: 'Spot', date_tournage: '2026-12-05', lieu: 'Abomey-Calavi', budget: 100000 } }))
+
+    expect(wrapper.findAll('dt').map((dt) => dt.text())).toEqual(['Producteur', 'Tournage', 'Lieu', 'Rémunération'])
+    expect(factText(wrapper, 'place')).toBe('LieuAbomey-Calavi')
+  })
+
+  it('pied de carte : date de candidature et une seule action principale', () => {
+    const wrapper = mountCard(makeCandidature({ status: 'accepted', status_label: 'Acceptée', conversation_id: 'conv-1' }))
+
+    expect(wrapper.text()).toContain('Postulé le 10/06/2026')
+    expect(wrapper.text()).toContain('À confirmer par vous')
+    expect(wrapper.find('[data-testid="candidature-confirm"]').text()).toBe('Confirmer')
+    // Le chat reste joignable en second geste (icône), sans devenir une deuxième action texte.
+    expect(wrapper.find('[data-testid="candidature-chat-secondary"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="candidature-chat"]').exists()).toBe(false)
+  })
+
+  it('candidature non retenue : « Non retenue » et « Voir d’autres missions »', () => {
+    const wrapper = mountCard(makeCandidature({ status: 'rejected', status_label: 'Refusée', conversation_id: null }))
+
+    expect(wrapper.text()).toContain('Non retenue')
+    expect(wrapper.find('[data-testid="candidature-browse"]').text()).toBe('Voir d\'autres missions')
   })
 })

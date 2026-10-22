@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatNumber } from '@/utils/money'
 import { ref, computed } from 'vue'
 import { RouterLink } from 'vue-router'
 import { Zap } from 'lucide-vue-next'
@@ -34,7 +35,7 @@ const marqueeSpeed = computed(() => {
 
 const countDisplay = computed((): string | null => {
   if (props.totalCount && props.totalCount > 20) {
-    return `+${props.totalCount} faces ont déjà rejoint l'aventure`
+    return `+${formatNumber(props.totalCount)} faces ont déjà rejoint l'aventure`
   }
   return null
 })
@@ -57,7 +58,7 @@ const countDisplay = computed((): string | null => {
           <Zap class="w-3 h-3 fill-current" />
         </div>
         <span class="text-xs font-bold tracking-widest uppercase text-[#198496]"
-          >Tu attends quoi ?</span
+          >Vous attendez quoi ?</span
         >
       </div>
 
@@ -68,7 +69,7 @@ const countDisplay = computed((): string | null => {
       >
         DEVIENS <span class="text-[#198496]">UNE FACE</span>.
       </h2>
-      <p class="text-gray-600 text-lg">Rejoins la 1ère plateforme de casting au Bénin</p>
+      <p class="text-gray-600 text-lg">Rejoignez la 1ère plateforme de casting au Bénin</p>
     </div>
 
     <!-- Infinite Marquee Carousel -->
@@ -90,7 +91,7 @@ const countDisplay = computed((): string | null => {
             class="relative group/card aspect-[4/5] overflow-hidden rounded-2xl border border-gray-100 shadow-md hover:border-[#198496]/50 hover:shadow-2xl transition-all"
           >
             <img
-              :src="profile.profile_photo_grid_url ?? profile.profile_photo_url ?? profile.profile_photo_thumbnail_url ?? ''"
+              :src="profile.profile_photo_grid_url ?? profile.profile_photo_medium_url ?? profile.profile_photo_url ?? profile.profile_photo_thumbnail_url ?? ''"
               :alt="profile.prenom"
               class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-110"
               loading="lazy"
@@ -114,7 +115,7 @@ const countDisplay = computed((): string | null => {
             class="relative group/card aspect-[4/5] overflow-hidden rounded-2xl border border-gray-100 shadow-md hover:border-[#198496]/50 hover:shadow-2xl transition-all"
           >
             <img
-              :src="profile.profile_photo_grid_url ?? profile.profile_photo_url ?? profile.profile_photo_thumbnail_url ?? ''"
+              :src="profile.profile_photo_grid_url ?? profile.profile_photo_medium_url ?? profile.profile_photo_url ?? profile.profile_photo_thumbnail_url ?? ''"
               :alt="profile.prenom"
               class="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover/card:scale-110"
               loading="lazy"

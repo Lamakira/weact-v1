@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed } from 'vue'
 import { Receipt } from 'lucide-vue-next'
 import { computeUgcCommission, UGC_PRODUCER_SERVICE_RATE, computeUgcHybridProducerTotal } from './ugc'
@@ -38,9 +39,6 @@ const onPlatformTotal = computed(() => computeUgcHybridProducerTotal(props.payAm
 const missionFacesCount = computed(() => Math.max(1, Math.trunc(props.nombreFaces || 1)))
 const missionHybridTotal = computed(() => onPlatformTotal.value * missionFacesCount.value)
 
-function formatFcfa(amount: number): string {
-  return `${(amount || 0).toLocaleString('fr-FR')} FCFA`
-}
 </script>
 
 <template>
@@ -54,13 +52,13 @@ function formatFcfa(amount: number): string {
       <!-- Valeur produit -->
       <div class="flex items-center justify-between text-xs">
         <span class="text-gray-500">Valeur déclarée du produit</span>
-        <span class="text-gray-700">{{ formatFcfa(productValue) }}</span>
+        <span class="text-gray-700">{{ formatMoney(productValue) }}</span>
       </div>
 
       <!-- Rémunération de la Face (hybride uniquement) -->
       <div v-if="showPay" class="flex items-center justify-between text-xs">
         <span class="text-gray-500">Rémunération de la Face</span>
-        <span class="text-gray-700">{{ formatFcfa(payAmount) }}</span>
+        <span class="text-gray-700">{{ formatMoney(payAmount) }}</span>
       </div>
 
       <!-- Publication d'une mission HYBRIDE : gratuit au publish, cash tarifé par-Face à
@@ -69,13 +67,13 @@ function formatFcfa(amount: number): string {
       <template v-if="isMissionHybrid">
         <div class="flex items-center justify-between text-xs">
           <span class="text-gray-500">Commission WeAct</span>
-          <span class="text-gray-700">{{ formatFcfa(serviceFee) }}</span>
+          <span class="text-gray-700">{{ formatMoney(serviceFee) }}</span>
         </div>
 
         <div class="mt-2 border-t border-gray-100 pt-2 space-y-2">
           <div class="flex items-center justify-between text-xs">
             <span class="text-gray-500">Coût par Face à l'acceptation</span>
-            <span class="font-medium text-gray-700">{{ formatFcfa(onPlatformTotal) }}</span>
+            <span class="font-medium text-gray-700">{{ formatMoney(onPlatformTotal) }}</span>
           </div>
           <template v-if="missionFacesCount > 1">
             <div class="flex items-center justify-between text-xs">
@@ -84,7 +82,7 @@ function formatFcfa(amount: number): string {
             </div>
             <div class="flex items-center justify-between text-xs">
               <span class="font-semibold text-gray-900">Total si toutes les Faces acceptent</span>
-              <span class="text-base font-bold text-gray-900">{{ formatFcfa(missionHybridTotal) }}</span>
+              <span class="text-base font-bold text-gray-900">{{ formatMoney(missionHybridTotal) }}</span>
             </div>
           </template>
         </div>
@@ -106,13 +104,13 @@ function formatFcfa(amount: number): string {
       <template v-else-if="isOnPlatformHybrid">
         <div class="flex items-center justify-between text-xs">
           <span class="text-gray-500">Frais de service</span>
-          <span class="text-gray-700">{{ formatFcfa(serviceFee) }}</span>
+          <span class="text-gray-700">{{ formatMoney(serviceFee) }}</span>
         </div>
 
         <div class="mt-2 border-t border-gray-100 pt-2">
           <div class="flex items-center justify-between text-xs">
             <span class="font-semibold text-gray-900">À payer maintenant</span>
-            <span class="text-base font-bold text-gray-900">{{ formatFcfa(onPlatformTotal) }}</span>
+            <span class="text-base font-bold text-gray-900">{{ formatMoney(onPlatformTotal) }}</span>
           </div>
           <p class="mt-1 text-[10px] text-gray-400">
             La rémunération est encaissée et séquestrée par WeAct, puis versée à la Face après
@@ -133,17 +131,17 @@ function formatFcfa(amount: number): string {
               v-if="mode !== 'mission'"
               class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500"
             >
-              10% min. 2 500
+              10 % min. {{ formatMoney(2500) }}
             </span>
           </span>
-          <span class="font-semibold text-weact">{{ formatFcfa(commission) }}</span>
+          <span class="font-semibold text-weact">{{ formatMoney(commission) }}</span>
         </div>
 
         <!-- À payer maintenant -->
         <div class="mt-2 border-t border-gray-100 pt-2">
           <div class="flex items-center justify-between text-xs">
             <span class="font-semibold text-gray-900">À payer maintenant</span>
-            <span class="text-base font-bold text-gray-900">{{ formatFcfa(commission) }}</span>
+            <span class="text-base font-bold text-gray-900">{{ formatMoney(commission) }}</span>
           </div>
           <p class="mt-1 text-[10px] text-gray-400">
             Le produit et la rémunération sont gérés directement par vous. WeAct ne facture que sa commission.

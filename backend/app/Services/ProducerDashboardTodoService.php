@@ -21,6 +21,7 @@ use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\Producer;
 use App\Models\User;
+use App\Support\Whatsapp;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -55,6 +56,9 @@ class ProducerDashboardTodoService
 
     /** Notation facultative et sans relance : en dernier. */
     private const RANK_RATE = 5;
+
+    /** Rappel de coordonnées : jamais bloquant, tout en bas. */
+    private const RANK_PROFILE = 6;
 
     /** Durée (jours) pendant laquelle une mission/un booking terminé reste proposé à la notation. */
     private const RATE_WINDOW_DAYS = 7;
@@ -95,6 +99,7 @@ class ProducerDashboardTodoService
             ...$this->shipmentEntries($user, $producer),
             ...$this->bookingCompletionEntries($user),
             ...$this->rateEntries($user, $producer),
+            ...$this->missingWhatsappEntries($producer),
         ])
             ->sortBy([['rank', 'asc'], ['at', 'asc']])
             ->map(fn (array $entry): array => $entry['item'])
@@ -631,6 +636,33 @@ class ProducerDashboardTodoService
     }
 
     /**
+     * Rappel « WhatsApp manquant » (ex-bandeau du layout) : même règle que l'admin, le numéro
+     * doit comporter au moins un chiffre (Whatsapp::isDialable).
+     *
+     * @return list<array{rank: int, at: int, item: array<string, mixed>}>
+     */
+    private function missingWhatsappEntries(Producer $producer): array
+    {
+        if (Whatsapp::isDialable($producer->whatsapp_number)) {
+            return [];
+        }
+
+        return [[
+            'rank' => self::RANK_PROFILE,
+            'at' => 0,
+            'item' => [
+                'type' => 'missing_whatsapp',
+                'category' => 'other',
+                'title' => 'Renseigner votre numéro WhatsApp',
+                'meta' => 'Ajoutez votre numéro WhatsApp pour que l\'équipe WeAct puisse vous joindre rapidement.',
+                'urgent_meta' => null,
+                'action_label' => 'Renseigner',
+                'url' => '/producer/profile?focus=whatsapp',
+            ],
+        ]];
+    }
+
+    /**
      * @return array{rank: int, at: int, item: array<string, mixed>}
      */
     private function rateEntry(string $title, ?string $meta, string $url, int $at): array
@@ -743,6 +775,6 @@ class ProducerDashboardTodoService
 
     private function formatAmount(int $amount): string
     {
-        return number_format($amount, 0, ',', ' ').' XOF';
+        return \App\Support\Money::format($amount);
     }
 }

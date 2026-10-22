@@ -201,11 +201,11 @@ describe('FaceCandidaturesPage — teleported ConfirmModal vs keep-alive deactiv
     activeWrapper = wrapper
     await settle()
 
-    // 1. Open the modal through the real UI: the « Annuler ma candidature »
+    // 1. Open the modal through the real UI: the « Retirer » (Annuler ma candidature)
     //    button on the pending candidature card.
     const cancelButton = wrapper
       .findAll('button')
-      .find((b) => b.text().includes('Annuler ma candidature'))
+      .find((b) => b.attributes('data-testid') === 'candidature-cancel')
     expect(cancelButton, 'cancel button on the pending card').toBeDefined()
     await cancelButton!.trigger('click')
     await settle()

@@ -75,7 +75,8 @@ final class BookingReceivedMailTest extends TestCase
         $this->assertStringContainsString('mai 2026', $rendered);
         $this->assertStringContainsString('8 heures', $rendered);
         $this->assertStringContainsString('Cotonou', $rendered);
-        $this->assertStringContainsString('45 000 XOF', $rendered);
+        $this->assertStringContainsString('45 000 F CFA', $rendered);
+        $this->assertStringNotContainsString('XOF', $rendered);
         $this->assertStringContainsString('/face/bookings/'.$booking->uuid, $rendered);
         $this->assertStringContainsString('Voir la demande', $rendered);
         $this->assertStringContainsString('#198496', $rendered);

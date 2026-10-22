@@ -371,7 +371,7 @@ class UgcDeliverableValidationTest extends TestCase
         $avisDeadline = app(UgcDeadlineService::class)->avisDeadlineFor($shipmentFresh);
         $this->assertSame(now()->addDays(14)->toIso8601String(), $avisDeadline?->toIso8601String());
 
-        // Notif Face « Unboxing validé — dépose ton Avis ».
+        // Notif Face « Unboxing validé — déposez votre Avis ».
         $notif = Notification::where('user_id', $this->faceUser->id)
             ->where('type', 'ugc_deliverable_validated')
             ->first();
@@ -480,7 +480,7 @@ class UgcDeliverableValidationTest extends TestCase
             ->where('type', 'booking_wallet_credited')
             ->first();
         $this->assertNotNull($walletNotif);
-        $this->assertStringContainsString('14 250', (string) data_get($walletNotif->data, 'message'));
+        $this->assertStringContainsString('14 250', (string) data_get($walletNotif->data, 'message'));
 
         $this->assertNotNull(
             Notification::where('user_id', $this->producerUser->id)

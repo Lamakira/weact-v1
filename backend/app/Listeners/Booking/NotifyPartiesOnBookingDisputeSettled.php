@@ -21,7 +21,7 @@ class NotifyPartiesOnBookingDisputeSettled
     public function handle(BookingDisputeSettled $event): void
     {
         $booking = $event->booking;
-        $amount = number_format($event->creditedAmount, 0, ',', ' ');
+        $amount = \App\Support\Money::format($event->creditedAmount);
         // Seul le chemin favor_producer distingue absence / annulation (le statut NoShow est conservé).
         $isNoShow = $booking->status === BookingStatus::NoShow;
 
@@ -31,14 +31,14 @@ class NotifyPartiesOnBookingDisputeSettled
         if ($event->outcome === DisputeResolutionOutcome::FavorProducer) {
             // Deuxième personne pour le destinataire ; sans contestation, aucun administrateur n'est intervenu.
             $producerMessage = $contested
-                ? "L'administrateur a tranché en votre faveur : {$amount} XOF ont été crédités dans votre portefeuille."
-                : "Aucune contestation de la Face : vous avez été remboursé de {$amount} XOF sur votre wallet.";
+                ? "L'administrateur a tranché en votre faveur : {$amount} ont été crédités dans votre portefeuille."
+                : "Aucune contestation de la Face : vous avez été remboursé de {$amount} sur votre wallet.";
             $faceMessage = $contested
                 ? "L'administrateur a tranché en faveur du Producteur.{$penalty}"
                 : "Délai de contestation écoulé : le Producteur a été remboursé.{$penalty}";
         } else {
             $producerMessage = "L'administrateur a tranché en faveur de la Face : le paiement lui est versé.";
-            $faceMessage = "L'administrateur a tranché en votre faveur : {$amount} XOF ont été ajoutés à votre portefeuille.";
+            $faceMessage = "L'administrateur a tranché en votre faveur : {$amount} ont été ajoutés à votre portefeuille.";
         }
 
         $this->notify($booking->producer_id, $producerMessage, "/producer/bookings/{$booking->uuid}", $booking->id);

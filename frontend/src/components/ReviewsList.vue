@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatNumber } from '@/utils/money'
 import { computed } from 'vue'
 import type { Review } from '@/features/rating/types'
 import ReviewCard from './ReviewCard.vue'
@@ -123,7 +124,7 @@ const visiblePages = computed((): (number | 'ellipsis')[] => {
         data-testid="reviews-pagination"
       >
         <p class="text-sm text-gray-500">
-          {{ total }} avis au total
+          {{ formatNumber(total) }} avis au total
         </p>
         <div class="flex items-center gap-2">
           <!-- Previous Button -->

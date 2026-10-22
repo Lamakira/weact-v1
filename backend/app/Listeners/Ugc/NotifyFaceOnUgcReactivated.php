@@ -34,7 +34,7 @@ class NotifyFaceOnUgcReactivated
                 'user_id' => $faceUserId,
                 'type' => 'ugc_account_reactivated',
                 'data' => [
-                    'message' => 'Ton compte UGC est réactivé — tu peux de nouveau accéder aux opportunités UGC.',
+                    'message' => 'Votre compte UGC est réactivé — vous pouvez de nouveau accéder aux opportunités UGC.',
                     'url' => '/face/dashboard',
                 ],
             ]);

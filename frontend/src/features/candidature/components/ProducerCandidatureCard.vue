@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { MapPin, Wallet, Calendar, MessageSquare, MessageCircle, ArrowUpRight, X, Loader2, CheckSquare, Square, Truck, Check, UserMinus, Star } from 'lucide-vue-next'
@@ -263,11 +264,11 @@ const initials = computed(() => {
 })
 
 /**
- * Format currency as XOF
+ * Format currency as F CFA
  */
 function formatCurrency(amount: number | null): string | null {
   if (amount === null) return null
-  return new Intl.NumberFormat('fr-FR').format(amount) + ' XOF'
+  return formatMoney(amount)
 }
 
 /**
@@ -284,6 +285,8 @@ const messagePreview = computed(() => {
  */
 const categoryLabel = computed(() => {
   if (!props.candidature.face.category) return null
+  // Libellé accordé au sexe de la Face, fourni par l'API
+  if (props.candidature.face.category_label) return props.candidature.face.category_label
   const labels: Record<string, string> = {
     acteur: 'Acteur',
     influenceur: 'Influenceur',
@@ -392,7 +395,7 @@ const categoryLabel = computed(() => {
         <div class="flex items-center gap-1.5 text-sm font-medium text-foreground">
           <Wallet class="h-3.5 w-3.5 text-primary" />
           <span v-if="candidature.face.tarif_journalier">
-            {{ formatCurrency(Math.round(candidature.face.tarif_journalier / 2)) }}/½j
+            {{ formatCurrency(Math.round(candidature.face.tarif_journalier / 2)) }} / demi-journée
           </span>
           <span v-else class="text-xs font-normal italic text-muted-foreground">
             Non spécifié
@@ -406,7 +409,7 @@ const categoryLabel = computed(() => {
         <div class="flex items-center gap-1.5 text-sm font-medium text-foreground">
           <Wallet class="h-3.5 w-3.5 text-primary" />
           <span v-if="candidature.face.tarif_journalier">
-            {{ formatCurrency(candidature.face.tarif_journalier) }}/j
+            {{ formatCurrency(candidature.face.tarif_journalier) }} / jour
           </span>
           <span v-else class="text-xs font-normal italic text-muted-foreground">
             Non spécifié

@@ -105,9 +105,9 @@ describe('AdminBookingDetailPage', () => {
     expect(text).toContain('face@example.com')
     expect(text).toContain('Studio Lumière')
     expect(text).toContain('prod@example.com')
-    expect(text).toContain('100 000 FCFA') // tarif_base
-    expect(text).toContain('110 000 FCFA') // montant_total_producteur
-    expect(text).toContain('90 000 FCFA') // montant_face_recoit
+    expect(text).toContain('100 000 F CFA') // tarif_base
+    expect(text).toContain('110 000 F CFA') // montant_total_producteur
+    expect(text).toContain('90 000 F CFA') // montant_face_recoit
     expect(text).toContain('Acceptée')
   })
 
@@ -129,7 +129,7 @@ describe('AdminBookingDetailPage', () => {
     const text = withEscrow.text().replace(/\s+/g, ' ')
     expect(text).toContain('Escrow')
     expect(text).toContain('locked')
-    expect(text).toContain('90 000 FCFA')
+    expect(text).toContain('90 000 F CFA')
   })
 
   it('shows the cancellation block only when a cancellation reason is set', async () => {

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatMoney } from '@/utils/money'
 import { Calendar, CircleAlert, Landmark, Smartphone } from 'lucide-vue-next'
 import type { WalletWithdrawalRequest } from '../types/wallet'
 
@@ -7,14 +8,6 @@ interface Props {
 }
 
 defineProps<Props>()
-
-const formatCurrency = (value: number) =>
-  new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XOF',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value)
 
 const formatDate = (dateString: string) =>
   new Intl.DateTimeFormat('fr-FR', {
@@ -69,7 +62,7 @@ const paymentModeLabels: Record<WalletWithdrawalRequest['payment_mode'], string>
             <div class="space-y-2">
               <div class="flex flex-wrap items-center gap-2">
                 <p class="text-sm font-semibold text-gray-900">
-                  {{ formatCurrency(request.amount) }}
+                  {{ formatMoney(request.amount) }}
                 </p>
                 <span
                   :class="[
