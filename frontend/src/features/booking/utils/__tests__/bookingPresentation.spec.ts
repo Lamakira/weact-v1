@@ -188,8 +188,15 @@ describe('buildBookingView — « Et ensuite ? »', () => {
   })
 
   it('Face, booking payé : annonce le montant mis en séquestre pour elle', () => {
-    const next = buildBookingView(makeBooking({ status: 'paid' }), 'face').next
-    expect(next.text).toMatch(/85\s000\sF\sCFA sont bloqués en séquestre/)
+    // Avant le tournage (fixé le 23 oct. 2026) : après, le texte invite à confirmer la réalisation.
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-20T10:00:00Z'))
+    try {
+      const next = buildBookingView(makeBooking({ status: 'paid' }), 'face').next
+      expect(next.text).toMatch(/85\s000\sF\sCFA sont bloqués en séquestre/)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('Face, double confirmation : celle qui doit confirmer à son tour', () => {

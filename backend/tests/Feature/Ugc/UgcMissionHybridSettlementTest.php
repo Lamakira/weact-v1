@@ -88,7 +88,7 @@ class UgcMissionHybridSettlementTest extends TestCase
 
         // Produit-seul : strictement inchangé — gate paiement commission (PendingPayment).
         $this->assertSame(MissionStatus::PendingPayment, $mission->status);
-        $this->assertSame(5000, (int) $mission->commission_ugc); // max(2500, 10% × 50000)
+        $this->assertSame(2500, (int) $mission->commission_ugc); // max(2500, 5 % × 50000) = plancher
         $this->assertNull($mission->montant_remuneration);
         $this->assertSame(0, (int) $mission->budget);
     }
