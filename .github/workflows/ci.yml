@@ -67,9 +67,36 @@ jobs:
 
       # L'application résout ffprobe au démarrage (y compris pendant package:discover
       # lancé par composer install) : le binaire doit exister, comme en prod.
-      - name: Install FFmpeg
+      # Le miroir Ubuntu des runners a déjà bloqué apt plus de 20 min : on télécharge
+      # d'abord un binaire statique (sans apt), et apt ne sert que de secours.
+      - name: Install FFmpeg (binaire statique)
+        id: ffmpeg
+        uses: FedericoCarboni/setup-ffmpeg@37062fbf7149fc5578d6c57e08aed62458b375d6 # v3.1
+        timeout-minutes: 5
+        continue-on-error: true
+
+      # Le binaire statique n'est pas dans /usr/bin (chemin par défaut de config/ffmpeg.php).
+      - name: Point the app to the static FFmpeg
+        if: steps.ffmpeg.outcome == 'success'
+        run: |
+          echo "FFMPEG_BINARY=$(command -v ffmpeg)" >> "$GITHUB_ENV"
+          echo "FFPROBE_BINARY=$(command -v ffprobe)" >> "$GITHUB_ENV"
+
+      # Secours apt : délai par requête, 3 tentatives, plafond de 8 min.
+      - name: Install FFmpeg (apt, secours)
+        if: steps.ffmpeg.outcome != 'success'
         working-directory: .
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+        timeout-minutes: 8
+        run: |
+          APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+          for attempt in 1 2 3; do
+            if sudo apt-get $APT_OPTS update -qq && sudo apt-get $APT_OPTS install -y -qq --no-install-recommends ffmpeg; then
+              exit 0
+            fi
+            echo "Installation de FFmpeg : tentative $attempt échouée, nouvel essai dans 15 s"
+            sleep 15
+          done
+          exit 1
 
       - name: Get Composer cache directory
         id: composer-cache
