@@ -67,9 +67,24 @@ jobs:
 
       # L'application résout ffprobe au démarrage (y compris pendant package:discover
       # lancé par composer install) : le binaire doit exister, comme en prod.
-      # Un miroir Ubuntu lent a déjà bloqué cette étape 20 min : délai par requête,
-      # 3 tentatives, et plafond de 8 min pour échouer vite plutôt que de pendre.
-      - name: Install FFmpeg
+      # Le miroir Ubuntu des runners a déjà bloqué apt plus de 20 min : on télécharge
+      # d'abord un binaire statique (sans apt), et apt ne sert que de secours.
+      - name: Install FFmpeg (binaire statique)
+        id: ffmpeg
+        uses: FedericoCarboni/setup-ffmpeg@37062fbf7149fc5578d6c57e08aed62458b375d6 # v3.1
+        timeout-minutes: 5
+        continue-on-error: true
+
+      # Le binaire statique n'est pas dans /usr/bin (chemin par défaut de config/ffmpeg.php).
+      - name: Point the app to the static FFmpeg
+        if: steps.ffmpeg.outcome == 'success'
+        run: |
+          echo "FFMPEG_BINARY=$(command -v ffmpeg)" >> "$GITHUB_ENV"
+          echo "FFPROBE_BINARY=$(command -v ffprobe)" >> "$GITHUB_ENV"
+
+      # Secours apt : délai par requête, 3 tentatives, plafond de 8 min.
+      - name: Install FFmpeg (apt, secours)
+        if: steps.ffmpeg.outcome != 'success'
         working-directory: .
         timeout-minutes: 8
         run: |
