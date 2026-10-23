@@ -67,9 +67,21 @@ jobs:
 
       # L'application résout ffprobe au démarrage (y compris pendant package:discover
       # lancé par composer install) : le binaire doit exister, comme en prod.
+      # Un miroir Ubuntu lent a déjà bloqué cette étape 20 min : délai par requête,
+      # 3 tentatives, et plafond de 8 min pour échouer vite plutôt que de pendre.
       - name: Install FFmpeg
         working-directory: .
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
+        timeout-minutes: 8
+        run: |
+          APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+          for attempt in 1 2 3; do
+            if sudo apt-get $APT_OPTS update -qq && sudo apt-get $APT_OPTS install -y -qq --no-install-recommends ffmpeg; then
+              exit 0
+            fi
+            echo "Installation de FFmpeg : tentative $attempt échouée, nouvel essai dans 15 s"
+            sleep 15
+          done
+          exit 1
 
       - name: Get Composer cache directory
         id: composer-cache
