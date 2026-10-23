@@ -16,15 +16,15 @@ const mountBreak = (props: {
 
 describe('CommissionBreakdown', () => {
   it('shows product value + commission and hides the Face remuneration line when payAmount is 0', () => {
-    const wrapper = mountBreak({ productValue: 50000, payAmount: 0 })
+    const wrapper = mountBreak({ productValue: 100000, payAmount: 0 })
     const text = normalize(wrapper.text())
 
-    expect(text).toContain('50 000') // product value
-    expect(text).toContain('5 000') // commission (10% of 50000)
+    expect(text).toContain('100 000') // product value
+    expect(text).toContain('5 000') // commission (5% of 100000)
     expect(text).not.toContain('Rémunération de la Face')
   })
 
-  it('applies the 2 500 floor when 10% of the product value is below it', () => {
+  it('applies the 2 500 floor when 5% of the product value is below it', () => {
     const wrapper = mountBreak({ productValue: 20000 })
     const text = normalize(wrapper.text())
 
@@ -32,7 +32,7 @@ describe('CommissionBreakdown', () => {
   })
 
   it('shows the Face remuneration line in hybrid mode (payAmount > 0)', () => {
-    const wrapper = mountBreak({ productValue: 50000, payAmount: 15000 })
+    const wrapper = mountBreak({ productValue: 100000, payAmount: 15000 })
     const text = normalize(wrapper.text())
 
     expect(text).toContain('Rémunération de la Face')
@@ -43,17 +43,17 @@ describe('CommissionBreakdown', () => {
 
   it('renders the commission badge and testid anchor', () => {
     const wrapper = mountBreak({ productValue: 50000 })
-    expect(normalize(wrapper.text())).toContain('10 % min. 2 500 F CFA')
+    expect(normalize(wrapper.text())).toContain('5 % min. 2 500 F CFA')
     expect(wrapper.find('[data-testid="commission-breakdown"]').exists()).toBe(true)
   })
 
   it('hides the rate badge in mission publish mode (product-only recap shows the FCFA amount only)', () => {
-    const wrapper = mountBreak({ productValue: 50000, mode: 'mission' })
+    const wrapper = mountBreak({ productValue: 100000, mode: 'mission' })
     const text = normalize(wrapper.text())
 
     expect(text).toContain('Commission WeAct')
     expect(text).toContain('5 000') // le montant reste affiché
-    expect(text).not.toContain('10 % min. 2 500 F CFA') // le taux disparaît du récap de création
+    expect(text).not.toContain('5 % min. 2 500 F CFA') // le taux disparaît du récap de création
   })
 
   it('shows the service fee + escrow footer and drops the commission-only copy when onPlatform (booking hybride)', () => {
@@ -74,7 +74,7 @@ describe('CommissionBreakdown', () => {
       const text = normalize(wrapper.text())
 
       // No product-based commission, no "à payer maintenant" fee at publish
-      expect(text).not.toContain('8 000') // 10% of 80000 must never surface
+      expect(text).not.toContain('4 000') // 5% of 80000 must never surface
       expect(text).not.toContain('WeAct ne facture que sa commission')
       expect(text.toLowerCase()).toContain('gratuit')
       // Face cash + service fee (per-Face cost at acceptance)

@@ -35,10 +35,13 @@ function makeShipment(overrides: Partial<Shipment> = {}): Shipment {
 describe('computeUgcCommission', () => {
   // Same boundary values as the backend UgcCommissionServiceTest (story 1.1)
   it.each([
-    [20000, 2500, 'floor (10% = 2000 < 2500)'],
-    [25000, 2500, 'exact boundary (10% = 2500)'],
-    [50000, 5000, 'percentage above the floor'],
-    [25005, 2501, 'round half-up (2500.5 → 2501)'],
+    [10000, 2500, 'floor (5% = 500 < 2500)'],
+    [20000, 2500, 'floor (5% = 1000 < 2500)'],
+    [30000, 2500, 'floor (5% = 1500 < 2500)'],
+    [50000, 2500, 'exact boundary (5% = 2500)'],
+    [100000, 5000, 'percentage above the floor'],
+    [200000, 10000, 'percentage above the floor (200 000)'],
+    [50010, 2501, 'round half-up (2500.5 → 2501)'],
     [0, 2500, 'floor on empty/0 value'],
   ])('computeUgcCommission(%i) = %i (%s)', (productValue, expected) => {
     expect(computeUgcCommission(productValue)).toBe(expected)
@@ -51,7 +54,7 @@ describe('computeUgcCommission', () => {
   })
 
   it('exposes constants that mirror backend/config/ugc.php', () => {
-    expect(UGC_COMMISSION_RATE).toBe(0.1)
+    expect(UGC_COMMISSION_RATE).toBe(0.05)
     expect(UGC_COMMISSION_FLOOR).toBe(2500)
     expect(UGC_PRODUCT_ONLY_VIDEO_COUNT).toBe(2)
     expect(UGC_UNBOXING_DAYS).toBe(7)
