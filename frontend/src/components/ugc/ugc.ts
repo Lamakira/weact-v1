@@ -8,7 +8,7 @@
 
 import { z } from 'zod'
 
-export const UGC_COMMISSION_RATE = 0.1
+export const UGC_COMMISSION_RATE = 0.05
 export const UGC_COMMISSION_FLOOR = 2500
 export const UGC_PRODUCT_ONLY_VIDEO_COUNT = 2
 

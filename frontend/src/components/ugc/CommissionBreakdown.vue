@@ -2,7 +2,13 @@
 import { formatMoney } from '@/utils/money'
 import { computed } from 'vue'
 import { Receipt } from 'lucide-vue-next'
-import { computeUgcCommission, UGC_PRODUCER_SERVICE_RATE, computeUgcHybridProducerTotal } from './ugc'
+import {
+  computeUgcCommission,
+  UGC_COMMISSION_FLOOR,
+  UGC_COMMISSION_RATE,
+  UGC_PRODUCER_SERVICE_RATE,
+  computeUgcHybridProducerTotal,
+} from './ugc'
 
 const props = withDefaults(
   defineProps<{
@@ -28,6 +34,8 @@ const props = withDefaults(
 )
 
 const commission = computed(() => computeUgcCommission(props.productValue))
+// Étiquette dérivée de la constante (« 5 % ») : aucun taux codé en dur dans le gabarit.
+const commissionRateLabel = `${Math.round(UGC_COMMISSION_RATE * 100)} %`
 const showPay = computed(() => !!props.payAmount && props.payAmount > 0)
 // Publication d'une mission hybride : gratuit au publish, cash tarifé par-Face à l'acceptation.
 const isMissionHybrid = computed(() => props.mode === 'mission' && showPay.value)
@@ -131,7 +139,7 @@ const missionHybridTotal = computed(() => onPlatformTotal.value * missionFacesCo
               v-if="mode !== 'mission'"
               class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500"
             >
-              10 % min. {{ formatMoney(2500) }}
+              {{ commissionRateLabel }} min. {{ formatMoney(UGC_COMMISSION_FLOOR) }}
             </span>
           </span>
           <span class="font-semibold text-weact">{{ formatMoney(commission) }}</span>
