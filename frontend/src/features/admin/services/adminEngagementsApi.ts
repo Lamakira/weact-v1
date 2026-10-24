@@ -40,6 +40,11 @@ export interface AdminEngagementData {
   face: AdminEngagementFace
   producer: AdminEngagementProducer
   objet: AdminEngagementObjet
+  /** Début du message du Producteur resté sans réponse (seulement si le seuil est dépassé) */
+  unanswered_since: string | null
+  shoot_starts_at: string | null
+  /** Tournage proche : le seuil « sans réponse » passe de 12 h à 2 h */
+  shoot_soon: boolean
 }
 
 export interface AdminEngagementListResponse {
@@ -49,12 +54,14 @@ export interface AdminEngagementListResponse {
     last_page: number
     per_page: number
     total: number
+    /** Lignes actives sans réponse, calculé avant les filtres type / statut / recherche */
+    unanswered_count: number
   }
 }
 
 export interface AdminEngagementListParams {
   page?: number
-  type?: 'booking' | 'mission'
+  type?: 'booking' | 'mission' | 'unanswered'
   status?: string
   search?: string
 }
