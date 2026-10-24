@@ -16,8 +16,7 @@ import { Building2, Mail, FileText } from 'lucide-vue-next'
     </header>
 
     <div class="space-y-6">
-      <!-- 1. Éditeur du site -->
-      <!-- TODO: Décommenter et remplir quand les infos RCCM/IFU/adresse seront disponibles -->
+      <!-- 1. Éditeur du site (identité alignée sur l'extrait RCCM du 15-04-2026) -->
       <section class="bg-white border border-gray-200 rounded-md p-6">
         <div class="flex items-center gap-3 mb-4">
           <div class="p-2 rounded-md bg-[#198496]/10 text-[#198496]">
@@ -26,13 +25,14 @@ import { Building2, Mail, FileText } from 'lucide-vue-next'
           <h2 class="text-sm font-semibold text-gray-900">1. Éditeur du site</h2>
         </div>
         <div class="text-sm text-gray-700 leading-relaxed space-y-3">
-          <p><span class="font-medium text-gray-900">Dénomination sociale :</span> WEACT</p>
-          <p><span class="font-medium text-gray-900">Siège social :</span> Cotonou, Bénin</p>
+          <p><span class="font-medium text-gray-900">Éditeur :</span> WEACT, entreprise individuelle</p>
+          <p><span class="font-medium text-gray-900">RCCM :</span> RB/ABC/26 A 139536 (Greffe du Tribunal de commerce de Cotonou)</p>
+          <p><span class="font-medium text-gray-900">Siège :</span> Tankpe, Abomey-Calavi, Atlantique, Bénin</p>
+          <p><span class="font-medium text-gray-900">Téléphone :</span> +229 01 41 22 90 17</p>
           <p class="flex items-center gap-2">
             <Mail :size="14" class="text-gray-400 shrink-0" />
             <a href="mailto:contact@weact.bj" class="text-[#198496] hover:underline">contact@weact.bj</a>
           </p>
-          <p class="text-xs text-gray-400 italic">Les informations complémentaires (RCCM, capital social, IFU) seront publiées dès finalisation des formalités d'immatriculation.</p>
         </div>
       </section>
 
