@@ -238,7 +238,7 @@ const handleSubmit = async () => {
                 <div>
                   <h3 class="text-sm font-medium text-gray-900 mb-1">Localisation</h3>
                   <p class="text-gray-500 text-sm">Retrouvez-nous à</p>
-                  <p class="text-sm font-medium text-gray-900 mt-2">Cotonou, Bénin</p>
+                  <p class="text-sm font-medium text-gray-900 mt-2">Tankpe, Abomey-Calavi, Bénin</p>
                 </div>
               </div>
             </div>
