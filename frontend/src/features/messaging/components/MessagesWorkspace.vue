@@ -396,6 +396,7 @@ watch(refreshError, (newError) => {
             :is-sending="isSending"
             :send-error="sendError"
             :compact="!isDesktop"
+            :conversation-id="selectedId"
             @submit="handleSend"
             @back="handleBack"
             @refresh="handleRefreshConversation"

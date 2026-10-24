@@ -45,8 +45,8 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 // Register scheduled commands
-// Messagerie : e-mail quand un message reste non lu plus d'1 h (au plus 1 e-mail / fil / destinataire / 24 h).
-app(Schedule::class)->command(RemindUnreadMessagesCommand::class)->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
+// Messagerie : e-mail quand un message reste non lu plus d'1 h, ou 15 min si le tournage est proche (au plus 1 e-mail / fil / destinataire / 24 h).
+app(Schedule::class)->command(RemindUnreadMessagesCommand::class)->everyFiveMinutes()->withoutOverlapping()->onOneServer();
 app(Schedule::class)->command(AutoCompleteBookingsCommand::class)->hourly();
 app(Schedule::class)->command(SettleBookingDisputesCommand::class)->hourly()->withoutOverlapping();
 app(Schedule::class)->command(RemindPendingBookingConfirmationCommand::class)->hourly()->withoutOverlapping();

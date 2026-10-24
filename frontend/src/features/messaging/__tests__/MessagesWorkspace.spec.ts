@@ -18,6 +18,8 @@ vi.mock('../services/messagingApi', () => ({
     getProducerConversations: vi.fn(),
     getProducerConversation: vi.fn(),
     sendProducerMessage: vi.fn(),
+    getConversationFaceResponse: vi.fn(),
+    getBookingFaceResponse: vi.fn(),
   },
 }))
 
@@ -132,6 +134,37 @@ describe('MessagesWorkspace — desktop', () => {
     expect(panel.text()).toContain('Frais de service')
     expect(panel.text()).toContain('Total payé')
     expect(panel.text()).not.toContain('Vous recevez')
+  })
+
+  it('Producteur : ligne de délai de réponse chargée pour la conversation ouverte', async () => {
+    api.getProducerConversations.mockResolvedValue({
+      data: [makeListItem({ id: 'conv-1' })],
+      meta: { current_page: 1, last_page: 1, per_page: 15, total: 1 },
+    })
+    api.getProducerConversation.mockResolvedValue({ data: makeConversation('producer') })
+    api.getConversationFaceResponse.mockResolvedValue({
+      face_first_name: 'Aminata',
+      unread_email_after_minutes: 60,
+      urgent: false,
+      typical_response_minutes: null,
+      overdue: false,
+    })
+    const { wrapper } = await mountWorkspace('producer', '/producer/messages')
+    await wrapper.find('[data-testid="conversation-item"]').trigger('click')
+    await flushPromises()
+
+    expect(api.getConversationFaceResponse).toHaveBeenCalledWith('conv-1')
+    expect(wrapper.find('[data-testid="face-response-notice"]').text()).toContain('Aminata reçoit un e-mail')
+  })
+
+  it('Face : aucune ligne de délai de réponse', async () => {
+    setupFace()
+    const { wrapper } = await mountWorkspace('face', '/face/messages')
+    await wrapper.findAll('[data-testid="conversation-item"]')[0]!.trigger('click')
+    await flushPromises()
+
+    expect(api.getConversationFaceResponse).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="face-response-notice"]').exists()).toBe(false)
   })
 
   it('sans entité liée : le panneau se limite à l’autre participant', async () => {

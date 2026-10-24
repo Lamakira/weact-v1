@@ -224,6 +224,21 @@ class Booking extends Model
     }
 
     /**
+     * Début du jour de tournage en fuseau métier (exprimé en UTC), null sans date de début.
+     * Calqué sur Mission::shootingDayStartsAt().
+     */
+    public function shootingDayStartsAt(): ?CarbonInterface
+    {
+        if ($this->date_debut === null) {
+            return null;
+        }
+
+        return Carbon::parse($this->date_debut->toDateString(), (string) config('app.business_timezone'))
+            ->startOfDay()
+            ->utc();
+    }
+
+    /**
      * Échéance du paiement automatique d'un booking payé sans suite : le plus tardif de
      * « fin du jour de tournage + 8 jours » et « relance + 6 jours » (la Face n'est jamais
      * payée moins de 6 jours après que le Producteur a été prévenu). Null tant que

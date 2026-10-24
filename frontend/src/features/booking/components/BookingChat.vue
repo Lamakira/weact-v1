@@ -2,6 +2,7 @@
 import { ref, watch, nextTick, onMounted, computed } from 'vue'
 import ChatHeader from './ChatHeader.vue'
 import BookingChatMessage from './BookingChatMessage.vue'
+import FaceResponseNotice from '@/features/messaging/components/FaceResponseNotice.vue'
 import { useBookingChat } from '../composables/useBookingChat'
 import { BookingStatus, type Booking } from '../types'
 
@@ -57,6 +58,14 @@ function handleKeydown(event: KeyboardEvent): void {
   <div class="flex flex-col h-full" data-testid="booking-chat">
     <!-- Sticky header with booking context -->
     <ChatHeader :booking="booking" :current-user-id="currentUserId" />
+
+    <!-- Producteur : comment la Face est prévenue + son délai de réponse habituel -->
+    <FaceResponseNotice
+      v-if="currentUserId === booking.producer_id"
+      kind="booking"
+      :thread-id="booking.id"
+      :refresh-key="messages.length"
+    />
 
     <!-- Reverb connection error banner (AC5) -->
     <div
