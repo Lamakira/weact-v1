@@ -15,6 +15,7 @@ import { Calendar, MapPin, Wallet, MessageCircle, Lock, Clock, Check, ShieldChec
 import { UgcFaceTrackingCard, ProductPhotoGallery } from '@/components/ugc'
 import type { Shipment, UgcUploadProgress } from '@/components/ugc'
 import { UgcMissionStats, UgcDeliverablesPreview } from '@/features/mission/components'
+import PushMomentCard from '@/features/notification/components/PushMomentCard.vue'
 import MissionAbsenceContestBlock from '@/features/candidature/components/MissionAbsenceContestBlock.vue'
 import MissionRatingDialog from '@/features/candidature/components/MissionRatingDialog.vue'
 import type { MissionRating } from '@/features/candidature/types'
@@ -135,6 +136,11 @@ const moneyLabel = computed(() => {
 const producer = computed(() => props.mission.producer)
 const producerAvatarUrl = computed(() => producer.value?.profile_photo_url || producer.value?.thumbnail_url || null)
 const producerInitials = computed(() => props.producerName.charAt(0).toUpperCase())
+
+// Nom neutre de repli (« Producteur ») : la carte utilise alors sa formulation générique.
+const pushProducerName = computed(() =>
+  ['Producteur', 'Producteur inconnu'].includes(props.producerName) ? null : props.producerName,
+)
 
 const chatTarget = computed(() =>
   hub.value.chatOpen
@@ -292,6 +298,13 @@ const chatTarget = computed(() =>
               </dd>
             </div>
           </dl>
+
+          <PushMomentCard
+            v-if="chatTarget"
+            :producer-name="pushProducerName"
+            scope="mission"
+            :scope-id="candidature.id"
+          />
 
           <router-link
             v-if="chatTarget"

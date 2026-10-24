@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { ArrowDown, ArrowLeft, Loader2, MessageSquare, RefreshCw } from 'lucide-vue-next'
 import ConversationContextBar from './ConversationContextBar.vue'
+import FaceResponseNotice from './FaceResponseNotice.vue'
 import MessageBubble from './MessageBubble.vue'
 import MessageInput from './MessageInput.vue'
 import ParticipantAvatar from './ParticipantAvatar.vue'
@@ -22,6 +23,8 @@ const props = defineProps<{
   modelValue: string
   /** Mobile : bouton retour + barre de contexte collante */
   compact: boolean
+  /** Identifiant de la conversation (Producteur : active la ligne de délai de réponse) */
+  conversationId?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -149,6 +152,13 @@ onMounted(() => void scrollToBottom('auto'))
         <RefreshCw :class="['size-4', isRefreshing && 'animate-spin']" />
       </button>
     </header>
+
+    <FaceResponseNotice
+      v-if="role === 'producer' && conversationId"
+      kind="conversation"
+      :thread-id="conversationId"
+      :refresh-key="messages.length"
+    />
 
     <ConversationContextBar v-if="compact && context && !isLoading" :context="context" :role="role" />
 

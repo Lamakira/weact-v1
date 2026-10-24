@@ -21,6 +21,7 @@ import {
   Gift,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
+import PushMomentCard from '@/features/notification/components/PushMomentCard.vue'
 import { useBookingDetail, useBookingActions } from '@/features/booking/composables'
 import { useBookingRealtime } from '@/features/booking/composables/useBookingRealtime'
 import {
@@ -1419,6 +1420,14 @@ onUnmounted(() => {
         class="scroll-mt-4 @4xl/page:sticky @4xl/page:top-6"
         data-testid="booking-chat-section"
       >
+        <!-- Face : proposition d'activer les notifications pour ne pas rater les messages -->
+        <PushMomentCard
+          v-if="isFace"
+          class="mb-3"
+          :producer-name="producerName === 'Producteur' ? null : producerName"
+          scope="booking"
+          :scope-id="booking.id"
+        />
         <div class="booking-chat-box bg-white rounded-[24px] shadow-sm overflow-hidden">
           <BookingChat :booking="booking" :current-user-id="currentUserId" />
         </div>

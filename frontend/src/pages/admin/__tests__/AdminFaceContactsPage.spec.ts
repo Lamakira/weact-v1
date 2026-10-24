@@ -14,6 +14,7 @@ let paginationRef = ref<{
   per_page: number
   total: number
 } | null>(null)
+let unansweredCountRef = ref(0)
 let isLoadingRef = ref(false)
 let errorRef = ref<string | null>(null)
 
@@ -21,6 +22,7 @@ vi.mock('@/features/admin/composables/useAdminEngagements', () => ({
   useAdminEngagements: () => ({
     engagements: engagementsRef,
     pagination: paginationRef,
+    unansweredCount: unansweredCountRef,
     isLoading: isLoadingRef,
     error: errorRef,
     fetchEngagements: mockFetchEngagements,
@@ -43,6 +45,9 @@ function makeEngagement(overrides: Partial<AdminEngagementData> = {}): AdminEnga
     },
     producer: { display_name: 'Studio Lumiere' },
     objet: { label: 'Shooting', date: '2026-06-10T08:00:00Z', detail_id: null },
+    unanswered_since: null,
+    shoot_starts_at: null,
+    shoot_soon: false,
     ...overrides,
   }
 }
@@ -78,6 +83,7 @@ async function mountPage() {
 
 describe('AdminFaceContactsPage (ADMIN-ENGAGEMENTS.1)', () => {
   beforeEach(() => {
+    unansweredCountRef = ref(0)
     engagementsRef = ref<AdminEngagementData[]>([])
     paginationRef = ref(null)
     isLoadingRef = ref(false)
@@ -148,6 +154,72 @@ describe('AdminFaceContactsPage (ADMIN-ENGAGEMENTS.1)', () => {
 
     expect(wrapper.find('[data-testid="whatsapp-missing"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="whatsapp-link"]').exists()).toBe(false)
+  })
+
+  it('propose l\u2019option « Sans réponse (N) » et refetch avec type=unanswered', async () => {
+    engagementsRef.value = [makeEngagement({ id: 'booking:1' })]
+    paginationRef.value = { current_page: 1, last_page: 1, per_page: 20, total: 1 }
+    unansweredCountRef.value = 2
+
+    const wrapper = await mountPage()
+    const option = wrapper
+      .findAll('[data-testid="engagement-type-filter"] option')
+      .find((o) => o.attributes('value') === 'unanswered')
+    expect(option?.text()).toBe('Sans réponse (2)')
+
+    await wrapper.find('[data-testid="engagement-type-filter"]').setValue('unanswered')
+    await flushPromises()
+    expect(mockFetchEngagements).toHaveBeenLastCalledWith({ page: 1, type: 'unanswered' })
+  })
+
+  describe('colonne « Message sans réponse »', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-10-24T12:00:00Z'))
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    async function mountWithRows() {
+      engagementsRef.value = [
+        makeEngagement({
+          id: 'mission:1',
+          type: 'mission',
+          unanswered_since: '2026-10-24T09:00:00Z',
+          shoot_starts_at: '2026-10-25T23:30:00Z',
+          shoot_soon: true,
+        }),
+        makeEngagement({ id: 'booking:2', unanswered_since: '2026-10-21T12:00:00Z' }),
+        makeEngagement({
+          id: 'booking:3',
+          unanswered_since: '2026-10-24T05:00:00Z',
+          shoot_starts_at: '2026-10-24T06:00:00Z',
+          shoot_soon: true,
+        }),
+        makeEngagement({ id: 'booking:4' }),
+      ]
+      paginationRef.value = { current_page: 1, last_page: 1, per_page: 20, total: 4 }
+      const wrapper = await mountPage()
+      return wrapper.findAll('[data-testid="engagement-unanswered"]')
+    }
+
+    it('affiche la pastille rouge de durée et la pastille ambre de tournage', async () => {
+      const cells = await mountWithRows()
+
+      expect(cells[0]!.get('[data-testid="unanswered-pill"]').text()).toBe('Sans réponse depuis 3 h')
+      expect(cells[0]!.get('[data-testid="shoot-soon-pill"]').text()).toBe('Tournage dans 36 h')
+      expect(cells[1]!.get('[data-testid="unanswered-pill"]').text()).toBe('Sans réponse depuis 3 j')
+      expect(cells[1]!.find('[data-testid="shoot-soon-pill"]').exists()).toBe(false)
+    })
+
+    it('« Tournage aujourd\u2019hui » quand le début est déjà passé, « — » sans retard', async () => {
+      const cells = await mountWithRows()
+
+      expect(cells[2]!.get('[data-testid="shoot-soon-pill"]').text()).toBe("Tournage aujourd'hui")
+      expect(cells[3]!.text()).toBe('—')
+    })
   })
 
   it('refetches when the type filter changes', async () => {

@@ -11,6 +11,7 @@ interface PaginationMeta {
   last_page: number
   per_page: number
   total: number
+  unanswered_count?: number
 }
 
 /**
@@ -19,6 +20,7 @@ interface PaginationMeta {
 export function useAdminEngagements() {
   const engagements: Ref<AdminEngagementData[]> = ref([])
   const pagination: Ref<PaginationMeta | null> = ref(null)
+  const unansweredCount = ref(0)
   const isLoading = ref(false)
   const error: Ref<string | null> = ref(null)
   let requestSequence = 0
@@ -37,6 +39,7 @@ export function useAdminEngagements() {
 
       engagements.value = response.data
       pagination.value = response.meta
+      unansweredCount.value = response.meta.unanswered_count ?? 0
     } catch (err) {
       if (requestId !== requestSequence) return
 
@@ -53,6 +56,7 @@ export function useAdminEngagements() {
   return {
     engagements,
     pagination,
+    unansweredCount,
     isLoading,
     error,
     fetchEngagements,

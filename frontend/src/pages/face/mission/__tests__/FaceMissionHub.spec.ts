@@ -9,6 +9,14 @@ vi.mock('@/features/candidature/services/candidatureApi', () => ({
   candidatureApi: { rateProducer: vi.fn() },
 }))
 
+// La carte réelle (pinia, web push) a sa propre spec : on vérifie ici le branchement.
+vi.mock('@/features/notification/components/PushMomentCard.vue', () => ({
+  default: {
+    props: ['producerName', 'scope', 'scopeId'],
+    template: '<div data-testid="push-moment-card">{{ scope }}|{{ scopeId }}|{{ producerName }}</div>',
+  },
+}))
+
 function makeMission(overrides: Partial<Mission> = {}): Mission {
   return {
     id: 'mission-uuid-1',
@@ -189,6 +197,18 @@ describe('FaceMissionHub — chat', () => {
       expect(wrapper.find('[data-testid="hub-chat-locked"]').exists()).toBe(false)
     },
   )
+
+  it('propose la carte d’activation des notifications quand le chat est ouvert', () => {
+    const wrapper = mountHub(makeCandidature({ status: 'accepted', conversation_id: 'conv-42', id: 'cand-7' }))
+
+    expect(wrapper.get('[data-testid="push-moment-card"]').text()).toBe('mission|cand-7|Tropical Bénin')
+  })
+
+  it('pas de carte tant que le chat est verrouillé', () => {
+    const wrapper = mountHub(makeCandidature({ status: 'pending' }))
+
+    expect(wrapper.find('[data-testid="push-moment-card"]').exists()).toBe(false)
+  })
 
   it.each(['pending', 'rejected', 'expired', 'cancelled'])('garde le chat verrouillé quand la candidature est %s', (status) => {
     const wrapper = mountHub(makeCandidature({ status }))

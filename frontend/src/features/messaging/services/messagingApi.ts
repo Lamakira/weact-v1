@@ -3,6 +3,7 @@ import { syncMessagesUnreadFromServer } from '@/stores/messagesUnread'
 import { getSocketIdHeaders } from '../utils/realtime'
 import type {
   ConversationResponse,
+  FaceResponseNotice,
   MarkReadResponse,
   ConversationsListResponse,
   MessageResponse,
@@ -120,5 +121,27 @@ export const messagingApi = {
     )
     syncMessagesUnreadFromServer(response.data?.data?.unread_conversations_count)
     return response.data
+  },
+
+  /**
+   * Délai de réponse de la Face d'un booking, vu par le Producteur
+   * @param bookingId Identifiant du booking
+   */
+  async getBookingFaceResponse(bookingId: string): Promise<FaceResponseNotice> {
+    const response = await apiClient.get<{ data: FaceResponseNotice }>(
+      `/bookings/${bookingId}/face-response`,
+    )
+    return response.data.data
+  },
+
+  /**
+   * Délai de réponse de la Face d'une conversation de mission, vu par le Producteur
+   * @param conversationId Identifiant de la conversation
+   */
+  async getConversationFaceResponse(conversationId: string): Promise<FaceResponseNotice> {
+    const response = await apiClient.get<{ data: FaceResponseNotice }>(
+      `/producer/conversations/${conversationId}/face-response`,
+    )
+    return response.data.data
   },
 }

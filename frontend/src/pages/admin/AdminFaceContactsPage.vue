@@ -14,11 +14,11 @@ import type {
   AdminEngagementListParams,
 } from '@/features/admin/services/adminEngagementsApi'
 
-const { engagements, pagination, isLoading, error, fetchEngagements } = useAdminEngagements()
+const { engagements, pagination, unansweredCount, isLoading, error, fetchEngagements } = useAdminEngagements()
 
 const searchQuery = ref('')
 const statusFilter = ref('')
-const typeFilter = ref<'' | 'booking' | 'mission'>('')
+const typeFilter = ref<'' | 'booking' | 'mission' | 'unanswered'>('')
 let searchTimeout: ReturnType<typeof setTimeout> | null = null
 
 const STATUS_OPTIONS = [
@@ -129,6 +129,24 @@ function formatSince(dateString: string | null): string {
   return `il y a ${mins} min`
 }
 
+// Durée écoulée sans préfixe (« 3 j », « 5 h », « 12 min »), pour la pastille « Sans réponse depuis ».
+function formatElapsed(dateString: string | null): string {
+  if (!dateString) return '—'
+  const diffMs = Date.now() - new Date(dateString).getTime()
+  if (Number.isNaN(diffMs) || diffMs < 0) return '—'
+  const days = Math.floor(diffMs / 86_400_000)
+  if (days >= 1) return `${days} j`
+  const hours = Math.floor(diffMs / 3_600_000)
+  if (hours >= 1) return `${hours} h`
+  return `${Math.max(1, Math.floor(diffMs / 60_000))} min`
+}
+
+function shootLabel(startsAt: string | null): string {
+  const diffMs = startsAt ? new Date(startsAt).getTime() - Date.now() : Number.NaN
+  if (Number.isNaN(diffMs) || diffMs <= 0) return "Tournage aujourd'hui"
+  return `Tournage dans ${Math.ceil(diffMs / 3_600_000)} h`
+}
+
 function buildMessage(row: AdminEngagementData): string {
   const displayName = row.face.display_name.trim()
   const prenom = displayName && displayName !== '—' ? displayName.split(/\s+/)[0] : ''
@@ -183,6 +201,7 @@ function waLink(row: AdminEngagementData): string {
         <option value="">Tous les types</option>
         <option value="mission">Mission</option>
         <option value="booking">Booking</option>
+        <option value="unanswered">Sans réponse ({{ unansweredCount }})</option>
       </select>
 
       <!-- Status filter -->
@@ -252,6 +271,7 @@ function waLink(row: AdminEngagementData): string {
             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Type</th>
             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Objet</th>
             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Producteur</th>
+            <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Message sans réponse</th>
             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Montant Face</th>
             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">État</th>
             <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">Depuis</th>
@@ -328,6 +348,27 @@ function waLink(row: AdminEngagementData): string {
             <!-- Producteur -->
             <td class="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
               {{ row.producer.display_name }}
+            </td>
+
+            <!-- Message sans réponse -->
+            <td class="whitespace-nowrap px-6 py-4" data-testid="engagement-unanswered">
+              <div v-if="row.unanswered_since || row.shoot_soon" class="flex flex-col items-start gap-1">
+                <span
+                  v-if="row.unanswered_since"
+                  class="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800"
+                  data-testid="unanswered-pill"
+                >
+                  Sans réponse depuis {{ formatElapsed(row.unanswered_since) }}
+                </span>
+                <span
+                  v-if="row.shoot_soon"
+                  class="inline-flex items-center rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-800"
+                  data-testid="shoot-soon-pill"
+                >
+                  {{ shootLabel(row.shoot_starts_at) }}
+                </span>
+              </div>
+              <span v-else class="text-sm text-gray-400">—</span>
             </td>
 
             <!-- Montant -->
