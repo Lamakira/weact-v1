@@ -71,6 +71,19 @@ export interface Producer {
   updated_at: string
 }
 
+// Alertes WhatsApp (bloc « owner » de l'utilisateur). `available` absent ou false =
+// fonctionnalité inactive côté serveur : rien ne s'affiche.
+export interface WhatsappAlerts {
+  available?: boolean
+  enabled?: boolean
+  enabled_at?: string | null
+  /** Numéro du profil formaté pour l'affichage (« +229 01 97 45 12 33 »). */
+  number?: string | null
+  /** Numéro ENREGISTRÉ envoyable (pas la saisie en cours). */
+  has_valid_number?: boolean
+  invite_dismissed?: boolean
+}
+
 // User data from API
 export interface User {
   id: number
@@ -83,6 +96,9 @@ export interface User {
   // Optional: sessions restored from localStorage predate this field. Read it
   // through the auth store's `hasPassword`, which defaults it to true.
   has_password?: boolean
+  // Optional: absent tant que le backend des alertes WhatsApp n'est pas déployé,
+  // et dans les sessions restaurées d'avant son arrivée (absent ⇒ indisponible).
+  whatsapp_alerts?: WhatsappAlerts
   created_at: string
   updated_at: string
 }

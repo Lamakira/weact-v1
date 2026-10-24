@@ -26,6 +26,7 @@ import DataPrivacySection from '@/components/account/DataPrivacySection.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import RSettingsSection from '@/components/regie/RSettingsSection.vue'
 import RStickySaveBar from '@/components/regie/RStickySaveBar.vue'
+import WhatsappAlertsToggle from '@/features/notification/components/WhatsappAlertsToggle.vue'
 import RStatusDot from '@/components/regie/RStatusDot.vue'
 import type { ProducerBasicInfoFormData } from '@/features/producer/types'
 
@@ -666,6 +667,13 @@ const inputClass =
             <p class="text-[12px] text-ink-3">
               Visible uniquement par l'équipe WeAct, jamais par les Faces.
             </p>
+          </div>
+
+          <div class="mt-4 max-w-[520px]">
+            <WhatsappAlertsToggle
+              :typed-number="form.whatsapp_number"
+              :saved-number="baseline.whatsapp_number"
+            />
           </div>
         </RSettingsSection>
 

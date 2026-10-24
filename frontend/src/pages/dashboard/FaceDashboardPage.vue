@@ -27,6 +27,7 @@ import FaceProfilePanel from '@/features/dashboard/components/FaceProfilePanel.v
 import { useWallet } from '@/features/wallet'
 import { Button } from '@/components/ui/button'
 import PushSoftPrompt from '@/features/notification/components/PushSoftPrompt.vue'
+import WhatsappInviteCard from '@/features/notification/components/WhatsappInviteCard.vue'
 import { Skeleton } from '@/components/ui/skeleton'
 import CurrentPlanCard from '@/features/face/components/CurrentPlanCard.vue'
 
@@ -244,6 +245,9 @@ function goToProfile(): void {
 
     <!-- Invite web push (une fois, fermable) -->
     <PushSoftPrompt audience="face" />
+
+    <!-- Invite alertes WhatsApp (numéro déjà enregistré, une seule fois) -->
+    <WhatsappInviteCard audience="face" />
 
     <!-- À faire -->
     <FaceTodoPanel :items="todoItems" :is-loading="isTodoLoading" :error="todoError" @retry="retryTodo" />

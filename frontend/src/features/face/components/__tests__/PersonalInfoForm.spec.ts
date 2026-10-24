@@ -1,6 +1,15 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import PersonalInfoForm from '../PersonalInfoForm.vue'
+
+// Le bloc d'alertes WhatsApp a ses propres tests (WhatsappAlertsToggle.spec.ts) et dépend de Pinia.
+vi.mock('@/features/notification/components/WhatsappAlertsToggle.vue', () => ({
+  default: {
+    name: 'WhatsappAlertsToggle',
+    props: ['typedNumber', 'savedNumber'],
+    template: '<div data-testid="whatsapp-alerts-toggle-stub" />',
+  },
+}))
 
 describe('PersonalInfoForm — Show Age Toggle', () => {
   function mountForm(personalInfo = {
@@ -108,5 +117,31 @@ describe('PersonalInfoForm — WhatsApp Field', () => {
     const emitted = wrapper.emitted('save')
     expect(emitted).toBeTruthy()
     expect(emitted![0][0]).toHaveProperty('whatsapp_number', '+22997001234')
+  })
+})
+
+describe('PersonalInfoForm — bloc alertes WhatsApp', () => {
+  it('passe au bloc la saisie en cours et le numéro enregistré', async () => {
+    const wrapper = mount(PersonalInfoForm, {
+      props: {
+        personalInfo: {
+          sexe: null,
+          date_naissance: null,
+          nationalite: null,
+          pays: null,
+          show_age: true,
+          whatsapp_number: '+229 01 97 45 12 33',
+        },
+        isSaving: false,
+        error: null,
+      },
+    })
+    const toggle = wrapper.findComponent({ name: 'WhatsappAlertsToggle' })
+    expect(toggle.props('savedNumber')).toBe('+229 01 97 45 12 33')
+    expect(toggle.props('typedNumber')).toBe('+229 01 97 45 12 33')
+
+    await wrapper.find('[data-testid="whatsapp-number-input"]').setValue('+229 01 11 11 11 11')
+    expect(toggle.props('typedNumber')).toBe('+229 01 11 11 11 11')
+    expect(toggle.props('savedNumber')).toBe('+229 01 97 45 12 33')
   })
 })
