@@ -27,8 +27,10 @@ const lastUpdate = '4 avril 2026'
           Le responsable du traitement des données à caractère personnel collectées sur la plateforme WEACT est :
         </p>
         <div class="mt-2 p-3 bg-gray-50 rounded border border-gray-100 space-y-1">
-          <p><span class="font-medium text-gray-900">WEACT</span></p>
-          <p>Siège social : Cotonou, Bénin</p>
+          <p><span class="font-medium text-gray-900">WEACT</span>, entreprise individuelle</p>
+          <p>RCCM : RB/ABC/26 A 139536</p>
+          <p>Siège : Tankpe, Abomey-Calavi, Atlantique, Bénin</p>
+          <p>Téléphone : +229 01 41 22 90 17</p>
           <p>Email : <a href="mailto:contact@weact.bj" class="text-[#198496] hover:underline">contact@weact.bj</a></p>
         </div>
       </div>
@@ -119,6 +121,7 @@ const lastUpdate = '4 avril 2026'
         <ul class="list-disc pl-5 mt-2 space-y-1">
           <li><span class="font-medium">Les autres utilisateurs :</span> les Producteurs ont accès aux profils publics des Faces dans le cadre des missions de casting</li>
           <li><span class="font-medium">Les prestataires techniques :</span> hébergement, services de paiement, services email (sous contrat de sous-traitance conforme à l'article 386)</li>
+          <li><span class="font-medium">Meta Platforms Ireland Ltd (WhatsApp) :</span> envoi des alertes WhatsApp aux utilisateurs qui les ont activées (numéro WhatsApp, prénom, contenu de l'alerte)</li>
           <li><span class="font-medium">Les autorités compétentes :</span> sur demande judiciaire ou administrative conforme à la loi</li>
         </ul>
         <p class="mt-2 font-medium">Vos données ne sont jamais vendues à des tiers.</p>

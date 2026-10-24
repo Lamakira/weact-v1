@@ -25,6 +25,9 @@ use NotificationChannels\WebPush\HasPushSubscriptions;
  * @property string|null $consent_ip
  * @property string|null $google_id
  * @property \Illuminate\Support\Carbon|null $google_linked_at
+ * @property \Illuminate\Support\Carbon|null $whatsapp_opt_in_at
+ * @property string|null $whatsapp_opt_in_number
+ * @property \Illuminate\Support\Carbon|null $whatsapp_invite_dismissed_at
  * @property bool $is_active
  * @property string|null $userable_type
  * @property int|null $userable_id
@@ -83,6 +86,8 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'consent_given_at' => 'datetime',
             'google_linked_at' => 'datetime',
+            'whatsapp_opt_in_at' => 'datetime',
+            'whatsapp_invite_dismissed_at' => 'datetime',
             'password' => 'hashed',
             'is_active' => 'boolean',
         ];

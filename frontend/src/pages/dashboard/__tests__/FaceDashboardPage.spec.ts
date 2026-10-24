@@ -20,6 +20,11 @@ vi.mock('@/features/notification/components/PushSoftPrompt.vue', () => ({
   default: { name: 'PushSoftPrompt', template: '<div data-testid="push-soft-prompt-stub" />' },
 }))
 
+// La carte d'invitation WhatsApp a ses propres tests (WhatsappInviteCard.spec.ts) et dépend de Pinia.
+vi.mock('@/features/notification/components/WhatsappInviteCard.vue', () => ({
+  default: { name: 'WhatsappInviteCard', template: '<div data-testid="whatsapp-invite-card-stub" />' },
+}))
+
 vi.mock('vue-router', () => ({
   useRouter: () => mockRouter,
   RouterLink: {
