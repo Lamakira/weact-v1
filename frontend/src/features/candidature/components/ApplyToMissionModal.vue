@@ -4,6 +4,7 @@ import { X, Loader2, CheckCircle, AlertCircle, Mail, ShieldAlert } from 'lucide-
 import { useApplyToMission } from '../composables/useApplyToMission'
 import { authApi } from '@/features/auth/services/authApi'
 import { useToast } from '@/composables/useToast'
+import PushMomentCard from '@/features/notification/components/PushMomentCard.vue'
 
 /**
  * Props
@@ -12,6 +13,8 @@ const props = defineProps<{
   isOpen: boolean
   missionId: string
   missionTitle: string
+  /** Nom du Producteur de la mission (null : formulation générique de la carte push) */
+  producerName?: string | null
 }>()
 
 /**
@@ -28,6 +31,8 @@ const emit = defineEmits<{
  */
 const { isLoading, error, errorCode, isSuccess, apply, reset } = useApplyToMission()
 const toast = useToast()
+// La carte d'activation des notifications signale si elle est affichée (voir PushMomentCard).
+const pushCardVisible = ref(false)
 
 // Email verification resend state
 const isResendingVerification = ref(false)
@@ -50,6 +55,7 @@ watch(
       // Reset state when modal closes
       setTimeout(() => {
         isResendingVerification.value = false
+        pushCardVisible.value = false
         reset()
       }, 300) // Wait for animation
     }
@@ -81,9 +87,10 @@ async function handleSubmit(): Promise<void> {
       status_label: result.data.status_label,
     })
 
-    // Auto-close after showing success
+    // Auto-close after showing success, sauf si la carte d'activation des notifications est
+    // affichée à ce moment : la Face ferme alors elle-même la modale.
     setTimeout(() => {
-      emit('close')
+      if (!pushCardVisible.value) emit('close')
     }, 1500)
   }
 }
@@ -184,6 +191,22 @@ function handleBackdropClick(event: MouseEvent): void {
                 <p class="mt-2 text-muted-foreground">
                   Votre candidature a été envoyée avec succès.
                 </p>
+                <PushMomentCard
+                  class="mt-5 w-full text-left"
+                  :producer-name="producerName ?? null"
+                  scope="candidature"
+                  :scope-id="missionId"
+                  @visibility="pushCardVisible = $event"
+                />
+                <button
+                  v-if="pushCardVisible"
+                  type="button"
+                  class="mt-4 rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                  data-testid="apply-modal-close"
+                  @click="handleClose"
+                >
+                  Fermer
+                </button>
               </div>
 
               <!-- Form -->

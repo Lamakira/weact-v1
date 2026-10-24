@@ -900,6 +900,7 @@ onMounted(() => {
       :is-open="isApplyModalOpen"
       :mission-id="mission.id"
       :mission-title="mission.titre"
+      :producer-name="mission.producer && producerName !== 'Producteur' ? producerName : null"
       @close="closeApplyModal"
       @success="handleApplySuccess"
       @subscription-required="handleSubscriptionRequired"
