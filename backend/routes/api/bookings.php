@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\ActionCountController;
 use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\BookingMessageController;
 use App\Http\Controllers\Api\V1\BookingRatingController;
+use App\Http\Controllers\Api\V1\FaceResponseController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\ProductPhotoMediaController;
 use App\Http\Controllers\Api\V1\PushSubscriptionController;
@@ -73,6 +74,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (
     Route::get('/bookings/{booking}/messages', [BookingMessageController::class, 'index'])
         ->middleware('throttle:polling')
         ->name('bookings.messages.index');
+
+    // Délai de réponse de la Face, visible du seul Producteur du booking
+    Route::get('/bookings/{booking}/face-response', [FaceResponseController::class, 'booking'])
+        ->middleware('throttle:ui-read')
+        ->name('bookings.face-response');
 
     Route::post('/bookings/{booking}/messages', [BookingMessageController::class, 'store'])
         ->middleware('throttle:60,1')

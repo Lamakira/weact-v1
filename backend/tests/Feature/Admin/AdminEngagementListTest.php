@@ -10,14 +10,18 @@ use App\Enums\EscrowStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Models\Admin;
 use App\Models\Booking;
+use App\Models\BookingMessage;
 use App\Models\Candidature;
+use App\Models\Conversation;
 use App\Models\Face;
+use App\Models\Message;
 use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Tests\TestCase;
 
 class AdminEngagementListTest extends TestCase
@@ -34,6 +38,153 @@ class AdminEngagementListTest extends TestCase
 
         $this->admin = Admin::factory()->create();
         $this->adminToken = $this->admin->createToken('admin-token', ['2fa'])->plainTextToken;
+    }
+
+    // ─── FACES SANS RÉPONSE ──────────────────────────────────────
+
+    /** Fige l'horloge ; le jeton admin est recréé après le saut (son expiration est relative à sa création). */
+    private function freezeClock(): void
+    {
+        $this->travelTo(Carbon::parse('2030-10-10 12:00:00', 'UTC'));
+        $this->adminToken = $this->admin->createToken('admin-token-frozen', ['2fa'])->plainTextToken;
+    }
+
+    /** Message de chat de booking, envoyé par le Producteur (ou la Face) il y a $hoursAgo heures. */
+    private function bookingChat(Booking $booking, bool $fromFace, int $hoursAgo): void
+    {
+        BookingMessage::factory()->create([
+            'booking_id' => $booking->id,
+            'sender_id' => $fromFace ? $booking->face_id : $booking->producer_id,
+            'created_at' => now()->subHours($hoursAgo),
+        ]);
+    }
+
+    /**
+     * Fil de mission : la candidature n'a pas de User Face par défaut, il est créé à la demande
+     * pour que ses messages soient attribués.
+     */
+    private function missionChat(Candidature $candidature, bool $fromFace, int $hoursAgo): void
+    {
+        $faceUser = User::query()
+            ->where('userable_type', Face::class)
+            ->where('userable_id', $candidature->face_id)
+            ->first() ?? User::factory()->create(['userable_type' => Face::class, 'userable_id' => $candidature->face_id]);
+        $producerUser = User::query()
+            ->where('userable_type', Producer::class)
+            ->where('userable_id', $candidature->mission->producer_id)
+            ->first();
+        $conversation = Conversation::query()->firstOrCreate(['candidature_id' => $candidature->id]);
+
+        Message::factory()->create([
+            'conversation_id' => $conversation->id,
+            'sender_id' => $fromFace ? $faceUser->id : $producerUser->id,
+            'sender_type' => User::class,
+            'created_at' => now()->subHours($hoursAgo),
+        ]);
+    }
+
+    public function test_unanswered_rows_come_first_and_are_flagged(): void
+    {
+        $this->freezeClock();
+
+        // Sans réponse depuis 13 h, tournage lointain (2030-10-20)
+        $farBooking = $this->makeBookingEngagement(BookingStatus::Paid);
+        $farBooking->update(['date_debut' => '2030-10-20 10:00:00']);
+        $this->bookingChat($farBooking, false, 13);
+
+        // Sans réponse depuis 20 h, tournage plus proche (2030-10-15)
+        $nearMission = $this->makeMissionEngagement(CandidatureStatus::Accepted);
+        $nearMission->mission->update(['date_tournage' => '2030-10-15']);
+        $this->missionChat($nearMission, false, 20);
+
+        // Tournage imminent (2030-10-11), sans réponse depuis 3 h (seuil 2 h)
+        $urgentBooking = $this->makeBookingEngagement(BookingStatus::Paid);
+        $urgentBooking->update(['date_debut' => '2030-10-11 10:00:00']);
+        $this->bookingChat($urgentBooking, false, 3);
+
+        // Sans message : jamais signalé
+        $quiet = $this->makeBookingEngagement(BookingStatus::Paid);
+        $quiet->update(['date_debut' => '2030-10-25 10:00:00']);
+
+        $response = $this->withToken($this->adminToken)->getJson('/api/v1/admin/engagements');
+
+        $response->assertOk()
+            ->assertJsonPath('meta.total', 4)
+            ->assertJsonPath('meta.unanswered_count', 3)
+            ->assertJsonPath('data.0.id', "booking:{$urgentBooking->uuid}")
+            ->assertJsonPath('data.0.shoot_soon', true)
+            ->assertJsonPath('data.0.unanswered_since', now()->subHours(3)->toISOString())
+            ->assertJsonPath('data.0.shoot_starts_at', '2030-10-10T23:00:00.000000Z')
+            ->assertJsonPath('data.1.id', "mission:{$nearMission->uuid}")
+            ->assertJsonPath('data.1.shoot_soon', false)
+            ->assertJsonPath('data.1.unanswered_since', now()->subHours(20)->toISOString())
+            ->assertJsonPath('data.2.id', "booking:{$farBooking->uuid}")
+            ->assertJsonPath('data.2.unanswered_since', now()->subHours(13)->toISOString())
+            ->assertJsonPath('data.3.id', "booking:{$quiet->uuid}")
+            ->assertJsonPath('data.3.unanswered_since', null)
+            ->assertJsonPath('data.3.shoot_soon', false);
+    }
+
+    public function test_filter_by_type_unanswered(): void
+    {
+        $this->freezeClock();
+
+        $unansweredBooking = $this->makeBookingEngagement(BookingStatus::Paid);
+        $this->bookingChat($unansweredBooking, false, 14);
+        $unansweredMission = $this->makeMissionEngagement(CandidatureStatus::Accepted);
+        $this->missionChat($unansweredMission, false, 14);
+        $this->makeBookingEngagement(BookingStatus::Paid);
+        $recent = $this->makeBookingEngagement(BookingStatus::Paid);
+        $this->bookingChat($recent, false, 1); // attente trop récente
+
+        $response = $this->withToken($this->adminToken)->getJson('/api/v1/admin/engagements?type=unanswered');
+
+        $response->assertOk()->assertJsonPath('meta.total', 2);
+        $ids = collect($response->json('data'))->pluck('id')->sort()->values()->all();
+        $this->assertSame(
+            collect(["booking:{$unansweredBooking->uuid}", "mission:{$unansweredMission->uuid}"])->sort()->values()->all(),
+            $ids,
+        );
+    }
+
+    public function test_unanswered_count_ignores_filters(): void
+    {
+        $this->freezeClock();
+
+        $booking = $this->makeBookingEngagement(BookingStatus::Paid);
+        $this->bookingChat($booking, false, 14);
+        $mission = $this->makeMissionEngagement(CandidatureStatus::Accepted);
+        $this->missionChat($mission, false, 14);
+        $this->makeBookingEngagement(BookingStatus::Accepted);
+
+        $this->withToken($this->adminToken)->getJson('/api/v1/admin/engagements?type=booking')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('meta.unanswered_count', 2);
+
+        $this->withToken($this->adminToken)->getJson('/api/v1/admin/engagements?status=accepted&search=zzz-introuvable')
+            ->assertOk()
+            ->assertJsonPath('meta.total', 0)
+            ->assertJsonPath('meta.unanswered_count', 2);
+    }
+
+    public function test_reply_from_face_clears_unanswered(): void
+    {
+        $this->freezeClock();
+
+        $booking = $this->makeBookingEngagement(BookingStatus::Paid);
+        $this->bookingChat($booking, false, 20);
+        $this->bookingChat($booking, true, 1);
+        $mission = $this->makeMissionEngagement(CandidatureStatus::Accepted);
+        $this->missionChat($mission, false, 20);
+        $this->missionChat($mission, true, 1);
+
+        $response = $this->withToken($this->adminToken)->getJson('/api/v1/admin/engagements');
+
+        $response->assertOk()->assertJsonPath('meta.unanswered_count', 0);
+        foreach ($response->json('data') as $row) {
+            $this->assertNull($row['unanswered_since']);
+        }
     }
 
     // ─── INCLUSION / UNIFIED SHAPE ───────────────────────────────

@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Services\BookingService;
 use Illuminate\Console\Command;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Event;
 use RuntimeException;
 use Tests\TestCase;
@@ -307,6 +308,8 @@ class BookingExpiryTest extends TestCase
 
     public function test_booking_service_expire_unaccepted_expires_pending_booking_when_shooting_started_earlier_today(): void
     {
+        // Midi, heure du Bénin : l'heure limite du jour de tournage (8 h) est passée
+        $this->travelTo(Carbon::parse('2030-06-14 12:00', 'Africa/Porto-Novo'));
         Event::fake([BookingExpired::class]);
 
         $booking = Booking::factory()->pending()->create([

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\FaceResponseController;
 use App\Http\Controllers\Api\V1\Producer\BasicInfoController;
 use App\Http\Controllers\Api\V1\Producer\CandidatureController;
 use App\Http\Controllers\Api\V1\Producer\ConversationController;
@@ -179,6 +180,9 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
         ->middleware('producer');
     Route::get('/conversations/{conversation}', [ConversationController::class, 'show'])
         ->middleware('throttle:ui-read');
+    Route::get('/conversations/{conversation}/face-response', [FaceResponseController::class, 'conversation'])
+        ->middleware('throttle:ui-read')
+        ->name('producer.conversations.face-response');
     Route::post('/conversations/{conversation}/read', [ConversationController::class, 'markRead'])
         ->middleware('throttle:60,1');
     Route::post('/conversations/{conversation}/messages', [MessageController::class, 'store'])
