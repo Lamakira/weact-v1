@@ -1522,6 +1522,8 @@ class MissionPaymentService
                 'data' => [
                     'mission_title' => $accepted->mission?->titre,
                     'candidature_id' => $accepted->id,
+                    // Place payée par le Producteur (hybride) : seul cas annoncé par WhatsApp.
+                    'place_paid' => true,
                     'message' => 'Votre candidature a été acceptée — confirmez votre participation.',
                     'url' => "/face/missions/{$accepted->mission?->uuid}",
                 ],

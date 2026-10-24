@@ -8,6 +8,7 @@ use App\Models\Admin;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\Whatsapp\WhatsappService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Carbon;
@@ -85,6 +86,12 @@ class UserResource extends JsonResource
         // of a booking (rendered through this same resource) must not learn.
         if ($isOwner) {
             $data['has_password'] = $this->password !== null;
+        }
+
+        // Only on the explicit owner payload (login, register, Google, /user), never on the
+        // booking / list renderings where the viewer merely happens to be the account.
+        if ($this->renderedForOwner) {
+            $data['whatsapp_alerts'] = app(WhatsappService::class)->alertsPayload($this->resource);
         }
 
         return $data;

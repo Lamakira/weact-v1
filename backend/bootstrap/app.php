@@ -13,6 +13,7 @@ use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\EnsureUserIsFace;
 use App\Http\Middleware\EnsureUserIsFaceOrProducer;
 use App\Http\Middleware\EnsureUserIsProducer;
+use App\Http\Middleware\EnsureWhatsappAvailable;
 use App\Http\Middleware\ResolvePublicViewer;
 use App\Http\Middleware\SetLocale;
 use App\Http\Middleware\ThrottleRequestsWithBypass;
@@ -71,6 +72,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'superadmin' => EnsureSuperAdmin::class,
             'face' => EnsureUserIsFace::class,
             'google.enabled' => EnsureGoogleOAuthEnabled::class,
+            'whatsapp.available' => EnsureWhatsappAvailable::class,
             'face_or_producer' => EnsureUserIsFaceOrProducer::class,
             'producer' => EnsureUserIsProducer::class,
             'verified' => EnsureEmailIsVerified::class,
