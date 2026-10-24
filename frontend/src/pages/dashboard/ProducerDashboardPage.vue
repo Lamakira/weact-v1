@@ -24,6 +24,7 @@ import UnreadMessagesPanel from '@/features/dashboard/components/producer/Unread
 import ActiveMissionsPanel from '@/features/dashboard/components/producer/ActiveMissionsPanel.vue'
 import ReputationPanel from '@/features/dashboard/components/producer/ReputationPanel.vue'
 import PushSoftPrompt from '@/features/notification/components/PushSoftPrompt.vue'
+import WhatsappInviteCard from '@/features/notification/components/WhatsappInviteCard.vue'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -114,6 +115,9 @@ const publicProfileSlug = computed(() => {
 
     <!-- Invite web push (une fois, fermable) -->
     <PushSoftPrompt audience="producer" />
+
+    <!-- Invite alertes WhatsApp (numéro déjà enregistré, une seule fois) -->
+    <WhatsappInviteCard audience="producer" />
 
     <div
       class="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start"

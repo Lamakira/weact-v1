@@ -119,6 +119,7 @@ const lastUpdate = '4 avril 2026'
         <ul class="list-disc pl-5 mt-2 space-y-1">
           <li><span class="font-medium">Les autres utilisateurs :</span> les Producteurs ont accès aux profils publics des Faces dans le cadre des missions de casting</li>
           <li><span class="font-medium">Les prestataires techniques :</span> hébergement, services de paiement, services email (sous contrat de sous-traitance conforme à l'article 386)</li>
+          <li><span class="font-medium">Meta Platforms Ireland Ltd (WhatsApp) :</span> envoi des alertes WhatsApp aux utilisateurs qui les ont activées (numéro WhatsApp, prénom, contenu de l'alerte)</li>
           <li><span class="font-medium">Les autorités compétentes :</span> sur demande judiciaire ou administrative conforme à la loi</li>
         </ul>
         <p class="mt-2 font-medium">Vos données ne sont jamais vendues à des tiers.</p>

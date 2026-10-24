@@ -2,6 +2,7 @@
 import { reactive, watch } from 'vue'
 import type { PersonalInfoInfo } from '../types'
 import { FloatingField, FloatingSelect } from '@/components/ui/form'
+import WhatsappAlertsToggle from '@/features/notification/components/WhatsappAlertsToggle.vue'
 import { Users, Calendar, Globe, MapPin, Phone } from 'lucide-vue-next'
 
 const props = defineProps<{
@@ -127,6 +128,12 @@ const handleSubmit = () => {
       label="Numéro WhatsApp"
       :icon="Phone"
       data-testid="whatsapp-number-input"
+    />
+
+    <!-- Alertes WhatsApp (reflète le numéro enregistré, pas la saisie) -->
+    <WhatsappAlertsToggle
+      :typed-number="form.whatsapp_number"
+      :saved-number="props.personalInfo?.whatsapp_number ?? null"
     />
 
     <!-- Show age toggle -->
