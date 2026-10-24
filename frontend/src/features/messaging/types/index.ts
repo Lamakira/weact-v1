@@ -199,3 +199,14 @@ export interface ConversationUpdatedBroadcast {
 export interface MarkReadResponse {
   data: { marked: number; unread_conversations_count?: number }
 }
+
+// Données de GET /bookings/{id}/face-response et /producer/conversations/{id}/face-response
+export interface FaceResponseNotice {
+  face_first_name: string
+  /** Délai (minutes) avant l'e-mail « message non lu » : 60, ou 15 si le tournage est proche. */
+  unread_email_after_minutes: number
+  urgent: boolean
+  /** Médiane des délais de réponse sur 90 jours ; null sans assez d'historique. */
+  typical_response_minutes: number | null
+  overdue: boolean
+}
