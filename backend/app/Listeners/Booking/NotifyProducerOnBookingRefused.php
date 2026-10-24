@@ -32,6 +32,8 @@ class NotifyProducerOnBookingRefused
                         ? "{$faceName} n'est plus disponible sur ces dates : votre demande a été refusée automatiquement."
                         : "{$faceName} a refusé votre booking",
                     'booking_id' => $booking->id,
+                    // Refus automatique (Face indisponible) : pas d'alerte WhatsApp « a décliné », qui serait inexacte.
+                    'automatic' => $event->automatic,
                     'url' => "/producer/bookings/{$booking->uuid}",
                 ],
             ]);

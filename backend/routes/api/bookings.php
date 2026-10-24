@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\ProductPhotoMediaController;
 use App\Http\Controllers\Api\V1\PushSubscriptionController;
 use App\Http\Controllers\Api\V1\WalletController;
+use App\Http\Controllers\Api\V1\WhatsappAlertsController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (): void {
@@ -122,6 +123,15 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (
     Route::delete('/me/push-subscriptions', [PushSubscriptionController::class, 'destroy'])
         ->middleware('throttle:30,1')
         ->name('me.push-subscriptions.destroy');
+
+    // Alertes WhatsApp (Face + Producer) : 404 tant que la fonctionnalité n'est pas disponible
+    Route::put('/me/whatsapp-alerts', [WhatsappAlertsController::class, 'update'])
+        ->middleware(['whatsapp.available', 'face_or_producer', 'throttle:30,1'])
+        ->name('me.whatsapp-alerts.update');
+
+    Route::post('/me/whatsapp-alerts/dismiss-invite', [WhatsappAlertsController::class, 'dismissInvite'])
+        ->middleware(['whatsapp.available', 'face_or_producer', 'throttle:30,1'])
+        ->name('me.whatsapp-alerts.dismiss-invite');
 
     // Wallet (Face + Producer read access)
     Route::get('/wallet', [WalletController::class, 'index'])

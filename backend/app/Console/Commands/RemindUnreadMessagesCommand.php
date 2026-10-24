@@ -13,6 +13,7 @@ use App\Models\Face;
 use App\Models\Message;
 use App\Models\User;
 use App\Services\Messaging\FaceResponsiveness;
+use App\Services\Whatsapp\WhatsappService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -211,12 +212,22 @@ class RemindUnreadMessagesCommand extends Command
 
         try {
             $role = $recipient->userable_type === Face::class ? 'face' : 'producer';
+            $path = "{$role}/conversations/{$threadUuid}".($type === self::TYPE_BOOKING ? '?kind=booking' : '');
+            $displayName = is_string($senderName) && $senderName !== '' ? $senderName : 'Votre interlocuteur';
+
+            // Destinataire inscrit aux alertes WhatsApp : le message part là, À LA PLACE de l'e-mail.
+            // Si Meta refuse ou ne répond pas, l'e-mail part comme avant.
+            if (app(WhatsappService::class)->sendUnreadMessage($recipient, $displayName, $contextLabel, $path, "unread_message:{$type}:{$threadId}")) {
+                $this->sent++;
+
+                return;
+            }
 
             Mail::to($email)->queue(new UnreadMessagesMail(
-                is_string($senderName) && $senderName !== '' ? $senderName : 'Votre interlocuteur',
+                $displayName,
                 $unreadCount,
                 $contextLabel,
-                rtrim((string) config('app.frontend_url'), '/')."/{$role}/conversations/{$threadUuid}".($type === self::TYPE_BOOKING ? '?kind=booking' : ''),
+                rtrim((string) config('app.frontend_url'), '/').'/'.$path,
             ));
 
             $this->sent++;
