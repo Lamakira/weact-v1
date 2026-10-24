@@ -9,7 +9,9 @@ use App\Enums\CandidatureStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\Candidature;
+use App\Services\Messaging\FaceResponsiveness;
 use App\Support\Whatsapp;
+use Carbon\CarbonInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -26,12 +28,21 @@ use Illuminate\Support\Collection;
  * SQL UNION across tables with divergent columns, and it sidesteps constraining
  * the `User` morphTo (userable) relation inside whereHas for search. If either
  * source ever approaches the cap, move this to a DB-level union/cursor.
+ *
+ * Unanswered Faces: each row carries `unanswered_since` (set only when the Face has
+ * not answered the Producer for 12 h, 2 h when the shoot is near — rules in
+ * FaceResponsiveness, computed in bulk with one aggregated query per source),
+ * `shoot_starts_at` and `shoot_soon`. Unanswered rows are sorted first (nearest shoot,
+ * then oldest wait); the `type=unanswered` filter keeps only them; `meta.unanswered_count`
+ * is computed before the type / status / search filters.
  */
 class AdminEngagementController extends Controller
 {
     private const PER_PAGE = 20;
 
     private const MAX_PER_SOURCE = 1000;
+
+    public function __construct(private readonly FaceResponsiveness $responsiveness) {}
 
     /**
      * Booking statuses that represent an active (non-terminal) engagement.
@@ -69,27 +80,33 @@ class AdminEngagementController extends Controller
             ? mb_strtolower(trim($request->query('search')))
             : null;
 
+        // Les deux sources sont toujours chargées : le compteur « sans réponse » ignore le filtre de type
+        $bookings = Booking::with(['face.userable', 'producer.userable'])
+            ->whereIn('status', array_map(fn (BookingStatus $s) => $s->value, self::BOOKING_STATUSES))
+            ->orderByDesc('updated_at')
+            ->limit(self::MAX_PER_SOURCE)
+            ->get();
+
+        $candidatures = Candidature::with(['face', 'mission.producer', 'paymentEntry'])
+            ->whereIn('status', array_map(fn (CandidatureStatus $s) => $s->value, self::CANDIDATURE_STATUSES))
+            ->orderByDesc('updated_at')
+            ->limit(self::MAX_PER_SOURCE)
+            ->get();
+
+        $pendingByBooking = $this->responsiveness->pendingSinceForBookings($bookings->pluck('id')->all());
+        $pendingByCandidature = $this->responsiveness->pendingSinceForCandidatures($candidatures->pluck('id')->all());
+
         /** @var Collection<int, array<string, mixed>> $rows */
-        $rows = collect();
+        $rows = $bookings
+            ->map(fn (Booking $booking) => $this->mapBooking($booking, $pendingByBooking[$booking->id] ?? null))
+            ->concat($candidatures->map(fn (Candidature $candidature) => $this->mapCandidature($candidature, $pendingByCandidature[$candidature->id] ?? null)));
 
-        if ($type !== 'mission') {
-            $bookings = Booking::with(['face.userable', 'producer.userable'])
-                ->whereIn('status', array_map(fn (BookingStatus $s) => $s->value, self::BOOKING_STATUSES))
-                ->orderByDesc('updated_at')
-                ->limit(self::MAX_PER_SOURCE)
-                ->get();
+        $unansweredCount = $rows->filter(fn (array $row) => $row['unanswered_since'] !== null)->count();
 
-            $rows = $rows->concat($bookings->map(fn (Booking $booking) => $this->mapBooking($booking)));
-        }
-
-        if ($type !== 'booking') {
-            $candidatures = Candidature::with(['face', 'mission.producer', 'paymentEntry'])
-                ->whereIn('status', array_map(fn (CandidatureStatus $s) => $s->value, self::CANDIDATURE_STATUSES))
-                ->orderByDesc('updated_at')
-                ->limit(self::MAX_PER_SOURCE)
-                ->get();
-
-            $rows = $rows->concat($candidatures->map(fn (Candidature $candidature) => $this->mapCandidature($candidature)));
+        if ($type === 'unanswered') {
+            $rows = $rows->filter(fn (array $row) => $row['unanswered_since'] !== null);
+        } elseif ($type === 'booking' || $type === 'mission') {
+            $rows = $rows->filter(fn (array $row) => $row['type'] === $type);
         }
 
         if ($statusFilter !== null) {
@@ -108,7 +125,13 @@ class AdminEngagementController extends Controller
             });
         }
 
-        $rows = $rows->sortByDesc('engaged_since')->values();
+        // Sans réponse d'abord (tournage le plus proche, puis attente la plus ancienne), le reste par engagement récent.
+        // Les dates ISO UTC de même format se comparent comme des chaînes ; null (pas de tournage) en dernier.
+        $unanswered = $rows->filter(fn (array $row) => $row['unanswered_since'] !== null)
+            ->sort(fn (array $a, array $b) => [$a['shoot_starts_at'] === null, $a['shoot_starts_at'], $a['unanswered_since']]
+                <=> [$b['shoot_starts_at'] === null, $b['shoot_starts_at'], $b['unanswered_since']]);
+        $others = $rows->filter(fn (array $row) => $row['unanswered_since'] === null)->sortByDesc('engaged_since');
+        $rows = $unanswered->concat($others)->values();
 
         $total = $rows->count();
         $lastPage = max(1, (int) ceil($total / self::PER_PAGE));
@@ -122,6 +145,7 @@ class AdminEngagementController extends Controller
                 'last_page' => $lastPage,
                 'per_page' => self::PER_PAGE,
                 'total' => $total,
+                'unanswered_count' => $unansweredCount,
             ],
         ]);
     }
@@ -134,7 +158,7 @@ class AdminEngagementController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function mapBooking(Booking $booking): array
+    private function mapBooking(Booking $booking, ?CarbonInterface $pendingSince): array
     {
         $faceProfile = $booking->face?->userable;
         $producerProfile = $booking->producer?->userable;
@@ -142,7 +166,7 @@ class AdminEngagementController extends Controller
         $faceName = $faceProfile?->display_name;
         $producerName = $producerProfile?->display_name;
 
-        return [
+        return $this->withResponsiveness([
             'id' => "booking:{$booking->uuid}",
             'type' => 'booking',
             'status' => $booking->status->value,
@@ -163,7 +187,7 @@ class AdminEngagementController extends Controller
                 'date' => $booking->date_debut?->toISOString(),
                 'detail_id' => null,
             ],
-        ];
+        ], $booking->shootingDayStartsAt(), $pendingSince);
     }
 
     /**
@@ -175,7 +199,7 @@ class AdminEngagementController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function mapCandidature(Candidature $candidature): array
+    private function mapCandidature(Candidature $candidature, ?CarbonInterface $pendingSince): array
     {
         $face = $candidature->face;
         $mission = $candidature->mission;
@@ -183,7 +207,7 @@ class AdminEngagementController extends Controller
         $faceName = $face?->display_name;
         $producerName = $mission?->producer?->display_name;
 
-        return [
+        return $this->withResponsiveness([
             'id' => "mission:{$candidature->uuid}",
             'type' => 'mission',
             'status' => $candidature->status->value,
@@ -204,6 +228,24 @@ class AdminEngagementController extends Controller
                 'date' => $mission?->date_tournage?->toISOString(),
                 'detail_id' => $mission?->uuid,
             ],
+        ], $mission?->shootingDayStartsAt(), $pendingSince);
+    }
+
+    /**
+     * Ajoute à une ligne les champs de délai de réponse : `unanswered_since` n'est renseigné
+     * que si la Face est en retard (12 h, 2 h si le tournage est proche).
+     *
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function withResponsiveness(array $row, ?CarbonInterface $shootStart, ?CarbonInterface $pendingSince): array
+    {
+        $urgent = $this->responsiveness->isUrgent($shootStart);
+
+        return $row + [
+            'unanswered_since' => $this->responsiveness->isOverdue($pendingSince, $urgent) ? $pendingSince?->toISOString() : null,
+            'shoot_starts_at' => $shootStart?->toISOString(),
+            'shoot_soon' => $urgent,
         ];
     }
 

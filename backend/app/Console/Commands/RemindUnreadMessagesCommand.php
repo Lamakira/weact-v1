@@ -12,6 +12,7 @@ use App\Models\Conversation;
 use App\Models\Face;
 use App\Models\Message;
 use App\Models\User;
+use App\Services\Messaging\FaceResponsiveness;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -20,17 +21,15 @@ use Illuminate\Support\Facades\Mail;
 use Throwable;
 
 /**
- * E-mail « message non lu » : un message resté non lu plus d'1 heure déclenche au plus UN
- * e-mail par fil (conversation de mission ou chat de booking) et par destinataire sur 24 h.
+ * E-mail « message non lu » : un message resté non lu plus d'1 heure (15 minutes quand le tournage
+ * du fil est proche, cf. FaceResponsiveness) déclenche au plus UN e-mail par fil (conversation de
+ * mission ou chat de booking) et par destinataire sur 24 h. Vaut dans les deux sens (Face et Producteur).
  *
  * Le dernier envoi est mémorisé dans `message_unread_email_logs` (une ligne par destinataire
  * et par fil) ; la ligne sert aussi de verrou atomique entre deux exécutions concurrentes.
  */
 class RemindUnreadMessagesCommand extends Command
 {
-    /** Ancienneté minimale d'un message non lu pour déclencher l'e-mail. */
-    private const UNREAD_AFTER_HOURS = 1;
-
     /** Délai minimal entre deux e-mails pour un même fil et un même destinataire. */
     private const COOLDOWN_HOURS = 24;
 
@@ -47,15 +46,19 @@ class RemindUnreadMessagesCommand extends Command
 
     protected $signature = 'messages:remind-unread';
 
-    protected $description = 'Send an email to users whose messages stayed unread for more than 1 hour (max 1 email per thread and recipient per 24 hours)';
+    protected $description = 'Send an email to users whose messages stayed unread for more than 1 hour, or 15 minutes when the shoot is near (max 1 email per thread and recipient per 24 hours)';
 
     private int $sent = 0;
 
     private int $failed = 0;
 
-    public function handle(): int
+    private FaceResponsiveness $responsiveness;
+
+    public function handle(FaceResponsiveness $responsiveness): int
     {
-        $threshold = now()->subHours(self::UNREAD_AFTER_HOURS);
+        $this->responsiveness = $responsiveness;
+        // Seuil le plus court : chaque fil applique ensuite son propre seuil (tournage proche ou non)
+        $threshold = now()->subMinutes(FaceResponsiveness::URGENT_UNREAD_EMAIL_AFTER_MINUTES);
         $oldest = now()->subHours(self::HISTORY_HOURS);
 
         Message::query()
@@ -65,14 +68,14 @@ class RemindUnreadMessagesCommand extends Command
             ->orderBy('conversation_id')
             ->pluck('conversation_id')
             ->chunk(100)
-            ->each(function ($ids) use ($threshold, $oldest): void {
+            ->each(function ($ids) use ($oldest): void {
                 $conversations = Conversation::query()
                     ->whereIn('id', $ids)
                     ->with(['candidature.face.user', 'candidature.mission.producer.user'])
                     ->get();
 
                 foreach ($conversations as $conversation) {
-                    $this->remindConversation($conversation, $threshold, $oldest);
+                    $this->remindConversation($conversation, $oldest);
                 }
             });
 
@@ -83,14 +86,14 @@ class RemindUnreadMessagesCommand extends Command
             ->orderBy('booking_id')
             ->pluck('booking_id')
             ->chunk(100)
-            ->each(function ($ids) use ($threshold, $oldest): void {
+            ->each(function ($ids) use ($oldest): void {
                 $bookings = Booking::query()
                     ->whereIn('id', $ids)
                     ->with(['face.userable', 'producer.userable'])
                     ->get();
 
                 foreach ($bookings as $booking) {
-                    $this->remindBooking($booking, $threshold, $oldest);
+                    $this->remindBooking($booking, $oldest);
                 }
             });
 
@@ -99,9 +102,10 @@ class RemindUnreadMessagesCommand extends Command
         return self::SUCCESS;
     }
 
-    private function remindConversation(Conversation $conversation, \DateTimeInterface $threshold, \DateTimeInterface $oldest): void
+    private function remindConversation(Conversation $conversation, \DateTimeInterface $oldest): void
     {
         $candidature = $conversation->candidature;
+        $threshold = $this->threadThreshold($candidature?->mission?->shootingDayStartsAt());
         $faceUser = $candidature?->face?->user;
         $producerUser = $candidature?->mission?->producer?->user;
         // Noms lus sur les profils déjà chargés : aucune requête par destinataire
@@ -139,8 +143,10 @@ class RemindUnreadMessagesCommand extends Command
         }
     }
 
-    private function remindBooking(Booking $booking, \DateTimeInterface $threshold, \DateTimeInterface $oldest): void
+    private function remindBooking(Booking $booking, \DateTimeInterface $oldest): void
     {
+        $threshold = $this->threadThreshold($booking->shootingDayStartsAt());
+
         foreach ([[$booking->face, $booking->producer], [$booking->producer, $booking->face]] as [$recipient, $sender]) {
             if ($recipient === null || $sender === null) {
                 continue;
@@ -171,6 +177,12 @@ class RemindUnreadMessagesCommand extends Command
                 $booking->uuid,
             );
         }
+    }
+
+    /** Seuil propre au fil : maintenant moins le délai « non lu » (15 min si tournage proche, 60 min sinon). */
+    private function threadThreshold(?\Carbon\CarbonInterface $shootStart): \Illuminate\Support\Carbon
+    {
+        return now()->subMinutes($this->responsiveness->unreadEmailAfterMinutes($shootStart));
     }
 
     /**

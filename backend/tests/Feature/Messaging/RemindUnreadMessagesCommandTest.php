@@ -63,13 +63,13 @@ class RemindUnreadMessagesCommandTest extends TestCase
         parent::tearDown();
     }
 
-    private function conversation(): Conversation
+    private function conversation(?string $dateTournage = null): Conversation
     {
         $mission = Mission::factory()->create([
             'producer_id' => $this->producer->id,
             'status' => MissionStatus::Published,
             'titre' => 'Lookbook Wax',
-        ]);
+        ] + ($dateTournage !== null ? ['date_tournage' => $dateTournage] : []));
         $candidature = Candidature::factory()->create([
             'mission_id' => $mission->id,
             'face_id' => $this->face->id,
@@ -91,14 +91,14 @@ class RemindUnreadMessagesCommandTest extends TestCase
         ]);
     }
 
-    private function booking(BookingStatus $status = BookingStatus::Paid): Booking
+    private function booking(BookingStatus $status = BookingStatus::Paid, string $dateDebut = '2030-12-05 10:00:00'): Booking
     {
         return Booking::factory()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
             'status' => $status,
             'type_contenu' => 'Clip musical',
-            'date_debut' => Carbon::parse('2030-12-05 10:00:00', 'UTC'),
+            'date_debut' => Carbon::parse($dateDebut, 'UTC'),
         ]);
     }
 
@@ -317,14 +317,69 @@ class RemindUnreadMessagesCommandTest extends TestCase
         Mail::assertNothingQueued();
     }
 
-    public function test_command_is_scheduled_every_fifteen_minutes_without_overlapping(): void
+    public function test_urgent_conversation_email_is_sent_after_fifteen_minutes(): void
+    {
+        // Tournage le 2030-10-11 (00:00 Porto-Novo = 10-10 23:00 UTC) : dans les 48 h
+        $conversation = $this->conversation('2030-10-11');
+        $this->message($conversation, $this->producerUser, 14);
+
+        $this->runCommand();
+        Mail::assertNothingQueued();
+
+        $this->message($conversation, $this->producerUser, 16);
+        $this->runCommand();
+
+        Mail::assertQueued(UnreadMessagesMail::class, 1);
+        $this->assertSame(1, $this->queuedFor($this->faceUser));
+    }
+
+    public function test_non_urgent_conversation_email_is_not_sent_after_twenty_minutes(): void
+    {
+        // Date de tournage figée loin dans le futur : fenêtre « 1 h » classique
+        $conversation = $this->conversation('2030-12-05');
+        $this->message($conversation, $this->producerUser, 20);
+
+        $this->runCommand();
+
+        Mail::assertNothingQueued();
+    }
+
+    public function test_urgent_booking_email_is_sent_after_fifteen_minutes(): void
+    {
+        $booking = $this->booking(BookingStatus::Paid, '2030-10-11 10:00:00');
+        $this->bookingMessage($booking, $this->producerUser, 14);
+
+        $this->runCommand();
+        Mail::assertNothingQueued();
+
+        $this->bookingMessage($booking, $this->producerUser, 16);
+        $this->runCommand();
+
+        Mail::assertQueued(UnreadMessagesMail::class, 1);
+        $this->assertSame(1, $this->queuedFor($this->faceUser));
+    }
+
+    public function test_finished_shoot_day_is_not_urgent(): void
+    {
+        // Jour de tournage terminé depuis plus de 24 h : retour au délai d'1 h
+        $conversation = $this->conversation('2030-10-08');
+        $this->message($conversation, $this->producerUser, 20);
+        $booking = $this->booking(BookingStatus::Paid, '2030-10-08 10:00:00');
+        $this->bookingMessage($booking, $this->producerUser, 20);
+
+        $this->runCommand();
+
+        Mail::assertNothingQueued();
+    }
+
+    public function test_command_is_scheduled_every_five_minutes_without_overlapping(): void
     {
 
         $event = collect(app(\Illuminate\Console\Scheduling\Schedule::class)->events())
             ->first(fn ($e) => str_contains((string) $e->command, 'messages:remind-unread'));
 
         $this->assertNotNull($event);
-        $this->assertSame('*/15 * * * *', $event->expression);
+        $this->assertSame('*/5 * * * *', $event->expression);
         $this->assertTrue($event->withoutOverlapping);
     }
 }
