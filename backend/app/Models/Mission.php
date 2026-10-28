@@ -536,6 +536,16 @@ class Mission extends Model
     }
 
     /**
+     * Peut-on ajouter des places ? UGC publiée ou fermée (pleine), jamais remboursée.
+     */
+    public function canAddPlaces(): bool
+    {
+        return $this->type_mission === MissionType::Ugc
+            && in_array($this->status, [MissionStatus::Published, MissionStatus::Closed], true)
+            && $this->commission_refunded_at === null;
+    }
+
+    /**
      * Le Producteur propriétaire est-il actif ? (gardes détail/apply, story 3.0)
      * Query dédiée — ne PAS loadMissing('producer.user') : ProducerResource
      * exposerait is_active via whenLoaded('user') (contrat API, D-3.0.d).
