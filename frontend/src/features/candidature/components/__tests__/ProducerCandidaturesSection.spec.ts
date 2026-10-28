@@ -522,6 +522,8 @@ describe('ProducerCandidaturesSection', () => {
 
       expect(wrapper.emitted('request-add-place')).toBeUndefined()
       expect(mockAcceptCandidature).toHaveBeenCalledWith('cand-1')
+      // La page relit la mission (places prises, clôture à capacité).
+      expect(wrapper.emitted('capacity-changed')).toHaveLength(1)
     })
 
     it('expose acceptCandidature (utilisé par la page après l\'ajout de place)', async () => {

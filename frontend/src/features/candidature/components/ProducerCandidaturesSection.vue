@@ -60,6 +60,8 @@ const emit = defineEmits<{
   rated: []
   /** Mission pleine : le Producteur veut accepter cette candidature, la page propose d'ajouter une place. */
   'request-add-place': [payload: { id: string; faceName: string }]
+  /** Acceptation UGC (ou refus « mission pleine ») : places prises et statut de la mission ont pu changer. */
+  'capacity-changed': []
 }>()
 
 /**
@@ -263,11 +265,13 @@ async function handleAccept(candidatureId: string): Promise<void> {
   if (result) {
     toast.success(acceptSuccessMessage.value || 'Candidature acceptée')
     await refresh()
+    emit('capacity-changed')
   } else {
     toast.error(acceptError.value || "Erreur lors de l'acceptation")
     // Resync capacity / auto-close on capacity errors (AC9)
     if (['MISSION_FULL', 'ALREADY_ACCEPTED'].includes(acceptErrorCode.value ?? '')) {
       await refresh()
+      emit('capacity-changed')
     }
   }
 

@@ -61,6 +61,7 @@ import {
   type PrimaryAction,
 } from '@/features/mission/utils/missionDetailModel'
 import { isUgcMission, type Mission } from '@/features/mission/types'
+import { missionApi } from '@/features/mission/services/missionApi'
 
 // Pas de keep-alive sur cette route : KeepAliveRouterView met en cache par nom de route,
 // toutes les missions partageraient la même page en cache.
@@ -339,6 +340,17 @@ async function handlePlacesAdded(places: number, updated?: Mission): Promise<voi
     // (directe en produit seul, fenêtre de paiement en hybride).
     await nextTick()
     await sectionRef.value?.acceptCandidature(target.id)
+  }
+}
+
+// Après une acceptation, relit la mission sans spinner (places prises, auto-clôture à capacité) :
+// fetchMission() démonterait la section des candidatures.
+async function refreshMissionSilently(): Promise<void> {
+  try {
+    const response = await missionApi.getMission(missionId.value)
+    mission.value = response.data
+  } catch {
+    // Relecture silencieuse : l'état affiché reste en place, un rechargement le corrigera.
   }
 }
 
@@ -686,6 +698,7 @@ function goToEdit(): void {
                   :can-replace-freed-place="mission.can_replace_freed_place === true"
                   :mission-full="missionFull"
                   @request-add-place="openAddPlaces"
+                  @capacity-changed="refreshMissionSilently"
                   @freed-place-replaced="fetchMission"
                   @rated="fetchMission"
                   @selection-confirmed="handleSelectionConfirmed"
