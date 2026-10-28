@@ -812,6 +812,7 @@ function goToEdit(): void {
       :deadline="mission.date_limite_candidature"
       :mode="addPlacesTarget ? 'card' : 'menu'"
       :face-name="addPlacesTarget?.faceName ?? ''"
+      :is-closed="mission.status === 'closed'"
       @cancel="closeAddPlaces"
       @added="handlePlacesAdded"
     />

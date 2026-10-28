@@ -44,6 +44,16 @@ describe('AddPlacesDialog', () => {
     expect(text()).toContain('La mission passera à 4 places.')
   })
 
+  it('mission fermée : annonce la réouverture ; publiée : non', async () => {
+    renderDialog({ isClosed: true })
+    expect(text()).toContain('La mission est rouverte : vous pouvez accepter les candidatures en attente.')
+
+    document.body.innerHTML = ''
+    renderDialog({ isClosed: false })
+    expect(text()).not.toContain('La mission est rouverte')
+    expect(text()).toContain("Vous pouvez accepter d'autres candidatures en attente.")
+  })
+
   it('produit seul : message sans frais', () => {
     renderDialog({ isHybrid: false })
 

@@ -24,10 +24,13 @@ interface Props {
   /** `card` : raccourci depuis une carte de candidature (1 place, pas de compteur). */
   mode?: 'menu' | 'card'
   faceName?: string
+  /** Mission fermée : l'ajout la rouvre. */
+  isClosed?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   deadline: null,
+  isClosed: false,
   mode: 'menu',
   faceName: '',
 })
@@ -210,7 +213,8 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
             </li>
             <li class="flex gap-2">
               <Check class="mt-0.5 h-4 w-4 shrink-0 text-weact-600" aria-hidden="true" />
-              <span>La mission est rouverte : vous pouvez accepter les candidatures en attente.</span>
+              <span v-if="isClosed">La mission est rouverte : vous pouvez accepter les candidatures en attente.</span>
+              <span v-else>Vous pouvez accepter d'autres candidatures en attente.</span>
             </li>
             <li class="flex gap-2" data-testid="add-places-line-deadline">
               <Check class="mt-0.5 h-4 w-4 shrink-0 text-weact-600" aria-hidden="true" />
