@@ -82,6 +82,9 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
         ->middleware('throttle:60,1');
     Route::post('/missions/{mission}/reopen', [MissionController::class, 'reopen'])
         ->middleware('throttle:60,1');
+    Route::post('/missions/{mission}/add-places', [MissionController::class, 'addPlaces'])
+        ->middleware('throttle:60,1')
+        ->name('producer.missions.add-places');
     Route::post('/missions/{mission}/complete', [MissionController::class, 'complete'])
         ->middleware('throttle:60,1');
     Route::get('/missions/{mission}/attendance-form', [MissionAttendanceController::class, 'show'])
