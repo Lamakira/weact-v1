@@ -19,6 +19,7 @@ const routeState = vi.hoisted(() => ({
   replace: vi.fn().mockResolvedValue(undefined),
   push: vi.fn().mockResolvedValue(undefined),
   focusFirstToRate: vi.fn(),
+  acceptCandidature: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
@@ -33,10 +34,23 @@ vi.mock('@/composables/useToast', () => ({
 vi.mock('@/features/candidature/components', () => ({
   ProducerCandidaturesSection: defineComponent({
     name: 'ProducerCandidaturesSectionStub',
-    props: { missionId: { type: String, required: true } },
-    setup(_props, { expose }) {
-      expose({ openCandidaturePayment: vi.fn(), focusFirstToRate: routeState.focusFirstToRate })
-      return () => h('div', { 'data-testid': 'candidatures-section-stub' })
+    props: { missionId: { type: String, required: true }, missionFull: { type: Boolean, default: false } },
+    emits: ['request-add-place'],
+    setup(props, { expose, emit }) {
+      expose({
+        openCandidaturePayment: vi.fn(),
+        focusFirstToRate: routeState.focusFirstToRate,
+        acceptCandidature: routeState.acceptCandidature,
+      })
+      return () =>
+        h(
+          'div',
+          { 'data-testid': 'candidatures-section-stub', 'data-full': String(props.missionFull) },
+          h('button', {
+            'data-testid': 'stub-accept',
+            onClick: () => emit('request-add-place', { id: 'cand-1', faceName: 'Aïcha' }),
+          }),
+        )
     },
   }),
 }))
@@ -73,6 +87,7 @@ vi.mock('@/features/mission/services/missionApi', () => ({
     getCommissionStatus: vi.fn(),
     confirmSelection: vi.fn(),
     cancelSelection: vi.fn(),
+    addPlaces: vi.fn(),
   },
 }))
 
@@ -551,5 +566,101 @@ describe('ProducerMissionDetailPage — « Et ensuite ? » et paiement', () => {
     expect(w.get('[data-testid="mission-next-headline"]').text()).toBe('Payez votre sélection')
     expect(w.get('[data-testid="mission-next-countdown"]').text()).toMatch(/Reste 14 h/)
     expect(w.get('[data-testid="mission-payment-status"]').text()).toBe('En attente de paiement')
+  })
+})
+
+describe('ProducerMissionDetailPage — ajouter des places (UGC)', () => {
+  async function openMenu(w: VueWrapper) {
+    await w.get('[data-testid="mission-more-menu-trigger"]').trigger('keydown', { key: 'Enter' })
+    await flushPromises()
+  }
+
+  function ugcMission(overrides: Partial<Mission> = {}, candidatures: Partial<MissionSummary['candidatures']> = {}) {
+    const base = makeSummary('recruiting')
+    return makeMission(
+      {
+        type_mission: 'ugc',
+        type_compensation: 'product',
+        nom_produit: 'Sneakers',
+        nombre_faces_voulu: 1,
+        can_add_places: true,
+        ...overrides,
+      } as Partial<Mission>,
+      makeSummary('recruiting', { candidatures: { ...base.candidatures, ...candidatures } }),
+    )
+  }
+
+  it('can_add_places : l\'entrée « Ajouter des places » est dans le menu', async () => {
+    const w = await mountPage(ugcMission({ status: 'closed' }, { confirmed: 1 }))
+    await openMenu(w)
+
+    expect(document.body.querySelector('[data-testid="mission-menu-add-places"]')).not.toBeNull()
+  })
+
+  it('sans can_add_places : pas d\'entrée « Ajouter des places »', async () => {
+    const w = await mountPage(ugcMission({ can_add_places: false }, { confirmed: 1 }))
+    await openMenu(w)
+
+    expect(document.body.querySelector('[data-testid="mission-menu-add-places"]')).toBeNull()
+  })
+
+  it('mission pleine avec des candidatures en attente : bandeau et section en mode mission pleine', async () => {
+    const w = await mountPage(ugcMission({ status: 'closed' }, { confirmed: 1, pending: 2 }))
+
+    const banner = w.get('[data-testid="mission-full-banner"]')
+    expect(banner.text()).toContain('Toutes les places sont prises (1 sur 1)')
+    expect(banner.text()).toContain('2 candidatures attendent encore votre réponse')
+    expect(w.find('[data-testid="mission-places-line"]').exists()).toBe(false)
+    expect(w.get('[data-testid="candidatures-section-stub"]').attributes('data-full')).toBe('true')
+  })
+
+  it('le bouton du bandeau ouvre la fenêtre « Ajouter des places »', async () => {
+    const w = await mountPage(ugcMission({ status: 'closed' }, { confirmed: 1, pending: 1 }))
+
+    await w.get('[data-testid="mission-full-banner-add"]').trigger('click')
+    await flushPromises()
+
+    expect(document.body.querySelector('[data-testid="add-places-dialog"]')).not.toBeNull()
+  })
+
+  it('places libres : ligne « place(s) prise(s) » au lieu du bandeau', async () => {
+    const w = await mountPage(ugcMission({ nombre_faces_voulu: 3 }, { confirmed: 1, pending: 2 }))
+
+    expect(w.find('[data-testid="mission-full-banner"]').exists()).toBe(false)
+    expect(w.get('[data-testid="mission-places-line"]').text().replace(/\s+/g, ' ')).toBe(
+      '1 place prise sur 3 · 2 places libres',
+    )
+    expect(w.get('[data-testid="candidatures-section-stub"]').attributes('data-full')).toBe('false')
+  })
+
+  it('mission pleine sans candidature en attente : ligne discrète, pas de bandeau', async () => {
+    const w = await mountPage(ugcMission({}, { confirmed: 1 }))
+
+    expect(w.find('[data-testid="mission-full-banner"]').exists()).toBe(false)
+    expect(w.get('[data-testid="mission-places-line"]').text()).toContain('1 place prise sur 1')
+  })
+
+  it('mission non UGC : ni bandeau ni ligne', async () => {
+    const w = await mountPage(makeMission({ can_add_places: false }, makeSummary('recruiting')))
+
+    expect(w.find('[data-testid="mission-full-banner"]').exists()).toBe(false)
+    expect(w.find('[data-testid="mission-places-line"]').exists()).toBe(false)
+  })
+
+  it('raccourci depuis une carte : ajoute 1 place puis accepte la candidature', async () => {
+    const updated = ugcMission({ status: 'published', nombre_faces_voulu: 2 }, { confirmed: 1, pending: 1 })
+    vi.mocked(missionApi.addPlaces).mockResolvedValue({ data: updated, message: '1 place ajoutée.' })
+    const w = await mountPage(ugcMission({ status: 'closed' }, { confirmed: 1, pending: 1 }))
+
+    await w.get('[data-testid="stub-accept"]').trigger('click')
+    await flushPromises()
+    expect(document.body.textContent).toContain('Plus de place libre')
+
+    ;(document.body.querySelector('[data-testid="add-places-confirm"]') as HTMLElement).click()
+    await flushPromises()
+
+    expect(missionApi.addPlaces).toHaveBeenCalledWith('mission-uuid-under-test', 1)
+    expect(routeState.acceptCandidature).toHaveBeenCalledWith('cand-1')
+    expect(w.get('[data-testid="candidatures-section-stub"]').attributes('data-full')).toBe('false')
   })
 })

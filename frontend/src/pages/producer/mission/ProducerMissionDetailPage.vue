@@ -14,6 +14,7 @@ import {
   Pencil,
   RefreshCw,
   Trash2,
+  UserPlus,
   XCircle,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -40,6 +41,7 @@ import { getMissionActionState } from '@/features/mission/composables/missionAct
 import DeleteMissionDialog from '@/features/mission/components/DeleteMissionDialog.vue'
 import CloseMissionDialog from '@/features/mission/components/CloseMissionDialog.vue'
 import ReopenMissionDialog from '@/features/mission/components/ReopenMissionDialog.vue'
+import AddPlacesDialog from '@/features/mission/components/AddPlacesDialog.vue'
 import CompleteMissionDialog from '@/features/mission/components/CompleteMissionDialog.vue'
 import AttendanceValidationPanel from '@/features/mission/components/AttendanceValidationPanel.vue'
 import MissionStepBar from '@/features/mission/components/MissionStepBar.vue'
@@ -58,7 +60,7 @@ import {
   type DetailContext,
   type PrimaryAction,
 } from '@/features/mission/utils/missionDetailModel'
-import { isUgcMission } from '@/features/mission/types'
+import { isUgcMission, type Mission } from '@/features/mission/types'
 
 // Pas de keep-alive sur cette route : KeepAliveRouterView met en cache par nom de route,
 // toutes les missions partageraient la même page en cache.
@@ -290,6 +292,56 @@ const isCloseDialogOpen = ref(false)
 const isReopenDialogOpen = ref(false)
 const isCompleteDialogOpen = ref(false)
 
+// ---------------------------------------------------------------------------
+// Ajouter des places (mission UGC)
+// ---------------------------------------------------------------------------
+const canAddPlaces = computed(() => mission.value?.can_add_places === true)
+const takenPlaces = computed(() => {
+  const c = summary.value?.candidatures
+  return c ? c.accepted + c.confirmed + c.in_progress + c.completed : 0
+})
+const pendingCount = computed(() => summary.value?.candidatures.pending ?? 0)
+const freePlaces = computed(() => Math.max(0, (mission.value?.nombre_faces_voulu ?? 0) - takenPlaces.value))
+const missionFull = computed(
+  () => canAddPlaces.value && takenPlaces.value >= (mission.value?.nombre_faces_voulu ?? 0),
+)
+const showFullBanner = computed(() => isUgc.value && missionFull.value && pendingCount.value > 0)
+const showPlacesLine = computed(() => isUgc.value && canAddPlaces.value && !showFullBanner.value)
+
+const isAddPlacesOpen = ref(false)
+// Mode carte : id de la candidature à accepter une fois la place ajoutée.
+const addPlacesTarget = ref<{ id: string; faceName: string } | null>(null)
+
+function openAddPlaces(target: { id: string; faceName: string } | null = null): void {
+  addPlacesTarget.value = target
+  isAddPlacesOpen.value = true
+}
+
+function closeAddPlaces(): void {
+  isAddPlacesOpen.value = false
+  addPlacesTarget.value = null
+}
+
+async function handlePlacesAdded(places: number, updated?: Mission): Promise<void> {
+  const target = addPlacesTarget.value
+  closeAddPlaces()
+  if (!target) {
+    toast.success(
+      `${places} ${places > 1 ? 'places ajoutées' : 'place ajoutée'}. Vous pouvez accepter les candidatures en attente.`,
+    )
+  }
+  // La réponse porte la mission rafraîchie (mêmes attributs que le détail) : on l'utilise telle
+  // quelle plutôt que fetchMission(), qui démonterait la section (isLoading) et perdrait sa liste.
+  if (updated) mission.value = updated
+  else await fetchMission()
+  if (target) {
+    // La section reçoit missionFull=false au prochain rendu, puis l'acceptation suit son cours
+    // (directe en produit seul, fenêtre de paiement en hybride).
+    await nextTick()
+    await sectionRef.value?.acceptCandidature(target.id)
+  }
+}
+
 // « Terminer » grisé avec la raison du serveur quand la mission est au stade où on le proposerait.
 const completeBlocked = computed(
   () =>
@@ -307,7 +359,7 @@ const hasMobileOnlyMenuItem = computed(
 const hasDesktopMenuItems = computed(() => {
   const s = actionState.value
   if (!s) return false
-  return s.canEdit || s.canClose || s.canReopen || s.canComplete || completeBlocked.value || s.canDelete
+  return canAddPlaces.value || s.canEdit || s.canClose || s.canReopen || s.canComplete || completeBlocked.value || s.canDelete
 })
 
 const hasMenu = computed(() => hasDesktopMenuItems.value || hasMobileOnlyMenuItem.value)
@@ -463,6 +515,15 @@ function goToEdit(): void {
                 Modifier la sélection
               </DropdownMenuItem>
               <DropdownMenuItem
+                v-if="canAddPlaces"
+                class="min-h-10"
+                data-testid="mission-menu-add-places"
+                @select="openAddPlaces()"
+              >
+                <UserPlus aria-hidden="true" />
+                Ajouter des places
+              </DropdownMenuItem>
+              <DropdownMenuItem
                 v-if="actionState?.canEdit"
                 class="min-h-10"
                 data-testid="mission-menu-edit"
@@ -577,6 +638,39 @@ function goToEdit(): void {
                 aria-labelledby="mission-tab-candidatures"
                 class="panel-body"
               >
+                <div
+                  v-if="showFullBanner"
+                  class="mb-4 flex flex-col gap-3 rounded-lg border border-weact-100 bg-weact-50 p-3.5 sm:flex-row sm:items-center sm:justify-between"
+                  data-testid="mission-full-banner"
+                >
+                  <div class="min-w-0 text-sm">
+                    <strong class="block text-foreground">
+                      Toutes les places sont prises ({{ takenPlaces }} sur {{ mission.nombre_faces_voulu }})
+                    </strong>
+                    <span class="text-muted-foreground">
+                      {{ pendingCount }} {{ pendingCount > 1 ? 'candidatures attendent' : 'candidature attend' }}
+                      encore votre réponse. Ajoutez des places pour en retenir d'autres, sans frais.
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    class="press h-10 shrink-0"
+                    data-testid="mission-full-banner-add"
+                    @click="openAddPlaces()"
+                  >
+                    <UserPlus aria-hidden="true" />
+                    Ajouter des places
+                  </Button>
+                </div>
+                <p
+                  v-else-if="showPlacesLine"
+                  class="mb-3 text-xs text-muted-foreground"
+                  data-testid="mission-places-line"
+                >
+                  {{ takenPlaces }} {{ takenPlaces > 1 ? 'places prises' : 'place prise' }} sur
+                  {{ mission.nombre_faces_voulu }} · {{ freePlaces }}
+                  {{ freePlaces > 1 ? 'places libres' : 'place libre' }}
+                </p>
                 <ProducerCandidaturesSection
                   v-if="!isLoading && !error && visitedTabs.has('candidatures')"
                   ref="sectionRef"
@@ -590,6 +684,8 @@ function goToEdit(): void {
                   :ugc-product-name="mission.nom_produit"
                   :mission-montant-remuneration="mission.montant_remuneration"
                   :can-replace-freed-place="mission.can_replace_freed_place === true"
+                  :mission-full="missionFull"
+                  @request-add-place="openAddPlaces"
                   @freed-place-replaced="fetchMission"
                   @rated="fetchMission"
                   @selection-confirmed="handleSelectionConfirmed"
@@ -704,6 +800,20 @@ function goToEdit(): void {
       :is-loading="isReopening"
       @cancel="isReopenDialogOpen = false"
       @confirm="confirmReopen"
+    />
+    <AddPlacesDialog
+      v-if="mission && isUgc"
+      :is-open="isAddPlacesOpen"
+      :mission-id="mission.id"
+      :mission-title="mission.titre"
+      :total-places="mission.nombre_faces_voulu"
+      :taken-places="takenPlaces"
+      :is-hybrid="mission.type_compensation === 'hybrid'"
+      :deadline="mission.date_limite_candidature"
+      :mode="addPlacesTarget ? 'card' : 'menu'"
+      :face-name="addPlacesTarget?.faceName ?? ''"
+      @cancel="closeAddPlaces"
+      @added="handlePlacesAdded"
     />
     <CompleteMissionDialog
       :is-open="isCompleteDialogOpen"
