@@ -176,6 +176,18 @@ export const missionApi = {
   },
 
   /**
+   * Add places to a UGC mission (free, reopens it if it was closed)
+   * @param id The mission ID
+   * @param places Number of places to add (1 to 20)
+   */
+  async addPlaces(id: string, places: number): Promise<MissionResponse> {
+    await getCsrfCookie()
+
+    const response = await apiClient.post<MissionResponse>(`/producer/missions/${id}/add-places`, { places })
+    return response.data
+  },
+
+  /**
    * Mark a mission as completed
    * @param id The mission ID to complete
    */

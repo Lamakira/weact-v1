@@ -131,3 +131,19 @@ describe('missionApi.cancelSelection — lot B1', () => {
     expect(result.data.mission_status).toBe('published')
   })
 })
+
+describe('missionApi.addPlaces', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockPost.mockResolvedValue({ data: { data: { id: 'm-uuid', nombre_faces_voulu: 3 }, message: '2 places ajoutées.' } })
+    mockGetCsrfCookie.mockResolvedValue(undefined)
+  })
+
+  it('POSTs add-places with the places count after fetching the CSRF cookie', async () => {
+    const result = await missionApi.addPlaces('m-uuid', 2)
+
+    expect(mockGetCsrfCookie).toHaveBeenCalled()
+    expect(mockPost).toHaveBeenCalledWith('/producer/missions/m-uuid/add-places', { places: 2 })
+    expect(result.message).toBe('2 places ajoutées.')
+  })
+})

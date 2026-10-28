@@ -41,6 +41,8 @@ const props = defineProps<{
   missionMontantRemuneration?: number | null
   /** Lot B4 : une place libérée peut être proposée aux candidatures non retenues. */
   canReplaceFreedPlace?: boolean
+  /** Mission UGC pleine (toutes les places prises) : « Accepter » propose d'ajouter une place. */
+  missionFull?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -56,6 +58,10 @@ const emit = defineEmits<{
   'freed-place-replaced': []
   /** Lot C8 : une Face vient d'être notée (le résumé de la mission doit se rafraîchir). */
   rated: []
+  /** Mission pleine : le Producteur veut accepter cette candidature, la page propose d'ajouter une place. */
+  'request-add-place': [payload: { id: string; faceName: string }]
+  /** Acceptation UGC (ou refus « mission pleine ») : places prises et statut de la mission ont pu changer. */
+  'capacity-changed': []
 }>()
 
 /**
@@ -232,6 +238,14 @@ async function confirmOfferFreedPlace(): Promise<void> {
  * - product-only (8-3, D-8.3.b): free direct accept (unchanged).
  */
 async function handleAccept(candidatureId: string): Promise<void> {
+  // Mission pleine : aucun appel, la page ouvre la fenêtre « Ajouter des places ».
+  if (props.missionFull) {
+    const candidature = candidatures.value.find((c) => c.id === candidatureId)
+    cardRefs.value[candidatureId]?.resetAccepting()
+    emit('request-add-place', { id: candidatureId, faceName: candidature?.face.display_name ?? 'cette Face' })
+    return
+  }
+
   // Hybride : pas d'accept gratuit — l'overlay de paiement prend le relais.
   if (props.ugcCompensationType === 'hybrid') {
     const candidature = candidatures.value.find((c) => c.id === candidatureId)
@@ -251,11 +265,13 @@ async function handleAccept(candidatureId: string): Promise<void> {
   if (result) {
     toast.success(acceptSuccessMessage.value || 'Candidature acceptée')
     await refresh()
+    emit('capacity-changed')
   } else {
     toast.error(acceptError.value || "Erreur lors de l'acceptation")
     // Resync capacity / auto-close on capacity errors (AC9)
     if (['MISSION_FULL', 'ALREADY_ACCEPTED'].includes(acceptErrorCode.value ?? '')) {
       await refresh()
+      emit('capacity-changed')
     }
   }
 
@@ -304,7 +320,7 @@ function focusFirstToRate(): void {
   button.focus({ preventScroll: true })
 }
 
-defineExpose({ openCandidaturePayment, focusFirstToRate })
+defineExpose({ openCandidaturePayment, focusFirstToRate, acceptCandidature: handleAccept })
 
 /** Overlay closed (cancel / failed-dismiss) → drop the target. */
 function handlePaymentOverlayClose(value: boolean): void {

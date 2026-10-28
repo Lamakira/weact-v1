@@ -479,6 +479,64 @@ describe('ProducerCandidaturesSection', () => {
     })
   })
 
+  describe('mission pleine : ajout de place (missionFull)', () => {
+    const FullCardStub = {
+      name: 'ProducerCandidatureCard',
+      template: '<div class="producer-candidature-card-stub"></div>',
+      props: ['candidature', 'selectionMode', 'isSelected', 'isUgcMission', 'ugcCompensationType'],
+      emits: ['reject', 'accept', 'release', 'toggle-selection', 'confirm-shipment'],
+      methods: { resetRejecting() {}, resetAccepting: vi.fn(), resetReleasing() {} },
+    }
+
+    function mountFull(missionFull: boolean) {
+      return shallowMount(ProducerCandidaturesSection, {
+        props: {
+          missionId: 'mission-uuid-under-test',
+          missionBudget: 0,
+          missionStatus: 'published',
+          isUgcMission: true,
+          ugcCompensationType: 'product',
+          missionFull,
+        },
+        global: { stubs: { Teleport: true, ProducerCandidatureCard: FullCardStub } },
+      })
+    }
+
+    it('missionFull : « Accepter » émet request-add-place sans appeler l\'API d\'acceptation', async () => {
+      const wrapper = mountFull(true)
+
+      wrapper.findComponent(FullCardStub).vm.$emit('accept', 'cand-1')
+      await flushPromises()
+
+      expect(wrapper.emitted('request-add-place')).toEqual([[{ id: 'cand-1', faceName: 'Alice' }]])
+      expect(mockAcceptCandidature).not.toHaveBeenCalled()
+      expect(mockRefresh).not.toHaveBeenCalled()
+    })
+
+    it('mission non pleine : comportement inchangé (acceptation directe)', async () => {
+      mockAcceptCandidature.mockResolvedValue({ data: { id: 'cand-1' }, message: 'Candidature acceptée' })
+      const wrapper = mountFull(false)
+
+      wrapper.findComponent(FullCardStub).vm.$emit('accept', 'cand-1')
+      await flushPromises()
+
+      expect(wrapper.emitted('request-add-place')).toBeUndefined()
+      expect(mockAcceptCandidature).toHaveBeenCalledWith('cand-1')
+      // La page relit la mission (places prises, clôture à capacité).
+      expect(wrapper.emitted('capacity-changed')).toHaveLength(1)
+    })
+
+    it('expose acceptCandidature (utilisé par la page après l\'ajout de place)', async () => {
+      mockAcceptCandidature.mockResolvedValue({ data: { id: 'cand-1' }, message: 'Candidature acceptée' })
+      const wrapper = mountFull(false)
+
+      await (wrapper.vm as unknown as { acceptCandidature: (id: string) => Promise<void> }).acceptCandidature('cand-1')
+
+      expect(mockAcceptCandidature).toHaveBeenCalledWith('cand-1')
+      expect(mockRefresh).toHaveBeenCalledTimes(1)
+    })
+  })
+
   describe('notation facultative des Faces (lot C8)', () => {
     const CardStub = {
       name: 'ProducerCandidatureCard',
