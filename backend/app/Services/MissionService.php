@@ -387,6 +387,39 @@ class MissionService
     }
 
     /**
+     * Ajoute des places à une mission UGC publiée ou pleine (gratuit). Rouvre une mission fermée.
+     * Verrou sur la ligne mission : sérialisé avec l'acceptation d'une candidature.
+     *
+     * @throws ValidationException si la mission n'accepte pas d'ajout de places
+     */
+    public function addPlaces(Mission $mission, int $places): Mission
+    {
+        return DB::transaction(function () use ($mission, $places): Mission {
+            /** @var Mission $locked */
+            $locked = Mission::query()->lockForUpdate()->findOrFail($mission->id);
+
+            if (! $locked->canAddPlaces()) {
+                throw ValidationException::withMessages([
+                    'mission' => ["Impossible d'ajouter des places à cette mission."],
+                ]);
+            }
+
+            $locked->update([
+                'nombre_faces_voulu' => $locked->nombre_faces_voulu + $places,
+                'status' => MissionStatus::Published,
+            ]);
+
+            Log::info('Places added to UGC mission', [
+                'mission_id' => $locked->id,
+                'places' => $places,
+                'nombre_faces_voulu' => $locked->nombre_faces_voulu,
+            ]);
+
+            return $locked;
+        });
+    }
+
+    /**
      * Mark a mission as completed.
      * Only closed missions (with paid payment) can be completed.
      * Releases escrowed funds to selected faces.

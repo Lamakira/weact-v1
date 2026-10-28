@@ -43,6 +43,11 @@ function businessNow(now: Date): { date: string; hour: number } {
   return { date: `${get('year')}-${get('month')}-${get('day')}`, hour: Number(get('hour')) }
 }
 
+/** Jour courant (AAAA-MM-JJ) au Bénin, quel que soit le fuseau du navigateur. */
+export function businessTodayIso(now: Date = new Date()): string {
+  return businessNow(now).date
+}
+
 /** Le lendemain (Bénin) n'est plus réservable : il est 16 h ou plus au Bénin. */
 export function isBookingNextDayClosed(now: Date = new Date()): boolean {
   return businessNow(now).hour >= BOOKING_NEXT_DAY_CUTOFF_HOUR

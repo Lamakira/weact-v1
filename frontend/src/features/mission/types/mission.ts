@@ -212,6 +212,8 @@ export interface Mission {
   // Lot B4 : places libérées (détail Producer) — remplaçante possible jusqu'au début du tournage
   freed_places_count?: number
   can_replace_freed_place?: boolean
+  // Ajout de places (détail Producer, mission UGC publiée ou clôturée non remboursée)
+  can_add_places?: boolean
   freed_places_refund_at?: string | null
   // Lot C1 : résumé du cycle de vie (détail Producer uniquement)
   summary?: MissionSummary

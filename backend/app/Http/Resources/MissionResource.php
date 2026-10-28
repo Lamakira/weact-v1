@@ -79,6 +79,10 @@ class MissionResource extends JsonResource
                 ! $requesterIsFace && array_key_exists('can_replace_freed_place', $this->resource->getAttributes()),
                 fn () => (bool) $this->resource->getAttribute('can_replace_freed_place'),
             ),
+            'can_add_places' => $this->when(
+                ! $requesterIsFace && array_key_exists('can_add_places', $this->resource->getAttributes()),
+                fn () => (bool) $this->resource->getAttribute('can_add_places'),
+            ),
             'freed_places_refund_at' => $this->when(
                 ! $requesterIsFace && array_key_exists('freed_places_count', $this->resource->getAttributes()),
                 fn () => (int) $this->resource->getAttribute('freed_places_count') > 0

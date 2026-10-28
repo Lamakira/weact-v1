@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api\V1\Producer;
 
 use App\Enums\MissionStatus;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Mission\AddMissionPlacesRequest;
 use App\Http\Requests\Mission\CloseMissionRequest;
 use App\Http\Requests\Mission\CompleteMissionRequest;
 use App\Http\Requests\Mission\DeleteMissionRequest;
@@ -120,6 +121,19 @@ class MissionController extends Controller
             abort(403, 'Cette mission ne vous appartient pas');
         }
 
+        $this->loadDetailAttributes($mission, $freedPlaces, $summaries);
+
+        return response()->json([
+            'data' => new MissionResource($mission),
+        ]);
+    }
+
+    /**
+     * Attributs de détail Producteur partagés par show et addPlaces (places libérées,
+     * résumé du cycle de vie, can_complete, has_paid_payment, can_add_places).
+     */
+    private function loadDetailAttributes(Mission $mission, FreedPlaceService $freedPlaces, MissionSummaryService $summaries): void
+    {
         // Lot B4 : places libérées (détail seulement : pas de requête par ligne sur les listes).
         $freedCount = FreedPlaceService::pendingFreedEntries($mission)->count();
         $mission->setAttribute('freed_places_count', $freedCount);
@@ -132,10 +146,7 @@ class MissionController extends Controller
         // Valeurs déjà connues du résumé : évitent de refaire completionBlocker() et l'existence du paiement.
         $mission->setAttribute('can_complete', $mission->hasCompletableStatus() && $summary['completion_blocker'] === null);
         $mission->setAttribute('has_paid_payment', $summary['payment']['status'] === 'paid');
-
-        return response()->json([
-            'data' => new MissionResource($mission),
-        ]);
+        $mission->setAttribute('can_add_places', $mission->canAddPlaces());
     }
 
     /**
@@ -241,6 +252,22 @@ class MissionController extends Controller
         return response()->json([
             'data' => new MissionResource($reopenedMission->load('producer')),
             'message' => 'Mission réouverte avec succès',
+        ]);
+    }
+
+    /**
+     * Ajoute des places à une mission UGC publiée ou pleine (gratuit, sans événement de publication).
+     * Autorisation : AddMissionPlacesRequest::authorize() ; garde métier : MissionService::addPlaces().
+     */
+    public function addPlaces(AddMissionPlacesRequest $request, Mission $mission, FreedPlaceService $freedPlaces, MissionSummaryService $summaries): JsonResponse
+    {
+        $places = (int) $request->validated('places');
+        $updated = $this->missionService->addPlaces($mission, $places);
+        $this->loadDetailAttributes($updated, $freedPlaces, $summaries);
+
+        return response()->json([
+            'data' => new MissionResource($updated),
+            'message' => $places === 1 ? '1 place ajoutée.' : "{$places} places ajoutées.",
         ]);
     }
 
