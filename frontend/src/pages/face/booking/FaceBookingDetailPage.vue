@@ -52,6 +52,7 @@ import {
 import {
   UgcPaymentOverlay,
   CommissionBreakdown,
+  UgcFaceRewardSummary,
   UgcEngagementModal,
   UgcBookingTimeline,
   UgcShipmentForm,
@@ -144,6 +145,10 @@ const {
 } = useUgcDeliverable()
 
 const isUgc = computed(() => booking.value?.type_contenu === 'UGC')
+// Commission UGC déjà réglée côté Producteur : le récap n'affiche plus « À payer maintenant ».
+const ugcCommissionPaid = computed(() =>
+  ['commission_paid', 'accepted', 'completed'].includes(booking.value?.status ?? ''),
+)
 
 const ugcTimelineCurrent = computed(() =>
   booking.value ? ugcTunnelStep(booking.value.status, booking.value.shipment ?? null) : 0,
@@ -1162,10 +1167,20 @@ onUnmounted(() => {
                 title="Photos du produit"
                 :photos="booking.product_photos"
               />
+              <!-- La Face ne paie rien : jamais de commission ni de « À payer » pour elle -->
+              <UgcFaceRewardSummary
+                v-if="isFace"
+                :nom-produit="booking.nom_produit"
+                :valeur-produit="booking.valeur_produit ?? 0"
+                :type-compensation="booking.type_compensation"
+                :montant-face-recoit="booking.montant_face_recoit"
+              />
               <CommissionBreakdown
+                v-else
                 :product-value="booking.valeur_produit ?? 0"
                 :pay-amount="booking.montant_remuneration ?? 0"
                 :on-platform="true"
+                :paid="ugcCommissionPaid"
               />
             </div>
 

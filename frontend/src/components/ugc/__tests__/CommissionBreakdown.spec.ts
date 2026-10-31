@@ -12,6 +12,7 @@ const mountBreak = (props: {
   onPlatform?: boolean
   mode?: 'booking' | 'mission'
   nombreFaces?: number
+  paid?: boolean
 }) => mount(CommissionBreakdown, { props })
 
 describe('CommissionBreakdown', () => {
@@ -102,6 +103,40 @@ describe('CommissionBreakdown', () => {
 
       expect(text).not.toContain('Nombre de Faces')
       expect(text).not.toContain('55 000')
+    })
+  })
+
+  describe('prop paid (commission réglée)', () => {
+    it('paid faux : rendu inchangé (« À payer maintenant »)', () => {
+      const wrapper = mountBreak({ productValue: 20000, paid: false })
+
+      expect(wrapper.text()).toContain('À payer maintenant')
+      expect(wrapper.text()).not.toContain('Commission réglée')
+    })
+
+    it('paid vrai, produit seul : « Commission réglée », montant inchangé', () => {
+      const wrapper = mountBreak({ productValue: 20000, paid: true })
+      const text = normalize(wrapper.text())
+
+      expect(text).toContain('Commission réglée')
+      expect(text).not.toContain('À payer maintenant')
+      expect(text).toContain('2 500')
+    })
+
+    it('paid vrai, hybride on-platform : « Réglé », total inchangé', () => {
+      const wrapper = mountBreak({ productValue: 100000, payAmount: 20000, onPlatform: true, paid: true })
+      const text = normalize(wrapper.text())
+
+      expect(text).toContain('Réglé')
+      expect(text).not.toContain('À payer maintenant')
+      expect(text).toContain('22 000')
+    })
+
+    it('mode mission : inchangé même si paid est vrai', () => {
+      const wrapper = mountBreak({ productValue: 100000, payAmount: 20000, mode: 'mission', paid: true })
+
+      expect(wrapper.text()).toContain('À payer maintenant')
+      expect(wrapper.text()).toContain('Gratuit')
     })
   })
 })

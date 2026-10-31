@@ -1698,3 +1698,83 @@ describe('FaceBookingDetailPage — paiement du booking sous 24 h (lot B11)', ()
     }
   })
 })
+
+describe('FaceBookingDetailPage — récapitulatif de la dotation UGC selon le rôle', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockIsLoading.value = false
+    mockError.value = null
+    mockActionError.value = null
+    mockActionErrorCode.value = null
+    mockFetchBooking.mockReset()
+    mockRefreshBooking.mockReset()
+  })
+
+  function asFace() {
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+  }
+
+  function asProducer() {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+  }
+
+  it('Face, UGC produit seul : voit ce qu\'elle reçoit, sans commission ni « À payer »', async () => {
+    asFace()
+    const wrapper = await mountPage(makeUgcBooking({ status: 'accepted' }))
+    const text = wrapper.text()
+
+    expect(text).toContain('Ce que vous recevez')
+    expect(text).toContain('Sneakers Shade Fit')
+    expect(text).toMatch(/20[\s  ]000/)
+    expect(text).toContain('Vous n\'avez rien à payer.')
+    expect(text).not.toContain('Commission WeAct')
+    expect(text).not.toContain('À payer')
+    expect(wrapper.find('[data-testid="commission-breakdown"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('Face, UGC hybride : « Rémunération nette » avec le montant reçu', async () => {
+    asFace()
+    const wrapper = await mountPage(
+      makeUgcBooking({
+        status: 'accepted',
+        type_compensation: 'hybrid',
+        type_compensation_label: 'Produit + cachet',
+        montant_remuneration: 30000,
+        montant_face_recoit: 27000,
+      }),
+    )
+    const text = wrapper.text()
+
+    expect(text).toContain('Rémunération nette')
+    expect(text).toMatch(/27[\s  ]000/)
+    expect(text).toContain('Vous n\'avez rien à payer.')
+    expect(text).not.toContain('Commission WeAct')
+    expect(text).not.toContain('Frais de service')
+    expect(text).not.toContain('À payer')
+    wrapper.unmount()
+  })
+
+  it('Producteur, UGC accepté : « Commission réglée » à la place de « À payer maintenant »', async () => {
+    asProducer()
+    const wrapper = await mountPage(makeUgcBooking({ status: 'accepted', producer_id: 2 }))
+    const breakdown = wrapper.find('[data-testid="commission-breakdown"]')
+
+    expect(breakdown.exists()).toBe(true)
+    expect(breakdown.text()).toContain('Commission réglée')
+    expect(breakdown.text()).not.toContain('À payer maintenant')
+    wrapper.unmount()
+  })
+
+  it('Producteur, UGC en attente de paiement : « À payer maintenant » inchangé', async () => {
+    asProducer()
+    const wrapper = await mountPage(makeUgcBooking({ status: 'pending', producer_id: 2 }))
+    const breakdown = wrapper.find('[data-testid="commission-breakdown"]')
+
+    expect(breakdown.text()).toContain('À payer maintenant')
+    expect(breakdown.text()).not.toContain('Commission réglée')
+    wrapper.unmount()
+  })
+})

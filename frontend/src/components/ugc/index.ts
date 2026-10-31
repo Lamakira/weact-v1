@@ -1,5 +1,6 @@
 export { default as CompensationToggle } from './CompensationToggle.vue'
 export { default as CommissionBreakdown } from './CommissionBreakdown.vue'
+export { default as UgcFaceRewardSummary } from './UgcFaceRewardSummary.vue'
 export { default as PayTile } from './PayTile.vue'
 export { default as UgcPaymentOverlay } from './UgcPaymentOverlay.vue'
 export { default as StatusPill } from './StatusPill.vue'
