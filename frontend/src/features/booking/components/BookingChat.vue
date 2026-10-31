@@ -3,12 +3,18 @@ import { ref, watch, nextTick, onMounted, computed } from 'vue'
 import ChatHeader from './ChatHeader.vue'
 import BookingChatMessage from './BookingChatMessage.vue'
 import FaceResponseNotice from '@/features/messaging/components/FaceResponseNotice.vue'
+import DeliveryAddressHint from '@/features/messaging/components/DeliveryAddressHint.vue'
 import { useBookingChat } from '../composables/useBookingChat'
 import { BookingStatus, type Booking } from '../types'
 
 interface Props {
   booking: Booking
   currentUserId: number
+  /** UGC accepté, produit pas encore expédié : consigne « adresse de livraison » en tête. */
+  showAddressHint?: boolean
+  role?: 'face' | 'producer'
+  /** Nom de l'autre partie, pour la consigne d'adresse. */
+  otherPartyName?: string
 }
 
 const props = defineProps<Props>()
@@ -65,6 +71,12 @@ function handleKeydown(event: KeyboardEvent): void {
       kind="booking"
       :thread-id="booking.id"
       :refresh-key="messages.length"
+    />
+
+    <DeliveryAddressHint
+      v-if="showAddressHint && role"
+      :role="role"
+      :other-party-name="otherPartyName ?? ''"
     />
 
     <!-- Reverb connection error banner (AC5) -->

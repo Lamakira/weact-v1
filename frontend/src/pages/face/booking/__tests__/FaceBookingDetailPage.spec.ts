@@ -268,7 +268,11 @@ async function mountPage(
           template: '<div data-testid="ugc-engagement-modal-stub" :data-open="String(isOpen)"/>',
         },
         BookingPricingBreakdown: { template: '<div/>' },
-        BookingChat: { template: '<div/>' },
+        BookingChat: {
+          props: ['booking', 'currentUserId', 'showAddressHint', 'role', 'otherPartyName'],
+          template:
+            '<div data-testid="booking-chat-stub" :data-hint="String(showAddressHint)" :data-role="role" :data-name="otherPartyName"/>',
+        },
         CancellationDialog: { template: '<div/>' },
         BookingRatingForm: { template: '<div/>' },
       },
@@ -1696,5 +1700,150 @@ describe('FaceBookingDetailPage — paiement du booking sous 24 h (lot B11)', ()
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('FaceBookingDetailPage — récapitulatif de la dotation UGC selon le rôle', () => {
+  beforeEach(() => {
+    mockBooking.value = null
+    mockIsLoading.value = false
+    mockError.value = null
+    mockActionError.value = null
+    mockActionErrorCode.value = null
+    mockFetchBooking.mockReset()
+    mockRefreshBooking.mockReset()
+  })
+
+  function asFace() {
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+  }
+
+  function asProducer() {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+  }
+
+  it('Face, UGC produit seul : voit ce qu\'elle reçoit, sans commission ni « À payer »', async () => {
+    asFace()
+    const wrapper = await mountPage(makeUgcBooking({ status: 'accepted' }))
+    const text = wrapper.text()
+
+    expect(text).toContain('Ce que vous recevez')
+    expect(text).toContain('Sneakers Shade Fit')
+    expect(text).toMatch(/20\s000/)
+    expect(text).toContain('Vous n\'avez rien à payer.')
+    expect(text).not.toContain('Commission WeAct')
+    expect(text).not.toContain('À payer')
+    expect(wrapper.find('[data-testid="commission-breakdown"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('Face, UGC hybride : « Rémunération nette » avec le montant reçu', async () => {
+    asFace()
+    const wrapper = await mountPage(
+      makeUgcBooking({
+        status: 'accepted',
+        type_compensation: 'hybrid',
+        type_compensation_label: 'Produit + cachet',
+        montant_remuneration: 30000,
+        montant_face_recoit: 27000,
+      }),
+    )
+    const text = wrapper.text()
+
+    expect(text).toContain('Rémunération nette')
+    expect(text).toMatch(/27\s000/)
+    expect(text).toContain('Vous n\'avez rien à payer.')
+    expect(text).not.toContain('Commission WeAct')
+    expect(text).not.toContain('Frais de service')
+    expect(text).not.toContain('À payer')
+    wrapper.unmount()
+  })
+
+  it('Producteur, UGC accepté : « Commission réglée » à la place de « À payer maintenant »', async () => {
+    asProducer()
+    const wrapper = await mountPage(makeUgcBooking({ status: 'accepted', producer_id: 2 }))
+    const breakdown = wrapper.find('[data-testid="commission-breakdown"]')
+
+    expect(breakdown.exists()).toBe(true)
+    expect(breakdown.text()).toContain('Commission réglée')
+    expect(breakdown.text()).not.toContain('À payer maintenant')
+    wrapper.unmount()
+  })
+
+  it('Producteur, UGC en attente de paiement : « À payer maintenant » inchangé', async () => {
+    asProducer()
+    const wrapper = await mountPage(makeUgcBooking({ status: 'pending', producer_id: 2 }))
+    const breakdown = wrapper.find('[data-testid="commission-breakdown"]')
+
+    expect(breakdown.text()).toContain('À payer maintenant')
+    expect(breakdown.text()).not.toContain('Commission réglée')
+    wrapper.unmount()
+  })
+})
+
+describe('FaceBookingDetailPage — consigne « adresse de livraison » du chat', () => {
+  const people = {
+    face: {
+      id: 1, prenom: 'Jane', nom: 'Doe', username: 'jane', profile_photo_url: null, average_rating: 4.5,
+      userable: { prenom: 'Jane', nom: 'Doe' },
+    },
+    producer: {
+      id: 2, prenom: 'John', nom: 'Smith', username: 'john', profile_photo_url: null, average_rating: 4.0, agency_name: null,
+      userable: { display_name: 'Boutique Kora' },
+    },
+  }
+
+  beforeEach(() => {
+    mockBooking.value = null
+    mockIsLoading.value = false
+    mockError.value = null
+    mockActionError.value = null
+    mockActionErrorCode.value = null
+    mockFetchBooking.mockReset()
+    mockRefreshBooking.mockReset()
+  })
+
+  it('UGC accepté sans shipment, Face : consigne demandée avec le nom du Producteur', async () => {
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    const wrapper = await mountPage(makeUgcBooking({ status: 'accepted', ...people }))
+    const chat = wrapper.find('[data-testid="booking-chat-stub"]')
+
+    expect(chat.attributes('data-hint')).toBe('true')
+    expect(chat.attributes('data-role')).toBe('face')
+    expect(chat.attributes('data-name')).toBe('Boutique Kora')
+    wrapper.unmount()
+  })
+
+  it('UGC accepté sans shipment, Producteur : consigne demandée avec le nom de la Face', async () => {
+    mockUserableType.value = 'Producer'
+    mockUserId.value = 2
+    const wrapper = await mountPage(makeUgcBooking({ status: 'accepted', producer_id: 2, ...people }))
+    const chat = wrapper.find('[data-testid="booking-chat-stub"]')
+
+    expect(chat.attributes('data-hint')).toBe('true')
+    expect(chat.attributes('data-role')).toBe('producer')
+    expect(chat.attributes('data-name')).toBe('Jane Doe')
+    wrapper.unmount()
+  })
+
+  it('absente dès qu\'un shipment existe', async () => {
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    const wrapper = await mountPage(makeUgcBooking({ status: 'accepted', shipment: makeShipment(), ...people }))
+
+    expect(wrapper.find('[data-testid="booking-chat-stub"]').attributes('data-hint')).toBe('false')
+    wrapper.unmount()
+  })
+
+  it('absente pour un booking non UGC', async () => {
+    mockUserableType.value = 'Face'
+    mockUserId.value = 1
+    const wrapper = await mountPage(makeBooking({ status: 'paid', ...people }))
+
+    expect(wrapper.find('[data-testid="booking-chat-stub"]').attributes('data-hint')).toBe('false')
+    wrapper.unmount()
   })
 })

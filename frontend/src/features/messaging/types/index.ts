@@ -69,6 +69,8 @@ export interface ConversationContext extends ConversationContextSummary {
   mission_id: string
   candidature_id: string
   amounts: FaceContextAmounts | ProducerContextAmounts
+  // UGC accepté et produit pas encore expédié : consigne « adresse de livraison » en tête du fil
+  awaiting_delivery_address?: boolean
 }
 
 // Conversation data from API
