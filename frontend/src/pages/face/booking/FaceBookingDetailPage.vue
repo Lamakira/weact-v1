@@ -240,6 +240,11 @@ const faceName = computed(() => {
 
 const ratedName = computed(() => (isFace.value ? producerName.value : faceName.value))
 
+// Consigne « adresse de livraison » en tête du chat : UGC accepté, produit pas encore expédié.
+const showAddressHint = computed(
+  () => isUgc.value && booking.value?.status === 'accepted' && !booking.value?.shipment,
+)
+
 // Lot C6 : la page parle au rôle de celui qui regarde (titre, pastille, « Et ensuite ? », étapes).
 const role = computed<BookingRole>(() => (isFace.value ? 'face' : 'producer'))
 const view = computed(() => (booking.value ? buildBookingView(booking.value, role.value) : null))
@@ -1444,7 +1449,13 @@ onUnmounted(() => {
           :scope-id="booking.id"
         />
         <div class="booking-chat-box bg-white rounded-[24px] shadow-sm overflow-hidden">
-          <BookingChat :booking="booking" :current-user-id="currentUserId" />
+          <BookingChat
+            :booking="booking"
+            :current-user-id="currentUserId"
+            :show-address-hint="showAddressHint"
+            :role="role"
+            :other-party-name="isFace ? producerName : faceName"
+          />
         </div>
       </section>
 

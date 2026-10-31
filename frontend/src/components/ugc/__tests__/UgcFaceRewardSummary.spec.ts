@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
 import UgcFaceRewardSummary from '../UgcFaceRewardSummary.vue'
 
-const normalize = (text: string): string => text.replace(/[  ]/g, ' ')
+const normalize = (text: string): string => text.replace(/\s/g, ' ')
 
 describe('UgcFaceRewardSummary', () => {
   it('produit seul : produit, valeur et « rien à payer », sans rémunération ni commission', () => {
