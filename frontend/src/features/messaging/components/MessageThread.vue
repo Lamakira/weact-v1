@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { ArrowDown, ArrowLeft, Loader2, MessageSquare, RefreshCw } from 'lucide-vue-next'
 import ConversationContextBar from './ConversationContextBar.vue'
+import DeliveryAddressHint from './DeliveryAddressHint.vue'
 import FaceResponseNotice from './FaceResponseNotice.vue'
 import MessageBubble from './MessageBubble.vue'
 import MessageInput from './MessageInput.vue'
@@ -161,6 +162,12 @@ onMounted(() => void scrollToBottom('auto'))
     />
 
     <ConversationContextBar v-if="compact && context && !isLoading" :context="context" :role="role" />
+
+    <DeliveryAddressHint
+      v-if="context?.awaiting_delivery_address === true && participant"
+      :role="role"
+      :other-party-name="participant.name"
+    />
 
     <div
       v-if="refreshError"
