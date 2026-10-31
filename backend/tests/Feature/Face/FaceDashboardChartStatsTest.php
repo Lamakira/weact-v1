@@ -24,6 +24,9 @@ class FaceDashboardChartStatsTest extends TestCase
     {
         parent::setUp();
 
+        // Milieu de mois : un 31, subMonth() déborde sur le mois courant (31 sept. → 1er oct.).
+        $this->travelTo(Carbon::parse('2030-06-15 12:00'));
+
         $this->face = Face::factory()->create();
         $this->faceUser = User::factory()->create([
             'userable_type' => Face::class,
