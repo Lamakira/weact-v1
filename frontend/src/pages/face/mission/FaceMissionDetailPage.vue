@@ -22,6 +22,10 @@ import { UgcMissionStats, UgcDeliverablesPreview } from '@/features/mission/comp
 import { formatMissionDurationForDisplay } from '@/features/mission/constants/missionDuration'
 import { ApplyToMissionModal } from '@/features/candidature/components'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
+import ImageContractSignDialog from '@/features/imageContract/components/ImageContractSignDialog.vue'
+import MissionImageTermsCard from '@/features/imageContract/components/MissionImageTermsCard.vue'
+import { faceMustSignMission } from '@/features/imageContract/utils/faceMustSign'
+import type { ContractSummary, ImageSignature, SignatureSubmitOutcome } from '@/features/imageContract/types'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import MissionApplyBlock from './MissionApplyBlock.vue'
 import FaceMissionHub from './FaceMissionHub.vue'
@@ -82,13 +86,20 @@ const showCancelModal = ref(false)
 const {
   isReconfirming,
   error: reconfirmError,
+  errorCode: reconfirmErrorCode,
   reconfirmCandidature,
 } = useReconfirmCandidature()
 
 // Confirmation de participation (mission standard, candidature `accepted`) — lot C5 :
 // faite directement depuis cette page, même endpoint que CandidatureCard.
-const { isConfirming, error: confirmError, confirmCandidature } = useConfirmCandidature()
+const { isConfirming, error: confirmError, errorCode: confirmErrorCode, confirmCandidature } = useConfirmCandidature()
 const showConfirmModal = ref(false)
+
+// Contrat d'image (incrément 2) : mission à conditions + candidature retenue sans contrat ⇒ la Face signe
+// pour confirmer ; la confirmation part alors de la fenêtre de signature au lieu de ConfirmModal.
+const mustSign = computed(() => faceMustSignMission(mission.value, candidature.value))
+const showSignDialog = ref(false)
+const signAction = ref<'confirm' | 'reconfirm'>('confirm')
 
 // Candidature engagée : la Face a accepté le deal (bandeau sans CTA ni annulation).
 const ugcEngaged = computed(() =>
@@ -452,15 +463,81 @@ async function handleConfirmParticipation(): Promise<void> {
   await fetchMission(missionId.value, { silent: true })
 }
 
+// Résumé du contrat affiché à la Face dans la fenêtre de signature.
+const signSummary = computed<ContractSummary>(() => {
+  const m = mission.value
+  const terms = m?.image_terms
+  const net = candidature.value?.montant_face_recoit ?? null
+  let contrepartie: string
+  if (m && isUgc.value) {
+    const product = `${m.nom_produit || 'Produit offert'} (${formatMoney(m.valeur_produit ?? 0)})`
+    const cash = net ?? m.montant_remuneration ?? 0
+    contrepartie = m.type_compensation === 'hybrid' && cash > 0 ? `${product} et ${formatMoney(cash)} net` : product
+  } else {
+    contrepartie = net !== null ? `${formatMoney(net)} net` : `Rémunération de ${formatMoney(m?.budget ?? 0)}`
+  }
+  return {
+    projet: m?.titre ?? '',
+    finalite: terms?.finalite ?? '',
+    supports: terms?.supports.map((support) => support.label) ?? [],
+    territoire: terms?.territoire.label ?? '',
+    dureeAnnees: terms?.duree_annees ?? 1,
+    contrepartie,
+  }
+})
+
+const faceSignerName = computed<string>(() => {
+  const userable = authStore.user?.userable as { prenom?: string; nom?: string } | null | undefined
+  return `${userable?.prenom ?? ''} ${userable?.nom ?? ''}`.trim()
+})
+
+async function submitSignature(signature: ImageSignature): Promise<SignatureSubmitOutcome> {
+  if (!candidature.value || !missionId.value) return { ok: false }
+
+  const isReconfirm = signAction.value === 'reconfirm'
+  const result = isReconfirm
+    ? await reconfirmCandidature(candidature.value.id, signature)
+    : await confirmCandidature(candidature.value.id, signature)
+
+  if (result) {
+    showSignDialog.value = false
+    toast.success(
+      isReconfirm
+        ? 'Participation reconfirmée — le producteur va expédier votre produit'
+        : 'Participation confirmée. Le chat est ouvert.',
+    )
+    await fetchMission(missionId.value, { silent: true })
+    return { ok: true }
+  }
+
+  const code = (isReconfirm ? reconfirmErrorCode.value : confirmErrorCode.value) ?? null
+  const message = isReconfirm ? reconfirmError.value : confirmError.value
+  // Hors erreur de signature, l'état serveur a pu changer (multi-onglets) : relecture silencieuse.
+  if (!(code ?? '').startsWith('SIGNATURE_CODE') && code !== 'BIRTH_DATE_REQUIRED') {
+    await fetchMission(missionId.value, { silent: true })
+  }
+  return { ok: false, code, message }
+}
+
 const hubBusy = computed(() => isConfirming.value || isReconfirming.value || isCancelling.value)
 
 function handleHubAction(key: HubActionKey): void {
   switch (key) {
     case 'confirm':
-      showConfirmModal.value = true
+      if (mustSign.value) {
+        signAction.value = 'confirm'
+        showSignDialog.value = true
+      } else {
+        showConfirmModal.value = true
+      }
       break
     case 'reconfirm':
-      void handleReconfirm()
+      if (mustSign.value) {
+        signAction.value = 'reconfirm'
+        showSignDialog.value = true
+      } else {
+        void handleReconfirm()
+      }
       break
     case 'cancel':
       openCancelModal()
@@ -593,6 +670,7 @@ onMounted(() => {
       :is-ugc="isUgc"
       :producer-name="producerName"
       :busy="hubBusy"
+      :must-sign="mustSign"
       :show-face-tracking-card="showFaceTrackingCard"
       :candidature-shipment="candidatureShipment"
       :ugc-tracking-step="ugcTrackingStep"
@@ -695,6 +773,9 @@ onMounted(() => {
             <h2 class="mb-2.5 text-sm font-semibold text-gray-900">{{ isUgc ? 'Brief' : 'Description' }}</h2>
             <p class="whitespace-pre-line text-sm leading-relaxed text-gray-600">{{ mission.description }}</p>
           </section>
+
+          <!-- Utilisation de l'image : conditions vues avant de candidater (mission à conditions) -->
+          <MissionImageTermsCard v-if="mission.image_terms" :terms="mission.image_terms" />
 
           <!-- Photos produit (spec photos produit) — URLs publiques directes ;
                aucune section sans photo (missions pré-deploy) -->
@@ -904,6 +985,21 @@ onMounted(() => {
       @close="closeApplyModal"
       @success="handleApplySuccess"
       @subscription-required="handleSubscriptionRequired"
+    />
+
+    <!-- Signature du contrat d'image (Face) : la confirmation part depuis cette fenêtre -->
+    <ImageContractSignDialog
+      v-if="mission?.image_terms"
+      flow="mission"
+      :is-open="showSignDialog"
+      role="face"
+      :summary="signSummary"
+      :default-name="faceSignerName"
+      :candidature-id="candidature?.id"
+      :requires-guardian="mission.image_terms.requires_guardian === true"
+      :account-email="authStore.user?.email ?? ''"
+      :submit="submitSignature"
+      @close="showSignDialog = false"
     />
 
     <!-- Confirmation de participation (lot C5) -->

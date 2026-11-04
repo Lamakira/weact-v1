@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { candidatureApi } from '../services/candidatureApi'
-import { formatApiError, GENERIC_VALIDATION_MESSAGE } from '@/services/errorFormatter'
+import { formatApiError, getApiErrorCode, GENERIC_VALIDATION_MESSAGE } from '@/services/errorFormatter'
+import type { ImageSignature } from '@/features/imageContract/types'
 import type { CandidatureResponse } from '../types'
 
 type ReconfirmErrorPayload = {
@@ -62,19 +63,26 @@ function resolveReconfirmErrorMessage(err: unknown): string {
 export function useReconfirmCandidature() {
   const isReconfirming = ref(false)
   const error = ref<string | null>(null)
+  /** Code d'erreur serveur (ex. SIGNATURE_CODE_INVALID) : la fenêtre de signature garde son état dessus. */
+  const errorCode = ref<string | null>(null)
   const successMessage = ref<string | null>(null)
 
-  async function reconfirmCandidature(candidatureId: string): Promise<CandidatureResponse | null> {
+  async function reconfirmCandidature(
+    candidatureId: string,
+    signature?: ImageSignature,
+  ): Promise<CandidatureResponse | null> {
     isReconfirming.value = true
     error.value = null
+    errorCode.value = null
     successMessage.value = null
 
     try {
-      const response = await candidatureApi.reconfirmCandidature(candidatureId)
+      const response = await candidatureApi.reconfirmCandidature(candidatureId, signature)
       successMessage.value = response.message || 'Participation reconfirmée'
       return response
     } catch (err: unknown) {
       error.value = resolveReconfirmErrorMessage(err)
+      errorCode.value = getApiErrorCode(err)
       return null
     } finally {
       isReconfirming.value = false
@@ -83,12 +91,14 @@ export function useReconfirmCandidature() {
 
   function reset(): void {
     error.value = null
+    errorCode.value = null
     successMessage.value = null
   }
 
   return {
     isReconfirming,
     error,
+    errorCode,
     successMessage,
     reconfirmCandidature,
     reset,

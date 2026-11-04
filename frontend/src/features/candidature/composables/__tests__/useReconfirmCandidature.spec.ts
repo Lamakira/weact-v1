@@ -122,4 +122,26 @@ describe('useReconfirmCandidature', () => {
 
     expect(error.value).toBe('Impossible de contacter le serveur. Vérifiez votre connexion et réessayez.')
   })
+
+  it('transmet la signature à l\'API et vide errorCode en cas de succès', async () => {
+    vi.mocked(candidatureApi.reconfirmCandidature).mockResolvedValue({ data: {} as never, message: 'ok' })
+
+    const { reconfirmCandidature, errorCode } = useReconfirmCandidature()
+    await reconfirmCandidature('cand-1', { name: 'Aïcha Bello', code: '123456' })
+
+    expect(candidatureApi.reconfirmCandidature).toHaveBeenCalledWith('cand-1', { name: 'Aïcha Bello', code: '123456' })
+    expect(errorCode.value).toBeNull()
+  })
+
+  it('expose le code d\'erreur serveur (SIGNATURE_CODE_EXPIRED) pour la fenêtre de signature', async () => {
+    vi.mocked(candidatureApi.reconfirmCandidature).mockRejectedValue(
+      makeAxiosError(422, { error: { code: 'SIGNATURE_CODE_EXPIRED', message: 'Code expiré' } }),
+    )
+
+    const { reconfirmCandidature, errorCode } = useReconfirmCandidature()
+    const result = await reconfirmCandidature('cand-1', { name: 'Aïcha Bello', code: '000000' })
+
+    expect(result).toBeNull()
+    expect(errorCode.value).toBe('SIGNATURE_CODE_EXPIRED')
+  })
 })
