@@ -342,7 +342,7 @@ const protectedItems = [
   'Pas d\'usage politique, religieux, pornographique ou diffamatoire.',
   'Pas de génération ni de modification de votre visage, de votre corps ou de votre voix par intelligence artificielle.',
   'Pas d\'usage pour un autre produit ou un autre projet que celui indiqué.',
-  'Pas d\'exploitation de votre image avant que vous ayez été payée.',
+  'Pas d\'exploitation de votre image avant votre paiement.',
 ]
 </script>
 

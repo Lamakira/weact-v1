@@ -116,6 +116,18 @@ describe('BookingFormSheet : drapeau image_contracts_enabled faux', () => {
   })
 })
 
+describe('BookingFormSheet : relecture du compte à l\'ouverture', () => {
+  it('relit le compte : une session ouverte avant l\'activation voit la section', () => {
+    const refreshUser = vi.fn().mockResolvedValue(true)
+    Object.assign(authState, { refreshUser })
+
+    mountForm()
+
+    expect(refreshUser).toHaveBeenCalledTimes(1)
+    Object.assign(authState, { refreshUser: undefined })
+  })
+})
+
 describe('BookingFormSheet : drapeau image_contracts_enabled vrai', () => {
   beforeEach(() => {
     setFlag(true)

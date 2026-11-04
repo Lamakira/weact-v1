@@ -64,6 +64,16 @@ const toast = useToast()
 const authStore = useAuthStore()
 const imageContractsEnabled = useImageContractsEnabled()
 
+// Le compte vient de localStorage : sans relecture, une session ouverte avant l'activation
+// du contrat enverrait un booking sans conditions d'image, refusé par le serveur.
+watch(
+  () => props.isOpen,
+  (isOpen) => {
+    if (isOpen) void authStore.refreshUser?.()
+  },
+  { immediate: true },
+)
+
 // Focus trap
 const dialogRef = ref<HTMLElement | null>(null)
 let previouslyFocused: HTMLElement | null = null

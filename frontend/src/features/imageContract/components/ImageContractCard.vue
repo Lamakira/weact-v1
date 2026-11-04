@@ -34,7 +34,7 @@ const usage = computed(() => {
       return {
         label: 'Pas encore autorisée',
         hint: props.role === 'face'
-          ? 'Elle devient possible une fois que vous êtes payée.'
+          ? 'Elle devient possible après votre paiement.'
           : 'Elle devient possible une fois la Face payée.',
         tone: 'text-amber-700',
       }

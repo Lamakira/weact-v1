@@ -67,7 +67,7 @@ describe('ImageContractCard', () => {
 
     expect(wrapper.find('[data-testid="contract-usage"]').text()).toBe('Pas encore autorisée')
     expect(wrapper.find('[data-testid="contract-usage-hint"]').text()).toBe(
-      'Elle devient possible une fois que vous êtes payée.',
+      'Elle devient possible après votre paiement.',
     )
   })
 
