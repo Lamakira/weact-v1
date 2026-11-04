@@ -8,6 +8,7 @@ use App\Enums\FaceGender;
 use App\Models\Face;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class UpdatePersonalInfoRequest extends FormRequest
 {
@@ -36,6 +37,31 @@ class UpdatePersonalInfoRequest extends FormRequest
             'show_age' => ['sometimes', 'boolean'],
             'whatsapp_number' => ['nullable', 'string', 'max:30'],
         ];
+    }
+
+    /**
+     * Autorisation d'image : une Face mineure ne peut pas se rendre majeure (ni effacer sa date)
+     * pour signer seule ; la correction passe par le support.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            if (! config('image_contracts.enabled') || $validator->errors()->has('date_naissance')) {
+                return;
+            }
+
+            $face = $this->user()?->userable;
+            if (! $face instanceof Face || ! $face->isMinor() || ! $this->has('date_naissance')) {
+                return;
+            }
+
+            $new = $this->input('date_naissance');
+            $staysMinor = filled($new) && \Carbon\Carbon::parse((string) $new)->age < 18;
+
+            if (! $staysMinor) {
+                $validator->errors()->add('date_naissance', 'Contactez le support pour corriger votre date de naissance.');
+            }
+        });
     }
 
     /**

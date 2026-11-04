@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Enums\BookingStatus;
+use App\Enums\ImageContractSupport;
+use App\Enums\ImageContractTerritoire;
 use App\Models\Admin;
+use App\Models\Face;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Auth;
@@ -89,6 +92,9 @@ class BookingResource extends JsonResource
             // Photos produit UGC (spec photos produit) — whenLoaded : la clé est OMISE
             // sur les listes (pas de photo sur les teasers), chargée sur show/store.
             'product_photos' => ProductPhotoResource::collection($this->whenLoaded('productPhotos')),
+            // Autorisation d'image : null si la fonctionnalité est désactivée, si le booking n'en
+            // porte pas, ou sur les listes (relation non chargée : pas de N+1).
+            'image_contract' => $this->imageContractPayload($user),
             'face' => new UserResource($this->whenLoaded('face')),
             'producer' => new UserResource($this->whenLoaded('producer')),
             'can_accept' => $user && $user->can('accept', $this->resource),
@@ -110,6 +116,54 @@ class BookingResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Jamais d'e-mail complet ni de user agent : seulement les noms, dates et conditions.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function imageContractPayload(?object $user): ?array
+    {
+        if (! config('image_contracts.enabled') || ! $this->resource->relationLoaded('imageContract')) {
+            return null;
+        }
+
+        $contract = $this->resource->imageContract;
+        if ($contract === null) {
+            return null;
+        }
+
+        $payload = [
+            'id' => $contract->uuid,
+            'status' => $contract->status(),
+            'finalite' => $contract->finalite,
+            'supports' => array_map(
+                fn (string $value): array => ['value' => $value, 'label' => ImageContractSupport::from($value)->label()],
+                $contract->supports,
+            ),
+            'territoire' => [
+                'value' => $contract->territoire,
+                'label' => ImageContractTerritoire::from($contract->territoire)->label(),
+            ],
+            'duree_annees' => $contract->duree_annees,
+            'producer_signed_at' => $contract->producer_signed_at->toIso8601String(),
+            'producer_signed_name' => $contract->producer_signed_name,
+            'face_signed_at' => $contract->face_signed_at?->toIso8601String(),
+            'face_signed_name' => $contract->face_signed_name,
+            'guardian_name' => $contract->guardian_name,
+            'effective_at' => $contract->effective_at?->toIso8601String(),
+            'pdf_ready' => $contract->pdf_path !== null,
+        ];
+
+        if ($user !== null && $user->id === $this->face_id) {
+            $profile = $user->userable;
+            $payload['requires_guardian'] = ! $contract->isSignedByFace()
+                && $profile instanceof Face
+                && $profile->isMinor();
+        }
+
+        return $payload;
     }
 
     /**

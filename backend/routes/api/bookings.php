@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\BookingController;
 use App\Http\Controllers\Api\V1\BookingMessageController;
 use App\Http\Controllers\Api\V1\BookingRatingController;
 use App\Http\Controllers\Api\V1\FaceResponseController;
+use App\Http\Controllers\Api\V1\ImageContractController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\ProductPhotoMediaController;
 use App\Http\Controllers\Api\V1\PushSubscriptionController;
@@ -25,6 +26,11 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (
 
     Route::get('/bookings/{booking}', [BookingController::class, 'show'])
         ->name('bookings.show');
+
+    // Contrat d'autorisation d'image signé (PDF) : les deux parties du booking seulement
+    Route::get('/bookings/{booking}/image-contract/pdf', [ImageContractController::class, 'pdf'])
+        ->middleware('throttle:60,1')
+        ->name('bookings.image-contract.pdf');
 
     Route::post('/bookings/{booking}/accept', [BookingController::class, 'accept'])
         ->middleware('throttle:60,1')
