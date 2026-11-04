@@ -67,6 +67,25 @@ class BookingController extends Controller
     ) {}
 
     /**
+     * Relations d'une réponse « un seul booking » : parties + autorisation d'image quand la
+     * fonctionnalité est active (jamais sur les listes, pas de requête en plus si désactivée).
+     *
+     * @return array<int|string, mixed>
+     */
+    private function detailRelations(): array
+    {
+        return [...Booking::partiesEagerLoad(), ...$this->imageContractRelations()];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function imageContractRelations(): array
+    {
+        return config('image_contracts.enabled') ? ['imageContract'] : [];
+    }
+
+    /**
      * List authenticated user's bookings with optional status filter,
      * server-side sort (sort/direction) and page size (per_page).
      */
@@ -169,11 +188,12 @@ class BookingController extends Controller
     {
         $booking = $this->bookingService->create(
             $request->validated(),
-            $request->user()
+            $request->user(),
+            $request->userAgent(),
         );
 
         return response()->json([
-            'data' => new BookingResource($booking->load(['face', 'producer', 'productPhotos'])),
+            'data' => new BookingResource($booking->load(['face', 'producer', 'productPhotos', ...$this->imageContractRelations()])),
             'message' => 'Demande de booking envoyee',
         ], 201);
     }
@@ -189,7 +209,7 @@ class BookingController extends Controller
         $booking->loadExists('escrowTransaction');
 
         $booking->load([
-            ...Booking::partiesEagerLoad(),
+            ...$this->detailRelations(),
             'shipment.receptionPhotos',
             'deliverables',
             'productPhotos',
@@ -234,10 +254,14 @@ class BookingController extends Controller
             );
         }
 
-        $booking = $this->bookingService->accept($booking);
+        $booking = $this->bookingService->accept(
+            $booking,
+            $request->validated('signature'),
+            $request->userAgent(),
+        );
 
         return response()->json([
-            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
+            'data' => new BookingResource($booking->load($this->detailRelations())),
             'message' => 'Booking accepté',
         ]);
     }
@@ -255,7 +279,7 @@ class BookingController extends Controller
         );
 
         return response()->json([
-            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
+            'data' => new BookingResource($booking->load($this->detailRelations())),
             'message' => 'Booking refusé',
         ]);
     }
@@ -282,7 +306,7 @@ class BookingController extends Controller
         }
 
         return response()->json([
-            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
+            'data' => new BookingResource($booking->load($this->detailRelations())),
             'message' => 'Booking annulé',
         ]);
     }
@@ -299,7 +323,7 @@ class BookingController extends Controller
         $booking = $this->bookingService->confirm($booking, $request->user());
 
         return response()->json([
-            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
+            'data' => new BookingResource($booking->load($this->detailRelations())),
             'message' => 'Confirmation enregistrée',
         ]);
     }
@@ -314,7 +338,7 @@ class BookingController extends Controller
         $booking = $this->bookingService->reportNoShow($booking, $request->user());
 
         return response()->json([
-            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
+            'data' => new BookingResource($booking->load($this->detailRelations())),
             'message' => 'Absence signalée',
         ]);
     }
@@ -329,7 +353,7 @@ class BookingController extends Controller
         $booking = $this->bookingService->contest($booking, $request->user(), $request->validated('message'));
 
         return response()->json([
-            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
+            'data' => new BookingResource($booking->load($this->detailRelations())),
             'message' => 'Contestation enregistrée',
         ]);
     }
@@ -344,7 +368,7 @@ class BookingController extends Controller
         $result = $this->bookingService->initiatePayment($booking);
 
         return response()->json([
-            'data' => new BookingResource($result['booking']->load(Booking::partiesEagerLoad())),
+            'data' => new BookingResource($result['booking']->load($this->detailRelations())),
             'checkout_url' => $result['checkout_url'],
             'message' => 'Paiement initié',
         ]);
@@ -361,7 +385,7 @@ class BookingController extends Controller
         $booking = $this->bookingService->checkAndProcessPayment($booking);
 
         return response()->json([
-            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
+            'data' => new BookingResource($booking->load($this->detailRelations())),
         ]);
     }
 
@@ -374,7 +398,7 @@ class BookingController extends Controller
         $result = $this->ugcCommissionPaymentService->initiateForBooking($booking);
 
         return response()->json([
-            'data' => new BookingResource($result['booking']->load(Booking::partiesEagerLoad())),
+            'data' => new BookingResource($result['booking']->load($this->detailRelations())),
             'checkout_url' => $result['checkout_url'],
             'message' => 'Paiement de la commission initié',
         ]);
@@ -391,7 +415,7 @@ class BookingController extends Controller
         $booking = $this->ugcCommissionPaymentService->checkAndProcessBooking($booking);
 
         return response()->json([
-            'data' => new BookingResource($booking->load(Booking::partiesEagerLoad())),
+            'data' => new BookingResource($booking->load($this->detailRelations())),
             'commission_payment_status' => $this->ugcCommissionPaymentService->lastCommissionPaymentStatus(),
         ]);
     }

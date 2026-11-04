@@ -80,6 +80,14 @@ enum ErrorCodes: string
     case EmailNotVerified = 'EMAIL_NOT_VERIFIED';
     case SendFailed = 'SEND_FAILED';
 
+    // --- Code de signature (autorisation d'utilisation de l'image) ---
+    case SignatureCodeTooSoon = 'SIGNATURE_CODE_TOO_SOON';
+    case SignatureCodeSendFailed = 'SIGNATURE_CODE_SEND_FAILED';
+    case SignatureCodeExpired = 'SIGNATURE_CODE_EXPIRED';
+    case SignatureCodeInvalid = 'SIGNATURE_CODE_INVALID';
+    case SignatureCodeTooManyAttempts = 'SIGNATURE_CODE_TOO_MANY_ATTEMPTS';
+    case BirthDateRequired = 'BIRTH_DATE_REQUIRED';
+
     // --- Registration toggle (FIX-23 / FIX-3.1) ---
     case RegistrationDisabled = 'registration_disabled';
 

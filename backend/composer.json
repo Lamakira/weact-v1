@@ -9,6 +9,7 @@
         "php": "^8.2",
         "ext-exif": "*",
         "bacon/bacon-qr-code": "^3.1",
+        "barryvdh/laravel-dompdf": "^3.1",
         "fedapay/fedapay-php": "^0.4.7",
         "intervention/image": "^3.11",
         "intervention/image-laravel": "^1.5",

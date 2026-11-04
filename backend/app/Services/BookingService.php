@@ -23,6 +23,8 @@ use App\Events\BookingNoShowReported;
 use App\Events\BookingPaid;
 use App\Events\BookingPartiallyConfirmed;
 use App\Events\BookingRefused;
+use App\Exceptions\SignatureCodeException;
+use App\Jobs\GenerateImageContractPdf;
 use App\Mail\WalletCreditedMail;
 use App\Models\Admin;
 use App\Models\Booking;
@@ -31,6 +33,7 @@ use App\Models\Face;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\ImageContract\ImageContractService;
 use App\Services\Ugc\UgcCommissionService;
 use App\Services\Ugc\UgcRefundService;
 use App\Support\FedapayPollCache;
@@ -69,6 +72,7 @@ class BookingService
         private readonly UgcCommissionService $ugcCommissionService,
         private readonly UgcRefundService $ugcRefundService,
         private readonly ProductPhotoService $productPhotoService,
+        private readonly ImageContractService $imageContractService,
     ) {}
 
     /**
@@ -80,7 +84,7 @@ class BookingService
      *
      * @throws ValidationException
      */
-    public function create(array $data, User $producer): Booking
+    public function create(array $data, User $producer, ?string $userAgent = null): Booking
     {
         $face = Face::where('uuid', $data['face_id'])->firstOrFail();
         $faceUser = User::where('userable_type', Face::class)
@@ -101,13 +105,56 @@ class BookingService
             ]);
         }
 
-        // UGC (story 1.1 ; RH.2): compensation produit/hybride — produit seul = commission sur la
-        // valeur produit (compute) ; hybride = cash tarifé comme un booking cash (BookingPricing,
-        // modèle two-sided : Producteur +10 % flat, Face −palier, WeAct les deux). Pas de tarif
-        // horaire ni de garde tarif. Le chemin cash reste strictement inchangé.
-        $booking = ($data['type_contenu'] ?? null) === 'UGC'
-            ? $this->createUgcBooking($data, $producer, $faceUser, $face)
-            : $this->createCashBooking($data, $producer, $faceUser, $face);
+        $withContract = $this->imageContractService->enabled();
+        if ($withContract && (! is_array($data['image_terms'] ?? null) || ! is_array($data['signature'] ?? null))) {
+            throw ValidationException::withMessages([
+                'signature' => ['Les conditions d\'utilisation de l\'image et la signature sont requises.'],
+            ]);
+        }
+
+        // Autorisation d'image : le code se vérifie DANS la transaction de création. Un code faux
+        // ne laisse ni booking, ni contrat, ni événement. L'échec est levé APRÈS le commit : lever
+        // dans la transaction annulerait l'incrément du compteur de tentatives.
+        $failure = null;
+
+        $booking = DB::transaction(function () use ($data, $producer, $faceUser, $face, $withContract, $userAgent, &$failure): ?Booking {
+            $challenge = null;
+            if ($withContract) {
+                $verified = $this->imageContractService->verifyProducerCode($producer, (string) ($data['signature']['code'] ?? ''));
+                if ($verified instanceof SignatureCodeException) {
+                    $failure = $verified;
+
+                    return null;
+                }
+                $challenge = $verified;
+            }
+
+            // UGC (story 1.1 ; RH.2): compensation produit/hybride — produit seul = commission sur la
+            // valeur produit (compute) ; hybride = cash tarifé comme un booking cash (BookingPricing,
+            // modèle two-sided : Producteur +10 % flat, Face −palier, WeAct les deux). Pas de tarif
+            // horaire ni de garde tarif. Le chemin cash reste strictement inchangé.
+            $booking = ($data['type_contenu'] ?? null) === 'UGC'
+                ? $this->createUgcBooking($data, $producer, $faceUser, $face)
+                : $this->createCashBooking($data, $producer, $faceUser, $face);
+
+            if ($challenge !== null) {
+                $this->imageContractService->createForBooking(
+                    $booking,
+                    $producer,
+                    $face,
+                    $data['image_terms'],
+                    $challenge,
+                    trim((string) $data['signature']['name']),
+                    $userAgent,
+                );
+            }
+
+            return $booking;
+        });
+
+        if ($failure !== null) {
+            throw $failure;
+        }
 
         BookingCreated::dispatch($booking);
 
@@ -244,14 +291,22 @@ class BookingService
     /**
      * Accept a pending booking request.
      *
+     * Un booking portant une autorisation d'image non signée par la Face ne s'accepte qu'avec
+     * `signature` (nom + code reçu par e-mail) ; un booking sans contrat s'accepte comme avant.
+     *
+     * @param  array{name?: mixed, code?: mixed}|null  $signature
+     *
      * @throws ValidationException
+     * @throws SignatureCodeException
      */
-    public function accept(Booking $booking): Booking
+    public function accept(Booking $booking, ?array $signature = null, ?string $userAgent = null): Booking
     {
         /** @var list<int> $concurrentPendingIds */
         $concurrentPendingIds = [];
+        $signedContractId = null;
+        $failure = null;
 
-        $accepted = DB::transaction(function () use ($booking, &$concurrentPendingIds) {
+        $accepted = DB::transaction(function () use ($booking, $signature, $userAgent, &$concurrentPendingIds, &$signedContractId, &$failure) {
             $booking = $booking->lockForUpdate()->find($booking->id);
 
             // UGC (2.4) : l'acceptation n'ouvre qu'une fois la commission réglée.
@@ -322,6 +377,21 @@ class BookingService
                     ->all();
             }
 
+            // Autorisation d'image : la signature de la Face se vérifie ICI, après les lectures
+            // protégées par le verrou de la Face (invariant ci-dessus) et avant toute écriture.
+            // Aucun statut ne change si le code est faux ; seul le compteur de tentatives persiste.
+            $contract = $this->imageContractService->lockUnsignedContract($booking);
+            if ($contract !== null) {
+                $signed = $this->imageContractService->signByFace($contract, $booking, $signature, $userAgent);
+                if ($signed instanceof SignatureCodeException) {
+                    $failure = $signed;
+                    $concurrentPendingIds = [];
+
+                    return $booking;
+                }
+                $signedContractId = $signed->id;
+            }
+
             $booking->update([
                 'status' => BookingStatus::Accepted,
                 'accepted_at' => now(),
@@ -332,6 +402,14 @@ class BookingService
 
             return $booking->fresh();
         });
+
+        if ($failure !== null) {
+            throw $failure;
+        }
+
+        if ($signedContractId !== null) {
+            GenerateImageContractPdf::dispatch($signedContractId);
+        }
 
         foreach ($concurrentPendingIds as $concurrentId) {
             $this->autoRefuseConcurrentRequest($concurrentId);
