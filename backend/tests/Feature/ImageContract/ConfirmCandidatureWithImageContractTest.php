@@ -500,4 +500,72 @@ class ConfirmCandidatureWithImageContractTest extends TestCase
             ->assertUnprocessable()
             ->assertJsonValidationErrors('guardian_email');
     }
+
+    // ===================================================================
+    // must_sign_image_contract (liste « Mes candidatures » de la Face)
+    // ===================================================================
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function faceList(): array
+    {
+        return $this->actingAs($this->faceUser)
+            ->getJson('/api/v1/face/candidatures')
+            ->assertOk()
+            ->json('data');
+    }
+
+    public function test_the_face_list_says_whether_a_signature_is_needed(): void
+    {
+        [, $withTerms] = $this->cashMissionWithAcceptedFace();
+        [, $withoutTerms] = $this->ugcMissionWithAcceptedFace(CompensationType::Product, withTerms: false);
+        [, $signed] = $this->ugcMissionWithAcceptedFace(CompensationType::Product);
+        $this->makeCandidatureContract($signed);
+        [, $pending] = $this->ugcMissionWithAcceptedFace(CompensationType::Product);
+        $pending->update(['status' => CandidatureStatus::Pending]);
+
+        $byId = collect($this->faceList())->keyBy('id');
+
+        $this->assertTrue($byId[$withTerms->uuid]['must_sign_image_contract']);
+        $this->assertFalse($byId[$withoutTerms->uuid]['must_sign_image_contract']);
+        $this->assertFalse($byId[$signed->uuid]['must_sign_image_contract']);
+        $this->assertFalse($byId[$pending->uuid]['must_sign_image_contract']);
+    }
+
+    public function test_the_flag_is_absent_when_disabled_and_the_list_has_no_n_plus_one(): void
+    {
+        foreach (range(1, 3) as $i) {
+            $face = Face::factory()->create();
+            $this->cashMissionWithAcceptedFace(face: $face);
+            Candidature::query()->where('face_id', $face->id)->update(['face_id' => $this->face->id]);
+        }
+
+        \Illuminate\Support\Facades\DB::enableQueryLog();
+        $list = $this->faceList();
+        $queries = collect(\Illuminate\Support\Facades\DB::getQueryLog())->pluck('query');
+        \Illuminate\Support\Facades\DB::disableQueryLog();
+
+        $this->assertCount(3, $list);
+        $this->assertCount(1, $queries->filter(fn (string $q) => str_contains($q, 'from `image_contracts`')));
+        $this->assertCount(1, $queries->filter(fn (string $q) => str_contains($q, 'from `mission_image_terms`')));
+
+        config(['image_contracts.enabled' => false]);
+        $this->assertArrayNotHasKey('must_sign_image_contract', $this->faceList()[0]);
+    }
+
+    public function test_the_mission_detail_and_the_confirm_response_carry_the_flag(): void
+    {
+        [$mission, $candidature] = $this->cashMissionWithAcceptedFace();
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$mission->uuid}")
+            ->assertOk()
+            ->assertJsonPath('candidature.must_sign_image_contract', true);
+
+        $this->makeChallenge($this->faceUser, $this->candidatePurpose($candidature), '123456');
+        $this->confirm($candidature, $this->signature())
+            ->assertOk()
+            ->assertJsonPath('data.must_sign_image_contract', false);
+    }
 }

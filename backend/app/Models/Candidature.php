@@ -109,6 +109,26 @@ class Candidature extends Model
     }
 
     /**
+     * La Face doit-elle signer l'autorisation d'image pour confirmer ? Null (clé à omettre) si la
+     * fonctionnalité est éteinte ou si `imageContract` / `mission.imageTerms` ne sont pas chargées :
+     * jamais de lazy-load.
+     */
+    public function mustSignImageContract(): ?bool
+    {
+        if (! config('image_contracts.enabled')
+            || ! $this->relationLoaded('imageContract')
+            || ! $this->relationLoaded('mission')
+            || $this->mission === null
+            || ! $this->mission->relationLoaded('imageTerms')) {
+            return null;
+        }
+
+        return $this->status === CandidatureStatus::Accepted
+            && $this->mission->imageTerms !== null
+            && $this->imageContract === null;
+    }
+
+    /**
      * Get the Face that submitted this candidature.
      */
     public function face(): BelongsTo

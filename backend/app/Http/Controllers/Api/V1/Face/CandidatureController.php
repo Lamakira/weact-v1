@@ -65,6 +65,11 @@ class CandidatureController extends Controller
             ])
             ->latest();
 
+        // Autorisation d'image : conditions de la mission et contrat déjà signé (must_sign_image_contract).
+        if (config('image_contracts.enabled')) {
+            $query->with(['mission.imageTerms', 'imageContract']);
+        }
+
         // Optional status filter
         if ($request->query('status') === 'to_process') {
             // Lot D7 : candidatures où la Face doit agir maintenant (Candidature::toProcess).
@@ -342,7 +347,7 @@ class CandidatureController extends Controller
             GenerateImageContractPdf::dispatch($contractId);
         }
         if (config('image_contracts.enabled')) {
-            $candidature->load('imageContract');
+            $candidature->load('imageContract', 'mission.imageTerms');
         }
 
         // Notify the producer that this face confirmed
@@ -494,7 +499,7 @@ class CandidatureController extends Controller
             GenerateImageContractPdf::dispatch($contractId);
         }
         if (config('image_contracts.enabled')) {
-            $confirmed->load('imageContract');
+            $confirmed->load('imageContract', 'mission.imageTerms');
         }
 
         // Post-commit : le deal est ON, le Producteur doit expédier (D-8.2.e, event REPURPOSÉ).
