@@ -84,7 +84,7 @@
     <h2>Conditions générales</h2>
     @foreach($articles as $article)
         <div class="article">
-            <span class="title">Article {{ $loop->iteration }}. {{ $article['title'] }}.</span>
+            <span class="title">Article {{ $loop->iteration }} : {{ $article['title'] }}.</span>
             {{ $article['body'] }}
             @if(! empty($article['bullets']))
                 <ul>
