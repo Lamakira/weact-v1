@@ -282,4 +282,125 @@ class ImageContractPdfTest extends TestCase
 
         $this->assertInstanceOf(Booking::class, $this->signedContract()->booking);
     }
+
+    // ===================================================================
+    // Contrats de mission (candidature)
+    // ===================================================================
+
+    private function candidatureContract(): ImageContract
+    {
+        [, $candidature] = $this->cashMissionWithAcceptedFace();
+
+        return $this->makeCandidatureContract($candidature);
+    }
+
+    public function test_a_candidature_contract_is_mailed_to_the_face_and_the_producer(): void
+    {
+        Mail::fake();
+        $contract = $this->candidatureContract();
+
+        (new GenerateImageContractPdf($contract->id))->handle();
+
+        Storage::disk('local')->assertExists($contract->fresh()->pdf_path);
+        Mail::assertSent(ImageContractSignedMail::class, 2);
+        Mail::assertSent(ImageContractSignedMail::class, fn (ImageContractSignedMail $m) => $m->hasTo('aicha@gmail.com'));
+        Mail::assertSent(ImageContractSignedMail::class, fn (ImageContractSignedMail $m) => $m->hasTo('producteur@example.com'));
+        $this->assertNotNull($contract->fresh()->copies_sent_at);
+    }
+
+    public function test_a_candidature_contract_of_a_minor_is_also_mailed_to_the_guardian(): void
+    {
+        Mail::fake();
+        $contract = $this->candidatureContract();
+        $contract->update(['guardian_name' => 'Fatou Bello', 'guardian_relation' => 'mere']);
+        $this->makeChallenge($this->faceUser, $this->candidatePurpose($contract->candidature), '654321', [
+            'email' => 'fatou@example.com',
+            'guardian_name' => 'Fatou Bello',
+            'guardian_relation' => 'mere',
+            'consumed_at' => now(),
+        ]);
+
+        (new GenerateImageContractPdf($contract->id))->handle();
+
+        Mail::assertSent(ImageContractSignedMail::class, 3);
+        Mail::assertSent(ImageContractSignedMail::class, fn (ImageContractSignedMail $m) => $m->hasTo('fatou@example.com'));
+    }
+
+    public function test_a_contract_whose_candidature_is_gone_still_gets_its_pdf_and_crashes_nothing(): void
+    {
+        Mail::fake();
+        $contract = $this->candidatureContract();
+        $contract->candidature->mission->delete();
+
+        $this->assertNull($contract->fresh()->candidature_id);
+        (new GenerateImageContractPdf($contract->id))->handle();
+
+        $this->assertNotNull($contract->fresh()->pdf_path);
+        Mail::assertNothingSent();
+    }
+
+    public function test_the_pdf_view_of_a_mission_contract_shows_the_title(): void
+    {
+        $contract = $this->candidatureContract();
+        $contract->update(['snapshot' => array_replace_recursive($contract->snapshot, ['projet' => ['titre' => 'Publicité lait local']])]);
+
+        $html = view('contracts.image-authorization', (new GenerateImageContractPdf($contract->id))->viewData($contract->fresh()))->render();
+
+        $this->assertStringContainsString('Publicité lait local', $html);
+        $this->assertStringNotContainsString('—', $html);
+
+        // Un booking (sans titre) s'affiche toujours.
+        $bookingHtml = view('contracts.image-authorization', (new GenerateImageContractPdf($this->signedContract()->id))->viewData($this->signedContract()->fresh()))->render();
+        $this->assertStringNotContainsString('Publicité lait local', $bookingHtml);
+    }
+
+    public function test_the_face_and_the_producer_download_the_candidature_pdf_and_a_third_party_is_refused(): void
+    {
+        Mail::fake();
+        $contract = $this->candidatureContract();
+        (new GenerateImageContractPdf($contract->id))->handle();
+        $uuid = $contract->candidature->uuid;
+
+        foreach ([$this->faceUser, $this->producerUser] as $user) {
+            $response = $this->actingAs($user)->get("/api/v1/candidatures/{$uuid}/image-contract/pdf");
+
+            $response->assertOk();
+            $this->assertSame('application/pdf', $response->headers->get('Content-Type'));
+            $this->assertStringContainsString('attachment', (string) $response->headers->get('Content-Disposition'));
+        }
+
+        $strangerProducer = \App\Models\User::factory()->create([
+            'userable_type' => \App\Models\Producer::class,
+            'userable_id' => \App\Models\Producer::factory()->create()->id,
+        ]);
+        $strangerFace = \App\Models\User::factory()->create([
+            'userable_type' => \App\Models\Face::class,
+            'userable_id' => \App\Models\Face::factory()->create()->id,
+        ]);
+
+        foreach ([$strangerProducer, $strangerFace] as $user) {
+            $this->actingAs($user)->getJson("/api/v1/candidatures/{$uuid}/image-contract/pdf")->assertForbidden();
+        }
+
+        $this->assertSame('candidatures.image-contract.pdf', \Illuminate\Support\Facades\Route::getRoutes()->match(\Illuminate\Http\Request::create("/api/v1/candidatures/{$uuid}/image-contract/pdf"))->getName());
+    }
+
+    public function test_the_candidature_pdf_answers_404_when_not_ready_or_absent(): void
+    {
+        $contract = $this->candidatureContract();
+        [, $withoutContract] = $this->ugcMissionWithAcceptedFace();
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/candidatures/{$contract->candidature->uuid}/image-contract/pdf")
+            ->assertNotFound();
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/candidatures/{$withoutContract->uuid}/image-contract/pdf")
+            ->assertNotFound();
+
+        $contract->update(['pdf_path' => 'image-contracts/missing.pdf']);
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/candidatures/{$contract->candidature->uuid}/image-contract/pdf")
+            ->assertNotFound();
+    }
 }

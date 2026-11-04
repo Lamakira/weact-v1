@@ -8,7 +8,6 @@ use App\Events\BookingCancelled;
 use App\Events\BookingExpired;
 use App\Events\BookingRefused;
 use App\Events\UgcCommissionRefunded;
-use App\Models\Booking;
 use App\Models\ImageContract;
 use App\Models\Mission;
 use Illuminate\Support\Facades\Log;
@@ -32,29 +31,21 @@ final class VoidImageContractOnBookingEnded
         $booking = $event instanceof UgcCommissionRefunded ? $event->owner : $event->booking;
 
         try {
+            $query = ImageContract::query();
+
             if ($booking instanceof Mission) {
                 // Commission d'une mission remboursée : les contrats non effectifs de ses candidatures tombent.
-                ImageContract::query()
-                    ->whereIn('candidature_id', $booking->candidatures()->select('id'))
-                    ->whereNull('effective_at')
-                    ->whereNull('voided_at')
-                    ->update(['voided_at' => now()]);
-
-                return;
+                $query->whereIn('candidature_id', $booking->candidatures()->select('id'));
+            } else {
+                $query->where('booking_id', $booking->id);
             }
 
-            if (! $booking instanceof Booking) {
-                return;
-            }
-
-            ImageContract::query()
-                ->where('booking_id', $booking->id)
-                ->whereNull('effective_at')
+            $query->whereNull('effective_at')
                 ->whereNull('voided_at')
                 ->update(['voided_at' => now()]);
         } catch (\Throwable $e) {
             Log::warning('Image contract void failed', [
-                'owner_id' => $booking?->id,
+                'owner_id' => $booking->id,
                 'error' => $e->getMessage(),
             ]);
         }

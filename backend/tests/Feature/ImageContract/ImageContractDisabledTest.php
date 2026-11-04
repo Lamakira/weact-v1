@@ -98,4 +98,92 @@ class ImageContractDisabledTest extends TestCase
 
         $this->assertStringNotContainsString('image_contracts', $queries);
     }
+
+    public function test_mission_publication_is_unchanged_and_exposes_no_terms(): void
+    {
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/producer/missions', [
+                'titre' => 'Recherche visages pour publicité lait',
+                'description' => 'Nous recherchons des visages pour une publicité nationale.',
+                'date_tournage' => now()->addMonth()->format('Y-m-d'),
+                'profil_recherche' => 'Femmes 25-35 ans',
+                'budget' => 150000,
+                'date_limite_candidature' => now()->addWeeks(2)->format('Y-m-d'),
+                'nombre_faces_voulu' => 2,
+                'type_mission' => 'publicite',
+                'genre_voulu' => 'femme',
+                'lieu' => 'Cotonou, Bénin',
+                'duree' => '1 journée',
+                // Ignorés tant que le drapeau est éteint.
+                'image_terms' => $this->terms(),
+                'signature' => ['name' => 'x', 'code' => 'zzz'],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.image_terms', null);
+
+        $this->assertSame(0, \App\Models\MissionImageTerms::count());
+        $this->assertSame(0, SignatureChallenge::count());
+    }
+
+    public function test_confirm_and_reconfirm_are_unchanged_even_when_terms_exist(): void
+    {
+        Queue::fake([GenerateImageContractPdf::class]);
+        [, $cash] = $this->cashMissionWithAcceptedFace();
+        [, $ugc] = $this->ugcMissionWithAcceptedFace();
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/candidatures/{$cash->uuid}/confirm")
+            ->assertOk()
+            ->assertJsonPath('data.image_contract', null);
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/candidatures/{$ugc->uuid}/reconfirm")
+            ->assertOk()
+            ->assertJsonPath('data.image_contract', null);
+
+        $this->assertSame(0, ImageContract::count());
+        Queue::assertNothingPushed();
+    }
+
+    public function test_mission_details_hide_the_terms_and_the_new_routes_answer_not_found(): void
+    {
+        [$mission, $candidature] = $this->cashMissionWithAcceptedFace();
+        $this->makeCandidatureContract($candidature, ['pdf_path' => 'image-contracts/x.pdf']);
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$mission->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.image_terms', null)
+            ->assertJsonPath('candidature.image_contract', null);
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$mission->uuid}/candidatures")
+            ->assertOk()
+            ->assertJsonPath('data.0.image_contract', null);
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/candidatures/{$candidature->uuid}/image-contract/pdf")
+            ->assertNotFound();
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/image-contract/code', ['purpose' => 'mission_publish'])
+            ->assertNotFound();
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/image-contract/code', ['purpose' => 'candidature_confirm', 'candidature_id' => $candidature->uuid])
+            ->assertNotFound();
+    }
+
+    public function test_mission_details_run_no_image_query(): void
+    {
+        [$mission] = $this->cashMissionWithAcceptedFace();
+
+        DB::enableQueryLog();
+        $this->actingAs($this->faceUser)->getJson("/api/v1/face/missions/{$mission->uuid}")->assertOk();
+        $this->actingAs($this->producerUser)->getJson("/api/v1/producer/missions/{$mission->uuid}")->assertOk();
+        $this->actingAs($this->producerUser)->getJson("/api/v1/producer/missions/{$mission->uuid}/candidatures")->assertOk();
+        $queries = collect(DB::getQueryLog())->pluck('query')->implode("\n");
+        DB::disableQueryLog();
+
+        $this->assertStringNotContainsString('image_contracts', $queries);
+        $this->assertStringNotContainsString('mission_image_terms', $queries);
+    }
 }

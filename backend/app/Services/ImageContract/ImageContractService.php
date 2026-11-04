@@ -361,7 +361,7 @@ class ImageContractService
 
         $isUgc = $mission->type_mission === MissionType::Ugc;
         $isHybrid = $mission->type_compensation === CompensationType::Hybrid;
-        $montant = (int) ($candidature->paymentEntry?->montant_face_recoit ?? 0);
+        $montant = (int) ($candidature->paymentEntry->montant_face_recoit ?? 0);
 
         $contrepartie = match (true) {
             ! $isUgc => [
