@@ -4,6 +4,7 @@ import { Download, FileSignature, Loader2 } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { dureeLabel } from '../constants'
 import { imageContractApi } from '../services/imageContractApi'
+import { saveBlob } from '../utils/saveBlob'
 import type { ImageContract } from '../types'
 
 const props = defineProps<{
@@ -55,14 +56,7 @@ async function downloadPdf(): Promise<void> {
     const blob = props.candidatureId
       ? await imageContractApi.downloadCandidaturePdf(props.candidatureId)
       : await imageContractApi.downloadPdf(props.bookingId ?? '')
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `contrat-image-${ownerId}.pdf`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+    saveBlob(blob, `contrat-image-${ownerId}.pdf`)
   } catch {
     toast.error("Le contrat n'a pas pu être téléchargé. Réessayez dans un instant.")
   } finally {

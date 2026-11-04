@@ -34,7 +34,11 @@ vi.mock('@/composables/useToast', () => ({
 vi.mock('@/features/candidature/components', () => ({
   ProducerCandidaturesSection: defineComponent({
     name: 'ProducerCandidaturesSectionStub',
-    props: { missionId: { type: String, required: true }, missionFull: { type: Boolean, default: false } },
+    props: {
+      missionId: { type: String, required: true },
+      missionFull: { type: Boolean, default: false },
+      imageTerms: { type: Object, default: null },
+    },
     emits: ['request-add-place'],
     setup(props, { expose, emit }) {
       expose({
@@ -45,7 +49,11 @@ vi.mock('@/features/candidature/components', () => ({
       return () =>
         h(
           'div',
-          { 'data-testid': 'candidatures-section-stub', 'data-full': String(props.missionFull) },
+          {
+            'data-testid': 'candidatures-section-stub',
+            'data-full': String(props.missionFull),
+            'data-finalite': props.imageTerms ? (props.imageTerms as { finalite: string }).finalite : '',
+          },
           h('button', {
             'data-testid': 'stub-accept',
             onClick: () => emit('request-add-place', { id: 'cand-1', faceName: 'Aïcha' }),
@@ -621,6 +629,24 @@ describe('ProducerMissionDetailPage — ajouter des places (UGC)', () => {
     await flushPromises()
 
     expect(document.body.querySelector('[data-testid="add-places-dialog"]')).not.toBeNull()
+  })
+
+  it('transmet image_terms de la mission à la section des candidatures (null sans conditions)', async () => {
+    const terms = {
+      finalite: 'Publicité pour la marque Shade',
+      supports: [{ value: 'social', label: 'Réseaux sociaux' }],
+      territoire: { value: 'benin', label: 'Bénin' },
+      duree_annees: 1,
+      producer_signed_at: '2026-11-04T10:00:00Z',
+      producer_signed_name: 'Jean Producteur',
+    }
+    const withTerms = await mountPage(ugcMission({ image_terms: terms }, { confirmed: 1, pending: 1 }))
+    expect(withTerms.get('[data-testid="candidatures-section-stub"]').attributes('data-finalite')).toBe(
+      'Publicité pour la marque Shade',
+    )
+
+    const without = await mountPage(ugcMission({ image_terms: null }, { confirmed: 1, pending: 1 }))
+    expect(without.get('[data-testid="candidatures-section-stub"]').attributes('data-finalite')).toBe('')
   })
 
   it('places libres : ligne « place(s) prise(s) » au lieu du bandeau', async () => {

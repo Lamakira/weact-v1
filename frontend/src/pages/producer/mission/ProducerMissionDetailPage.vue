@@ -697,6 +697,7 @@ function goToEdit(): void {
                   :mission-montant-remuneration="mission.montant_remuneration"
                   :can-replace-freed-place="mission.can_replace_freed_place === true"
                   :mission-full="missionFull"
+                  :image-terms="mission.image_terms ?? null"
                   @request-add-place="openAddPlaces"
                   @capacity-changed="refreshMissionSilently"
                   @freed-place-replaced="fetchMission"
