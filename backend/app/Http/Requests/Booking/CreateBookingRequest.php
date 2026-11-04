@@ -109,7 +109,7 @@ class CreateBookingRequest extends FormRequest
         // par e-mail). Le code lui-même est vérifié dans la transaction de création.
         if (config('image_contracts.enabled')) {
             $rules['image_terms'] = ['required', 'array'];
-            $rules['image_terms.finalite'] = ['required', 'string', 'max:200'];
+            $rules['image_terms.finalite'] = ['required', 'string', 'max:200', new NoContactDetails];
             $rules['image_terms.supports'] = [
                 'required',
                 'array',
@@ -124,7 +124,7 @@ class CreateBookingRequest extends FormRequest
             $rules['image_terms.territoire'] = ['required', 'string', Rule::in(ImageContractTerritoire::values())];
             $rules['image_terms.duree_annees'] = ['required', 'integer', Rule::in(ImageContractTemplate::DUREES)];
             $rules['signature'] = ['required', 'array'];
-            $rules['signature.name'] = ['required', 'string', 'min:3', 'max:150'];
+            $rules['signature.name'] = ['required', 'string', 'min:3', 'max:150', new NoContactDetails];
             $rules['signature.code'] = ['required', 'string', 'max:20'];
         }
 

@@ -116,6 +116,21 @@ class CreateBookingWithImageContractTest extends TestCase
             ->assertJsonPath('data.image_contract.supports.0.value', 'all');
     }
 
+    public function test_contact_details_are_refused_in_the_purpose_and_the_signature_name(): void
+    {
+        $this->makeChallenge($this->producerUser, 'booking_request', '123456');
+
+        $this->postBooking($this->cashPayload(['image_terms' => $this->terms(['finalite' => 'Appelez-moi au 01 97 45 12 33'])]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('image_terms.finalite');
+
+        $this->postBooking($this->cashPayload(['signature' => ['name' => 'Jean 0197451233', 'code' => '123456']]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('signature.name');
+
+        $this->assertSame(0, Booking::count());
+    }
+
     public function test_a_wrong_code_creates_no_booking_no_contract_and_no_event(): void
     {
         Event::fake([BookingCreated::class]);

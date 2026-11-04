@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Booking;
 
 use App\Models\Booking;
+use App\Rules\NoContactDetails;
 use Illuminate\Foundation\Http\FormRequest;
 
 class AcceptBookingRequest extends FormRequest
@@ -27,7 +28,7 @@ class AcceptBookingRequest extends FormRequest
         // transaction d'acceptation (BookingService::accept).
         return [
             'signature' => ['required', 'array'],
-            'signature.name' => ['required', 'string', 'min:3', 'max:150'],
+            'signature.name' => ['required', 'string', 'min:3', 'max:150', new NoContactDetails],
             'signature.code' => ['required', 'string', 'max:20'],
         ];
     }

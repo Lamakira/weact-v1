@@ -11,6 +11,7 @@ use App\Events\BookingCompleted;
 use App\Events\BookingExpired;
 use App\Events\BookingRefused;
 use App\Events\ProductReceived;
+use App\Events\UgcCommissionRefunded;
 use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\ImageContract;
@@ -186,6 +187,26 @@ class ImageContractLifecycleTest extends TestCase
         event(new BookingExpired($booking));
 
         $this->assertNull($contract->fresh()->voided_at);
+        $this->assertSame('effective', $contract->fresh()->status());
+    }
+
+    public function test_a_ugc_commission_refund_voids_the_contract_of_a_booking_only(): void
+    {
+        $booking = $this->ugcBooking('product');
+        $contract = $this->makeSignedContract($booking);
+
+        event(new UgcCommissionRefunded($booking));
+
+        $this->assertSame('void', $contract->fresh()->status());
+    }
+
+    public function test_a_commission_refund_never_voids_an_effective_contract(): void
+    {
+        $booking = $this->ugcBooking('product');
+        $contract = $this->makeSignedContract($booking, ['effective_at' => now()]);
+
+        event(new UgcCommissionRefunded($booking));
+
         $this->assertSame('effective', $contract->fresh()->status());
     }
 
