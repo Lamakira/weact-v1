@@ -27,6 +27,9 @@ class RemindShootingDayCommandTest extends TestCase
     {
         parent::setUp();
 
+        // Midi : « demain » tombe le même jour en UTC et à Cotonou (entre 23 h et minuit UTC, non).
+        $this->travelTo('2030-06-15 12:00:00');
+
         Mail::fake();
     }
 
