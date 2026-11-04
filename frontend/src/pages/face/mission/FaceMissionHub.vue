@@ -359,6 +359,7 @@ const chatTarget = computed(() =>
           v-if="candidature.image_contract"
           :contract="candidature.image_contract"
           :candidature-id="candidature.id"
+          :product-only="mission.type_compensation === 'product'"
           role="face"
         />
 

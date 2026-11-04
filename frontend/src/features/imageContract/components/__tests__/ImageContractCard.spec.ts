@@ -126,7 +126,19 @@ describe('ImageContractCard', () => {
     click.mockRestore()
   })
 
-  it('candidature de mission : télécharge via la route candidature, sans indication de paiement', async () => {
+  it('candidature de mission : indication de prise d\'effet au paiement, ou à la réception en produit seul', () => {
+    const mission = (productOnly?: boolean) =>
+      mount(ImageContractCard, {
+        props: { contract: makeContract({ status: 'signed' }), candidatureId: 'c-7', role: 'face', productOnly },
+      })
+
+    expect(mission().find('[data-testid="contract-usage-hint"]').text()).toBe('Elle devient possible après votre paiement.')
+    expect(mission(true).find('[data-testid="contract-usage-hint"]').text()).toBe(
+      'Elle devient possible à la réception du produit.',
+    )
+  })
+
+  it('candidature de mission : télécharge via la route candidature', async () => {
     downloadCandidaturePdfMock.mockResolvedValue(new Blob(['%PDF']))
     globalThis.URL.createObjectURL = vi.fn(() => 'blob:pdf')
     globalThis.URL.revokeObjectURL = vi.fn()
@@ -135,7 +147,6 @@ describe('ImageContractCard', () => {
       props: { contract: makeContract({ status: 'signed', pdf_ready: true }), candidatureId: 'c-7', role: 'face' },
     })
 
-    expect(wrapper.find('[data-testid="contract-usage-hint"]').exists()).toBe(false)
     await wrapper.find('[data-testid="contract-download"]').trigger('click')
     await flushPromises()
 

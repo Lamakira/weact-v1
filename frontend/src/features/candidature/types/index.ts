@@ -191,6 +191,8 @@ export interface FaceCandidature {
   mission: MissionSummary
   producer: ProducerSummary
   conversation_id: string | null
+  /** Contrat d'image à signer pour confirmer : la Face est menée à la page de la mission (clé absente drapeau éteint). */
+  must_sign_image_contract?: boolean
   /**
    * Date-limite de reconfirmation (ISO 8601) d'une candidature UGC acceptée
    * (accepted_at + ugc.reconfirm_window_hours, 9-1/9-2). null hors UGC accepté

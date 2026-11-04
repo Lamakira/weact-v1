@@ -525,6 +525,25 @@ describe('ImageContractSignDialog', () => {
       })
     })
 
+    it('Face, mission produit seul : dernière ligne protégée sur la réception du produit', () => {
+      const wrapper = mountDialog({ flow: 'mission', role: 'face', candidatureId: 'c-1', productOnly: true })
+
+      const items = wrapper.findAll('[data-testid="image-contract-protected"] li').map((li) => li.text())
+      expect(items.at(-1)).toBe('Pas d\'exploitation de votre image avant la réception du produit.')
+      expect(items).toHaveLength(4)
+    })
+
+    it.each([
+      ['mission classique ou hybride', { flow: 'mission', role: 'face', candidatureId: 'c-1' }],
+      ['booking', { role: 'face', bookingId: 'b-1' }],
+      ['booking avec productOnly', { role: 'face', bookingId: 'b-1', productOnly: true }],
+    ])('dernière ligne inchangée : %s', (_name, props) => {
+      const wrapper = mountDialog(props as never)
+
+      const items = wrapper.findAll('[data-testid="image-contract-protected"] li').map((li) => li.text())
+      expect(items.at(-1)).toBe('Pas d\'exploitation de votre image avant votre paiement.')
+    })
+
     it('le parcours booking reste inchangé par défaut', async () => {
       requestCodeMock.mockResolvedValue(codeReply())
       const producer = mountDialog()

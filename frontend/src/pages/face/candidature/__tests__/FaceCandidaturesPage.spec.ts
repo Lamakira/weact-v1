@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { shallowMount, flushPromises } from '@vue/test-utils'
+import { shallowMount, mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import FaceCandidaturesPage from '../FaceCandidaturesPage.vue'
 
@@ -12,6 +12,7 @@ const mockRouter = { replace: vi.fn(), push: vi.fn() }
 vi.mock('vue-router', () => ({
   useRoute: () => mockRoute,
   useRouter: () => mockRouter,
+  RouterLink: { name: 'RouterLink', props: ['to'], template: '<a><slot /></a>' },
 }))
 
 // Hoisted spies — captured across the module mock factory.
@@ -169,5 +170,45 @@ describe('FaceCandidaturesPage — confirm routing (8.3)', () => {
     expect(mockConfirmCandidature).toHaveBeenCalledWith('cash-cand')
     expect(mockReconfirmCandidature).not.toHaveBeenCalled()
     expect(mockRefresh).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('FaceCandidaturesPage — contrat d\'image à signer', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    candidaturesRef.value = []
+  })
+
+  function mountWithRealCard() {
+    return mount(FaceCandidaturesPage, {
+      global: {
+        stubs: { StatusFilter: true, ConfirmModal: true },
+      },
+    })
+  }
+
+  it('« Lire et signer » mène à la page de la mission sans appeler confirm ni reconfirm', async () => {
+    candidaturesRef.value = [makeCandidature({ id: 'sign-cand', must_sign_image_contract: true })]
+
+    const wrapper = mountWithRealCard()
+    await flushPromises()
+
+    const link = wrapper.get('[data-testid="candidature-sign"]')
+    expect(link.text()).toContain('Lire et signer')
+    expect(wrapper.findComponent('[data-testid="candidature-sign"]').props('to')).toEqual({ name: 'face-mission-detail', params: { id: 'm1' } })
+    expect(wrapper.find('[data-testid="candidature-confirm"]').exists()).toBe(false)
+    await link.trigger('click')
+    expect(mockConfirmCandidature).not.toHaveBeenCalled()
+    expect(mockReconfirmCandidature).not.toHaveBeenCalled()
+  })
+
+  it('sans signature à faire : le bouton Confirmer est conservé', async () => {
+    candidaturesRef.value = [makeCandidature({ id: 'plain-cand' })]
+
+    const wrapper = mountWithRealCard()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="candidature-confirm"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="candidature-sign"]').exists()).toBe(false)
   })
 })

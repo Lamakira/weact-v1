@@ -996,6 +996,7 @@ onMounted(() => {
       :summary="signSummary"
       :default-name="faceSignerName"
       :candidature-id="candidature?.id"
+      :product-only="mission.type_compensation === 'product'"
       :requires-guardian="mission.image_terms.requires_guardian === true"
       :account-email="authStore.user?.email ?? ''"
       :submit="submitSignature"

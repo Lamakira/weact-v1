@@ -52,6 +52,8 @@ interface Props {
   bookingId?: string
   /** Candidature à confirmer (Face, parcours mission) : sert de motif au code de signature. */
   candidatureId?: string
+  /** Mission UGC produit seul (flow mission) : les droits ne démarrent qu'à la réception du produit. */
+  productOnly?: boolean
   /** Face de moins de 18 ans : le code part à un parent ou tuteur. */
   requiresGuardian?: boolean
   /** E-mail du compte connecté : le parent ne peut pas signer avec la même adresse. */
@@ -65,6 +67,7 @@ const props = withDefaults(defineProps<Props>(), {
   flow: 'booking',
   bookingId: undefined,
   candidatureId: undefined,
+  productOnly: false,
   requiresGuardian: false,
   accountEmail: '',
 })
@@ -386,12 +389,14 @@ onBeforeUnmount(stopTimer)
 // Dialogue téléporté : le fermer si la page hôte est désactivée par <keep-alive>.
 useDismissOnDeactivate(() => props.isOpen, () => emit('close'))
 
-const protectedItems = [
+const protectedItems = computed(() => [
   'Pas d\'usage politique, religieux, pornographique ou diffamatoire.',
   'Pas de génération ni de modification de votre visage, de votre corps ou de votre voix par intelligence artificielle.',
   'Pas d\'usage pour un autre produit ou un autre projet que celui indiqué.',
-  'Pas d\'exploitation de votre image avant votre paiement.',
-]
+  isMission.value && props.productOnly
+    ? 'Pas d\'exploitation de votre image avant la réception du produit.'
+    : 'Pas d\'exploitation de votre image avant votre paiement.',
+])
 </script>
 
 <template>

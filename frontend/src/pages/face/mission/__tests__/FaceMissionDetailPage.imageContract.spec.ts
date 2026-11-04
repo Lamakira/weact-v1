@@ -354,6 +354,32 @@ describe('FaceMissionDetailPage : contrat d\'image des missions', () => {
       expect(card.find('[data-testid="contract-download"]').exists()).toBe(true)
     })
 
+    it('indication de prise d\'effet : paiement en hybride, réception en produit seul', async () => {
+      mockMission.value = createUgcMission()
+      mockCandidature.value = candidature({ status: 'confirmed', image_contract: signedContract() })
+      let wrapper = mountPage()
+      await flushPromises()
+      expect(wrapper.get('[data-testid="contract-usage-hint"]').text()).toBe('Elle devient possible après votre paiement.')
+
+      mockMission.value = createUgcMission({ type_compensation: 'product', montant_remuneration: null })
+      wrapper = mountPage()
+      await flushPromises()
+      expect(wrapper.get('[data-testid="contract-usage-hint"]').text()).toBe('Elle devient possible à la réception du produit.')
+    })
+
+    it('fenêtre de signature en produit seul : ligne protégée sur la réception', async () => {
+      mockMission.value = createUgcMission({ type_compensation: 'product', montant_remuneration: null })
+      mockCandidature.value = candidature()
+      const wrapper = mountPage()
+      await flushPromises()
+
+      await wrapper.get('[data-testid="hub-action-desktop"]').trigger('click')
+
+      expect(wrapper.get('[data-testid="image-contract-protected"]').text()).toContain(
+        'avant la réception du produit',
+      )
+    })
+
     it('mission sans conditions : aucune carte de contrat', async () => {
       mockMission.value = createMission({ image_terms: null })
       mockCandidature.value = candidature({ status: 'confirmed', status_label: 'Confirmée' })

@@ -13,6 +13,8 @@ const props = defineProps<{
   bookingId?: string
   /** Candidature de mission porteuse du contrat (PDF via la route candidature). */
   candidatureId?: string
+  /** Mission UGC produit seul : l'image devient utilisable à la réception du produit, sinon au paiement de la Face. */
+  productOnly?: boolean
   role: 'face' | 'producer'
 }>()
 
@@ -37,9 +39,10 @@ const usage = computed(() => {
     default:
       return {
         label: 'Pas encore autorisée',
-        // Mission : le moment où l'image devient utilisable n'est pas celui du booking, pas d'indication.
         hint: props.candidatureId
-          ? null
+          ? props.productOnly
+            ? 'Elle devient possible à la réception du produit.'
+            : 'Elle devient possible après votre paiement.'
           : props.role === 'face'
             ? 'Elle devient possible après votre paiement.'
             : 'Elle devient possible une fois la Face payée.',
