@@ -5,7 +5,7 @@ import { RouterLink } from 'vue-router'
 import { Check, Loader2, ShieldCheck, X } from 'lucide-vue-next'
 import { useDismissOnDeactivate } from '@/composables/useDismissOnDeactivate'
 import { useModalFocusTrap } from '@/composables/useModalFocusTrap'
-import { formatApiError as getApiErrorMessage, getApiErrorCode } from '@/services/errorFormatter'
+import { formatApiError as getApiErrorMessage, getApiErrorCode, getApiErrorDetails } from '@/services/errorFormatter'
 import { dureeLabel } from '../constants'
 import { imageContractApi } from '../services/imageContractApi'
 import type {
@@ -23,6 +23,8 @@ type Step = 'terms' | 'guardian' | 'code'
 const CODE_LENGTH = 6
 const DEFAULT_RESEND_DELAY = 60
 const MIN_NAME_LENGTH = 3
+const MIN_GUARDIAN_NAME_LENGTH = 3
+const OWN_EMAIL_MESSAGE = "Indiquez l'e-mail de votre parent ou tuteur, pas le vôtre."
 
 const GUARDIAN_RELATIONS: { value: GuardianRelation; label: string }[] = [
   { value: 'mere', label: 'Mère' },
@@ -48,6 +50,8 @@ interface Props {
   bookingId?: string
   /** Face de moins de 18 ans : le code part à un parent ou tuteur. */
   requiresGuardian?: boolean
+  /** E-mail du compte connecté : le parent ne peut pas signer avec la même adresse. */
+  accountEmail?: string
   /** Soumission finale (création du booking ou acceptation) avec la signature saisie. */
   submit: (signature: ImageSignature) => Promise<SignatureSubmitOutcome>
 }
@@ -56,6 +60,7 @@ const props = withDefaults(defineProps<Props>(), {
   defaultName: '',
   bookingId: undefined,
   requiresGuardian: false,
+  accountEmail: '',
 })
 
 const emit = defineEmits<{
@@ -92,9 +97,21 @@ let timer: ReturnType<typeof setInterval> | null = null
 const code = computed(() => digits.value.join(''))
 const nameValid = computed(() => name.value.trim().length >= MIN_NAME_LENGTH)
 const canSend = computed(() => nameValid.value && accepted.value && !isSending.value)
+const serverGuardianNameError = ref<string | null>(null)
+const serverGuardianEmailError = ref<string | null>(null)
+
+const guardianEmailIsOwn = computed(() => {
+  const own = props.accountEmail.trim().toLowerCase()
+  return own !== '' && guardianEmail.value.trim().toLowerCase() === own
+})
+const guardianEmailError = computed(() =>
+  guardianEmailIsOwn.value ? OWN_EMAIL_MESSAGE : serverGuardianEmailError.value,
+)
+
 const guardianValid = computed(
   () =>
-    guardianName.value.trim().length >= 2
+    guardianName.value.trim().length >= MIN_GUARDIAN_NAME_LENGTH
+    && !guardianEmailIsOwn.value
     && guardianRelation.value !== ''
     && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guardianEmail.value.trim()),
 )
@@ -189,6 +206,8 @@ function focusCodeInput(index: number): void {
 async function sendCode(): Promise<void> {
   if (isSending.value) return
   clearError()
+  serverGuardianNameError.value = null
+  serverGuardianEmailError.value = null
   isSending.value = true
 
   const payload: SignatureCodePayload = isFace.value
@@ -214,6 +233,14 @@ async function sendCode(): Promise<void> {
     focusCodeInput(0)
   } catch (err) {
     const code = getApiErrorCode(err)
+    const details = getApiErrorDetails(err)
+    const nameDetail = details.guardian_name?.[0] ?? null
+    const emailDetail = details.guardian_email?.[0] ?? null
+    if (step.value === 'guardian' && (nameDetail || emailDetail)) {
+      serverGuardianNameError.value = nameDetail
+      serverGuardianEmailError.value = emailDetail
+      return
+    }
     setError(code, getApiErrorMessage(err))
     if (code === 'SIGNATURE_CODE_TOO_SOON') startCountdown(retryAfterOf(err))
   } finally {
@@ -519,7 +546,11 @@ const protectedItems = [
                   type="text"
                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-weact-500 focus:outline-none focus:ring-1 focus:ring-weact-500"
                   data-testid="guardian-name"
+                  @input="serverGuardianNameError = null"
                 />
+                <p v-if="serverGuardianNameError" class="mt-1 text-xs text-red-600" data-testid="guardian-name-error">
+                  {{ serverGuardianNameError }}
+                </p>
               </div>
 
               <fieldset>
@@ -553,7 +584,11 @@ const protectedItems = [
                   autocomplete="off"
                   class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-weact-500 focus:outline-none focus:ring-1 focus:ring-weact-500"
                   data-testid="guardian-email"
+                  @input="serverGuardianEmailError = null"
                 />
+                <p v-if="guardianEmailError" class="mt-1 text-xs text-red-600" data-testid="guardian-email-error">
+                  {{ guardianEmailError }}
+                </p>
               </div>
 
               <ImageContractCodeNotice

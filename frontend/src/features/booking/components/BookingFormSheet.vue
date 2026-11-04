@@ -303,6 +303,8 @@ function handleKeydown(e: KeyboardEvent): void {
   }
 }
 
+const STALE_FORM_MESSAGE = 'Une nouvelle étape est nécessaire : renseignez l\'utilisation de l\'image.'
+
 const validFields = [
   'face_id',
   'date_debut',
@@ -404,6 +406,16 @@ const onSubmit = handleSubmit(async (values) => {
   if (result.success && result.data) {
     onSuccess(result.data)
   } else if (result.errors) {
+    const staleForm = Object.keys(result.errors).some(
+      (key) => key.startsWith('image_terms') || key.startsWith('signature'),
+    )
+    if (staleForm) {
+      // Formulaire resté ouvert à l'activation : relire le compte fait apparaître la section.
+      await authStore.refreshUser?.()
+      imageTermsError.value = STALE_FORM_MESSAGE
+      toast.error(STALE_FORM_MESSAGE)
+      return
+    }
     applyServerErrors(result.errors)
   }
 })

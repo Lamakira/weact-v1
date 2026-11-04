@@ -410,6 +410,60 @@ describe('ImageContractSignDialog', () => {
       expect(wrapper.find('[data-testid="image-contract-sent-to"]').text()).toContain('m•••@gmail.com')
     })
 
+    async function openGuardianStep(accountEmail = 'aicha@gmail.com') {
+      const wrapper = mountDialog({ role: 'face', bookingId: 'b-1', requiresGuardian: true, accountEmail })
+      await accept(wrapper)
+      await wrapper.find('[data-testid="image-contract-send"]').trigger('click')
+      await wrapper.find('[data-testid="guardian-relation-mere"]').trigger('click')
+      return wrapper
+    }
+
+    it('exige 3 caractères pour le nom du parent', async () => {
+      const wrapper = await openGuardianStep()
+      await wrapper.find('[data-testid="guardian-email"]').setValue('marie@gmail.com')
+
+      await wrapper.find('[data-testid="guardian-name"]').setValue('Ma')
+      expect(isDisabled(wrapper, 'guardian-send')).toBe(true)
+      await wrapper.find('[data-testid="guardian-name"]').setValue('Mar')
+      expect(isDisabled(wrapper, 'guardian-send')).toBe(false)
+    })
+
+    it('refuse l\'e-mail du compte (casse et espaces ignorés)', async () => {
+      const wrapper = await openGuardianStep('Aicha@Gmail.com')
+      await wrapper.find('[data-testid="guardian-name"]').setValue('Marie Dossou')
+      await wrapper.find('[data-testid="guardian-email"]').setValue('  aicha@gmail.COM ')
+
+      expect(isDisabled(wrapper, 'guardian-send')).toBe(true)
+      expect(wrapper.find('[data-testid="guardian-email-error"]').text()).toBe(
+        "Indiquez l'e-mail de votre parent ou tuteur, pas le vôtre.",
+      )
+
+      await wrapper.find('[data-testid="guardian-email"]').setValue('marie@gmail.com')
+      expect(isDisabled(wrapper, 'guardian-send')).toBe(false)
+      expect(wrapper.find('[data-testid="guardian-email-error"]').exists()).toBe(false)
+    })
+
+    it('affiche les erreurs 422 guardian_name et guardian_email dans l\'étape parent', async () => {
+      const err = new AxiosError('x', 'ERR', undefined, undefined, {
+        status: 422,
+        data: { error: { code: 'VALIDATION_ERROR', message: 'Invalide', details: { guardian_name: ['Nom trop court.'], guardian_email: ['E-mail refusé.'] } } },
+        statusText: '',
+        headers: {},
+        config: {} as AxiosResponse['config'],
+      } as AxiosResponse)
+      requestCodeMock.mockRejectedValue(err)
+      const wrapper = await openGuardianStep()
+      await wrapper.find('[data-testid="guardian-name"]').setValue('Marie Dossou')
+      await wrapper.find('[data-testid="guardian-email"]').setValue('marie@gmail.com')
+
+      await wrapper.find('[data-testid="guardian-send"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="guardian-name-error"]').text()).toBe('Nom trop court.')
+      expect(wrapper.find('[data-testid="guardian-email-error"]').text()).toBe('E-mail refusé.')
+      expect(wrapper.find('[data-testid="image-contract-title"]').text()).toBe('Un parent doit signer pour vous')
+    })
+
     it('permet de revenir à l\'étape 1', async () => {
       const wrapper = mountDialog({ role: 'face', bookingId: 'b-1', requiresGuardian: true })
       await accept(wrapper)

@@ -5,16 +5,18 @@ import BookingFormSheet from '../BookingFormSheet.vue'
 import { addDaysIso, bookingMinStartDateIso } from '@/lib/dates'
 import { setSelectValue } from '@/components/ui/__tests__/selectTestUtils'
 
-const { createBookingMock, requestCodeMock, authState } = vi.hoisted(() => ({
+const { createBookingMock, requestCodeMock, refreshUserMock, authState } = await vi.hoisted(async () => ({
   createBookingMock: vi.fn(),
+  refreshUserMock: vi.fn(),
   requestCodeMock: vi.fn(),
-  authState: {
+  authState: (await import('vue')).reactive({
     user: {
       userable_type: 'Producer',
       image_contracts_enabled: false,
       userable: { first_name: 'Jean', last_name: 'Producteur', display_name: 'Agence J' },
     } as Record<string, unknown>,
-  },
+    refreshUser: undefined as unknown,
+  }),
 }))
 
 vi.mock('../../composables/useBookingCreate', () => ({
@@ -84,6 +86,8 @@ function setFlag(enabled: boolean | undefined): void {
   }
 }
 
+authState.refreshUser = refreshUserMock
+
 describe('BookingFormSheet : drapeau image_contracts_enabled faux', () => {
   beforeEach(() => {
     createBookingMock.mockReset()
@@ -125,6 +129,32 @@ describe('BookingFormSheet : relecture du compte à l\'ouverture', () => {
 
     expect(refreshUser).toHaveBeenCalledTimes(1)
     Object.assign(authState, { refreshUser: undefined })
+  })
+
+  it('422 sur image_terms alors que la section est absente : relit le compte et explique', async () => {
+    setFlag(false)
+    authState.refreshUser = refreshUserMock
+    refreshUserMock.mockReset()
+    createBookingMock.mockReset()
+    refreshUserMock.mockImplementation(async () => {
+      if (createBookingMock.mock.calls.length === 0) return true
+      setFlag(true)
+      return true
+    })
+    createBookingMock.mockResolvedValue({
+      success: false,
+      errors: { 'image_terms.finalite': ['La finalité est obligatoire.'] },
+    })
+    const wrapper = mountForm()
+
+    await fillValidCashForm(wrapper)
+    await submitForm(wrapper)
+
+    expect(refreshUserMock).toHaveBeenCalled()
+    authState.refreshUser = undefined
+    expect(wrapper.find('[data-testid="image-terms-error"]').text()).toBe(
+      "Une nouvelle étape est nécessaire : renseignez l'utilisation de l'image.",
+    )
   })
 })
 

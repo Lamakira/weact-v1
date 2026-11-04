@@ -1578,6 +1578,7 @@ onUnmounted(() => {
       :default-name="faceSignerName"
       :booking-id="booking.id"
       :requires-guardian="imageContract?.requires_guardian === true"
+      :account-email="authStore.user?.email ?? ''"
       :submit="submitAcceptSignature"
       @close="showSignDialog = false"
     />
