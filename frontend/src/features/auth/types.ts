@@ -99,6 +99,8 @@ export interface User {
   // Optional: absent tant que le backend des alertes WhatsApp n'est pas déployé,
   // et dans les sessions restaurées d'avant son arrivée (absent ⇒ indisponible).
   whatsapp_alerts?: WhatsappAlerts
+  // Optional: absent (= faux) tant que le backend de l'autorisation d'image n'est pas déployé.
+  image_contracts_enabled?: boolean
   created_at: string
   updated_at: string
 }

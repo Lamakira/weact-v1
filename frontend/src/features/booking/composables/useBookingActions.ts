@@ -2,6 +2,7 @@ import { ref, type Ref } from 'vue'
 import { isAxiosError } from 'axios'
 import { bookingApi } from '../services/bookingApi'
 import type { Booking, CancellationReasonValue } from '../types'
+import type { ImageSignature } from '@/features/imageContract/types'
 import { getApiErrorMessage } from '@/features/auth/services/authApi'
 
 interface UseBookingActionsReturn {
@@ -14,7 +15,7 @@ interface UseBookingActionsReturn {
   error: Ref<string | null>
   errorCode: Ref<string | null>
   errorStatus: Ref<number | null>
-  accept: (bookingId: string) => Promise<Booking | null>
+  accept: (bookingId: string, signature?: ImageSignature) => Promise<Booking | null>
   refuse: (bookingId: string, reason?: string) => Promise<Booking | null>
   confirm: (bookingId: string) => Promise<Booking | null>
   cancel: (bookingId: string, reason: CancellationReasonValue, customReason?: string) => Promise<Booking | null>
@@ -49,13 +50,15 @@ export function useBookingActions(): UseBookingActionsReturn {
       : null
   }
 
-  async function accept(bookingId: string): Promise<Booking | null> {
+  async function accept(bookingId: string, signature?: ImageSignature): Promise<Booking | null> {
     isAccepting.value = true
     error.value = null
     errorCode.value = null
 
     try {
-      const response = await bookingApi.acceptBooking(bookingId)
+      const response = signature
+        ? await bookingApi.acceptBooking(bookingId, signature)
+        : await bookingApi.acceptBooking(bookingId)
       return response.data
     } catch (err) {
       error.value = getApiErrorMessage(err)

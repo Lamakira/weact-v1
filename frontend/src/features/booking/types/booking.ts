@@ -4,6 +4,7 @@
 
 import type { Component } from 'vue'
 import type { Deliverable, ProductPhoto, Shipment } from '@/components/ugc'
+import type { ImageContract, ImageSignature, ImageTerms } from '@/features/imageContract/types'
 
 // Booking status enum
 export const BookingStatus = {
@@ -205,6 +206,8 @@ export interface Booking {
   // Photos produit UGC (spec photos produit, `whenLoaded`) — clé OMISE sur les
   // listes, chargée sur show/store. URLs signées (disque privé, deux parties).
   product_photos?: ProductPhoto[]
+  // Autorisation d'utilisation de l'image : fournie au détail seulement, null/absente sans contrat.
+  image_contract?: ImageContract | null
   created_at: string
   updated_at: string
 }
@@ -241,6 +244,9 @@ export interface CreateBookingData {
   montant_remuneration?: number
   // Photos produit (0-2, facultatives) — leur présence bascule l'envoi en FormData
   product_photos?: File[]
+  // Autorisation d'image (flag serveur actif) : conditions + signature du Producteur
+  image_terms?: ImageTerms
+  signature?: ImageSignature
 }
 
 // Booking API response

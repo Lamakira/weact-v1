@@ -27,6 +27,11 @@ vi.mock('@/composables/useToast', () => ({
   }),
 }))
 
+// Le formulaire lit le drapeau `image_contracts_enabled` du store : absent, comportement historique.
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({ user: { userable_type: 'Producer' } }),
+}))
+
 // ProductPhotosUpload crée des préviews via URL.createObjectURL (absent de jsdom).
 global.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
 global.URL.revokeObjectURL = vi.fn()
