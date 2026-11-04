@@ -1,3 +1,4 @@
+import type { ImageDuree, ImageSupport, ImageTerritoire } from '@/features/imageContract/types'
 import type { CreateMissionData, Mission } from '../types'
 
 /**
@@ -5,7 +6,8 @@ import type { CreateMissionData, Mission } from '../types'
  * (`/producer/missions/publish?from={uuid}`). On ne reprend que le brief : titre, description,
  * type, budget, nombre de Faces, profil/genre, ville/lieu et dotation UGC. Les dates restent
  * VIDES (le Producteur les ajuste) ; paiement, candidatures, statuts et photos produit ne sont
- * jamais copiés — la nouvelle mission repart de zéro.
+ * jamais copiés — la nouvelle mission repart de zéro. Les conditions d'image sont reprises
+ * (sans la signature : le Producteur signe de nouveau).
  */
 export function buildRepublishValues(mission: Mission): Partial<CreateMissionData> {
   const values: Partial<CreateMissionData> = {
@@ -18,6 +20,15 @@ export function buildRepublishValues(mission: Mission): Partial<CreateMissionDat
     genre_voulu: mission.genre_voulu,
     date_tournage: '',
     date_limite_candidature: '',
+  }
+
+  if (mission.image_terms) {
+    values.image_terms = {
+      finalite: mission.image_terms.finalite,
+      supports: mission.image_terms.supports.map((support) => support.value as ImageSupport),
+      territoire: mission.image_terms.territoire.value as ImageTerritoire,
+      duree_annees: mission.image_terms.duree_annees as ImageDuree,
+    }
   }
 
   if ((mission.type_mission as string) === 'ugc') {

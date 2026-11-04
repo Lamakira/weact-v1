@@ -46,8 +46,12 @@ interface Props {
   summary: ContractSummary
   /** Nom prérempli dans « Votre nom complet ». */
   defaultName?: string
+  /** Parcours signé : booking (défaut) ou mission (publication Producteur, confirmation Face). */
+  flow?: 'booking' | 'mission'
   /** Booking à accepter (Face) : sert de motif au code de signature. */
   bookingId?: string
+  /** Candidature à confirmer (Face, parcours mission) : sert de motif au code de signature. */
+  candidatureId?: string
   /** Face de moins de 18 ans : le code part à un parent ou tuteur. */
   requiresGuardian?: boolean
   /** E-mail du compte connecté : le parent ne peut pas signer avec la même adresse. */
@@ -58,7 +62,9 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   defaultName: '',
+  flow: 'booking',
   bookingId: undefined,
+  candidatureId: undefined,
   requiresGuardian: false,
   accountEmail: '',
 })
@@ -68,6 +74,7 @@ const emit = defineEmits<{
 }>()
 
 const isFace = computed(() => props.role === 'face')
+const isMission = computed(() => props.flow === 'mission')
 
 const step = ref<Step>('terms')
 const name = ref('')
@@ -123,7 +130,16 @@ const stepTitle = computed(() => {
   return "Votre contrat d'image"
 })
 
-const confirmLabel = computed(() => (isFace.value ? 'Signer et accepter le booking' : 'Signer et envoyer la demande'))
+const confirmLabel = computed(() => {
+  if (isMission.value) return isFace.value ? 'Signer et confirmer' : 'Signer et publier'
+  return isFace.value ? 'Signer et accepter le booking' : 'Signer et envoyer la demande'
+})
+
+const noCodeHint = computed(() =>
+  isMission.value
+    ? 'Sans ce code, votre participation ne peut pas être confirmée.'
+    : 'Sans ce code, le booking ne peut pas être accepté.',
+)
 
 const displayedError = computed(() => {
   if (!errorCode.value && !errorMessage.value) return null
@@ -210,19 +226,24 @@ async function sendCode(): Promise<void> {
   serverGuardianEmailError.value = null
   isSending.value = true
 
-  const payload: SignatureCodePayload = isFace.value
+  const guardian = props.requiresGuardian && guardianRelation.value
     ? {
-        purpose: 'booking_accept',
-        booking_id: props.bookingId ?? '',
-        ...(props.requiresGuardian && guardianRelation.value
-          ? {
-              guardian_name: guardianName.value.trim(),
-              guardian_relation: guardianRelation.value,
-              guardian_email: guardianEmail.value.trim(),
-            }
-          : {}),
+        guardian_name: guardianName.value.trim(),
+        guardian_relation: guardianRelation.value,
+        guardian_email: guardianEmail.value.trim(),
       }
-    : { purpose: 'booking_request' }
+    : {}
+
+  let payload: SignatureCodePayload
+  if (isMission.value) {
+    payload = isFace.value
+      ? { purpose: 'candidature_confirm', candidature_id: props.candidatureId ?? '', ...guardian }
+      : { purpose: 'mission_publish' }
+  } else {
+    payload = isFace.value
+      ? { purpose: 'booking_accept', booking_id: props.bookingId ?? '', ...guardian }
+      : { purpose: 'booking_request' }
+  }
 
   try {
     const response = await imageContractApi.requestCode(payload)
@@ -593,7 +614,7 @@ const protectedItems = [
 
               <ImageContractCodeNotice
                 title="Le code part à votre parent ou tuteur"
-                text="Il reçoit le contrat et le code par e-mail. Sans ce code, le booking ne peut pas être accepté."
+                :text="`Il reçoit le contrat et le code par e-mail. ${noCodeHint}`"
               />
 
 
@@ -670,7 +691,7 @@ const protectedItems = [
               </button>
 
               <p v-if="isFace" class="text-xs font-medium text-gray-600" data-testid="image-contract-no-code-hint">
-                Sans ce code, le booking ne peut pas être accepté.
+                {{ noCodeHint }}
               </p>
             </template>
           </div>

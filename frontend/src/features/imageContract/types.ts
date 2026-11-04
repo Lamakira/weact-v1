@@ -46,6 +46,21 @@ export interface ImageContract {
   requires_guardian?: boolean
 }
 
+/**
+ * Conditions d'image d'une mission telles que l'expose `Mission.image_terms` (incrément 2) :
+ * signées une fois par le Producteur à la publication, null pour une mission sans conditions.
+ */
+export interface MissionImageTerms {
+  finalite: string
+  supports: ImageContractOption[]
+  territoire: ImageContractOption
+  duree_annees: number
+  producer_signed_at: string | null
+  producer_signed_name: string | null
+  /** Seulement pour une Face connectée : elle a moins de 18 ans, un parent doit signer. */
+  requires_guardian?: boolean
+}
+
 export interface ContractArticle {
   title: string
   body: string
@@ -72,6 +87,8 @@ export interface GuardianInfo {
 export type SignatureCodePayload =
   | ({ purpose: 'booking_request' })
   | ({ purpose: 'booking_accept'; booking_id: string } & Partial<GuardianInfo>)
+  | ({ purpose: 'mission_publish' })
+  | ({ purpose: 'candidature_confirm'; candidature_id: string } & Partial<GuardianInfo>)
 
 export interface SignatureCodeResponse {
   data: {

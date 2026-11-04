@@ -3,13 +3,14 @@ import { mount, flushPromises } from '@vue/test-utils'
 import ImageContractCard from '../ImageContractCard.vue'
 import type { ImageContract } from '../../types'
 
-const { downloadPdfMock, toastErrorMock } = vi.hoisted(() => ({
+const { downloadPdfMock, downloadCandidaturePdfMock, toastErrorMock } = vi.hoisted(() => ({
   downloadPdfMock: vi.fn(),
+  downloadCandidaturePdfMock: vi.fn(),
   toastErrorMock: vi.fn(),
 }))
 
 vi.mock('../../services/imageContractApi', () => ({
-  imageContractApi: { downloadPdf: downloadPdfMock },
+  imageContractApi: { downloadPdf: downloadPdfMock, downloadCandidaturePdf: downloadCandidaturePdfMock },
 }))
 
 vi.mock('@/composables/useToast', () => ({
@@ -41,6 +42,7 @@ const mountCard = (contract: ImageContract, role: 'face' | 'producer' = 'face') 
 describe('ImageContractCard', () => {
   beforeEach(() => {
     downloadPdfMock.mockReset()
+    downloadCandidaturePdfMock.mockReset()
     toastErrorMock.mockReset()
   })
 
@@ -121,6 +123,25 @@ describe('ImageContractCard', () => {
     expect(downloadPdfMock).toHaveBeenCalledWith('b-1')
     expect(click).toHaveBeenCalledTimes(1)
     expect(revokeUrl).toHaveBeenCalledWith('blob:pdf')
+    click.mockRestore()
+  })
+
+  it('candidature de mission : télécharge via la route candidature, sans indication de paiement', async () => {
+    downloadCandidaturePdfMock.mockResolvedValue(new Blob(['%PDF']))
+    globalThis.URL.createObjectURL = vi.fn(() => 'blob:pdf')
+    globalThis.URL.revokeObjectURL = vi.fn()
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const wrapper = mount(ImageContractCard, {
+      props: { contract: makeContract({ status: 'signed', pdf_ready: true }), candidatureId: 'c-7', role: 'face' },
+    })
+
+    expect(wrapper.find('[data-testid="contract-usage-hint"]').exists()).toBe(false)
+    await wrapper.find('[data-testid="contract-download"]').trigger('click')
+    await flushPromises()
+
+    expect(downloadCandidaturePdfMock).toHaveBeenCalledWith('c-7')
+    expect(downloadPdfMock).not.toHaveBeenCalled()
+    expect(click).toHaveBeenCalledTimes(1)
     click.mockRestore()
   })
 

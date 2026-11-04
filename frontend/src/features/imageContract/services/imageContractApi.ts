@@ -23,4 +23,12 @@ export const imageContractApi = {
     })
     return response.data
   },
+
+  /** PDF du contrat d'une candidature de mission (parties seulement). */
+  async downloadCandidaturePdf(candidatureId: string): Promise<Blob> {
+    const response = await apiClient.get<Blob>(`/candidatures/${candidatureId}/image-contract/pdf`, {
+      responseType: 'blob',
+    })
+    return response.data
+  },
 }
