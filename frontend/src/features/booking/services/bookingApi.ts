@@ -8,6 +8,7 @@ import type {
   CancellationReasonValue,
   BookingRatingResponse,
 } from '../types'
+import type { ImageSignature } from '@/features/imageContract/types'
 import type { ConfirmShipmentPayload, ShipmentResponse } from '@/components/ugc'
 
 /**
@@ -49,18 +50,34 @@ export const bookingApi = {
   async createBooking(data: CreateBookingData): Promise<BookingResponse> {
     await getCsrfCookie()
 
-    const { product_photos, ...fields } = data
+    const { product_photos, image_terms, signature, ...scalars } = data
+    const fields = {
+      ...scalars,
+      ...(image_terms ? { image_terms } : {}),
+      ...(signature ? { signature } : {}),
+    }
     if (!product_photos || product_photos.length === 0) {
       const response = await apiClient.post<BookingResponse>('/bookings', fields)
       return response.data
     }
 
     const formData = new FormData()
-    Object.entries(fields).forEach(([key, value]) => {
+    Object.entries(scalars).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
         formData.append(key, String(value))
       }
     })
+    // Autorisation d'image : champs imbriqués en notation à crochets (`image_terms[supports][]`).
+    if (image_terms) {
+      formData.append('image_terms[finalite]', image_terms.finalite)
+      image_terms.supports.forEach((support) => formData.append('image_terms[supports][]', support))
+      formData.append('image_terms[territoire]', image_terms.territoire)
+      formData.append('image_terms[duree_annees]', String(image_terms.duree_annees))
+    }
+    if (signature) {
+      formData.append('signature[name]', signature.name)
+      formData.append('signature[code]', signature.code)
+    }
     product_photos.forEach((file) => formData.append('product_photos[]', file))
 
     const response = await apiClient.post<BookingResponse>('/bookings', formData, {
@@ -80,11 +97,14 @@ export const bookingApi = {
   },
 
   /**
-   * Accept a pending booking (Face only)
+   * Accept a pending booking (Face only).
+   * Booking à contrat d'image : `signature` (nom + code reçu par e-mail) est obligatoire.
    */
-  async acceptBooking(id: string): Promise<BookingResponse> {
+  async acceptBooking(id: string, signature?: ImageSignature): Promise<BookingResponse> {
     await getCsrfCookie()
-    const response = await apiClient.post<BookingResponse>(`/bookings/${id}/accept`)
+    const response = signature
+      ? await apiClient.post<BookingResponse>(`/bookings/${id}/accept`, { signature })
+      : await apiClient.post<BookingResponse>(`/bookings/${id}/accept`)
     return response.data
   },
 

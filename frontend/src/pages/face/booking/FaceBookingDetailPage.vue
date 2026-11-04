@@ -65,6 +65,9 @@ import {
   type ConfirmShipmentPayload,
 } from '@/components/ugc'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
+import ImageContractSignDialog from '@/features/imageContract/components/ImageContractSignDialog.vue'
+import ImageContractCard from '@/features/imageContract/components/ImageContractCard.vue'
+import type { ContractSummary, ImageSignature, SignatureSubmitOutcome } from '@/features/imageContract/types'
 import { useToast } from '@/composables/useToast'
 import { usePaymentReturn } from '@/composables/usePaymentReturn'
 import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
@@ -124,6 +127,14 @@ const showEngagementModal = ref(false)
 // Récapitulatif avant d'accepter un booking cash (lot D9) : s'ouvre avant toute requête.
 const showAcceptDialog = ref(false)
 const acceptConfirmButton = ref<HTMLButtonElement | null>(null)
+
+// Autorisation d'image : un booking à contrat que la Face n'a pas encore signé s'accepte
+// depuis la fenêtre de signature (après le récapitulatif ou l'engagement UGC).
+const imageContract = computed(() => booking.value?.image_contract ?? null)
+const needsFaceSignature = computed<boolean>(
+  () => isFace.value && imageContract.value?.status === 'awaiting_face',
+)
+const showSignDialog = ref(false)
 
 // Expédition UGC (3.2) — panneau écran 4A + tracking Producteur.
 const {
@@ -626,6 +637,11 @@ function closeAcceptDialog(): void {
 
 async function handleAcceptDialogConfirm(): Promise<void> {
   if (isAccepting.value) return
+  if (needsFaceSignature.value) {
+    showAcceptDialog.value = false
+    showSignDialog.value = true
+    return
+  }
   await doAccept()
   showAcceptDialog.value = false
 }
@@ -659,10 +675,66 @@ const acceptRecapDates = computed<string>(() => {
 })
 
 async function handleEngagementConfirm(): Promise<void> {
+  if (needsFaceSignature.value) {
+    showEngagementModal.value = false
+    showSignDialog.value = true
+    return
+  }
   // Modal maintenue ouverte pendant l'appel (parité mission) : `:is-submitting`
   // verrouille le CTA et empêche un double-clic d'engagement.
   await doAccept()
   showEngagementModal.value = false
+}
+
+// Résumé du contrat affiché à la Face dans la fenêtre de signature.
+const signSummary = computed<ContractSummary>(() => {
+  const b = booking.value
+  const contract = imageContract.value
+  const isUgcBooking = b?.type_contenu === 'UGC'
+  const cash = b?.montant_face_recoit ?? 0
+  let contrepartie = `${formatMoney(cash)} net`
+  if (isUgcBooking) {
+    const product = b?.nom_produit || 'Produit offert'
+    contrepartie = b?.type_compensation === 'hybrid' && cash > 0
+      ? `${product} et ${formatMoney(cash)} net`
+      : product
+  }
+  return {
+    projet: b?.type_contenu ?? '',
+    finalite: contract?.finalite ?? '',
+    supports: contract?.supports.map((support) => support.label) ?? [],
+    territoire: contract?.territoire.label ?? '',
+    dureeAnnees: contract?.duree_annees ?? 1,
+    contrepartie,
+  }
+})
+
+const faceSignerName = computed<string>(() => {
+  const userable = authStore.user?.userable as { prenom?: string; nom?: string } | null | undefined
+  return `${userable?.prenom ?? ''} ${userable?.nom ?? ''}`.trim()
+})
+
+async function submitAcceptSignature(signature: ImageSignature): Promise<SignatureSubmitOutcome> {
+  if (!booking.value) return { ok: false }
+  clearError()
+
+  const result = await accept(booking.value.id, signature)
+  if (result) {
+    booking.value = result
+    showSignDialog.value = false
+    toast.success('Booking accepté avec succès !')
+    return { ok: true }
+  }
+
+  // Paywall FR5 (2.4) : Face non éligible → invitation à s'abonner.
+  if (actionErrorCode.value === 'UGC_SUBSCRIPTION_REQUIRED') {
+    showSignDialog.value = false
+    toast.info(actionError.value || "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.")
+    router.push({ name: 'pricing', query: { redirect: route.fullPath } })
+    return { ok: false, code: actionErrorCode.value, message: actionError.value }
+  }
+
+  return { ok: false, code: actionErrorCode.value, message: actionError.value }
 }
 
 function openRefuseDialog(): void {
@@ -1428,6 +1500,14 @@ onUnmounted(() => {
                 :montant-total-producteur="booking.montant_total_producteur"
               />
             </div>
+
+            <!-- Contrat d'image (booking à contrat, les deux rôles) -->
+            <ImageContractCard
+              v-if="booking.image_contract"
+              :contract="booking.image_contract"
+              :booking-id="booking.id"
+              :role="role"
+            />
           </aside>
         </div>
       </div>
@@ -1487,6 +1567,20 @@ onUnmounted(() => {
       :is-submitting="isAccepting"
       @confirm="handleEngagementConfirm"
       @cancel="showEngagementModal = false"
+    />
+
+    <!-- Signature du contrat d'image (Face) : l'acceptation part depuis cette fenêtre -->
+    <ImageContractSignDialog
+      v-if="booking && needsFaceSignature"
+      :is-open="showSignDialog"
+      role="face"
+      :summary="signSummary"
+      :default-name="faceSignerName"
+      :booking-id="booking.id"
+      :requires-guardian="imageContract?.requires_guardian === true"
+      :account-email="authStore.user?.email ?? ''"
+      :submit="submitAcceptSignature"
+      @close="showSignDialog = false"
     />
 
     <!-- UGC commission payment tunnel -->
@@ -1596,7 +1690,7 @@ onUnmounted(() => {
               @click="handleAcceptDialogConfirm"
             >
               <Loader2 v-if="isAccepting" class="w-4 h-4 animate-spin inline mr-1" />
-              Accepter le booking
+              {{ needsFaceSignature ? 'Continuer' : 'Accepter le booking' }}
             </button>
           </div>
         </div>

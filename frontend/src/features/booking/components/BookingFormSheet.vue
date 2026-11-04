@@ -8,6 +8,19 @@ import { useBookingCreate } from '../composables/useBookingCreate'
 import { calculatePricingPreview, type CreateBookingData, type Booking } from '../types'
 import BookingPricingBreakdown from './BookingPricingBreakdown.vue'
 import UgcBookingFields from './UgcBookingFields.vue'
+import ImageTermsFields from '@/features/imageContract/components/ImageTermsFields.vue'
+import ImageContractCodeNotice from '@/features/imageContract/components/ImageContractCodeNotice.vue'
+import ImageContractSignDialog from '@/features/imageContract/components/ImageContractSignDialog.vue'
+import { useImageContractsEnabled } from '@/features/imageContract/composables/useImageContractsEnabled'
+import { defaultFinalite, supportLabel, territoireLabel } from '@/features/imageContract/constants'
+import type {
+  ImageDuree,
+  ImageSignature,
+  ImageSupport,
+  ImageTerritoire,
+  SignatureSubmitOutcome,
+} from '@/features/imageContract/types'
+import { useAuthStore } from '@/stores/auth'
 import {
   CommissionBreakdown,
   computeUgcCommission,
@@ -48,6 +61,18 @@ const emit = defineEmits<{
 
 const { createBooking, isSubmitting, error } = useBookingCreate()
 const toast = useToast()
+const authStore = useAuthStore()
+const imageContractsEnabled = useImageContractsEnabled()
+
+// Le compte vient de localStorage : sans relecture, une session ouverte avant l'activation
+// du contrat enverrait un booking sans conditions d'image, refusé par le serveur.
+watch(
+  () => props.isOpen,
+  (isOpen) => {
+    if (isOpen) void authStore.refreshUser?.()
+  },
+  { immediate: true },
+)
 
 // Focus trap
 const dialogRef = ref<HTMLElement | null>(null)
@@ -131,6 +156,39 @@ const productPhotos = ref<File[]>([])
 const productPhotosError = ref<string>('')
 
 const isUgc = computed(() => type_contenu.value === 'UGC')
+
+// Autorisation d'image (flag serveur) : conditions saisies ici, signature dans la fenêtre dédiée.
+const imageFinalite = ref('')
+const imageFinaliteTouched = ref(false)
+const imageSupports = ref<ImageSupport[]>([])
+const imageTerritoire = ref<ImageTerritoire>('benin')
+const imageDuree = ref<ImageDuree>(1)
+const imageTermsError = ref<string | null>(null)
+const showSignDialog = ref(false)
+const pendingData = ref<CreateBookingData | null>(null)
+
+// Finalité préremplie d'après le type de contenu tant que le Producteur n'y a pas touché.
+watch(
+  () => type_contenu.value,
+  (value) => {
+    if (!imageFinaliteTouched.value) imageFinalite.value = defaultFinalite(value)
+  },
+  { immediate: true },
+)
+
+function updateImageFinalite(value: string): void {
+  imageFinaliteTouched.value = true
+  imageFinalite.value = value
+}
+
+const signerDefaultName = computed(() => {
+  const userable = authStore.user?.userable as
+    | { first_name?: string | null; last_name?: string | null; display_name?: string }
+    | null
+    | undefined
+  const personal = `${userable?.first_name ?? ''} ${userable?.last_name ?? ''}`.trim()
+  return personal || userable?.display_name || ''
+})
 // Photos produit obligatoires (1-2) pour l'UGC uniquement — calque la garde
 // confirm-disabled de la modale de réception Face. Un booking non-UGC n'a pas de photos.
 const ugcPhotosMissing = computed(() => isUgc.value && productPhotos.value.length === 0)
@@ -144,6 +202,7 @@ const ugcPayable = computed(() => {
     : computeUgcCommission(Number(valeur_produit.value) || 0)
 })
 const submitLabel = computed(() => {
+  if (imageContractsEnabled.value) return 'Lire et signer le contrat'
   if (isSubmitting.value) return isUgc.value ? 'Création...' : 'Envoi en cours...'
   if (isUgc.value) {
     const amount = formatMoney(ugcPayable.value)
@@ -192,6 +251,14 @@ watch(
       customDaysError.value = ''
       productPhotos.value = []
       productPhotosError.value = ''
+      imageFinaliteTouched.value = false
+      imageFinalite.value = defaultFinalite(type_contenu.value)
+      imageSupports.value = []
+      imageTerritoire.value = 'benin'
+      imageDuree.value = 1
+      imageTermsError.value = null
+      showSignDialog.value = false
+      pendingData.value = null
       resetForm({ values: makeDefaultValues() })
       nextTick(() => {
         const firstInput = dialogRef.value?.querySelector<HTMLElement>('input, select, textarea')
@@ -211,6 +278,7 @@ watch(
 // Handle Escape key and focus trap
 function handleKeydown(e: KeyboardEvent): void {
   if (e.key === 'Escape' && props.isOpen) {
+    if (showSignDialog.value) return
     emit('close')
     return
   }
@@ -233,6 +301,59 @@ function handleKeydown(e: KeyboardEvent): void {
       first.focus()
     }
   }
+}
+
+const STALE_FORM_MESSAGE = 'Une nouvelle étape est nécessaire : renseignez l\'utilisation de l\'image.'
+
+const validFields = [
+  'face_id',
+  'date_debut',
+  'date_fin',
+  'duree_heures',
+  'type_contenu',
+  'lieu',
+  'message',
+  'type_compensation',
+  'nom_produit',
+  'valeur_produit',
+  'nombre_videos',
+  'montant_remuneration',
+] as const
+type ValidField = (typeof validFields)[number]
+
+function applyServerErrors(errors: Record<string, string[]>): void {
+  Object.entries(errors).forEach(([field, messages]) => {
+    if (messages && messages.length > 0 && validFields.includes(field as ValidField)) {
+      setFieldError(field as ValidField, messages[0])
+    }
+    // Erreurs photos produit (clés `product_photos` ou `product_photos.N`) —
+    // hors vee-validate, affichées sous l'uploader.
+    if (messages && messages.length > 0 && field.startsWith('product_photos')) {
+      productPhotosError.value = messages[0] ?? ''
+    }
+    if (messages && messages.length > 0 && field.startsWith('image_terms')) {
+      imageTermsError.value = messages[0] ?? null
+    }
+  })
+}
+
+function validateImageTerms(): boolean {
+  if (imageFinalite.value.trim() === '') {
+    imageTermsError.value = "Indiquez la finalité de l'utilisation de l'image."
+    return false
+  }
+  if (imageSupports.value.length === 0) {
+    imageTermsError.value = 'Choisissez au moins un support.'
+    return false
+  }
+  imageTermsError.value = null
+  return true
+}
+
+function onSuccess(booking: Booking): void {
+  toast.success(isUgc.value ? 'Booking UGC créé.' : 'Demande de booking envoyée !')
+  emit('success', booking)
+  emit('close')
 }
 
 const onSubmit = handleSubmit(async (values) => {
@@ -272,41 +393,91 @@ const onSubmit = handleSubmit(async (values) => {
     data.message = brief
   }
 
+  // Autorisation d'image : le booking part depuis la fenêtre de signature.
+  if (imageContractsEnabled.value) {
+    if (!validateImageTerms()) return
+    pendingData.value = data
+    showSignDialog.value = true
+    return
+  }
+
   const result = await createBooking(data)
 
   if (result.success && result.data) {
-    toast.success(isUgc.value ? 'Booking UGC créé.' : 'Demande de booking envoyée !')
-    emit('success', result.data)
-    emit('close')
+    onSuccess(result.data)
   } else if (result.errors) {
-    const validFields = [
-      'face_id',
-      'date_debut',
-      'date_fin',
-      'duree_heures',
-      'type_contenu',
-      'lieu',
-      'message',
-      'type_compensation',
-      'nom_produit',
-      'valeur_produit',
-      'nombre_videos',
-      'montant_remuneration',
-    ] as const
-    type ValidField = (typeof validFields)[number]
-
-    Object.entries(result.errors).forEach(([field, messages]) => {
-      if (messages && messages.length > 0 && validFields.includes(field as ValidField)) {
-        setFieldError(field as ValidField, messages[0])
-      }
-      // Erreurs photos produit (clés `product_photos` ou `product_photos.N`) —
-      // hors vee-validate, affichées sous l'uploader.
-      if (messages && messages.length > 0 && field.startsWith('product_photos')) {
-        productPhotosError.value = messages[0] ?? ''
-      }
-    })
+    const staleForm = Object.keys(result.errors).some(
+      (key) => key.startsWith('image_terms') || key.startsWith('signature'),
+    )
+    if (staleForm) {
+      // Formulaire resté ouvert à l'activation : relire le compte fait apparaître la section.
+      await authStore.refreshUser?.()
+      imageTermsError.value = STALE_FORM_MESSAGE
+      toast.error(STALE_FORM_MESSAGE)
+      return
+    }
+    applyServerErrors(result.errors)
   }
 })
+
+// Contrepartie telle que la Face la verra : cachet, ou produit (+ rémunération en hybride).
+const signCompensation = computed(() => {
+  if (isUgc.value) {
+    const product = `${nom_produit.value || 'Produit'} (${formatMoney(Number(valeur_produit.value) || 0)})`
+    const cash = Number(montant_remuneration.value) || 0
+    return type_compensation.value === 'hybrid' && cash > 0
+      ? `${product} et ${formatMoney(cash)}`
+      : product
+  }
+  return pricingPreview.value
+    ? `Rémunération de ${formatMoney(pricingPreview.value.tarifBase)} selon le tarif de la Face`
+    : 'Rémunération selon le tarif de la Face'
+})
+
+const signSummary = computed(() => ({
+  projet: type_contenu.value,
+  finalite: imageFinalite.value.trim(),
+  supports: imageSupports.value.map(supportLabel),
+  territoire: territoireLabel(imageTerritoire.value),
+  dureeAnnees: imageDuree.value,
+  contrepartie: signCompensation.value,
+}))
+
+async function submitSigned(signature: ImageSignature): Promise<SignatureSubmitOutcome> {
+  if (!pendingData.value) {
+    return { ok: false, message: 'La demande est introuvable. Fermez la fenêtre et recommencez.' }
+  }
+
+  const result = await createBooking({
+    ...pendingData.value,
+    image_terms: {
+      finalite: imageFinalite.value.trim(),
+      supports: imageSupports.value,
+      territoire: imageTerritoire.value,
+      duree_annees: imageDuree.value,
+    },
+    signature,
+  })
+
+  if (result.success && result.data) {
+    showSignDialog.value = false
+    pendingData.value = null
+    onSuccess(result.data)
+    return { ok: true }
+  }
+
+  const isSignatureError = (result.errorCode ?? '').startsWith('SIGNATURE_CODE')
+  if (!isSignatureError && result.errors && Object.keys(result.errors).length > 0) {
+    // Erreur sur un champ de la demande : retour au formulaire pour la corriger.
+    showSignDialog.value = false
+    applyServerErrors(result.errors)
+  }
+  return { ok: false, code: result.errorCode, message: result.message }
+}
+
+function closeSignDialog(): void {
+  showSignDialog.value = false
+}
 </script>
 
 <template>
@@ -513,8 +684,23 @@ const onSubmit = handleSubmit(async (values) => {
                 <BookingPricingBreakdown :tarif-base="pricingPreview.tarifBase" role="producer" />
               </div>
 
+              <!-- Autorisation d'utilisation de l'image (flag serveur) -->
+              <ImageTermsFields
+                v-if="imageContractsEnabled"
+                :finalite="imageFinalite"
+                :supports="imageSupports"
+                :territoire="imageTerritoire"
+                :duree-annees="imageDuree"
+                :error="imageTermsError"
+                @update:finalite="updateImageFinalite"
+                @update:supports="imageSupports = $event"
+                @update:territoire="imageTerritoire = $event"
+                @update:duree-annees="imageDuree = $event"
+              />
+
               <!-- Submit -->
-              <div class="pt-2">
+              <div class="space-y-3 pt-2">
+                <ImageContractCodeNotice v-if="imageContractsEnabled" />
                 <Button
                   type="submit"
                   class="w-full"
@@ -532,4 +718,14 @@ const onSubmit = handleSubmit(async (values) => {
       </div>
     </Transition>
   </Teleport>
+
+  <ImageContractSignDialog
+    v-if="imageContractsEnabled"
+    :is-open="showSignDialog"
+    role="producer"
+    :summary="signSummary"
+    :default-name="signerDefaultName"
+    :submit="submitSigned"
+    @close="closeSignDialog"
+  />
 </template>
