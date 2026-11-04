@@ -124,6 +124,63 @@ class ImageContractPdfTest extends TestCase
 
         $this->assertNotNull($contract->fresh()->pdf_path);
         $this->assertNotNull($contract->fresh()->pdf_sha256);
+        // Envoi raté : les copies ne sont pas marquées parties, une relance les renverra.
+        $this->assertNull($contract->fresh()->copies_sent_at);
+    }
+
+    public function test_a_failed_write_throws_and_records_neither_path_nor_hash(): void
+    {
+        Mail::fake();
+        $contract = $this->signedContract();
+        $disk = \Mockery::mock(\Illuminate\Contracts\Filesystem\Filesystem::class);
+        $disk->shouldReceive('exists')->andReturn(false);
+        $disk->shouldReceive('put')->andReturn(false);
+        Storage::shouldReceive('disk')->andReturn($disk);
+
+        try {
+            (new GenerateImageContractPdf($contract->id))->handle();
+            $this->fail('Une écriture ratée doit lever une exception.');
+        } catch (\RuntimeException) {
+            // attendu
+        }
+
+        $fresh = $contract->fresh();
+        $this->assertNull($fresh->pdf_path);
+        $this->assertNull($fresh->pdf_sha256);
+        $this->assertNull($fresh->copies_sent_at);
+        Mail::assertNothingSent();
+    }
+
+    public function test_copies_are_marked_sent_and_a_failed_send_is_retried_without_regenerating(): void
+    {
+        $contract = $this->signedContract();
+        Mail::fake();
+        (new GenerateImageContractPdf($contract->id))->handle();
+        $this->assertNotNull($contract->fresh()->copies_sent_at);
+        Mail::assertSent(ImageContractSignedMail::class, 2);
+
+        // Envoi des copies raté la première fois : le PDF existe, seules les copies repartent.
+        $contract->update(['copies_sent_at' => null]);
+        $first = $contract->fresh();
+        (new GenerateImageContractPdf($contract->id))->handle();
+
+        $second = $contract->fresh();
+        $this->assertSame($first->pdf_sha256, $second->pdf_sha256);
+        $this->assertNotNull($second->copies_sent_at);
+        Mail::assertSent(ImageContractSignedMail::class, 4);
+
+        // Une fois les copies parties, plus rien ne repart.
+        (new GenerateImageContractPdf($contract->id))->handle();
+        Mail::assertSent(ImageContractSignedMail::class, 4);
+    }
+
+    public function test_the_failed_hook_logs(): void
+    {
+        \Illuminate\Support\Facades\Log::spy();
+
+        (new GenerateImageContractPdf(12))->failed(new \RuntimeException('boom'));
+
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('error')->once();
     }
 
     public function test_the_pdf_view_shows_the_conditions_the_articles_and_no_fingerprint_nor_dash(): void
@@ -137,7 +194,7 @@ class ImageContractPdfTest extends TestCase
         $this->assertStringContainsString($contract->reference(), $html);
         $this->assertStringContainsString('Campagne réseaux sociaux de la marque', $html);
         $this->assertStringContainsString('Réseaux sociaux, Site web', $html);
-        $this->assertStringContainsString('Article 13. Signature électronique.', $html);
+        $this->assertStringContainsString('Article 13 : Signature électronique.', $html);
         $this->assertStringContainsString('Fatou Bello', $html);
         $this->assertStringContainsString('a•••••@gmail.com', $html);
         $this->assertStringNotContainsString(str_repeat('ab', 32), $html);

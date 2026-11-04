@@ -35,6 +35,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string|null $pdf_sha256
  * @property \Illuminate\Support\Carbon|null $effective_at
  * @property \Illuminate\Support\Carbon|null $voided_at
+ * @property \Illuminate\Support\Carbon|null $copies_sent_at
  * @property-read Booking|null $booking
  */
 class ImageContract extends Model
@@ -72,6 +73,7 @@ class ImageContract extends Model
         'pdf_sha256',
         'effective_at',
         'voided_at',
+        'copies_sent_at',
     ];
 
     /** @var list<string> */
@@ -90,6 +92,7 @@ class ImageContract extends Model
             'face_signed_at' => 'datetime',
             'effective_at' => 'datetime',
             'voided_at' => 'datetime',
+            'copies_sent_at' => 'datetime',
         ];
     }
 

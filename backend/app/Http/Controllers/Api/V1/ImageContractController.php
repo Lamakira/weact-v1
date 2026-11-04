@@ -12,6 +12,7 @@ use App\Http\Requests\ImageContract\RequestSignatureCodeRequest;
 use App\Models\Booking;
 use App\Models\Face;
 use App\Models\Producer;
+use App\Services\FaceEntitlementService;
 use App\Services\ImageContract\ImageContractService;
 use App\Services\ImageContract\SignatureChallengeService;
 use App\Support\EmailMask;
@@ -28,6 +29,7 @@ class ImageContractController extends Controller
     public function __construct(
         private readonly ImageContractService $imageContracts,
         private readonly SignatureChallengeService $challenges,
+        private readonly FaceEntitlementService $entitlement,
     ) {}
 
     /**
@@ -84,6 +86,16 @@ class ImageContractController extends Controller
 
         Gate::authorize('accept', $booking);
 
+        // Même garde que l'acceptation : une Face sans accès UGC ne peut pas s'engager sur ce deal.
+        if ($booking->type_contenu === 'UGC' && ! $this->entitlement->canAccessUgc($user->userable)) {
+            return response()->json(
+                ErrorCodes::UgcSubscriptionRequired->envelope(
+                    "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite."
+                ),
+                403
+            );
+        }
+
         $contract = $booking->imageContract;
         if ($contract === null || $contract->isSignedByFace()) {
             return response()->json(
@@ -114,7 +126,12 @@ class ImageContractController extends Controller
                 }
             }
 
-            $email = (string) $request->validated('guardian_email');
+            $email = trim((string) $request->validated('guardian_email'));
+            if (mb_strtolower($email) === mb_strtolower(trim((string) $user->email))) {
+                throw ValidationException::withMessages([
+                    'guardian_email' => ['Indiquez l\'e-mail de votre parent ou tuteur, pas le vôtre.'],
+                ]);
+            }
             $guardianName = trim((string) $request->validated('guardian_name'));
             $guardianRelation = (string) $request->validated('guardian_relation');
         }
@@ -125,6 +142,7 @@ class ImageContractController extends Controller
             $email,
             $guardianName,
             $guardianRelation,
+            $guardianName !== null ? $this->imageContracts->guardianSummary($contract) : null,
         );
 
         return $this->sent($challenge->email, $challenge->expires_at);

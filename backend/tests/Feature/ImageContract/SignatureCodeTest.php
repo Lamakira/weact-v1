@@ -7,6 +7,7 @@ namespace Tests\Feature\ImageContract;
 use App\Enums\ErrorCodes;
 use App\Exceptions\SignatureCodeException;
 use App\Mail\SignatureCodeMail;
+use App\Models\Booking;
 use App\Models\SignatureChallenge;
 use App\Services\ImageContract\SignatureChallengeService;
 use App\Support\EmailMask;
@@ -289,5 +290,172 @@ class SignatureCodeTest extends TestCase
 
         $this->expectException(SignatureCodeException::class);
         app(SignatureChallengeService::class)->verify($this->faceUser, 'booking_request', '424242');
+    }
+
+    private function minorPayload(array $overrides = []): array
+    {
+        $this->face->update(['date_naissance' => now()->subYears(16)->toDateString()]);
+        $booking = $this->pendingCashBooking();
+        $this->makeContract($booking);
+
+        return array_merge([
+            'purpose' => 'booking_accept',
+            'booking_id' => $booking->uuid,
+            'guardian_name' => 'Fatou Bello',
+            'guardian_relation' => 'mere',
+            'guardian_email' => 'fatou@example.com',
+        ], $overrides);
+    }
+
+    public function test_a_minor_cannot_use_her_own_email_as_guardian_email(): void
+    {
+        Mail::fake();
+
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/image-contract/code', $this->minorPayload(['guardian_email' => '  Aicha@GMAIL.com ']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('guardian_email')
+            ->assertJsonPath('errors.guardian_email.0', 'Indiquez l\'e-mail de votre parent ou tuteur, pas le vôtre.');
+
+        Mail::assertNothingSent();
+        $this->assertSame(0, SignatureChallenge::count());
+    }
+
+    public function test_guardian_name_refuses_contact_details(): void
+    {
+        Mail::fake();
+
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/image-contract/code', $this->minorPayload(['guardian_name' => 'Fatou sur fatou@example.com']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('guardian_name');
+    }
+
+    public function test_the_guardian_email_shows_the_conditions_and_explains_the_signature(): void
+    {
+        Mail::fake();
+
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/image-contract/code', $this->minorPayload())
+            ->assertOk();
+
+        Mail::assertSent(SignatureCodeMail::class, function (SignatureCodeMail $mail) {
+            $html = $mail->render();
+
+            return $mail->summary !== null
+                && str_contains($html, 'Studio Test')
+                && str_contains($html, 'Campagne réseaux sociaux de la marque')
+                && str_contains($html, 'Réseaux sociaux, Site web')
+                && str_contains($html, 'Bénin')
+                && str_contains($html, '3 ans')
+                && str_contains($html, 'Rémunération reçue par la Face')
+                && str_contains($html, 'vous signez cette autorisation à la place de')
+                && ! str_contains($html, '—');
+        });
+    }
+
+    public function test_the_face_and_producer_codes_carry_no_summary(): void
+    {
+        Mail::fake();
+        $booking = $this->pendingCashBooking();
+        $this->makeContract($booking);
+
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/image-contract/code', ['purpose' => 'booking_accept', 'booking_id' => $booking->uuid])
+            ->assertOk();
+
+        Mail::assertSent(SignatureCodeMail::class, fn (SignatureCodeMail $mail) => $mail->summary === null);
+    }
+
+    public function test_the_code_route_has_its_own_named_limiter(): void
+    {
+        Mail::fake();
+
+        // Un Producteur n'a pas le droit de demander un code Face : 403, mais chaque appel compte.
+        for ($i = 0; $i < 10; $i++) {
+            $this->actingAs($this->producerUser)
+                ->postJson('/api/v1/image-contract/code', ['purpose' => 'booking_accept', 'booking_id' => (string) \Illuminate\Support\Str::uuid()])
+                ->assertNotFound();
+        }
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/image-contract/code', ['purpose' => 'booking_request'])
+            ->assertStatus(429);
+
+        // Le compteur n'est pas partagé avec les autres routes.
+        $this->actingAs($this->producerUser)->getJson('/api/v1/image-contract/template')->assertOk();
+    }
+
+    public function test_no_code_for_a_ugc_booking_when_the_face_has_no_ugc_access(): void
+    {
+        Mail::fake();
+        $booking = Booking::factory()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'status' => \App\Enums\BookingStatus::CommissionPaid,
+            'date_debut' => null,
+            'date_fin' => null,
+            'duree_heures' => null,
+            'type_contenu' => 'UGC',
+            'lieu' => null,
+            'tarif_base' => 0,
+            'type_compensation' => 'product',
+            'nom_produit' => 'Tenue',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'commission_ugc' => 2500,
+            'commission_paid_at' => now(),
+        ]);
+        $this->makeContract($booking);
+        $payload = ['purpose' => 'booking_accept', 'booking_id' => $booking->uuid];
+
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/image-contract/code', $payload)
+            ->assertForbidden()
+            ->assertJsonPath('error.code', 'UGC_SUBSCRIPTION_REQUIRED');
+        Mail::assertNothingSent();
+
+        \App\Models\FaceSubscription::factory()->pro()->active()->create(['face_id' => $this->face->id]);
+        $this->actingAs($this->faceUser)->postJson('/api/v1/image-contract/code', $payload)->assertOk();
+    }
+
+    public function test_a_minor_cannot_become_adult_or_clear_her_birth_date_but_can_correct_within_minority(): void
+    {
+        $this->face->update(['date_naissance' => now()->subYears(16)->subDay()->toDateString()]);
+        $message = 'Contactez le support pour corriger votre date de naissance.';
+
+        $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', ['date_naissance' => now()->subYears(30)->toDateString()])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.date_naissance.0', $message);
+
+        $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', ['date_naissance' => null])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.date_naissance.0', $message);
+
+        $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', ['date_naissance' => now()->subYears(17)->toDateString()])
+            ->assertOk();
+
+        // Une requête qui ne touche pas à la date reste libre.
+        $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', ['pays' => 'Bénin'])
+            ->assertOk();
+
+        $this->assertTrue($this->face->fresh()->isMinor());
+    }
+
+    public function test_an_adult_or_a_disabled_flag_keeps_the_birth_date_editable(): void
+    {
+        $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', ['date_naissance' => now()->subYears(40)->toDateString()])
+            ->assertOk();
+
+        $this->face->update(['date_naissance' => now()->subYears(16)->subDay()->toDateString()]);
+        config(['image_contracts.enabled' => false]);
+        $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', ['date_naissance' => now()->subYears(40)->toDateString()])
+            ->assertOk();
     }
 }

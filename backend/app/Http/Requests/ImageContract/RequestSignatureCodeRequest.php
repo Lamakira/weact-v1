@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\ImageContract;
 
+use App\Rules\NoContactDetails;
 use App\Services\ImageContract\SignatureChallengeService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -26,7 +27,7 @@ class RequestSignatureCodeRequest extends FormRequest
             'purpose' => ['required', 'string', Rule::in([SignatureChallengeService::PURPOSE_BOOKING_REQUEST, self::PURPOSE_BOOKING_ACCEPT])],
             'booking_id' => ['required_if:purpose,'.self::PURPOSE_BOOKING_ACCEPT, 'nullable', 'string', 'uuid'],
             // Requis pour une Face de moins de 18 ans (l'âge est lu côté serveur, pas déclaré).
-            'guardian_name' => ['nullable', 'string', 'min:3', 'max:150'],
+            'guardian_name' => ['nullable', 'string', 'min:3', 'max:150', new NoContactDetails],
             'guardian_relation' => ['nullable', 'string', Rule::in(['mere', 'pere', 'tuteur'])],
             'guardian_email' => ['nullable', 'string', 'email:rfc', 'max:254'],
         ];

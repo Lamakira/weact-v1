@@ -9,8 +9,8 @@ use App\Enums\ImageContractTerritoire;
 use App\Mail\ImageContractSignedMail;
 use App\Models\ImageContract;
 use App\Models\SignatureChallenge;
+use App\Services\ImageContract\ImageContractService;
 use App\Support\ImageContractTemplate;
-use App\Support\Money;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -49,14 +49,15 @@ class GenerateImageContractPdf implements ShouldQueue
                 return null;
             }
 
-            $disk = Storage::disk((string) config('image_contracts.storage_disk', 'local'));
-
             if (! $contract->isSignedByFace()) {
                 return null;
             }
 
+            $disk = Storage::disk((string) config('image_contracts.storage_disk', 'local'));
+
             if ($contract->pdf_path !== null && $disk->exists($contract->pdf_path)) {
-                return null;
+                // PDF déjà écrit : ne reste à envoyer que les copies, si elles ne sont pas parties.
+                return $contract->copies_sent_at === null ? $contract : null;
             }
 
             $path = 'image-contracts/'.$contract->uuid.'.pdf';
@@ -64,10 +65,14 @@ class GenerateImageContractPdf implements ShouldQueue
                 ->setPaper('a4')
                 ->output();
 
-            $disk->put($path, $bytes);
+            if (! $disk->put($path, $bytes)) {
+                throw new \RuntimeException("Écriture du PDF impossible pour le contrat {$contract->id}.");
+            }
+
             $contract->update([
                 'pdf_path' => $path,
                 'pdf_sha256' => hash('sha256', $bytes),
+                'copies_sent_at' => null,
             ]);
 
             return $contract;
@@ -80,6 +85,14 @@ class GenerateImageContractPdf implements ShouldQueue
         $this->sendCopies($contract);
     }
 
+    public function failed(\Throwable $exception): void
+    {
+        Log::error('Image contract PDF generation failed', [
+            'contract_id' => $this->contractId,
+            'error' => $exception->getMessage(),
+        ]);
+    }
+
     /**
      * @return array<string, mixed>
      */
@@ -89,14 +102,7 @@ class GenerateImageContractPdf implements ShouldQueue
         $contrepartie = $snapshot['contrepartie'] ?? [];
         $kind = (string) ($contrepartie['kind'] ?? 'cash');
 
-        $lines = match ($kind) {
-            'ugc_product' => ['Produit remis : '.($contrepartie['nom_produit'] ?? '').' (valeur '.Money::format((int) ($contrepartie['valeur_produit'] ?? 0)).')'],
-            'ugc_hybrid' => [
-                'Produit remis : '.($contrepartie['nom_produit'] ?? '').' (valeur '.Money::format((int) ($contrepartie['valeur_produit'] ?? 0)).')',
-                'Rémunération reçue par la Face : '.Money::format((int) ($contrepartie['montant_face_recoit'] ?? 0)),
-            ],
-            default => ['Rémunération reçue par la Face : '.Money::format((int) ($contrepartie['montant_face_recoit'] ?? 0))],
-        };
+        $lines = ImageContractService::contrepartieLines($contrepartie);
 
         return [
             'contract' => $contract,
@@ -137,15 +143,23 @@ class GenerateImageContractPdf implements ShouldQueue
                 ->value('email');
         }
 
+        $allSent = true;
+
         foreach (array_unique(array_filter(array_map('trim', $recipients))) as $email) {
             try {
                 Mail::to($email)->send(new ImageContractSignedMail($contract->id, $contract->reference(), (string) $contract->pdf_path));
             } catch (\Throwable $e) {
+                $allSent = false;
                 Log::warning('ImageContractSignedMail failed', [
                     'contract_id' => $contract->id,
                     'error' => $e->getMessage(),
                 ]);
             }
+        }
+
+        // Un échec laisse copies_sent_at nul : une nouvelle exécution du job renverra les copies.
+        if ($allSent) {
+            $contract->update(['copies_sent_at' => now()]);
         }
     }
 }

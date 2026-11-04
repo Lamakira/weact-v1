@@ -35,6 +35,7 @@ return new class extends Migration
             $table->char('pdf_sha256', 64)->nullable();
             $table->timestamp('effective_at')->nullable();
             $table->timestamp('voided_at')->nullable();
+            $table->timestamp('copies_sent_at')->nullable(); // posé une fois les copies PDF envoyées
             $table->timestamps();
         });
     }

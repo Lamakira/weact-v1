@@ -222,4 +222,44 @@ class ImageContractLifecycleTest extends TestCase
 
         $this->assertTrue($voidedAt->equalTo($contract->fresh()->voided_at));
     }
+
+    public function test_completion_with_a_refunded_escrow_does_not_make_the_contract_effective(): void
+    {
+        // UGC hybride terminé en retard : escrow remboursé, la Face n'est pas payée.
+        $booking = $this->ugcBooking('hybrid');
+        $contract = $this->makeSignedContract($booking);
+        \App\Models\EscrowTransaction::create([
+            'booking_id' => $booking->id,
+            'amount' => 14250,
+            'status' => 'refunded',
+            'locked_at' => now(),
+        ]);
+
+        BookingCompleted::dispatch($booking);
+
+        $this->assertNull($contract->fresh()->effective_at);
+        $this->assertSame('signed', $contract->fresh()->status());
+    }
+
+    public function test_a_dispute_settled_for_the_producer_voids_a_non_effective_contract(): void
+    {
+        $booking = $this->pendingCashBooking();
+        $contract = $this->makeSignedContract($booking);
+
+        \App\Events\BookingDisputeSettled::dispatch($booking, \App\Enums\DisputeResolutionOutcome::FavorFace, 0);
+        $this->assertNull($contract->fresh()->voided_at);
+
+        \App\Events\BookingDisputeSettled::dispatch($booking, \App\Enums\DisputeResolutionOutcome::FavorProducer, 1000);
+        $this->assertSame('void', $contract->fresh()->status());
+    }
+
+    public function test_a_dispute_for_the_producer_never_voids_an_effective_contract(): void
+    {
+        $booking = $this->pendingCashBooking();
+        $contract = $this->makeSignedContract($booking, ['effective_at' => now()->subDay()]);
+
+        \App\Events\BookingDisputeSettled::dispatch($booking, \App\Enums\DisputeResolutionOutcome::FavorProducer, 1000);
+
+        $this->assertNull($contract->fresh()->voided_at);
+    }
 }

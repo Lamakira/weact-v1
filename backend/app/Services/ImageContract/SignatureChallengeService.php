@@ -28,6 +28,8 @@ class SignatureChallengeService
     /**
      * Émet un code (6 chiffres, 10 min) et l'envoie en synchrone.
      *
+     * @param  array<string, mixed>|null  $guardianSummary  conditions montrées au parent qui signe
+     *
      * @throws SignatureCodeException 429 trop tôt, 503 envoi impossible
      */
     public function issue(
@@ -36,6 +38,7 @@ class SignatureChallengeService
         string $email,
         ?string $guardianName = null,
         ?string $guardianRelation = null,
+        ?array $guardianSummary = null,
     ): SignatureChallenge {
         $delay = (int) config('image_contracts.resend_delay_seconds', 60);
         $ttl = (int) config('image_contracts.code_ttl_minutes', 10);
@@ -93,6 +96,7 @@ class SignatureChallengeService
                 signerName: $signerName !== '' ? $signerName : 'le titulaire du compte',
                 forGuardian: $guardianName !== null,
                 guardianName: $guardianName,
+                summary: $guardianName !== null ? $guardianSummary : null,
             ));
         } catch (\Throwable $e) {
             $challenge->delete();

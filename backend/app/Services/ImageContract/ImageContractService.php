@@ -15,6 +15,7 @@ use App\Models\SignatureChallenge;
 use App\Models\User;
 use App\Support\EmailMask;
 use App\Support\ImageContractTemplate;
+use App\Support\Money;
 use Illuminate\Validation\ValidationException;
 
 class ImageContractService
@@ -186,6 +187,45 @@ class ImageContractService
                 'nombre_videos' => $booking->nombre_videos,
             ],
             'contrepartie' => $contrepartie,
+        ];
+    }
+
+    /**
+     * Lignes de contrepartie lisibles (PDF et e-mail du parent).
+     *
+     * @param  array<string, mixed>  $contrepartie
+     * @return list<string>
+     */
+    public static function contrepartieLines(array $contrepartie): array
+    {
+        $produit = 'Produit remis : '.($contrepartie['nom_produit'] ?? '').' (valeur '.Money::format((int) ($contrepartie['valeur_produit'] ?? 0)).')';
+        $cash = 'Rémunération reçue par la Face : '.Money::format((int) ($contrepartie['montant_face_recoit'] ?? 0));
+
+        return match ((string) ($contrepartie['kind'] ?? 'cash')) {
+            'ugc_product' => [$produit],
+            'ugc_hybrid' => [$produit, $cash],
+            default => [$cash],
+        };
+    }
+
+    /**
+     * Résumé des conditions montré au parent ou tuteur qui signe pour une Face mineure.
+     *
+     * @return array{producer: string, finalite: string, supports: string, territoire: string, duree: string, contrepartie: list<string>}
+     */
+    public function guardianSummary(ImageContract $contract): array
+    {
+        $snapshot = $contract->snapshot;
+
+        return [
+            'producer' => (string) ($snapshot['parties']['producer']['name'] ?? ''),
+            'finalite' => $contract->finalite,
+            'supports' => collect($contract->supports)
+                ->map(fn (string $value): string => ImageContractSupport::from($value)->label())
+                ->implode(', '),
+            'territoire' => \App\Enums\ImageContractTerritoire::from($contract->territoire)->label(),
+            'duree' => $contract->duree_annees.' '.($contract->duree_annees > 1 ? 'ans' : 'an'),
+            'contrepartie' => self::contrepartieLines($snapshot['contrepartie'] ?? []),
         ];
     }
 

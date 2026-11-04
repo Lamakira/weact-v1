@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Listeners\ImageContract;
 
+use App\Enums\EscrowStatus;
 use App\Events\BookingCompleted;
 use App\Models\ImageContract;
 use Illuminate\Support\Facades\Log;
@@ -20,6 +21,14 @@ final class MarkImageContractEffectiveOnCompleted
     public function handle(BookingCompleted $event): void
     {
         try {
+            // Escrow remboursé (UGC hybride terminé en retard) : la Face n'est pas payée, pas de prise d'effet.
+            $escrowRefunded = $event->booking->escrowTransaction()
+                ->where('status', EscrowStatus::Refunded->value)
+                ->exists();
+            if ($escrowRefunded) {
+                return;
+            }
+
             ImageContract::query()
                 ->where('booking_id', $event->booking->id)
                 ->whereNotNull('face_signed_at')

@@ -18,6 +18,8 @@ final class SignatureCodeMail extends BaseMail
         public readonly string $signerName,
         public readonly bool $forGuardian,
         public readonly ?string $guardianName = null,
+        /** @var array<string, mixed>|null */
+        public readonly ?array $summary = null,
     ) {}
 
     protected function subjectLine(): string
@@ -35,6 +37,7 @@ final class SignatureCodeMail extends BaseMail
                 'signerName' => $this->signerName,
                 'forGuardian' => $this->forGuardian,
                 'guardianName' => $this->guardianName,
+                'summary' => $this->summary,
             ],
         );
     }
