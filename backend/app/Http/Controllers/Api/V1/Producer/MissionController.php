@@ -141,6 +141,9 @@ class MissionController extends Controller
 
         // Lot C1 : résumé du cycle de vie (barre d'étapes), détail Producer uniquement.
         $mission->load(['producer', 'productPhotos']);
+        if (config('image_contracts.enabled')) {
+            $mission->load('imageTerms');
+        }
         $summary = $summaries->summarize($mission, $freedCount);
         $mission->setAttribute('summary', $summary);
         // Valeurs déjà connues du résumé : évitent de refaire completionBlocker() et l'existence du paiement.
@@ -174,15 +177,22 @@ class MissionController extends Controller
 
         $mission = $this->missionService->createMission(
             $producer,
-            $request->validated()
+            $request->validated(),
+            $user,
+            $request->userAgent(),
         );
 
         $message = $mission->status === MissionStatus::PendingPayment
             ? 'Mission UGC créée. Réglez la commission pour la publier.'
             : 'Mission publiée avec succès';
 
+        $mission->load('productPhotos');
+        if (config('image_contracts.enabled')) {
+            $mission->load('imageTerms');
+        }
+
         return response()->json([
-            'data' => new MissionResource($mission->load('productPhotos')),
+            'data' => new MissionResource($mission),
             'message' => $message,
         ], 201);
     }

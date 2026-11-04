@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Enums\ImageContractSupport;
+use App\Enums\ImageContractTerritoire;
 use App\Models\Face;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -60,6 +62,9 @@ class MissionResource extends JsonResource
             // sur les listes qui ne chargent pas la relation, présente sur les détails
             // et sur la découverte UGC (vitrine des cartes, écran 6A).
             'product_photos' => ProductPhotoResource::collection($this->whenLoaded('productPhotos')),
+            // Autorisation d'image : conditions signées à la publication. Null si la fonctionnalité est
+            // éteinte, si la relation n'est pas chargée (listes : pas de N+1) ou si la mission n'en porte pas.
+            'image_terms' => $this->imageTermsPayload($request, $requesterIsFace),
             'is_accepting_candidatures' => $this->isAcceptingCandidatures(),
             // Listings pre-load the flag (Mission::scopeWithPaidPaymentFlag); the query is the fallback.
             'has_paid_payment' => $hasPaidPayment,
@@ -112,5 +117,45 @@ class MissionResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Jamais d'e-mail ni de user agent. `requires_guardian` n'existe que pour une Face connectée.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function imageTermsPayload(Request $request, bool $requesterIsFace): ?array
+    {
+        if (! config('image_contracts.enabled') || ! $this->resource->relationLoaded('imageTerms')) {
+            return null;
+        }
+
+        $terms = $this->resource->imageTerms;
+        if ($terms === null) {
+            return null;
+        }
+
+        $payload = [
+            'finalite' => $terms->finalite,
+            'supports' => array_map(
+                fn (string $value): array => ['value' => $value, 'label' => ImageContractSupport::from($value)->label()],
+                $terms->supports,
+            ),
+            'territoire' => [
+                'value' => $terms->territoire,
+                'label' => ImageContractTerritoire::from($terms->territoire)->label(),
+            ],
+            'duree_annees' => $terms->duree_annees,
+            'producer_signed_at' => $terms->producer_signed_at->toIso8601String(),
+            'producer_signed_name' => $terms->producer_signed_name,
+        ];
+
+        if ($requesterIsFace) {
+            /** @var Face $face */
+            $face = $request->user()->userable;
+            $payload['requires_guardian'] = $face->isMinor();
+        }
+
+        return $payload;
     }
 }

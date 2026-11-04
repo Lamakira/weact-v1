@@ -10,12 +10,14 @@ use App\Events\BookingRefused;
 use App\Events\UgcCommissionRefunded;
 use App\Models\Booking;
 use App\Models\ImageContract;
+use App\Models\Mission;
 use Illuminate\Support\Facades\Log;
 use Symfony\Component\EventDispatcher\Attribute\AsEventListener;
 
 /**
  * Annule l'autorisation d'image d'un booking refusé, annulé, expiré ou remboursé AVANT sa prise
- * d'effet (l'expiration UGC après commission ne passe que par UgcCommissionRefunded).
+ * d'effet (l'expiration UGC après commission ne passe que par UgcCommissionRefunded), ou celle des
+ * candidatures d'une mission dont la commission est remboursée.
  * Une autorisation déjà effective n'est jamais annulée. Idempotent, non-fatal : les événements
  * partent parfois dans la transaction du changement de statut.
  */
@@ -29,11 +31,22 @@ final class VoidImageContractOnBookingEnded
     {
         $booking = $event instanceof UgcCommissionRefunded ? $event->owner : $event->booking;
 
-        if (! $booking instanceof Booking) {
-            return; // Commission d'une mission : pas de contrat par booking.
-        }
-
         try {
+            if ($booking instanceof Mission) {
+                // Commission d'une mission remboursée : les contrats non effectifs de ses candidatures tombent.
+                ImageContract::query()
+                    ->whereIn('candidature_id', $booking->candidatures()->select('id'))
+                    ->whereNull('effective_at')
+                    ->whereNull('voided_at')
+                    ->update(['voided_at' => now()]);
+
+                return;
+            }
+
+            if (! $booking instanceof Booking) {
+                return;
+            }
+
             ImageContract::query()
                 ->where('booking_id', $booking->id)
                 ->whereNull('effective_at')
@@ -41,7 +54,7 @@ final class VoidImageContractOnBookingEnded
                 ->update(['voided_at' => now()]);
         } catch (\Throwable $e) {
             Log::warning('Image contract void failed', [
-                'booking_id' => $booking->id,
+                'owner_id' => $booking?->id,
                 'error' => $e->getMessage(),
             ]);
         }

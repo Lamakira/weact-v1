@@ -39,6 +39,9 @@
         <tr>
             <td class="label">Projet</td>
             <td>
+                @if(! empty($projet['titre']))
+                    <strong>{{ $projet['titre'] }}</strong><br>
+                @endif
                 {{ $projet['type_contenu'] ?? '' }}
                 @if(! empty($projet['nom_produit']))
                     : {{ $projet['nom_produit'] }}

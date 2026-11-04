@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources;
 
 use App\Services\FaceEntitlementService;
+use App\Support\ImageContractPayload;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
@@ -55,6 +56,7 @@ class ProducerCandidatureResource extends JsonResource
                 ]
                 : null,
             'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->uuid),
+            'image_contract' => $this->imageContractPayload(),
             'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
             'deliverables' => DeliverableResource::collection($this->whenLoaded('deliverables')),
             'face' => $this->whenLoaded('face', fn () => [
@@ -72,5 +74,22 @@ class ProducerCandidatureResource extends JsonResource
                     : false,
             ]),
         ];
+    }
+
+    /**
+     * Null si la fonctionnalité est éteinte, si la relation n'est pas chargée (pas de N+1 en liste)
+     * ou si la Face n'a pas (encore) signé.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function imageContractPayload(): ?array
+    {
+        if (! config('image_contracts.enabled') || ! $this->resource->relationLoaded('imageContract')) {
+            return null;
+        }
+
+        $contract = $this->resource->imageContract;
+
+        return $contract === null ? null : ImageContractPayload::for($contract);
     }
 }

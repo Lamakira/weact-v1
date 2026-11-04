@@ -12,10 +12,13 @@ use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
 use App\Events\UgcMissionDealAccepted;
+use App\Exceptions\SignatureCodeException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Face\ConfirmCandidatureRequest;
 use App\Http\Requests\Face\StoreCandidatureRequest;
 use App\Http\Resources\CandidatureResource;
 use App\Http\Resources\FaceCandidatureResource;
+use App\Jobs\GenerateImageContractPdf;
 use App\Mail\FaceConfirmedMail;
 use App\Models\Candidature;
 use App\Models\Face;
@@ -23,6 +26,7 @@ use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\ImageContract\ImageContractService;
 use App\Services\MissionEligibility;
 use App\Services\MissionPaymentService;
 use Illuminate\Http\JsonResponse;
@@ -213,7 +217,7 @@ class CandidatureController extends Controller
      * Changes candidature status from "accepted" to "confirmed".
      * Only the Face who owns the candidature can confirm it.
      */
-    public function confirm(Request $request, Candidature $candidature): JsonResponse
+    public function confirm(ConfirmCandidatureRequest $request, Candidature $candidature): JsonResponse
     {
         $user = $request->user();
 
@@ -284,7 +288,13 @@ class CandidatureController extends Controller
 
         // Update status to confirmed — sous verrou (payment → entries → candidature, même ordre que
         // l'expiration B3) : une expiration concurrente ne doit pas être écrasée par cette confirmation.
-        $confirmed = DB::transaction(function () use ($candidature, $missionPayment): bool {
+        // Autorisation d'image : la Face signe en confirmant. Le code se vérifie dans la transaction,
+        // avant d'écrire le statut ; l'échec est levé APRÈS le commit (sinon le compteur de
+        // tentatives serait annulé avec la transaction).
+        $failure = null;
+        $contractId = null;
+
+        $confirmed = DB::transaction(function () use ($request, $user, $candidature, $missionPayment, &$failure, &$contractId): bool {
             app(MissionPaymentService::class)->lockCashSelection($missionPayment->id);
 
             /** @var Candidature $locked */
@@ -294,11 +304,28 @@ class CandidatureController extends Controller
                 return false;
             }
 
+            $signed = app(ImageContractService::class)->signForCandidature(
+                $locked,
+                $user,
+                $request->validated('signature'),
+                $request->userAgent(),
+            );
+            if ($signed instanceof SignatureCodeException) {
+                $failure = $signed;
+
+                return false;
+            }
+            $contractId = $signed?->id;
+
             $locked->status = CandidatureStatus::Confirmed;
             $locked->save();
 
             return true;
         });
+
+        if ($failure !== null) {
+            throw $failure;
+        }
 
         if (! $confirmed) {
             return response()->json([
@@ -310,6 +337,13 @@ class CandidatureController extends Controller
         }
 
         $candidature->refresh();
+
+        if ($contractId !== null) {
+            GenerateImageContractPdf::dispatch($contractId);
+        }
+        if (config('image_contracts.enabled')) {
+            $candidature->load('imageContract');
+        }
 
         // Notify the producer that this face confirmed
         $producerUser = User::where('userable_type', Producer::class)
@@ -374,7 +408,7 @@ class CandidatureController extends Controller
      * Le 2ᵉ oui de la Face arme le tunnel : dispatch UgcMissionDealAccepted (event
      * REPURPOSÉ, D-8.2.e) ⇒ le Producteur est notifié de préparer l'expédition.
      */
-    public function reconfirm(Request $request, Candidature $candidature): JsonResponse
+    public function reconfirm(ConfirmCandidatureRequest $request, Candidature $candidature): JsonResponse
     {
         $user = $request->user();
 
@@ -417,21 +451,50 @@ class CandidatureController extends Controller
             ), 422);
         }
 
-        $confirmed = DB::transaction(function () use ($candidature): ?Candidature {
+        // Autorisation d'image : la Face signe en reconfirmant (même patron que confirm).
+        $failure = null;
+        $contractId = null;
+
+        $confirmed = DB::transaction(function () use ($request, $user, $candidature, &$failure, &$contractId): ?Candidature {
             /** @var Candidature $locked */
             $locked = Candidature::where('id', $candidature->id)->lockForUpdate()->firstOrFail();
             if ($locked->status !== CandidatureStatus::Accepted) {
                 return null; // idempotence : une requête concurrente a déjà reconfirmé
             }
+
+            $signed = app(ImageContractService::class)->signForCandidature(
+                $locked,
+                $user,
+                $request->validated('signature'),
+                $request->userAgent(),
+            );
+            if ($signed instanceof SignatureCodeException) {
+                $failure = $signed;
+
+                return null;
+            }
+            $contractId = $signed?->id;
+
             $locked->update(['status' => CandidatureStatus::Confirmed]);
 
             return $locked;
         });
 
+        if ($failure !== null) {
+            throw $failure;
+        }
+
         if ($confirmed === null) {
             return response()->json(ErrorCodes::InvalidStatus->envelope(
                 'Cette candidature a déjà été reconfirmée.'
             ), 422);
+        }
+
+        if ($contractId !== null) {
+            GenerateImageContractPdf::dispatch($contractId);
+        }
+        if (config('image_contracts.enabled')) {
+            $confirmed->load('imageContract');
         }
 
         // Post-commit : le deal est ON, le Producteur doit expédier (D-8.2.e, event REPURPOSÉ).

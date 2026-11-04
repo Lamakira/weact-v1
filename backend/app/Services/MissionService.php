@@ -11,11 +11,13 @@ use App\Enums\EscrowStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
+use App\Exceptions\SignatureCodeException;
 use App\Models\Candidature;
 use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\ImageContract\ImageContractService;
 use App\Services\Ugc\UgcCommissionService;
 use App\Services\Ugc\UgcMediaCleanupService;
 use Illuminate\Support\Facades\DB;
@@ -29,6 +31,7 @@ class MissionService
         private readonly UgcCommissionService $ugcCommissionService,
         private readonly ProductPhotoService $productPhotoService,
         private readonly UgcMediaCleanupService $ugcMediaCleanupService,
+        private readonly ImageContractService $imageContractService,
     ) {}
 
     /**
@@ -38,15 +41,69 @@ class MissionService
      * with a server-recalculated commission, while standard missions are still
      * published directly.
      *
+     * Autorisation d'image (drapeau actif) : le Producteur signe UNE fois, ici. Le code se vérifie
+     * DANS la transaction, AVANT de créer quoi que ce soit : un code faux ne laisse ni mission, ni
+     * conditions, ni événement, ni fichier. L'échec est levé APRÈS le commit : lever dans la
+     * transaction annulerait l'incrément du compteur de tentatives.
+     *
      * @param  array<string, mixed>  $data
      * @return Mission The newly created mission
+     *
+     * @throws ValidationException
+     * @throws SignatureCodeException
      */
-    public function createMission(Producer $producer, array $data): Mission
+    public function createMission(Producer $producer, array $data, ?User $signer = null, ?string $userAgent = null): Mission
     {
-        if (($data['type_mission'] ?? null) === MissionType::Ugc->value) {
-            return $this->createUgcMission($producer, $data);
+        $withContract = $this->imageContractService->enabled();
+        if ($withContract && ($signer === null || ! is_array($data['image_terms'] ?? null) || ! is_array($data['signature'] ?? null))) {
+            throw ValidationException::withMessages([
+                'signature' => ['Les conditions d\'utilisation de l\'image et la signature sont requises.'],
+            ]);
         }
 
+        $failure = null;
+
+        $mission = DB::transaction(function () use ($producer, $data, $signer, $userAgent, $withContract, &$failure): ?Mission {
+            $challenge = null;
+            if ($withContract) {
+                $verified = $this->imageContractService->verifyMissionPublishCode($signer, (string) ($data['signature']['code'] ?? ''));
+                if ($verified instanceof SignatureCodeException) {
+                    $failure = $verified;
+
+                    return null;
+                }
+                $challenge = $verified;
+            }
+
+            $mission = ($data['type_mission'] ?? null) === MissionType::Ugc->value
+                ? $this->createUgcMission($producer, $data)
+                : $this->createStandardMission($producer, $data);
+
+            if ($challenge !== null) {
+                $this->imageContractService->createMissionTerms(
+                    $mission,
+                    $data['image_terms'],
+                    $challenge,
+                    trim((string) $data['signature']['name']),
+                    $userAgent,
+                );
+            }
+
+            return $mission;
+        });
+
+        if ($failure !== null) {
+            throw $failure;
+        }
+
+        return $mission;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function createStandardMission(Producer $producer, array $data): Mission
+    {
         /** @var Mission $mission */
         $mission = $producer->missions()->create([
             'titre' => $data['titre'],

@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Enums\CandidatureStatus;
 use App\Enums\ErrorCodes;
 use App\Enums\ImageContractSupport;
 use App\Enums\ImageContractTerritoire;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ImageContract\RequestSignatureCodeRequest;
 use App\Models\Booking;
+use App\Models\Candidature;
 use App\Models\Face;
+use App\Models\ImageContract;
 use App\Models\Producer;
+use App\Models\User;
 use App\Services\FaceEntitlementService;
 use App\Services\ImageContract\ImageContractService;
 use App\Services\ImageContract\SignatureChallengeService;
@@ -57,8 +61,9 @@ class ImageContractController extends Controller
     }
 
     /**
-     * Envoie un code de signature par e-mail : au Producteur avant la création d'un booking,
-     * à la Face (ou à son parent si elle a moins de 18 ans) avant l'acceptation.
+     * Envoie un code de signature par e-mail : au Producteur avant la création d'un booking ou la
+     * publication d'une mission, à la Face (ou à son parent si elle a moins de 18 ans) avant
+     * l'acceptation d'un booking ou la confirmation d'une candidature.
      */
     public function sendCode(RequestSignatureCodeRequest $request): JsonResponse
     {
@@ -68,14 +73,21 @@ class ImageContractController extends Controller
 
         $user = $request->user();
 
-        if ($request->validated('purpose') === SignatureChallengeService::PURPOSE_BOOKING_REQUEST) {
+        $purpose = (string) $request->validated('purpose');
+
+        // Producteur : code vers son propre e-mail, avant de créer un booking ou de publier une mission.
+        if (in_array($purpose, [SignatureChallengeService::PURPOSE_BOOKING_REQUEST, SignatureChallengeService::PURPOSE_MISSION_PUBLISH], true)) {
             if ($user->userable_type !== Producer::class) {
                 return $this->forbidden();
             }
 
-            $challenge = $this->challenges->issue($user, SignatureChallengeService::PURPOSE_BOOKING_REQUEST, (string) $user->email);
+            $challenge = $this->challenges->issue($user, $purpose, (string) $user->email);
 
             return $this->sent($challenge->email, $challenge->expires_at);
+        }
+
+        if ($purpose === RequestSignatureCodeRequest::PURPOSE_CANDIDATURE_CONFIRM) {
+            return $this->sendCandidatureCode($request, $user);
         }
 
         $booking = Booking::query()->where('uuid', (string) $request->validated('booking_id'))->firstOrFail();
@@ -104,6 +116,54 @@ class ImageContractController extends Controller
             );
         }
 
+        return $this->issueFaceCode(
+            $request,
+            $user,
+            SignatureChallengeService::bookingAcceptPurpose($booking->uuid),
+            fn (): array => $this->imageContracts->guardianSummary($contract),
+        );
+    }
+
+    /**
+     * Code de la Face retenue sur une mission : elle seule (Candidature.face_id = faces.id) et
+     * seulement tant qu'il reste un contrat à signer.
+     */
+    private function sendCandidatureCode(RequestSignatureCodeRequest $request, User $user): JsonResponse
+    {
+        $candidature = Candidature::query()->where('uuid', (string) $request->validated('candidature_id'))->firstOrFail();
+
+        if ($user->userable_type !== Face::class || $candidature->face_id !== $user->userable_id) {
+            return $this->forbidden();
+        }
+
+        $candidature->loadMissing('mission.imageTerms');
+        $terms = $candidature->mission?->imageTerms;
+
+        if ($candidature->status !== CandidatureStatus::Accepted
+            || $terms === null
+            || ! $this->imageContracts->candidatureNeedsSignature($candidature)) {
+            return response()->json(
+                ErrorCodes::InvalidStatus->envelope('Aucun contrat à signer pour cette candidature.'),
+                422
+            );
+        }
+
+        return $this->issueFaceCode(
+            $request,
+            $user,
+            SignatureChallengeService::candidatureConfirmPurpose($candidature->uuid),
+            fn (): array => $this->imageContracts->guardianSummaryForCandidature($candidature, $terms),
+        );
+    }
+
+    /**
+     * Émet le code de la Face : à son e-mail, ou à celui de son parent ou tuteur si elle a moins de
+     * 18 ans (le résumé des conditions part alors avec le code).
+     *
+     * @param  \Closure(): array<string, mixed>  $guardianSummary
+     */
+    private function issueFaceCode(RequestSignatureCodeRequest $request, User $user, string $purpose, \Closure $guardianSummary): JsonResponse
+    {
         /** @var Face $face */
         $face = $user->userable;
         if ($face->date_naissance === null) {
@@ -138,11 +198,11 @@ class ImageContractController extends Controller
 
         $challenge = $this->challenges->issue(
             $user,
-            SignatureChallengeService::bookingAcceptPurpose($booking->uuid),
+            $purpose,
             $email,
             $guardianName,
             $guardianRelation,
-            $guardianName !== null ? $this->imageContracts->guardianSummary($contract) : null,
+            $guardianName !== null ? $guardianSummary() : null,
         );
 
         return $this->sent($challenge->email, $challenge->expires_at);
@@ -159,7 +219,33 @@ class ImageContractController extends Controller
 
         Gate::authorize('view', $booking);
 
-        $contract = $booking->imageContract;
+        return $this->downloadPdf($booking->imageContract);
+    }
+
+    /**
+     * Télécharge le PDF du contrat d'une candidature (la Face propriétaire et le Producteur de la mission seulement).
+     */
+    public function candidaturePdf(Request $request, Candidature $candidature): StreamedResponse|JsonResponse
+    {
+        if (! $this->imageContracts->enabled()) {
+            return $this->notFound();
+        }
+
+        $user = $request->user();
+        $candidature->loadMissing('mission');
+
+        $isOwnerFace = $user->userable_type === Face::class && $candidature->face_id === $user->userable_id;
+        $isMissionProducer = $user->userable_type === Producer::class && $candidature->mission?->producer_id === $user->userable_id;
+
+        if (! $isOwnerFace && ! $isMissionProducer) {
+            return $this->forbidden();
+        }
+
+        return $this->downloadPdf($candidature->imageContract);
+    }
+
+    private function downloadPdf(?ImageContract $contract): StreamedResponse|JsonResponse
+    {
         $disk = Storage::disk((string) config('image_contracts.storage_disk', 'local'));
 
         if ($contract === null || $contract->pdf_path === null || ! $disk->exists($contract->pdf_path)) {

@@ -7,14 +7,16 @@ namespace App\Models;
 use App\Concerns\HasRouteUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Log;
 
 /**
- * Autorisation d'utilisation de l'image entre une Face et un Producteur (un contrat par booking).
+ * Autorisation d'utilisation de l'image entre une Face et un Producteur (un contrat par booking ou par candidature).
  * WeAct archive ; les user agents ne sont jamais exposés.
  *
  * @property int $id
  * @property string $uuid
  * @property int|null $booking_id
+ * @property int|null $candidature_id
  * @property string $template_version
  * @property string $finalite
  * @property list<string> $supports
@@ -37,6 +39,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property \Illuminate\Support\Carbon|null $voided_at
  * @property \Illuminate\Support\Carbon|null $copies_sent_at
  * @property-read Booking|null $booking
+ * @property-read Candidature|null $candidature
  */
 class ImageContract extends Model
 {
@@ -53,6 +56,7 @@ class ImageContract extends Model
     /** @var list<string> */
     protected $fillable = [
         'booking_id',
+        'candidature_id',
         'template_version',
         'finalite',
         'supports',
@@ -102,6 +106,55 @@ class ImageContract extends Model
     public function booking(): BelongsTo
     {
         return $this->belongsTo(Booking::class);
+    }
+
+    /**
+     * @return BelongsTo<Candidature, $this>
+     */
+    public function candidature(): BelongsTo
+    {
+        return $this->belongsTo(Candidature::class);
+    }
+
+    /**
+     * Prise d'effet du contrat d'une candidature : exige la signature de la Face, jamais sur un
+     * contrat annulé. Non fatale : l'événement métier appelant est déjà acquis.
+     */
+    public static function markEffectiveForCandidature(int $candidatureId): void
+    {
+        try {
+            self::query()
+                ->where('candidature_id', $candidatureId)
+                ->whereNotNull('face_signed_at')
+                ->whereNull('effective_at')
+                ->whereNull('voided_at')
+                ->update(['effective_at' => now()]);
+        } catch (\Throwable $e) {
+            Log::warning('Image contract effectiveness failed (candidature)', [
+                'candidature_id' => $candidatureId,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Annule le contrat d'une candidature qui n'a pas pris effet. Une prise d'effet acquise n'est
+     * jamais annulée. Non fatale : l'événement métier appelant est déjà acquis.
+     */
+    public static function voidForCandidature(int $candidatureId): void
+    {
+        try {
+            self::query()
+                ->where('candidature_id', $candidatureId)
+                ->whereNull('effective_at')
+                ->whereNull('voided_at')
+                ->update(['voided_at' => now()]);
+        } catch (\Throwable $e) {
+            Log::warning('Image contract void failed (candidature)', [
+                'candidature_id' => $candidatureId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     public function isSignedByFace(): bool

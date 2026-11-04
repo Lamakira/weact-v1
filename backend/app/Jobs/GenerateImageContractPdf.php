@@ -7,9 +7,13 @@ namespace App\Jobs;
 use App\Enums\ImageContractSupport;
 use App\Enums\ImageContractTerritoire;
 use App\Mail\ImageContractSignedMail;
+use App\Models\Face;
 use App\Models\ImageContract;
+use App\Models\Producer;
 use App\Models\SignatureChallenge;
+use App\Models\User;
 use App\Services\ImageContract\ImageContractService;
+use App\Services\ImageContract\SignatureChallengeService;
 use App\Support\ImageContractTemplate;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -126,21 +130,17 @@ class GenerateImageContractPdf implements ShouldQueue
 
     private function sendCopies(ImageContract $contract): void
     {
-        $contract->loadMissing('booking.face', 'booking.producer');
-        $booking = $contract->booking;
+        $recipients = match (true) {
+            $contract->candidature_id !== null => $this->candidatureRecipients($contract),
+            $contract->booking_id !== null => $this->bookingRecipients($contract),
+            default => null,
+        };
 
-        $recipients = [
-            (string) $booking?->face?->email,
-            (string) $booking?->producer?->email,
-        ];
+        if ($recipients === null) {
+            // Ni booking ni candidature (supprimés) : personne à qui écrire, rien ne doit planter.
+            Log::warning('Image contract PDF: aucun destinataire, copies non envoyées', ['contract_id' => $contract->id]);
 
-        if ($contract->guardian_name !== null && $booking !== null) {
-            $recipients[] = (string) SignatureChallenge::query()
-                ->where('user_id', $booking->face_id)
-                ->where('purpose', 'booking_accept:'.$booking->uuid)
-                ->whereNotNull('consumed_at')
-                ->orderByDesc('id')
-                ->value('email');
+            return;
         }
 
         $allSent = true;
@@ -161,5 +161,71 @@ class GenerateImageContractPdf implements ShouldQueue
         if ($allSent) {
             $contract->update(['copies_sent_at' => now()]);
         }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function bookingRecipients(ImageContract $contract): array
+    {
+        $contract->loadMissing('booking.face', 'booking.producer');
+        $booking = $contract->booking;
+
+        $recipients = [
+            (string) $booking?->face?->email,
+            (string) $booking?->producer?->email,
+        ];
+
+        if ($contract->guardian_name !== null && $booking !== null) {
+            $recipients[] = (string) SignatureChallenge::query()
+                ->where('user_id', $booking->face_id)
+                ->where('purpose', 'booking_accept:'.$booking->uuid)
+                ->whereNotNull('consumed_at')
+                ->orderByDesc('id')
+                ->value('email');
+        }
+
+        return $recipients;
+    }
+
+    /**
+     * Face (son User), Producteur de la mission et, pour une Face mineure, le parent qui a reçu le
+     * code. Null si la candidature a disparu : no-op journalisé (le contrat survit à sa suppression).
+     *
+     * @return list<string>|null
+     */
+    private function candidatureRecipients(ImageContract $contract): ?array
+    {
+        $contract->loadMissing('candidature.mission');
+        $candidature = $contract->candidature;
+
+        if ($candidature === null) {
+            return null;
+        }
+
+        $faceUser = User::query()
+            ->where('userable_type', Face::class)
+            ->where('userable_id', $candidature->face_id)
+            ->first();
+        $producerUser = User::query()
+            ->where('userable_type', Producer::class)
+            ->where('userable_id', $candidature->mission?->producer_id)
+            ->first();
+
+        $recipients = [
+            (string) $faceUser?->email,
+            (string) $producerUser?->email,
+        ];
+
+        if ($contract->guardian_name !== null && $faceUser !== null) {
+            $recipients[] = (string) SignatureChallenge::query()
+                ->where('user_id', $faceUser->id)
+                ->where('purpose', SignatureChallengeService::candidatureConfirmPurpose($candidature->uuid))
+                ->whereNotNull('consumed_at')
+                ->orderByDesc('id')
+                ->value('email');
+        }
+
+        return $recipients;
     }
 }

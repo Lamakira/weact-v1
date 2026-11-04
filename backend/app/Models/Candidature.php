@@ -83,6 +83,31 @@ class Candidature extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        // Autorisation d'image : une candidature qui meurt avant la prise d'effet annule son contrat
+        // (couvre le dénouement UGC, la suppression de mission, le rejet et l'expiration).
+        static::updated(function (Candidature $candidature): void {
+            if ($candidature->wasChanged('status') && in_array($candidature->status, [
+                CandidatureStatus::Cancelled,
+                CandidatureStatus::Rejected,
+                CandidatureStatus::Expired,
+            ], true)) {
+                ImageContract::voidForCandidature($candidature->id);
+            }
+        });
+    }
+
+    /**
+     * Contrat d'autorisation d'image signé par la Face (null avant sa signature).
+     *
+     * @return HasOne<ImageContract, $this>
+     */
+    public function imageContract(): HasOne
+    {
+        return $this->hasOne(ImageContract::class);
+    }
+
     /**
      * Get the Face that submitted this candidature.
      */
