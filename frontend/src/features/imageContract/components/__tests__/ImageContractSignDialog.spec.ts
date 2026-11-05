@@ -475,6 +475,37 @@ describe('ImageContractSignDialog', () => {
     })
   })
 
+  describe('nom refusé par le serveur', () => {
+    it('affiche « Modifier mon nom » à l\'étape code, qui revient à l\'étape 1 en gardant le nom', async () => {
+      requestCodeMock.mockResolvedValue(codeReply())
+      const submit = vi.fn().mockResolvedValue({ ok: false, code: 'SIGNATURE_NAME_INVALID', message: 'Nom refusé.' })
+      const wrapper = mountDialog({}, submit)
+      await wrapper.find('[data-testid="image-contract-name"]').setValue('Jean Dupont')
+      await goToCodeStep(wrapper)
+      await typeCode(wrapper, '123456')
+      await wrapper.find('[data-testid="image-contract-confirm"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="image-contract-error"]').text()).toBe('Nom refusé.')
+      await wrapper.find('[data-testid="image-contract-edit-name"]').trigger('click')
+
+      expect(wrapper.find('[data-testid="image-contract-title"]').text()).toBe("Votre contrat d'image")
+      expect((wrapper.find('[data-testid="image-contract-name"]').element as HTMLInputElement).value).toBe('Jean Dupont')
+      expect(wrapper.find('[data-testid="image-contract-error"]').exists()).toBe(false)
+    })
+
+    it('pas de lien pour les autres erreurs', async () => {
+      requestCodeMock.mockResolvedValue(codeReply())
+      const wrapper = mountDialog({}, vi.fn().mockResolvedValue({ ok: false, code: 'X', message: 'Autre.' }))
+      await goToCodeStep(wrapper)
+      await typeCode(wrapper, '123456')
+      await wrapper.find('[data-testid="image-contract-confirm"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="image-contract-edit-name"]').exists()).toBe(false)
+    })
+  })
+
   describe('parcours mission', () => {
     it('Producteur : motif mission_publish et bouton « Signer et publier »', async () => {
       requestCodeMock.mockResolvedValue(codeReply())

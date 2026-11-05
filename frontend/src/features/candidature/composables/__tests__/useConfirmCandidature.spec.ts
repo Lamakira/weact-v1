@@ -175,6 +175,24 @@ describe('useConfirmCandidature', () => {
     expect(errorCode.value).toBeNull()
   })
 
+  it('nom de signature refusé : code SIGNATURE_NAME_INVALID et message du champ', async () => {
+    vi.mocked(candidatureApi.confirmCandidature).mockRejectedValue(
+      makeAxiosError(422, {
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Les données fournies sont invalides.',
+          details: { 'signature.name': ['Nom refusé.'] },
+        },
+      }),
+    )
+
+    const { confirmCandidature, errorCode, error } = useConfirmCandidature()
+    await confirmCandidature('cand-1', { name: 'Jean 06', code: '123456' })
+
+    expect(errorCode.value).toBe('SIGNATURE_NAME_INVALID')
+    expect(error.value).toBe('Nom refusé.')
+  })
+
   it('expose le code d\'erreur serveur (SIGNATURE_CODE_INVALID) pour la fenêtre de signature', async () => {
     vi.mocked(candidatureApi.confirmCandidature).mockRejectedValue(
       makeAxiosError(422, { error: { code: 'SIGNATURE_CODE_INVALID', message: 'Code invalide' } }),

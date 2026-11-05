@@ -323,6 +323,36 @@ describe('BookingFormSheet : drapeau image_contracts_enabled vrai', () => {
     expect(wrapper.emitted('success')).toBeFalsy()
   })
 
+  it('nom de signature refusé : la fenêtre reste ouverte avec le message', async () => {
+    requestCodeMock.mockResolvedValue({ data: { sent_to: 'j•••@gmail.com', expires_at: 'x', retry_after: 60 } })
+    createBookingMock.mockResolvedValue({
+      success: false,
+      errorCode: 'VALIDATION_ERROR',
+      message: 'Invalide',
+      errors: { 'signature.name': ['Le nom ne doit pas contenir de numéro ni de lien.'] },
+    })
+    const wrapper = mountForm()
+
+    await fillValidCashForm(wrapper)
+    await pickSupport(wrapper, 'social')
+    await submitForm(wrapper)
+    await wrapper.find('[data-testid="image-contract-accept"]').setValue(true)
+    await wrapper.find('[data-testid="image-contract-send"]').trigger('click')
+    await flushPromises()
+    const paste = new Event('paste', { bubbles: true, cancelable: true }) as Event & { clipboardData: unknown }
+    paste.clipboardData = { getData: () => '123456' }
+    wrapper.find('[data-testid="code-digit-0"]').element.dispatchEvent(paste)
+    await flushPromises()
+    await wrapper.find('[data-testid="image-contract-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="image-contract-dialog"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="image-contract-error"]').text()).toBe(
+      'Le nom ne doit pas contenir de numéro ni de lien.',
+    )
+    expect(wrapper.find('[data-testid="image-contract-edit-name"]').exists()).toBe(true)
+  })
+
   it('erreur de champ du booking : ferme la fenêtre et l\'affiche sur le formulaire', async () => {
     requestCodeMock.mockResolvedValue({ data: { sent_to: 'j•••@gmail.com', expires_at: 'x', retry_after: 60 } })
     createBookingMock.mockResolvedValue({

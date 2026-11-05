@@ -24,6 +24,7 @@ import { ApplyToMissionModal } from '@/features/candidature/components'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import ImageContractSignDialog from '@/features/imageContract/components/ImageContractSignDialog.vue'
 import MissionImageTermsCard from '@/features/imageContract/components/MissionImageTermsCard.vue'
+import { SIGNATURE_NAME_INVALID } from '@/features/imageContract/utils/signatureErrors'
 import { faceMustSignMission } from '@/features/imageContract/utils/faceMustSign'
 import type { ContractSummary, ImageSignature, SignatureSubmitOutcome } from '@/features/imageContract/types'
 import RatingDisplay from '@/components/RatingDisplay.vue'
@@ -513,7 +514,7 @@ async function submitSignature(signature: ImageSignature): Promise<SignatureSubm
   const code = (isReconfirm ? reconfirmErrorCode.value : confirmErrorCode.value) ?? null
   const message = isReconfirm ? reconfirmError.value : confirmError.value
   // Hors erreur de signature, l'état serveur a pu changer (multi-onglets) : relecture silencieuse.
-  if (!(code ?? '').startsWith('SIGNATURE_CODE') && code !== 'BIRTH_DATE_REQUIRED') {
+  if (!(code ?? '').startsWith('SIGNATURE_CODE') && code !== 'BIRTH_DATE_REQUIRED' && code !== SIGNATURE_NAME_INVALID) {
     await fetchMission(missionId.value, { silent: true })
   }
   return { ok: false, code, message }

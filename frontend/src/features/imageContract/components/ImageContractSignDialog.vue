@@ -17,6 +17,7 @@ import type {
   SignatureSubmitOutcome,
 } from '../types'
 import ImageContractCodeNotice from './ImageContractCodeNotice.vue'
+import { SIGNATURE_NAME_INVALID } from '../utils/signatureErrors'
 
 type Step = 'terms' | 'guardian' | 'code'
 
@@ -284,6 +285,7 @@ function goNextFromTerms(): void {
 
 function backToTerms(): void {
   clearError()
+  digits.value = Array(CODE_LENGTH).fill('')
   step.value = 'terms'
 }
 
@@ -515,6 +517,15 @@ const protectedItems = computed(() => [
               </template>
               <template v-else>{{ displayedError }}</template>
             </p>
+            <button
+              v-if="errorCode === SIGNATURE_NAME_INVALID && step === 'code'"
+              type="button"
+              class="text-sm font-medium text-weact-600 underline underline-offset-2 hover:text-weact-700"
+              data-testid="image-contract-edit-name"
+              @click="backToTerms"
+            >
+              Modifier mon nom
+            </button>
 
             <!-- Étape 1 -->
             <template v-if="step === 'terms'">

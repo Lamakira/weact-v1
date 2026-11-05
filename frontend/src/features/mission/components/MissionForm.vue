@@ -40,6 +40,7 @@ import type {
   ImageTerritoire,
   SignatureSubmitOutcome,
 } from '@/features/imageContract/types'
+import { signatureFieldError } from '@/features/imageContract/utils/signatureErrors'
 import { useAuthStore } from '@/stores/auth'
 import { CommissionBreakdown, computeUgcCommission, type UgcCompensationType } from '@/components/ugc'
 import {
@@ -350,8 +351,10 @@ const onSubmit = handleSubmit(async (values) => {
   if (result.success && result.data) {
     emit('success', result.data)
   } else if (result.errors) {
+    // Seuls image_terms / signature eux-mêmes réclamés (absents) trahissent un formulaire périmé ;
+    // `signature.name` etc. sont de vraies erreurs de saisie traitées dans la fenêtre de signature.
     const staleForm = Object.keys(result.errors).some(
-      (key) => key.startsWith('image_terms') || key.startsWith('signature'),
+      (key) => key.startsWith('image_terms') || key === 'signature',
     )
     if (staleForm) {
       // Formulaire resté ouvert à l'activation : relire le compte fait apparaître la section.
@@ -457,6 +460,10 @@ async function submitSigned(signature: ImageSignature): Promise<SignatureSubmitO
     emit('success', result.data)
     return { ok: true }
   }
+
+  // Erreur sur la signature (ex. nom refusé) : la fenêtre reste ouverte, le code reste valide côté serveur.
+  const signatureError = signatureFieldError(result.errors)
+  if (signatureError) return { ok: false, code: signatureError.code, message: signatureError.message }
 
   const isSignatureError = (result.errorCode ?? '').startsWith('SIGNATURE_CODE')
   if (!isSignatureError && result.errors && Object.keys(result.errors).length > 0) {

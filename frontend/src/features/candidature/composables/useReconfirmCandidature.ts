@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { candidatureApi } from '../services/candidatureApi'
-import { formatApiError, getApiErrorCode, GENERIC_VALIDATION_MESSAGE } from '@/services/errorFormatter'
+import { formatApiError, getApiErrorCode, getApiErrorDetails, GENERIC_VALIDATION_MESSAGE } from '@/services/errorFormatter'
+import { signatureFieldError } from '@/features/imageContract/utils/signatureErrors'
 import type { ImageSignature } from '@/features/imageContract/types'
 import type { CandidatureResponse } from '../types'
 
@@ -81,8 +82,9 @@ export function useReconfirmCandidature() {
       successMessage.value = response.message || 'Participation reconfirmée'
       return response
     } catch (err: unknown) {
-      error.value = resolveReconfirmErrorMessage(err)
-      errorCode.value = getApiErrorCode(err)
+      const signatureError = signature ? signatureFieldError(getApiErrorDetails(err)) : null
+      error.value = signatureError?.message ?? resolveReconfirmErrorMessage(err)
+      errorCode.value = signatureError?.code ?? getApiErrorCode(err)
       return null
     } finally {
       isReconfirming.value = false

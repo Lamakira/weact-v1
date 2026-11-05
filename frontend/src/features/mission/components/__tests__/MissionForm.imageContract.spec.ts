@@ -360,6 +360,66 @@ describe('MissionForm : drapeau image_contracts_enabled vrai (création)', () =>
     expect(wrapper.text()).toContain('Titre refusé par le serveur')
   })
 
+  it('nom de signature refusé (signature.name) : fenêtre ouverte, message dans la fenêtre, retour possible au nom', async () => {
+    requestCodeMock.mockResolvedValue({ data: { sent_to: 'j•••@gmail.com', expires_at: 'x', retry_after: 60 } })
+    createMissionMock.mockResolvedValue({
+      success: false,
+      errorCode: 'VALIDATION_ERROR',
+      message: 'Invalide',
+      errors: { 'signature.name': ['Le nom ne doit pas contenir de numéro ni de lien.'] },
+    })
+    const wrapper = mountForm()
+
+    await openSignDialog(wrapper)
+    await signWithCode(wrapper, '123456')
+
+    expect(wrapper.find('[data-testid="image-contract-dialog"]').exists()).toBe(true)
+    expect(wrapper.get('[data-testid="image-contract-error"]').text()).toBe(
+      'Le nom ne doit pas contenir de numéro ni de lien.',
+    )
+    // Pas de message de formulaire périmé.
+    expect(wrapper.find('[data-testid="image-terms-error"]').exists()).toBe(false)
+
+    await wrapper.get('[data-testid="image-contract-edit-name"]').trigger('click')
+    expect(wrapper.find('[data-testid="image-contract-send"]').exists()).toBe(true)
+    expect((wrapper.get('[data-testid="image-contract-name"]').element as HTMLInputElement).value).toBe('Jean Producteur')
+    expect(wrapper.find('[data-testid="image-contract-error"]').exists()).toBe(false)
+  })
+
+  it('autre clé signature.* : fenêtre ouverte avec le message, sans lien de nom', async () => {
+    requestCodeMock.mockResolvedValue({ data: { sent_to: 'j•••@gmail.com', expires_at: 'x', retry_after: 60 } })
+    createMissionMock.mockResolvedValue({
+      success: false,
+      errorCode: 'VALIDATION_ERROR',
+      message: 'Invalide',
+      errors: { 'signature.code': ['Le code doit contenir 6 chiffres.'] },
+    })
+    const wrapper = mountForm()
+
+    await openSignDialog(wrapper)
+    await signWithCode(wrapper, '123456')
+
+    expect(wrapper.get('[data-testid="image-contract-error"]').text()).toBe('Le code doit contenir 6 chiffres.')
+    expect(wrapper.find('[data-testid="image-contract-edit-name"]').exists()).toBe(false)
+  })
+
+  it('signature réclamée elle-même (clé « signature ») sans section : message de formulaire périmé', async () => {
+    createMissionMock.mockResolvedValue({ success: false, errors: { signature: ['La signature est obligatoire.'] } })
+    const wrapper = mountForm({ flag: false })
+    const auth = useAuthStore()
+    vi.mocked(auth.refreshUser).mockImplementation(async () => {
+      auth.user = { ...(auth.user as object), image_contracts_enabled: true } as never
+      return true
+    })
+
+    await submitForm(wrapper)
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="image-terms-error"]').text()).toBe(
+      "Une nouvelle étape est nécessaire : renseignez l'utilisation de l'image.",
+    )
+  })
+
   it('erreur sur image_terms renvoyée par le serveur : fenêtre fermée, message sous la section', async () => {
     requestCodeMock.mockResolvedValue({ data: { sent_to: 'j•••@gmail.com', expires_at: 'x', retry_after: 60 } })
     createMissionMock.mockResolvedValue({

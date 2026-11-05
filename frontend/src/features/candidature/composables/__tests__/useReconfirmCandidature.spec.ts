@@ -133,6 +133,24 @@ describe('useReconfirmCandidature', () => {
     expect(errorCode.value).toBeNull()
   })
 
+  it('nom de signature refusé : code SIGNATURE_NAME_INVALID et message du champ', async () => {
+    vi.mocked(candidatureApi.reconfirmCandidature).mockRejectedValue(
+      makeAxiosError(422, {
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Les données fournies sont invalides.',
+          details: { 'signature.name': ['Nom refusé.'] },
+        },
+      }),
+    )
+
+    const { reconfirmCandidature, errorCode, error } = useReconfirmCandidature()
+    await reconfirmCandidature('cand-1', { name: 'Jean 06', code: '123456' })
+
+    expect(errorCode.value).toBe('SIGNATURE_NAME_INVALID')
+    expect(error.value).toBe('Nom refusé.')
+  })
+
   it('expose le code d\'erreur serveur (SIGNATURE_CODE_EXPIRED) pour la fenêtre de signature', async () => {
     vi.mocked(candidatureApi.reconfirmCandidature).mockRejectedValue(
       makeAxiosError(422, { error: { code: 'SIGNATURE_CODE_EXPIRED', message: 'Code expiré' } }),
