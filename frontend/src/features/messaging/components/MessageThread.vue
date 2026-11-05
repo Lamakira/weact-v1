@@ -7,7 +7,9 @@ import FaceResponseNotice from './FaceResponseNotice.vue'
 import MessageBubble from './MessageBubble.vue'
 import MessageInput from './MessageInput.vue'
 import ParticipantAvatar from './ParticipantAvatar.vue'
-import type { ConversationContext, Message, OtherParticipant } from '../types'
+import ShareLocationDialog from './ShareLocationDialog.vue'
+import { useShareLocationDialog } from '../composables/useShareLocationDialog'
+import type { ConversationContext, Message, OtherParticipant, SharedLocation } from '../types'
 import { dayKey, formatDayLabel } from '../utils/messageFormat'
 
 const props = defineProps<{
@@ -26,6 +28,8 @@ const props = defineProps<{
   compact: boolean
   /** Identifiant de la conversation (Producteur : active la ligne de délai de réponse) */
   conversationId?: string | null
+  /** Envoie une position ; renvoie un message d'erreur ou null. Absent : pas d'envoi de position. */
+  sendLocation?: (location: SharedLocation) => Promise<string | null>
 }>()
 
 const emit = defineEmits<{
@@ -37,6 +41,14 @@ const emit = defineEmits<{
 }>()
 
 const scrollContainer = ref<HTMLElement | null>(null)
+
+// Envoi de position : seulement quand la saisie est affichée (chat ouvert en écriture)
+const canShareLocation = computed(
+  () => props.sendLocation !== undefined && !props.isLoading && !props.error,
+)
+const locationDialog = useShareLocationDialog(
+  async (location) => (props.sendLocation ? props.sendLocation(location) : 'Envoi de position indisponible.'),
+)
 
 const scrollToBottom = async (behavior: ScrollBehavior = 'smooth') => {
   await nextTick()
@@ -167,6 +179,8 @@ onMounted(() => void scrollToBottom('auto'))
       v-if="context?.awaiting_delivery_address === true && participant"
       :role="role"
       :other-party-name="participant.name"
+      :can-share-location="canShareLocation"
+      @share-location="locationDialog.open"
     />
 
     <div
@@ -257,8 +271,20 @@ onMounted(() => void scrollToBottom('auto'))
       :is-loading="isSending"
       :error="sendError"
       :placeholder="participant ? `Répondre à ${participant.name}…` : 'Écrivez votre message...'"
+      :can-share-location="canShareLocation"
       @update:model-value="emit('update:modelValue', $event)"
       @submit="emit('submit')"
+      @share-location="locationDialog.open"
+    />
+
+    <ShareLocationDialog
+      v-if="canShareLocation"
+      :is-open="locationDialog.isOpen.value"
+      :other-party-name="participant?.name ?? 'Votre interlocuteur'"
+      :is-busy="locationDialog.isBusy.value"
+      :error="locationDialog.error.value"
+      @confirm="locationDialog.confirm"
+      @cancel="locationDialog.close"
     />
   </div>
 </template>

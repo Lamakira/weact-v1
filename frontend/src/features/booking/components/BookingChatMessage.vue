@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import LocationCard from '@/features/messaging/components/LocationCard.vue'
 import type { BookingMessage } from '../types'
 
 interface Props {
@@ -42,8 +43,18 @@ const formattedTime = computed((): string => {
         {{ message.sender_name }}
       </span>
 
+      <!-- Position partagée : carte (lien Google Maps), pas de bulle -->
+      <LocationCard
+        v-if="message.location"
+        :location="message.location"
+        :is-own="isOwn"
+        :sender-name="message.sender_name"
+        fixed-width
+      />
+
       <!-- Message bubble -->
       <div
+        v-else
         class="rounded-2xl px-4 py-2.5 text-sm leading-relaxed"
         :class="
           isOwn

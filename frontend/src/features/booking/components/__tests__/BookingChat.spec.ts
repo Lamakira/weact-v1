@@ -6,6 +6,7 @@ import { messagingApi } from '@/features/messaging/services/messagingApi'
 import type { Booking } from '@/features/booking/types'
 
 const messagesRef = ref<unknown[]>([])
+const sendLocationMock = vi.fn()
 
 vi.mock('../../composables/useBookingChat', () => ({
   useBookingChat: () => ({
@@ -14,6 +15,7 @@ vi.mock('../../composables/useBookingChat', () => ({
     isSending: ref(false),
     reverbError: ref(false),
     sendMessage: vi.fn(),
+    sendLocation: sendLocationMock,
     refreshMessages: vi.fn(),
   }),
 }))
@@ -120,5 +122,97 @@ describe('BookingChat — consigne « adresse de livraison »', () => {
         .find('[data-testid="delivery-address-hint"]').exists(),
     ).toBe(false)
     expect(mountWithHint({}).find('[data-testid="delivery-address-hint"]').exists()).toBe(false)
+  })
+})
+
+describe('BookingChat : envoi de position', () => {
+  beforeEach(() => {
+    Object.defineProperty(navigator, 'geolocation', {
+      configurable: true,
+      value: {
+        getCurrentPosition: (success: (p: unknown) => void) =>
+          success({ coords: { latitude: 6.366667, longitude: 2.433333, accuracy: 14.7 } }),
+      },
+    })
+    sendLocationMock.mockResolvedValue(null)
+  })
+
+  afterEach(() => {
+    Object.defineProperty(navigator, 'geolocation', { configurable: true, value: undefined })
+  })
+
+  function mountForLocation(
+    extraBooking: Record<string, unknown> = {},
+    extraProps: Record<string, unknown> = {},
+  ) {
+    const wrapper = mount(BookingChat, {
+      props: {
+        booking: { ...booking, ...extraBooking } as unknown as Booking,
+        currentUserId: 2,
+        ...extraProps,
+      },
+      global: { stubs: { ChatHeader: true, BookingChatMessage: true, teleport: true } },
+    })
+    mounted.push(wrapper)
+    return wrapper
+  }
+
+  it('bouton dans la zone de saisie : dialogue au nom de l’autre partie, puis envoi', async () => {
+    const wrapper = mountForLocation({}, { otherPartyName: 'Koffi Agbo' })
+
+    const button = wrapper.find('[data-testid="share-location"]')
+    expect(button.attributes('aria-label')).toBe('Envoyer ma position')
+    expect(button.classes()).toContain('size-11')
+
+    await button.trigger('click')
+    expect(wrapper.find('[role="dialog"]').text()).toContain('Koffi Agbo verra votre position exacte')
+    expect(sendLocationMock).not.toHaveBeenCalled()
+
+    await wrapper.find('[data-testid="share-location-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(sendLocationMock).toHaveBeenCalledWith({ lat: 6.366667, lng: 2.433333, accuracy_m: 15 })
+    expect(wrapper.find('[data-testid="share-location-dialog"]').exists()).toBe(false)
+  })
+
+  it('nom absent : déduit du booking (Producteur pour la Face)', async () => {
+    const wrapper = mountForLocation({ producer: { userable: { display_name: 'Awa Studio' } } })
+
+    await wrapper.find('[data-testid="share-location"]').trigger('click')
+    expect(wrapper.find('[role="dialog"]').text()).toContain('Awa Studio verra votre position exacte')
+  })
+
+  it('échec d’envoi : erreur affichée dans le dialogue', async () => {
+    sendLocationMock.mockResolvedValue("Le chat n'est pas encore débloqué")
+    const wrapper = mountForLocation({}, { otherPartyName: 'Koffi Agbo' })
+
+    await wrapper.find('[data-testid="share-location"]').trigger('click')
+    await wrapper.find('[data-testid="share-location-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="share-location-error"]').text()).toBe(
+      "Le chat n'est pas encore débloqué",
+    )
+  })
+
+  it('encadré d’adresse (Face) : le bouton ouvre le dialogue', async () => {
+    const wrapper = mountForLocation(
+      {},
+      { showAddressHint: true, role: 'face', otherPartyName: 'Koffi Agbo' },
+    )
+
+    await wrapper.find('[data-testid="hint-share-location"]').trigger('click')
+    expect(wrapper.find('[data-testid="share-location-dialog"]').exists()).toBe(true)
+  })
+
+  it('chat terminé (lecture seule) : aucun bouton ni dialogue', () => {
+    const wrapper = mountForLocation(
+      { status: 'completed' },
+      { showAddressHint: true, role: 'face', otherPartyName: 'Koffi Agbo' },
+    )
+
+    expect(wrapper.find('[data-testid="share-location"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="hint-share-location"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="share-location-dialog"]').exists()).toBe(false)
   })
 })
