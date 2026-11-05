@@ -75,7 +75,7 @@ describe('étapes', () => {
     ['confirmations', 2],
     ['ready', 3],
     ['attendance', 3],
-    ['completed', 4],
+    ['completed', 5],
     ['draft', -1],
   ] as const)('mission standard : summary.step %s -> index %i', (step, index) => {
     expect(getCurrentStepIndex(step, false)).toBe(index)
@@ -85,7 +85,7 @@ describe('étapes', () => {
     ['commission', 0],
     ['recruiting', 1],
     ['tunnel', 2],
-    ['completed', 3],
+    ['completed', 4],
     ['draft', -1],
   ] as const)('mission UGC : summary.step %s -> index %i', (step, index) => {
     expect(getCurrentStepIndex(step, true)).toBe(index)

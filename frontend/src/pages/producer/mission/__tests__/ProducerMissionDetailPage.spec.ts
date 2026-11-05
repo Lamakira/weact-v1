@@ -211,9 +211,8 @@ describe('ProducerMissionDetailPage — en-tête et étapes', () => {
     ['confirmations', 2],
     ['ready', 3],
     ['attendance', 3],
-    ['completed', 4],
   ] as const)('mission standard : l’étape %s marque l’index %i comme courant', async (step, index) => {
-    const status = step === 'payment' ? 'pending_payment' : step === 'recruiting' ? 'published' : step === 'completed' ? 'completed' : 'closed'
+    const status = step === 'payment' ? 'pending_payment' : step === 'recruiting' ? 'published' : 'closed'
     const w = await mountPage(makeMission({ status }, makeSummary(step)))
 
     const items = w.get('[data-testid="mission-step-bar"]').findAll('li')
@@ -222,6 +221,14 @@ describe('ProducerMissionDetailPage — en-tête et étapes', () => {
       expect(li.attributes('data-state')).toBe(i < index ? 'done' : i === index ? 'now' : 'todo')
     })
     expect(items[index]!.attributes('aria-current')).toBe('step')
+  })
+
+  it('mission standard terminée : toutes les étapes sont cochées', async () => {
+    const w = await mountPage(makeMission({ status: 'completed' }, makeSummary('completed')))
+    const items = w.get('[data-testid="mission-step-bar"]').findAll('li')
+
+    expect(items.map((li) => li.attributes('data-state'))).toEqual(Array(items.length).fill('done'))
+    expect(w.find('[data-testid="mission-step-bar"] [aria-current="step"]').exists()).toBe(false)
   })
 
   it('brouillon : pas de barre d’étapes, mais le bloc « Et ensuite ? » existe', async () => {
