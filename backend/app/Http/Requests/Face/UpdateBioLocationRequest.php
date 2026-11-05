@@ -6,6 +6,8 @@ namespace App\Http\Requests\Face;
 
 use App\Constants\BeninCities;
 use App\Models\Face;
+use App\Rules\InTerritoryList;
+use App\Support\Territories;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -52,10 +54,12 @@ class UpdateBioLocationRequest extends FormRequest
      */
     public function rules(): array
     {
+        $face = $this->user()?->userable;
+
         return [
             'bio' => ['nullable', 'string', 'max:500'],
             'ville' => ['nullable', 'string', 'max:100', Rule::in(BeninCities::values())],
-            'pays' => ['nullable', 'string', 'max:100'],
+            'pays' => ['nullable', 'string', 'max:100', new InTerritoryList(Territories::countries(), $face instanceof Face ? $face->pays : null)],
         ];
     }
 

@@ -354,6 +354,20 @@ class AdminFaceCrudTest extends TestCase
         ]);
     }
 
+    public function test_update_rejects_pays_outside_the_list_but_keeps_the_stored_legacy_value(): void
+    {
+        $face = Face::factory()->create(['pays' => 'Béni', 'ville' => null]);
+
+        $this->withToken($this->adminToken)
+            ->putJson("/api/v1/admin/faces/{$face->uuid}", ['pays' => 'Béninoise'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['pays']);
+
+        $this->withToken($this->adminToken)
+            ->putJson("/api/v1/admin/faces/{$face->uuid}", ['pays' => 'Béni', 'bio' => 'ok'])
+            ->assertOk();
+    }
+
     public function test_update_username_uniqueness_validation(): void
     {
         $face1 = Face::factory()->create(['username' => 'taken_username']);

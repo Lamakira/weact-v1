@@ -412,6 +412,16 @@ class FaceRegistrationTest extends TestCase
         ]);
     }
 
+    public function test_an_old_bundle_nationalite_and_pays_must_belong_to_the_lists(): void
+    {
+        $this->postJson('/api/v1/auth/register/face', $this->validData + [
+            'nationalite' => 'Béninois',
+            'pays' => 'Bénin 🇧🇯',
+        ])->assertStatus(422);
+
+        $this->assertDatabaseMissing('faces', ['nom' => 'Doe']);
+    }
+
     public function test_an_old_bundle_username_is_validated_like_the_profile_one(): void
     {
         Face::factory()->create(['username' => 'taken']);

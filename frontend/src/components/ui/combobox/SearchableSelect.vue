@@ -33,6 +33,7 @@ const props = withDefaults(
     icon?: Component
     disabled?: boolean
     triggerClass?: HTMLAttributes['class']
+    anchorClass?: HTMLAttributes['class']
   }>(),
   {
     modelValue: '',
@@ -80,7 +81,7 @@ function onOpenChange(isOpen: boolean): void {
     @update:model-value="onUpdate"
     @update:open="onOpenChange"
   >
-    <ComboboxAnchor class="w-full">
+    <ComboboxAnchor :class="cn('w-full', anchorClass)">
       <ComboboxTrigger
         v-bind="$attrs"
         :data-placeholder="selectedLabel ? undefined : ''"

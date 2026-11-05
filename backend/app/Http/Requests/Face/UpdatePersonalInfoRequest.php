@@ -6,6 +6,8 @@ namespace App\Http\Requests\Face;
 
 use App\Enums\FaceGender;
 use App\Models\Face;
+use App\Rules\InTerritoryList;
+use App\Support\Territories;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -29,11 +31,13 @@ class UpdatePersonalInfoRequest extends FormRequest
      */
     public function rules(): array
     {
+        $face = $this->user()?->userable;
+
         return [
             'sexe' => ['nullable', Rule::enum(FaceGender::class)],
             'date_naissance' => ['nullable', 'date', 'before_or_equal:'.now()->subYears(16)->format('Y-m-d')],
-            'nationalite' => ['nullable', 'string', 'max:100'],
-            'pays' => ['nullable', 'string', 'max:100'],
+            'nationalite' => ['nullable', 'string', 'max:100', new InTerritoryList(Territories::nationalities(), $face instanceof Face ? $face->nationalite : null)],
+            'pays' => ['nullable', 'string', 'max:100', new InTerritoryList(Territories::countries(), $face instanceof Face ? $face->pays : null)],
             'show_age' => ['sometimes', 'boolean'],
             'whatsapp_number' => ['nullable', 'string', 'max:30'],
         ];

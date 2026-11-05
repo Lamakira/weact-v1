@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue'
 import { SimpleSelect } from '@/components/ui/select'
+import { SearchableSelect } from '@/components/ui/combobox'
 
 defineOptions({ inheritAttrs: false })
 
@@ -15,11 +16,18 @@ const props = withDefaults(
     disabled?: boolean
     options: Array<{ value: string | number; label: string }>
     placeholder?: string
+    /** Liste avec champ de recherche (longues listes : pays, nationalités). */
+    searchable?: boolean
+    searchPlaceholder?: string
+    emptyText?: string
   }>(),
   {
     required: false,
     disabled: false,
     placeholder: '',
+    searchable: false,
+    searchPlaceholder: 'Rechercher…',
+    emptyText: 'Aucun résultat',
   },
 )
 
@@ -36,7 +44,8 @@ const emptyLabel = computed(() => (props.placeholder ? '' : 'Sélectionnez'))
 
 // Hauteur, bordure et anneau de focus identiques aux autres champs flottants ; rouge en cas d'erreur.
 const triggerClass = computed(() => [
-  'peer h-[46px] data-[size=default]:h-[46px] py-3 pr-3 text-gray-900 duration-200 disabled:bg-gray-50',
+  props.searchable ? '' : 'peer',
+  'h-[46px] data-[size=default]:h-[46px] py-3 pr-3 text-gray-900 duration-200 disabled:bg-gray-50',
   'data-[placeholder]:text-transparent focus-visible:data-[placeholder]:text-gray-400 data-[state=open]:data-[placeholder]:text-gray-400',
   props.icon ? 'pl-10' : 'pl-4',
   props.error
@@ -49,7 +58,22 @@ const triggerClass = computed(() => [
   <div>
     <div class="relative">
       <!-- Le Select shadcn remplace l'ancien <select> ; l'étiquette flottante réagit au focus et à l'ouverture -->
+      <SearchableSelect
+        v-if="searchable"
+        v-bind="$attrs"
+        :id="id"
+        :model-value="modelValue"
+        :options="options"
+        :empty-label="emptyLabel"
+        :search-placeholder="searchPlaceholder"
+        :empty-text="emptyText"
+        :disabled="disabled"
+        :trigger-class="triggerClass"
+        anchor-class="peer"
+        @update:model-value="emit('update:modelValue', $event)"
+      />
       <SimpleSelect
+        v-else
         v-bind="$attrs"
         :id="id"
         :model-value="modelValue"
@@ -65,7 +89,7 @@ const triggerClass = computed(() => [
         v-if="icon"
         :is="icon"
         class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-200 pointer-events-none"
-        :class="error ? 'text-red-400' : 'text-gray-400 peer-focus:text-weact peer-data-[state=open]:text-weact'"
+        :class="error ? 'text-red-400' : searchable ? 'text-gray-400 peer-focus-within:text-weact peer-has-[[data-state=open]]:text-weact' : 'text-gray-400 peer-focus:text-weact peer-data-[state=open]:text-weact'"
       />
 
       <!-- Floating Label -->
@@ -75,12 +99,18 @@ const triggerClass = computed(() => [
         :class="[
           icon ? 'left-9' : 'left-3',
           error
-            ? 'peer-focus:text-red-500 peer-data-[state=open]:text-red-500'
-            : 'peer-focus:text-weact peer-data-[state=open]:text-weact',
+            ? searchable
+              ? 'peer-focus-within:text-red-500 peer-has-[[data-state=open]]:text-red-500'
+              : 'peer-focus:text-red-500 peer-data-[state=open]:text-red-500'
+            : searchable
+              ? 'peer-focus-within:text-weact peer-has-[[data-state=open]]:text-weact'
+              : 'peer-focus:text-weact peer-data-[state=open]:text-weact',
           hasValue
             ? 'top-0 text-xs -translate-y-1/2 text-gray-500'
             : 'top-1/2 -translate-y-1/2 text-sm',
-          'peer-focus:top-0 peer-focus:text-xs peer-focus:-translate-y-1/2 peer-data-[state=open]:top-0 peer-data-[state=open]:text-xs peer-data-[state=open]:-translate-y-1/2',
+          searchable
+            ? 'peer-focus-within:top-0 peer-focus-within:text-xs peer-focus-within:-translate-y-1/2 peer-has-[[data-state=open]]:top-0 peer-has-[[data-state=open]]:text-xs peer-has-[[data-state=open]]:-translate-y-1/2'
+            : 'peer-focus:top-0 peer-focus:text-xs peer-focus:-translate-y-1/2 peer-data-[state=open]:top-0 peer-data-[state=open]:text-xs peer-data-[state=open]:-translate-y-1/2',
           hasValue && !error ? 'text-gray-500' : '',
         ]"
       >
