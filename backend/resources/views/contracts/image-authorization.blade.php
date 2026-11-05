@@ -24,10 +24,10 @@
     </style>
 </head>
 <body>
-    <div class="footer">Contrat {{ $reference }} · modèle {{ $version }} · archivé par WeAct</div>
+    <div class="footer">Contrat {{ $reference }} · archivé par WeAct</div>
 
     <h1>Autorisation d'utilisation de l'image</h1>
-    <p class="ref">Référence {{ $reference }} · Modèle {{ $version }}</p>
+    <p class="ref">Référence {{ $reference }}</p>
 
     <p>
         Entre <strong>{{ $faceName }}</strong>{{ $faceVille ? ', '.$faceVille : '' }} (la « Face »)

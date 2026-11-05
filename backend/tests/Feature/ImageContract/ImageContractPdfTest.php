@@ -201,6 +201,8 @@ class ImageContractPdfTest extends TestCase
         $this->assertStringContainsString('a•••••@gmail.com', $html);
         $this->assertStringNotContainsString(str_repeat('ab', 32), $html);
         $this->assertStringNotContainsString('—', $html);
+        $this->assertStringNotContainsString('Modèle', $html);
+        $this->assertStringNotContainsString('modèle v', $html);
         $this->assertDoesNotMatchRegularExpression('/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/', $html);
     }
 

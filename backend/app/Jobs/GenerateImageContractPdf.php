@@ -111,7 +111,6 @@ class GenerateImageContractPdf implements ShouldQueue
         return [
             'contract' => $contract,
             'reference' => $contract->reference(),
-            'version' => $contract->template_version,
             'articles' => ImageContractTemplate::articles(),
             'producerName' => (string) ($snapshot['parties']['producer']['name'] ?? ''),
             'faceName' => (string) ($snapshot['parties']['face']['name'] ?? ''),
