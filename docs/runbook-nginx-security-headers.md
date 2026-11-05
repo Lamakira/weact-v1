@@ -19,11 +19,15 @@ la présence de l'en-tête aussi sur les réponses 4xx/5xx.
 add_header X-Content-Type-Options "nosniff" always;
 add_header X-Frame-Options "DENY" always;
 add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+add_header Permissions-Policy "camera=(), microphone=(), geolocation=(self), payment=()" always;
 
 # HSTS : commencer court (5 minutes), augmenter progressivement.
 add_header Strict-Transport-Security "max-age=300" always;
 ```
+
+`geolocation=(self)` est nécessaire : l'envoi de position dans le chat utilise la
+géolocalisation du navigateur, que `geolocation=()` bloque (le navigateur renvoie
+alors une erreur de refus sans demander l'autorisation).
 
 **Piège d'héritage `add_header`** : en nginx, un bloc (`location`, `if`) qui
 définit son propre `add_header` ne reçoit AUCUN des `add_header` du niveau
@@ -69,7 +73,7 @@ location /storage/ {
     add_header Content-Security-Policy "sandbox; default-src 'none'; img-src 'self'; media-src 'self'" always;
     add_header X-Frame-Options "DENY" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
-    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(self), payment=()" always;
     add_header Strict-Transport-Security "max-age=300" always;
 }
 ```
