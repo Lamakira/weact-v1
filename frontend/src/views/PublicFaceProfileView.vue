@@ -459,7 +459,7 @@ async function handleRetry(): Promise<void> {
           </aside>
 
           <!-- Info Section (Right on desktop, bottom on mobile) -->
-          <div class="reveal-right space-y-6">
+          <div class="reveal-right space-y-4">
             <!-- Lot B13 : nom complet pour un Producer connecté (fourni par l'API), prénom sinon -->
             <ProfileInfoSection
               :prenom="publicFaceName(face)"

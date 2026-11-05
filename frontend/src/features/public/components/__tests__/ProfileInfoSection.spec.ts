@@ -289,4 +289,17 @@ describe('ProfileInfoSection', () => {
       expect(wrapper.findComponent(WBadge).exists()).toBe(false)
     })
   })
+
+  it('place la note sur la ligne du nom et retire la rangée de badges vide', () => {
+    const wrapper = mount(ProfileInfoSection, {
+      props: { prenom: 'Amakira', ville: null, categories: [], niches: [], averageRating: 5, ratingsCount: 1 },
+    })
+
+    const heading = wrapper.get('[data-testid="face-prenom"]')
+    const rating = wrapper.get('[data-testid="rating-section"]')
+
+    expect(heading.element.parentElement?.parentElement).toBe(rating.element.parentElement)
+    expect(rating.classes()).toContain('ml-auto')
+    expect(wrapper.find('[data-testid="face-badges"]').exists()).toBe(false)
+  })
 })
