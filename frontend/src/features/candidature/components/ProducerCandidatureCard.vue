@@ -459,7 +459,6 @@ const categoryLabel = computed(() => {
     <CandidatureContractLine
       v-if="hasContractLine"
       :candidature-id="candidature.id"
-      :face-name="candidature.face.display_name"
       :status="candidature.status"
       :has-conditions="!!imageTerms"
       :contract="candidature.image_contract"

@@ -85,12 +85,13 @@ describe('ProducerCandidatureCard : ligne du contrat d\'image', () => {
     const wrapper = mountCard(makeCandidature())
 
     const line = wrapper.get('[data-testid="candidature-contract-line"]')
-    expect(line.get('[data-testid="contract-line-name"]').text()).toBe('Aïcha Bello')
+    expect(line.text()).toContain("Contrat d'image")
+    expect(line.text()).not.toContain('Aïcha Bello')
     const state = line.get('[data-testid="contract-line-state"]')
     expect(state.text()).toContain('Signature attendue')
     expect(state.attributes('data-tone')).toBe('amber')
     expect(state.classes()).toContain('text-amber-700')
-    expect(line.get('[data-testid="contract-line-deadline"]').text()).toContain('avant le')
+    expect(line.get('[data-testid="contract-line-deadline"]').text()).toContain('Avant le')
     expect(line.get('[data-testid="contract-line-deadline"]').text()).toContain('08h51')
     expect(line.find('[data-testid="contract-line-pdf"]').exists()).toBe(false)
     // L'échéance n'est pas répétée par la phrase historique.

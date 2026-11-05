@@ -1,7 +1,7 @@
 <script setup lang="ts">
 /**
  * Ligne d'état du contrat d'image d'une Face retenue sur une mission à conditions (Producteur).
- * Nom de la Face et état empilés à gauche, PDF à droite sur la même ligne.
+ * Libellé et état empilés à gauche, échéance en dessous, PDF à droite sur la même ligne.
  */
 import { computed, ref } from 'vue'
 import { Download, Loader2 } from 'lucide-vue-next'
@@ -13,7 +13,6 @@ import { formatConfirmationDeadline } from '../utils/formatConfirmationDeadline'
 
 const props = defineProps<{
   candidatureId: string
-  faceName: string
   /** Statut de la candidature (le « Signature attendue » ne concerne que `accepted`). */
   status: string
   /** La mission a des conditions d'image : sans contrat, une Face retenue doit encore signer. */
@@ -82,7 +81,7 @@ async function downloadPdf(): Promise<void> {
     data-testid="candidature-contract-line"
   >
     <div class="min-w-0">
-      <p class="truncate text-sm font-medium text-foreground" data-testid="contract-line-name">{{ faceName }}</p>
+      <p class="text-xs text-muted-foreground">Contrat d'image</p>
       <p
         class="mt-0.5 flex items-center gap-1.5 text-xs font-semibold"
         :class="toneClasses[state.tone]"
@@ -91,9 +90,9 @@ async function downloadPdf(): Promise<void> {
       >
         <span class="h-1.5 w-1.5 shrink-0 rounded-full" :class="dotClasses[state.tone]" aria-hidden="true" />
         <span>{{ state.label }}</span>
-        <span v-if="deadlineLabel" class="font-normal" data-testid="contract-line-deadline">
-          · avant le {{ deadlineLabel }}
-        </span>
+      </p>
+      <p v-if="deadlineLabel" class="mt-0.5 text-xs text-amber-700" data-testid="contract-line-deadline">
+        Avant le {{ deadlineLabel }}
       </p>
     </div>
     <button
