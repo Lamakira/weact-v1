@@ -54,6 +54,8 @@ class NormalizeFaceTerritoryMigrationTest extends TestCase
             ['Camerounais', 'Cameroun', 'Camerounaise'],
             ['Libanais', 'Liban', 'Libanaise'],
             ['Nigerian', 'Nigeria', 'Nigériane'],
+            ['Liberiane', 'Bénin', 'Libérienne'],
+            ['Sierra Léonaise', 'Bénin', 'Sierra-Léonaise'],
             ['congolaise', 'Congo-Kinshasa', 'Congolaise (République démocratique du Congo)'],
             ['congolaise', 'Congo-Brazzaville', 'Congolaise (République du Congo)'],
             ['congolaise', 'France', null],

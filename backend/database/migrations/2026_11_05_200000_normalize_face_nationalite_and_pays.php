@@ -40,6 +40,8 @@ return new class extends Migration
         'Camerounais' => 'Camerounaise',
         'Libanais' => 'Libanaise',
         'Nigerian' => 'Nigériane',
+        'Liberiane' => 'Libérienne',
+        'Sierra Léonaise' => 'Sierra-Léonaise',
         'Îles Cook' => null,
         '' => null,
     ];
