@@ -1409,14 +1409,14 @@ onUnmounted(() => {
             </div>
             <p
               v-if="showFaceCancelInfo && isFaceCancelWindowOpen"
-              class="text-sm text-gray-500"
+              class="rounded-[10px] border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-700"
               data-testid="face-cancel-deadline"
             >
               Annulation possible jusqu'au {{ formattedFaceCancelDeadline }}
             </p>
             <p
               v-else-if="showFaceCancelInfo"
-              class="text-sm text-amber-600"
+              class="rounded-[10px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
               data-testid="face-cancel-closed"
             >
               Annulation impossible à moins de 24 h du jour du tournage.
