@@ -10,6 +10,8 @@ const props = defineProps<{
   dureeAnnees: ImageDuree
   /** Message d'erreur global de la section (finalité ou supports manquants). */
   error?: string | null
+  /** Sous-titre de la section ; défaut : formulation du booking. */
+  intro?: string
 }>()
 
 const emit = defineEmits<{
@@ -49,7 +51,7 @@ const pillOff = 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
     <div>
       <h3 class="text-sm font-semibold text-gray-900">Utilisation de l'image</h3>
       <p class="mt-0.5 text-xs text-gray-500" data-testid="image-terms-intro">
-        La Face verra ces conditions avant d'accepter. Les droits démarrent une fois la Face payée.
+        {{ intro ?? "La Face verra ces conditions avant d'accepter. Les droits démarrent une fois la Face payée." }}
       </p>
     </div>
 

@@ -3,7 +3,8 @@ import { isAxiosError } from 'axios'
 import { bookingApi } from '../services/bookingApi'
 import type { Booking, CancellationReasonValue } from '../types'
 import type { ImageSignature } from '@/features/imageContract/types'
-import { getApiErrorMessage } from '@/features/auth/services/authApi'
+import { getApiErrorMessage, getApiErrorDetails } from '@/features/auth/services/authApi'
+import { signatureFieldError } from '@/features/imageContract/utils/signatureErrors'
 
 interface UseBookingActionsReturn {
   isAccepting: Ref<boolean>
@@ -61,8 +62,9 @@ export function useBookingActions(): UseBookingActionsReturn {
         : await bookingApi.acceptBooking(bookingId)
       return response.data
     } catch (err) {
-      error.value = getApiErrorMessage(err)
-      errorCode.value = extractErrorCode(err)
+      const signatureError = signature ? signatureFieldError(getApiErrorDetails(err)) : null
+      error.value = signatureError?.message ?? getApiErrorMessage(err)
+      errorCode.value = signatureError?.code ?? extractErrorCode(err)
       return null
     } finally {
       isAccepting.value = false

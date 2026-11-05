@@ -475,6 +475,123 @@ describe('ImageContractSignDialog', () => {
     })
   })
 
+  describe('nom refusé par le serveur', () => {
+    it('affiche « Modifier mon nom » à l\'étape code, qui revient à l\'étape 1 en gardant le nom', async () => {
+      requestCodeMock.mockResolvedValue(codeReply())
+      const submit = vi.fn().mockResolvedValue({ ok: false, code: 'SIGNATURE_NAME_INVALID', message: 'Nom refusé.' })
+      const wrapper = mountDialog({}, submit)
+      await wrapper.find('[data-testid="image-contract-name"]').setValue('Jean Dupont')
+      await goToCodeStep(wrapper)
+      await typeCode(wrapper, '123456')
+      await wrapper.find('[data-testid="image-contract-confirm"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="image-contract-error"]').text()).toBe('Nom refusé.')
+      await wrapper.find('[data-testid="image-contract-edit-name"]').trigger('click')
+
+      expect(wrapper.find('[data-testid="image-contract-title"]').text()).toBe("Votre contrat d'image")
+      expect((wrapper.find('[data-testid="image-contract-name"]').element as HTMLInputElement).value).toBe('Jean Dupont')
+      expect(wrapper.find('[data-testid="image-contract-error"]').exists()).toBe(false)
+    })
+
+    it('pas de lien pour les autres erreurs', async () => {
+      requestCodeMock.mockResolvedValue(codeReply())
+      const wrapper = mountDialog({}, vi.fn().mockResolvedValue({ ok: false, code: 'X', message: 'Autre.' }))
+      await goToCodeStep(wrapper)
+      await typeCode(wrapper, '123456')
+      await wrapper.find('[data-testid="image-contract-confirm"]').trigger('click')
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="image-contract-edit-name"]').exists()).toBe(false)
+    })
+  })
+
+  describe('parcours mission', () => {
+    it('Producteur : motif mission_publish et bouton « Signer et publier »', async () => {
+      requestCodeMock.mockResolvedValue(codeReply())
+      const wrapper = mountDialog({ flow: 'mission', role: 'producer' })
+
+      await goToCodeStep(wrapper)
+
+      expect(requestCodeMock).toHaveBeenCalledWith({ purpose: 'mission_publish' })
+      expect(wrapper.find('[data-testid="image-contract-confirm"]').text()).toBe('Signer et publier')
+      expect(wrapper.find('[data-testid="image-contract-no-code-hint"]').exists()).toBe(false)
+    })
+
+    it('Face : motif candidature_confirm avec la candidature, bouton « Signer et confirmer »', async () => {
+      requestCodeMock.mockResolvedValue(codeReply())
+      const wrapper = mountDialog({ flow: 'mission', role: 'face', candidatureId: 'c-1' })
+
+      await goToCodeStep(wrapper)
+
+      expect(requestCodeMock).toHaveBeenCalledWith({ purpose: 'candidature_confirm', candidature_id: 'c-1' })
+      expect(wrapper.find('[data-testid="image-contract-confirm"]').text()).toBe('Signer et confirmer')
+      expect(wrapper.find('[data-testid="image-contract-no-code-hint"]').text()).toBe(
+        'Sans ce code, votre participation ne peut pas être confirmée.',
+      )
+    })
+
+    it('Face mineure : le code part au parent, motif candidature_confirm et encadré adapté', async () => {
+      requestCodeMock.mockResolvedValue(codeReply('m•••@gmail.com'))
+      const wrapper = mountDialog({ flow: 'mission', role: 'face', candidatureId: 'c-1', requiresGuardian: true })
+      await accept(wrapper)
+      await wrapper.find('[data-testid="image-contract-send"]').trigger('click')
+
+      expect(wrapper.find('[data-testid="image-contract-code-notice-text"]').text()).toBe(
+        'Il reçoit le contrat et le code par e-mail. Sans ce code, votre participation ne peut pas être confirmée.',
+      )
+
+      await wrapper.find('[data-testid="guardian-name"]').setValue('Marie Dossou')
+      await wrapper.find('[data-testid="guardian-relation-mere"]').trigger('click')
+      await wrapper.find('[data-testid="guardian-email"]').setValue('marie@gmail.com')
+      await wrapper.find('[data-testid="guardian-send"]').trigger('click')
+      await flushPromises()
+
+      expect(requestCodeMock).toHaveBeenCalledWith({
+        purpose: 'candidature_confirm',
+        candidature_id: 'c-1',
+        guardian_name: 'Marie Dossou',
+        guardian_relation: 'mere',
+        guardian_email: 'marie@gmail.com',
+      })
+    })
+
+    it('Face, mission produit seul : dernière ligne protégée sur la réception du produit', () => {
+      const wrapper = mountDialog({ flow: 'mission', role: 'face', candidatureId: 'c-1', productOnly: true })
+
+      const items = wrapper.findAll('[data-testid="image-contract-protected"] li').map((li) => li.text())
+      expect(items.at(-1)).toBe('Pas d\'exploitation de votre image avant la réception du produit.')
+      expect(items).toHaveLength(4)
+    })
+
+    it.each([
+      ['mission classique ou hybride', { flow: 'mission', role: 'face', candidatureId: 'c-1' }],
+      ['booking', { role: 'face', bookingId: 'b-1' }],
+      ['booking avec productOnly', { role: 'face', bookingId: 'b-1', productOnly: true }],
+    ])('dernière ligne inchangée : %s', (_name, props) => {
+      const wrapper = mountDialog(props as never)
+
+      const items = wrapper.findAll('[data-testid="image-contract-protected"] li').map((li) => li.text())
+      expect(items.at(-1)).toBe('Pas d\'exploitation de votre image avant votre paiement.')
+    })
+
+    it('le parcours booking reste inchangé par défaut', async () => {
+      requestCodeMock.mockResolvedValue(codeReply())
+      const producer = mountDialog()
+      await goToCodeStep(producer)
+      expect(requestCodeMock).toHaveBeenLastCalledWith({ purpose: 'booking_request' })
+      expect(producer.find('[data-testid="image-contract-confirm"]').text()).toBe('Signer et envoyer la demande')
+
+      const face = mountDialog({ role: 'face', bookingId: 'b-9' })
+      await goToCodeStep(face)
+      expect(requestCodeMock).toHaveBeenLastCalledWith({ purpose: 'booking_accept', booking_id: 'b-9' })
+      expect(face.find('[data-testid="image-contract-confirm"]').text()).toBe('Signer et accepter le booking')
+      expect(face.find('[data-testid="image-contract-no-code-hint"]').text()).toBe(
+        'Sans ce code, le booking ne peut pas être accepté.',
+      )
+    })
+  })
+
   it('émet close avec le bouton Fermer et avec Échap', async () => {
     const wrapper = mountDialog()
 

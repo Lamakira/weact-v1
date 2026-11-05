@@ -17,6 +17,7 @@ import type {
   SignatureSubmitOutcome,
 } from '../types'
 import ImageContractCodeNotice from './ImageContractCodeNotice.vue'
+import { SIGNATURE_NAME_INVALID } from '../utils/signatureErrors'
 
 type Step = 'terms' | 'guardian' | 'code'
 
@@ -46,8 +47,14 @@ interface Props {
   summary: ContractSummary
   /** Nom prérempli dans « Votre nom complet ». */
   defaultName?: string
+  /** Parcours signé : booking (défaut) ou mission (publication Producteur, confirmation Face). */
+  flow?: 'booking' | 'mission'
   /** Booking à accepter (Face) : sert de motif au code de signature. */
   bookingId?: string
+  /** Candidature à confirmer (Face, parcours mission) : sert de motif au code de signature. */
+  candidatureId?: string
+  /** Mission UGC produit seul (flow mission) : les droits ne démarrent qu'à la réception du produit. */
+  productOnly?: boolean
   /** Face de moins de 18 ans : le code part à un parent ou tuteur. */
   requiresGuardian?: boolean
   /** E-mail du compte connecté : le parent ne peut pas signer avec la même adresse. */
@@ -58,7 +65,10 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   defaultName: '',
+  flow: 'booking',
   bookingId: undefined,
+  candidatureId: undefined,
+  productOnly: false,
   requiresGuardian: false,
   accountEmail: '',
 })
@@ -68,6 +78,7 @@ const emit = defineEmits<{
 }>()
 
 const isFace = computed(() => props.role === 'face')
+const isMission = computed(() => props.flow === 'mission')
 
 const step = ref<Step>('terms')
 const name = ref('')
@@ -123,7 +134,16 @@ const stepTitle = computed(() => {
   return "Votre contrat d'image"
 })
 
-const confirmLabel = computed(() => (isFace.value ? 'Signer et accepter le booking' : 'Signer et envoyer la demande'))
+const confirmLabel = computed(() => {
+  if (isMission.value) return isFace.value ? 'Signer et confirmer' : 'Signer et publier'
+  return isFace.value ? 'Signer et accepter le booking' : 'Signer et envoyer la demande'
+})
+
+const noCodeHint = computed(() =>
+  isMission.value
+    ? 'Sans ce code, votre participation ne peut pas être confirmée.'
+    : 'Sans ce code, le booking ne peut pas être accepté.',
+)
 
 const displayedError = computed(() => {
   if (!errorCode.value && !errorMessage.value) return null
@@ -210,19 +230,24 @@ async function sendCode(): Promise<void> {
   serverGuardianEmailError.value = null
   isSending.value = true
 
-  const payload: SignatureCodePayload = isFace.value
+  const guardian = props.requiresGuardian && guardianRelation.value
     ? {
-        purpose: 'booking_accept',
-        booking_id: props.bookingId ?? '',
-        ...(props.requiresGuardian && guardianRelation.value
-          ? {
-              guardian_name: guardianName.value.trim(),
-              guardian_relation: guardianRelation.value,
-              guardian_email: guardianEmail.value.trim(),
-            }
-          : {}),
+        guardian_name: guardianName.value.trim(),
+        guardian_relation: guardianRelation.value,
+        guardian_email: guardianEmail.value.trim(),
       }
-    : { purpose: 'booking_request' }
+    : {}
+
+  let payload: SignatureCodePayload
+  if (isMission.value) {
+    payload = isFace.value
+      ? { purpose: 'candidature_confirm', candidature_id: props.candidatureId ?? '', ...guardian }
+      : { purpose: 'mission_publish' }
+  } else {
+    payload = isFace.value
+      ? { purpose: 'booking_accept', booking_id: props.bookingId ?? '', ...guardian }
+      : { purpose: 'booking_request' }
+  }
 
   try {
     const response = await imageContractApi.requestCode(payload)
@@ -260,6 +285,7 @@ function goNextFromTerms(): void {
 
 function backToTerms(): void {
   clearError()
+  digits.value = Array(CODE_LENGTH).fill('')
   step.value = 'terms'
 }
 
@@ -365,12 +391,14 @@ onBeforeUnmount(stopTimer)
 // Dialogue téléporté : le fermer si la page hôte est désactivée par <keep-alive>.
 useDismissOnDeactivate(() => props.isOpen, () => emit('close'))
 
-const protectedItems = [
+const protectedItems = computed(() => [
   'Pas d\'usage politique, religieux, pornographique ou diffamatoire.',
   'Pas de génération ni de modification de votre visage, de votre corps ou de votre voix par intelligence artificielle.',
   'Pas d\'usage pour un autre produit ou un autre projet que celui indiqué.',
-  'Pas d\'exploitation de votre image avant votre paiement.',
-]
+  isMission.value && props.productOnly
+    ? 'Pas d\'exploitation de votre image avant la réception du produit.'
+    : 'Pas d\'exploitation de votre image avant votre paiement.',
+])
 </script>
 
 <template>
@@ -489,6 +517,15 @@ const protectedItems = [
               </template>
               <template v-else>{{ displayedError }}</template>
             </p>
+            <button
+              v-if="errorCode === SIGNATURE_NAME_INVALID && step === 'code'"
+              type="button"
+              class="text-sm font-medium text-weact-600 underline underline-offset-2 hover:text-weact-700"
+              data-testid="image-contract-edit-name"
+              @click="backToTerms"
+            >
+              Modifier mon nom
+            </button>
 
             <!-- Étape 1 -->
             <template v-if="step === 'terms'">
@@ -593,7 +630,7 @@ const protectedItems = [
 
               <ImageContractCodeNotice
                 title="Le code part à votre parent ou tuteur"
-                text="Il reçoit le contrat et le code par e-mail. Sans ce code, le booking ne peut pas être accepté."
+                :text="`Il reçoit le contrat et le code par e-mail. ${noCodeHint}`"
               />
 
 
@@ -670,7 +707,7 @@ const protectedItems = [
               </button>
 
               <p v-if="isFace" class="text-xs font-medium text-gray-600" data-testid="image-contract-no-code-hint">
-                Sans ce code, le booking ne peut pas être accepté.
+                {{ noCodeHint }}
               </p>
             </template>
           </div>

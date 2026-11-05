@@ -168,6 +168,25 @@ describe('deriveFaceHubState — mission UGC', () => {
   })
 })
 
+describe('deriveFaceHubState — signature du contrat d\'image', () => {
+  it('mustSign : l\'action de confirmation devient « Lire, signer et confirmer » (mission standard)', () => {
+    const s = deriveFaceHubState(mission(), cand({ status: 'accepted' }), { ...std, mustSign: true })
+    expect(s.action.key).toBe('confirm')
+    expect(s.action.label).toBe('Lire, signer et confirmer')
+  })
+
+  it('mustSign : idem pour la reconfirmation UGC', () => {
+    const s = deriveFaceHubState(mission(), cand({ status: 'accepted' }), { ...ugc, mustSign: true })
+    expect(s.action.key).toBe('reconfirm')
+    expect(s.action.label).toBe('Lire, signer et confirmer')
+  })
+
+  it('sans mustSign : libellés d\'origine', () => {
+    expect(deriveFaceHubState(mission(), cand({ status: 'accepted' }), std).action.label).toBe('Confirmer ma participation')
+    expect(deriveFaceHubState(mission(), cand({ status: 'accepted' }), ugc).action.label).toBe('Reconfirmer ma participation')
+  })
+})
+
 describe('formatRemaining', () => {
   const now = new Date('2026-10-20T10:00:00Z')
 

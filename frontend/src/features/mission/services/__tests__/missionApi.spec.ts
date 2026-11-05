@@ -81,6 +81,61 @@ describe('missionApi.createMission — FormData photos produit', () => {
   })
 })
 
+describe('missionApi.createMission — autorisation d\'image', () => {
+  const imageTerms = {
+    finalite: 'Publicité',
+    supports: ['social', 'web'] as ('social' | 'web')[],
+    territoire: 'west_africa' as const,
+    duree_annees: 5 as const,
+  }
+  const signature = { name: 'Jean Producteur', code: '123456' }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockPost.mockResolvedValue({ data: { data: { id: 'm-1' } } })
+    mockGetCsrfCookie.mockResolvedValue(undefined)
+  })
+
+  it('JSON : image_terms et signature partent en objets imbriqués', async () => {
+    await missionApi.createMission(makeUgcData({ image_terms: imageTerms, signature }))
+
+    const payload = mockPost.mock.calls[0]![1] as Record<string, unknown>
+    expect(payload).not.toBeInstanceOf(FormData)
+    expect(payload.image_terms).toEqual(imageTerms)
+    expect(payload.signature).toEqual(signature)
+  })
+
+  it('multipart : notation à crochets, jamais « [object Object] »', async () => {
+    const photo = new File(['a'], 'produit.jpg', { type: 'image/jpeg' })
+
+    await missionApi.createMission(makeUgcData({ product_photos: [photo], image_terms: imageTerms, signature }))
+
+    const formData = mockPost.mock.calls[0]![1] as FormData
+    expect(formData.has('image_terms')).toBe(false)
+    expect(formData.has('signature')).toBe(false)
+    expect(formData.get('image_terms[finalite]')).toBe('Publicité')
+    expect(formData.getAll('image_terms[supports][]')).toEqual(['social', 'web'])
+    expect(formData.get('image_terms[territoire]')).toBe('west_africa')
+    expect(formData.get('image_terms[duree_annees]')).toBe('5')
+    expect(formData.get('signature[name]')).toBe('Jean Producteur')
+    expect(formData.get('signature[code]')).toBe('123456')
+    expect(formData.getAll('product_photos[]')).toEqual([photo])
+    expect([...formData.values()]).not.toContain('[object Object]')
+  })
+
+  it('sans conditions : aucune clé image_terms ni signature (JSON et multipart)', async () => {
+    await missionApi.createMission(makeUgcData())
+    const json = mockPost.mock.calls[0]![1] as Record<string, unknown>
+    expect(json).not.toHaveProperty('image_terms')
+    expect(json).not.toHaveProperty('signature')
+
+    const photo = new File(['a'], 'produit.jpg', { type: 'image/jpeg' })
+    await missionApi.createMission(makeUgcData({ product_photos: [photo] }))
+    const formData = mockPost.mock.calls[1]![1] as FormData
+    expect([...formData.keys()].some((key) => key.startsWith('image_terms') || key.startsWith('signature'))).toBe(false)
+  })
+})
+
 describe('missionApi.getMissions / getMissionsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()

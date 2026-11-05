@@ -90,4 +90,32 @@ describe('buildRepublishValues (lot C9)', () => {
     expect(buildRepublishValues({ ...standard, type_mission: 'autre', type_mission_autre: 'Défilé' } as unknown as Mission))
       .toMatchObject({ type_mission: 'autre', type_mission_autre: 'Défilé' })
   })
+
+  it('reprend les conditions d\'image de la source, sans signature', () => {
+    const withTerms = {
+      ...standard,
+      image_terms: {
+        finalite: 'Publicité TV',
+        supports: [{ value: 'tv', label: 'Télévision' }, { value: 'web', label: 'Site web' }],
+        territoire: { value: 'west_africa', label: "Afrique de l'Ouest" },
+        duree_annees: 3,
+        producer_signed_at: '2026-10-01T10:00:00Z',
+        producer_signed_name: 'Jean Producteur',
+      },
+    } as unknown as Mission
+
+    const values = buildRepublishValues(withTerms)
+
+    expect(values.image_terms).toEqual({
+      finalite: 'Publicité TV',
+      supports: ['tv', 'web'],
+      territoire: 'west_africa',
+      duree_annees: 3,
+    })
+    expect(values).not.toHaveProperty('signature')
+  })
+
+  it('sans conditions sur la source : aucune clé image_terms', () => {
+    expect(buildRepublishValues(standard)).not.toHaveProperty('image_terms')
+  })
 })

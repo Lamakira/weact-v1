@@ -4,11 +4,17 @@ import { Download, FileSignature, Loader2 } from 'lucide-vue-next'
 import { useToast } from '@/composables/useToast'
 import { dureeLabel } from '../constants'
 import { imageContractApi } from '../services/imageContractApi'
+import { saveBlob } from '../utils/saveBlob'
 import type { ImageContract } from '../types'
 
 const props = defineProps<{
   contract: ImageContract
-  bookingId: string
+  /** Booking porteur du contrat (PDF via la route booking). */
+  bookingId?: string
+  /** Candidature de mission porteuse du contrat (PDF via la route candidature). */
+  candidatureId?: string
+  /** Mission UGC produit seul : l'image devient utilisable à la réception du produit, sinon au paiement de la Face. */
+  productOnly?: boolean
   role: 'face' | 'producer'
 }>()
 
@@ -33,9 +39,13 @@ const usage = computed(() => {
     default:
       return {
         label: 'Pas encore autorisée',
-        hint: props.role === 'face'
-          ? 'Elle devient possible après votre paiement.'
-          : 'Elle devient possible une fois la Face payée.',
+        hint: props.candidatureId
+          ? props.productOnly
+            ? 'Elle devient possible à la réception du produit.'
+            : 'Elle devient possible après votre paiement.'
+          : props.role === 'face'
+            ? 'Elle devient possible après votre paiement.'
+            : 'Elle devient possible une fois la Face payée.',
         tone: 'text-amber-700',
       }
   }
@@ -45,15 +55,11 @@ async function downloadPdf(): Promise<void> {
   if (isDownloading.value) return
   isDownloading.value = true
   try {
-    const blob = await imageContractApi.downloadPdf(props.bookingId)
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `contrat-image-${props.bookingId}.pdf`
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+    const ownerId = props.candidatureId ?? props.bookingId ?? ''
+    const blob = props.candidatureId
+      ? await imageContractApi.downloadCandidaturePdf(props.candidatureId)
+      : await imageContractApi.downloadPdf(props.bookingId ?? '')
+    saveBlob(blob, `contrat-image-${ownerId}.pdf`)
   } catch {
     toast.error("Le contrat n'a pas pu être téléchargé. Réessayez dans un instant.")
   } finally {

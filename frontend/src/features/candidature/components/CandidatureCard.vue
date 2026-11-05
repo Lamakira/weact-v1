@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { RouterLink } from 'vue-router'
-import { Check, Loader2, MessageCircle, XCircle, Star } from 'lucide-vue-next'
+import { Check, Loader2, MessageCircle, XCircle, Star, FileSignature } from 'lucide-vue-next'
 import type { FaceCandidature, MissionRating } from '../types'
 import { CandidatureStatusColor } from '../types'
 import { formatConfirmationDeadline } from '../utils/formatConfirmationDeadline'
@@ -277,8 +277,21 @@ const formattedConfirmationDeadline = computed(() =>
           <MessageCircle class="h-4 w-4" aria-hidden="true" />
         </RouterLink>
 
+        <!-- Contrat d'image à signer : la signature se fait sur la page de la mission, jamais dans la liste -->
+        <RouterLink
+          v-if="primaryAction === 'confirm' && candidature.must_sign_image_contract === true"
+          :to="{ name: 'face-mission-detail', params: { id: candidature.mission.id } }"
+          class="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-green-700"
+          aria-label="Lire et signer le contrat pour confirmer ma participation"
+          data-testid="candidature-sign"
+          @click.stop
+        >
+          <FileSignature class="h-4 w-4" aria-hidden="true" />
+          Lire et signer
+        </RouterLink>
+
         <button
-          v-if="primaryAction === 'confirm'"
+          v-else-if="primaryAction === 'confirm'"
           type="button"
           class="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Confirmer ma participation"

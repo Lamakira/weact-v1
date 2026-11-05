@@ -11,6 +11,7 @@ import type {
   ReleaseCandidatureResponse,
   MissionRating,
 } from '../types'
+import type { ImageSignature } from '@/features/imageContract/types'
 import type { ConfirmShipmentPayload, ShipmentResponse } from '@/components/ugc'
 
 /**
@@ -187,12 +188,14 @@ export const candidatureApi = {
    * Confirm participation in a mission (Face only)
    * Changes candidature status from "accepted" to "confirmed"
    * @param candidatureId The candidature ID to confirm
+   * @param signature Signature du contrat d'image (mission à conditions) ; corps vide sinon
    * @returns Updated candidature data with success message
    */
-  async confirmCandidature(candidatureId: string): Promise<CandidatureResponse> {
-    const response = await apiClient.post<CandidatureResponse>(
-      `/face/candidatures/${candidatureId}/confirm`,
-    )
+  async confirmCandidature(candidatureId: string, signature?: ImageSignature): Promise<CandidatureResponse> {
+    const url = `/face/candidatures/${candidatureId}/confirm`
+    const response = signature
+      ? await apiClient.post<CandidatureResponse>(url, { signature })
+      : await apiClient.post<CandidatureResponse>(url)
     return response.data
   },
 
@@ -201,12 +204,14 @@ export const candidatureApi = {
    * Changes candidature status from "accepted" to "confirmed". Separate path
    * from the cash `confirm` which requires a paid MissionPayment.
    * @param candidatureId The candidature ID to reconfirm
+   * @param signature Signature du contrat d'image (mission à conditions) ; corps vide sinon
    * @returns Updated candidature data with success message
    */
-  async reconfirmCandidature(candidatureId: string): Promise<CandidatureResponse> {
-    const response = await apiClient.post<CandidatureResponse>(
-      `/face/candidatures/${candidatureId}/reconfirm`,
-    )
+  async reconfirmCandidature(candidatureId: string, signature?: ImageSignature): Promise<CandidatureResponse> {
+    const url = `/face/candidatures/${candidatureId}/reconfirm`
+    const response = signature
+      ? await apiClient.post<CandidatureResponse>(url, { signature })
+      : await apiClient.post<CandidatureResponse>(url)
     return response.data
   },
 
