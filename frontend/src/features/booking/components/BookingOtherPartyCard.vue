@@ -70,17 +70,17 @@ const subtitle = computed(() => {
           {{ name }}
           <WBadge v-if="isElite" tier="elite" :size="16" />
         </p>
-        <p class="text-sm text-gray-500" data-testid="booking-other-party-meta">
-          {{ subtitle }}
+        <p class="flex flex-wrap items-center gap-x-1 text-sm text-gray-500" data-testid="booking-other-party-meta">
+          <span>{{ subtitle }}</span>
           <template v-if="ratingValue">
-            ·
+            <span aria-hidden="true">·</span>
             <span class="inline-flex items-center gap-0.5 font-bold text-amber-600">
               <Star class="h-3.5 w-3.5" fill="currentColor" aria-hidden="true" />
               {{ ratingValue }}
             </span>
-            ({{ ratingCount }} avis)
+            <span>({{ ratingCount }} avis)</span>
           </template>
-          <template v-else>· Pas encore noté</template>
+          <span v-else>· Pas encore noté</span>
         </p>
       </div>
     </div>
