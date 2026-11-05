@@ -477,6 +477,7 @@ async function handleRetry(): Promise<void> {
             <!-- Resume Summary (all visitors) -->
             <CandidateResumeSummary
               v-if="displayProfile"
+              class="lg:flex-1"
               :candidate="displayProfile"
               :tarif-horaire="tarifDemiJourneeFormatted"
               :tarif-journalier="tarifJournalierFormatted"
