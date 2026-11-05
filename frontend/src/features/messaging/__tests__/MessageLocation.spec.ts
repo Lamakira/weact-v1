@@ -129,12 +129,12 @@ describe('MessageBubble : message position', () => {
     expect(wrapper.text()).not.toContain('Position partagée')
   })
 
-  it('message reçu : « Position de {prénom} », fond blanc', () => {
+  it('message reçu : titre avec le prénom, fond blanc', () => {
     const wrapper = mount(MessageBubble, {
       props: { message: makeMessage({ sender_name: 'Afiavi Hounkpatin', location: LOCATION }) },
     })
 
-    expect(wrapper.find('[data-testid="location-title"]').text()).toBe('Position de Afiavi')
+    expect(wrapper.find('[data-testid="location-title"]').text()).toBe("Position d'Afiavi")
     expect(wrapper.find('[data-testid="location-card"]').classes()).toContain('bg-white')
   })
 
