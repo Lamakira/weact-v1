@@ -24,7 +24,6 @@ use App\Events\BookingPaid;
 use App\Events\BookingPartiallyConfirmed;
 use App\Events\BookingRefused;
 use App\Exceptions\SignatureCodeException;
-use App\Jobs\GenerateImageContractPdf;
 use App\Mail\WalletCreditedMail;
 use App\Models\Admin;
 use App\Models\Booking;
@@ -408,7 +407,7 @@ class BookingService
         }
 
         if ($signedContractId !== null) {
-            GenerateImageContractPdf::dispatch($signedContractId);
+            $this->imageContractService->queuePdf($signedContractId);
         }
 
         foreach ($concurrentPendingIds as $concurrentId) {

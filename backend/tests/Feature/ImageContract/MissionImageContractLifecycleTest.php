@@ -315,4 +315,31 @@ class MissionImageContractLifecycleTest extends TestCase
         $this->assertTrue($voidedAt->equalTo($fresh->voided_at));
         $this->assertNull($fresh->effective_at);
     }
+
+    public function test_a_rolled_back_transaction_leaves_the_contract_untouched(): void
+    {
+        [$mission, , $entry, $contract] = $this->engagedCash();
+
+        try {
+            DB::transaction(function () use ($entry, $mission): void {
+                $this->payments()->releaseToFace($entry, $mission);
+
+                throw new \RuntimeException('rollback');
+            });
+        } catch (\RuntimeException) {
+            // attendu
+        }
+        $this->assertNull($contract->fresh()->effective_at);
+
+        try {
+            DB::transaction(function () use ($contract): void {
+                ImageContract::voidForCandidature((int) $contract->candidature_id);
+
+                throw new \RuntimeException('rollback');
+            });
+        } catch (\RuntimeException) {
+            // attendu
+        }
+        $this->assertNull($contract->fresh()->voided_at);
+    }
 }

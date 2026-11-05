@@ -7,6 +7,7 @@ namespace App\Models;
 use App\Concerns\HasRouteUuid;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -118,43 +119,71 @@ class ImageContract extends Model
 
     /**
      * Prise d'effet du contrat d'une candidature : exige la signature de la Face, jamais sur un
-     * contrat annulé. Non fatale : l'événement métier appelant est déjà acquis.
+     * contrat annulé. Écrite après le commit de la transaction appelante (un rollback l'annule avec le reste,
+     * une erreur avalée ne laisse rien d'écrit hors transaction). Non fatale : l'événement métier est déjà acquis.
      */
     public static function markEffectiveForCandidature(int $candidatureId): void
     {
-        try {
-            self::query()
-                ->where('candidature_id', $candidatureId)
-                ->whereNotNull('face_signed_at')
-                ->whereNull('effective_at')
-                ->whereNull('voided_at')
-                ->update(['effective_at' => now()]);
-        } catch (\Throwable $e) {
-            Log::warning('Image contract effectiveness failed (candidature)', [
-                'candidature_id' => $candidatureId,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        DB::afterCommit(function () use ($candidatureId): void {
+            try {
+                self::query()
+                    ->where('candidature_id', $candidatureId)
+                    ->whereNotNull('face_signed_at')
+                    ->whereNull('effective_at')
+                    ->whereNull('voided_at')
+                    ->update(['effective_at' => now()]);
+            } catch (\Throwable $e) {
+                Log::warning('Image contract effectiveness failed (candidature)', [
+                    'candidature_id' => $candidatureId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
     }
 
     /**
      * Annule le contrat d'une candidature qui n'a pas pris effet. Une prise d'effet acquise n'est
-     * jamais annulée. Non fatale : l'événement métier appelant est déjà acquis.
+     * jamais annulée. Écrite après le commit de la transaction appelante (voir markEffectiveForCandidature).
+     * Non fatale : l'événement métier est déjà acquis.
      */
     public static function voidForCandidature(int $candidatureId): void
     {
+        // Les ids sont lus ICI (lecture seule) : une suppression de mission dans la même transaction met
+        // candidature_id à null avant le commit, l'écriture différée cible donc les contrats par id.
         try {
-            self::query()
+            $ids = self::query()
                 ->where('candidature_id', $candidatureId)
                 ->whereNull('effective_at')
                 ->whereNull('voided_at')
-                ->update(['voided_at' => now()]);
+                ->pluck('id')
+                ->all();
         } catch (\Throwable $e) {
             Log::warning('Image contract void failed (candidature)', [
                 'candidature_id' => $candidatureId,
                 'error' => $e->getMessage(),
             ]);
+
+            return;
         }
+
+        if ($ids === []) {
+            return;
+        }
+
+        DB::afterCommit(function () use ($ids, $candidatureId): void {
+            try {
+                self::query()
+                    ->whereKey($ids)
+                    ->whereNull('effective_at')
+                    ->whereNull('voided_at')
+                    ->update(['voided_at' => now()]);
+            } catch (\Throwable $e) {
+                Log::warning('Image contract void failed (candidature)', [
+                    'candidature_id' => $candidatureId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
     }
 
     public function isSignedByFace(): bool

@@ -147,8 +147,13 @@ class MissionResource extends JsonResource
             ],
             'duree_annees' => $terms->duree_annees,
             'producer_signed_at' => $terms->producer_signed_at->toIso8601String(),
-            'producer_signed_name' => $terms->producer_signed_name,
         ];
+
+        // Le nom signé peut être le nom personnel du Producteur: le chat reste fermé avant paiement,
+        // donc jamais à une Face (elle l'obtient après sa signature via `image_contract`).
+        if (! $requesterIsFace) {
+            $payload['producer_signed_name'] = $terms->producer_signed_name;
+        }
 
         if ($requesterIsFace) {
             /** @var Face $face */

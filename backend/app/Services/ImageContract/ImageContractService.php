@@ -9,6 +9,7 @@ use App\Enums\ImageContractSupport;
 use App\Enums\ImageContractTerritoire;
 use App\Enums\MissionType;
 use App\Exceptions\SignatureCodeException;
+use App\Jobs\GenerateImageContractPdf;
 use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Face;
@@ -21,6 +22,7 @@ use App\Models\User;
 use App\Support\EmailMask;
 use App\Support\ImageContractTemplate;
 use App\Support\Money;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class ImageContractService
@@ -141,7 +143,9 @@ class ImageContractService
             return null;
         }
 
-        if (ImageContract::query()->where('candidature_id', $locked->id)->lockForUpdate()->exists()) {
+        // Lecture sans verrou : le verrou de l'appelant sur la candidature sérialise déjà ; verrouiller une
+        // ligne absente poserait un verrou de gap (interblocage entre deux Faces qui confirment ensemble).
+        if (ImageContract::query()->where('candidature_id', $locked->id)->exists()) {
             return null;
         }
 
@@ -187,6 +191,22 @@ class ImageContractService
             'guardian_name' => $challenge->guardian_name,
             'guardian_relation' => $challenge->guardian_relation,
         ]);
+    }
+
+    /**
+     * Met la génération du PDF en file. Jamais fatal: la signature est déjà validée, une file
+     * indisponible ne doit ni renvoyer une erreur à la Face ni sauter la suite de l'action.
+     */
+    public function queuePdf(int $contractId): void
+    {
+        try {
+            GenerateImageContractPdf::dispatch($contractId);
+        } catch (\Throwable $e) {
+            Log::error('Image contract PDF dispatch failed', [
+                'contract_id' => $contractId,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

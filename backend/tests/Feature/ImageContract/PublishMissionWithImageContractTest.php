@@ -334,7 +334,7 @@ class PublishMissionWithImageContractTest extends TestCase
         $this->actingAs($this->faceUser)
             ->getJson("/api/v1/face/missions/{$mission->uuid}")
             ->assertOk()
-            ->assertJsonPath('data.image_terms.producer_signed_name', 'Jean Producteur')
+            ->assertJsonMissingPath('data.image_terms.producer_signed_name')
             ->assertJsonPath('data.image_terms.requires_guardian', false);
 
         $this->actingAs($this->producerUser)

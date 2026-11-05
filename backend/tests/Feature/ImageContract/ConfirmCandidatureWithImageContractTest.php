@@ -568,4 +568,80 @@ class ConfirmCandidatureWithImageContractTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.must_sign_image_contract', false);
     }
+
+    // ===================================================================
+    // File indisponible, liste Face, échéance Producteur
+    // ===================================================================
+
+    private function breakQueue(): void
+    {
+        $factory = \Mockery::mock(\Illuminate\Contracts\Queue\Factory::class);
+        $factory->shouldReceive('connection')->andThrow(new \RuntimeException('queue down'));
+        $this->app->instance(\Illuminate\Contracts\Queue\Factory::class, $factory);
+        \Illuminate\Support\Facades\Log::spy();
+    }
+
+    public function test_a_broken_queue_does_not_break_a_confirm(): void
+    {
+        [, $candidature] = $this->cashMissionWithAcceptedFace();
+        $this->makeChallenge($this->faceUser, $this->candidatePurpose($candidature), '123456');
+        $this->breakQueue();
+
+        $this->confirm($candidature, $this->signature())
+            ->assertOk()
+            ->assertJsonPath('data.status', 'confirmed');
+
+        $this->assertSame(1, ImageContract::count());
+        $this->assertSame(CandidatureStatus::InProgress, $candidature->fresh()->status);
+        $this->assertDatabaseHas('notifications', ['user_id' => $this->producerUser->id, 'type' => 'face_confirmed_participation']);
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('error')->once();
+    }
+
+    public function test_a_broken_queue_does_not_break_a_reconfirm(): void
+    {
+        [, $candidature] = $this->ugcMissionWithAcceptedFace(CompensationType::Product);
+        $this->makeChallenge($this->faceUser, $this->candidatePurpose($candidature), '123456');
+        $this->breakQueue();
+
+        $this->reconfirm($candidature, $this->signature())
+            ->assertOk()
+            ->assertJsonPath('data.status', 'confirmed');
+
+        $this->assertSame(1, ImageContract::count());
+        $this->assertDatabaseHas('notifications', ['user_id' => $this->producerUser->id, 'type' => 'ugc_deal_accepted']);
+        \Illuminate\Support\Facades\Log::shouldHaveReceived('error')->once();
+    }
+
+    public function test_the_face_list_keeps_the_paid_flag_with_the_terms_loaded(): void
+    {
+        [, $candidature] = $this->cashMissionWithAcceptedFace();
+
+        \Illuminate\Support\Facades\DB::enableQueryLog();
+        $list = $this->faceList();
+        $queries = collect(\Illuminate\Support\Facades\DB::getQueryLog())->pluck('query')->implode("\n");
+        \Illuminate\Support\Facades\DB::disableQueryLog();
+
+        $this->assertStringContainsString('has_paid_payment', $queries);
+        $this->assertStringContainsString('candidatures_count', $queries);
+        $this->assertStringContainsString('mission_image_terms', $queries);
+        $this->assertTrue($list[0]['must_sign_image_contract']);
+        $this->assertSame($candidature->uuid, $list[0]['id']);
+    }
+
+    public function test_the_producer_list_exposes_the_reconfirm_deadline_for_ugc_only(): void
+    {
+        [$ugcMission, $ugc] = $this->ugcMissionWithAcceptedFace(CompensationType::Product);
+        [$cashMission] = $this->cashMissionWithAcceptedFace();
+
+        $ugcRow = $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$ugcMission->uuid}/candidatures")
+            ->assertOk()
+            ->json('data.0');
+        $this->assertSame($ugc->reconfirmDeadline()->toIso8601String(), $ugcRow['reconfirm_deadline']);
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$cashMission->uuid}/candidatures")
+            ->assertOk()
+            ->assertJsonPath('data.0.reconfirm_deadline', null);
+    }
 }

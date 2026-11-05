@@ -18,7 +18,6 @@ use App\Http\Requests\Face\ConfirmCandidatureRequest;
 use App\Http\Requests\Face\StoreCandidatureRequest;
 use App\Http\Resources\CandidatureResource;
 use App\Http\Resources\FaceCandidatureResource;
-use App\Jobs\GenerateImageContractPdf;
 use App\Mail\FaceConfirmedMail;
 use App\Models\Candidature;
 use App\Models\Face;
@@ -54,7 +53,8 @@ class CandidatureController extends Controller
 
         $query = Candidature::where('face_id', $face->id)
             ->with([
-                'mission' => fn ($q) => $q->withPaidPaymentFlag()->withCount('candidatures'),
+                'mission' => fn ($q) => $q->withPaidPaymentFlag()->withCount('candidatures')
+                    ->when(config('image_contracts.enabled'), fn ($q) => $q->with('imageTerms')),
                 'mission.producer' => fn ($q) => $q->withRatingAggregates(),
                 'conversation',
                 'shipment.receptionPhotos',
@@ -67,7 +67,7 @@ class CandidatureController extends Controller
 
         // Autorisation d'image : conditions de la mission et contrat déjà signé (must_sign_image_contract).
         if (config('image_contracts.enabled')) {
-            $query->with(['mission.imageTerms', 'imageContract']);
+            $query->with('imageContract');
         }
 
         // Optional status filter
@@ -344,7 +344,7 @@ class CandidatureController extends Controller
         $candidature->refresh();
 
         if ($contractId !== null) {
-            GenerateImageContractPdf::dispatch($contractId);
+            app(ImageContractService::class)->queuePdf($contractId);
         }
         if (config('image_contracts.enabled')) {
             $candidature->load('imageContract', 'mission.imageTerms');
@@ -496,7 +496,7 @@ class CandidatureController extends Controller
         }
 
         if ($contractId !== null) {
-            GenerateImageContractPdf::dispatch($contractId);
+            app(ImageContractService::class)->queuePdf($contractId);
         }
         if (config('image_contracts.enabled')) {
             $confirmed->load('imageContract', 'mission.imageTerms');

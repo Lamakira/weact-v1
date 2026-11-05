@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Enums\MissionType;
 use App\Services\FaceEntitlementService;
 use App\Support\ImageContractPayload;
 use Illuminate\Http\Request;
@@ -40,6 +41,10 @@ class ProducerCandidatureResource extends JsonResource
             // Échéance de confirmation (lot B3) : non-null seulement pour une candidature cash `accepted`
             // non encore confirmée ; null si la mission n'est pas chargée (pas de lazy-load en liste).
             'confirmation_deadline' => $this->relationLoaded('mission') ? $this->confirmationDeadline()?->toIso8601String() : null,
+            // Échéance de reconfirmation UGC (signature du contrat) : null hors mission UGC chargée.
+            'reconfirm_deadline' => $this->relationLoaded('mission') && $this->mission?->type_mission === MissionType::Ugc
+                ? $this->reconfirmDeadline()?->toIso8601String()
+                : null,
             // Lot B4 : la candidature peut reprendre une place libérée (même prédicat que le serveur au remplacement).
             'can_replace_freed_place' => (bool) $this->resource->getAttribute('can_replace_freed_place'),
             'created_at' => $this->created_at?->toIso8601String(),

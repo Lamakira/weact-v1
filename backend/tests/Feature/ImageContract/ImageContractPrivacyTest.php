@@ -126,7 +126,7 @@ class ImageContractPrivacyTest extends TestCase
             $payload = (string) $this->actingAs($viewer)
                 ->getJson("/api/v1/{$prefix}/missions/{$mission->uuid}")
                 ->assertOk()
-                ->assertJsonPath('data.image_terms.producer_signed_name', 'Jean Producteur')
+                ->assertJsonPath('data.image_terms.finalite', 'Campagne réseaux sociaux de la marque')
                 ->getContent();
 
             $this->assertStringNotContainsString('TestBrowser', $payload);
@@ -153,5 +153,23 @@ class ImageContractPrivacyTest extends TestCase
         \Illuminate\Support\Facades\DB::disableQueryLog();
 
         $this->assertCount(1, $queries);
+    }
+
+    public function test_the_producer_signed_name_is_shown_to_the_producer_but_never_to_a_face(): void
+    {
+        [$mission] = $this->cashMissionWithAcceptedFace();
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$mission->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.image_terms.producer_signed_name', 'Jean Producteur');
+
+        $response = $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$mission->uuid}")
+            ->assertOk()
+            ->assertJsonMissingPath('data.image_terms.producer_signed_name')
+            ->assertJsonPath('data.image_terms.producer_signed_at', $mission->imageTerms->producer_signed_at->toIso8601String());
+
+        $this->assertStringNotContainsString('Jean Producteur', (string) $response->getContent());
     }
 }
