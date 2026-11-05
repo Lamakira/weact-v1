@@ -147,47 +147,133 @@ describe('ImageContractSignDialog', () => {
       expect(protectedBlock).toBeGreaterThan(readFull)
     })
 
-    it('expose aria-expanded et le libellé du bouton de lecture du contrat', async () => {
+    it('garde le libellé du bouton de lecture, sans aria-expanded', async () => {
       getTemplateMock.mockResolvedValue({ version: 'v1', articles: [] })
       const wrapper = mountDialog()
       const button = wrapper.find('[data-testid="image-contract-read-full"]')
 
-      expect(button.attributes('aria-expanded')).toBe('false')
+      expect(button.attributes('aria-expanded')).toBeUndefined()
       expect(button.text()).toBe('Lire le contrat complet')
 
       await button.trigger('click')
       await flushPromises()
 
       const after = wrapper.find('[data-testid="image-contract-read-full"]')
-      expect(after.attributes('aria-expanded')).toBe('true')
-      expect(after.text()).toBe('Masquer le contrat complet')
+      expect(after.attributes('aria-expanded')).toBeUndefined()
+      expect(after.text()).toBe('Lire le contrat complet')
     })
+  })
 
-    it('charge et affiche les articles via « Lire le contrat complet »', async () => {
-      getTemplateMock.mockResolvedValue({
-        version: 'v1',
-        articles: [{ title: 'Objet', body: 'La Face autorise le Producteur.' }, { title: 'Usages exclus', body: 'Sauf accord.', bullets: ['Contenu politique'] }],
-      })
-      const wrapper = mountDialog()
+  describe('vue de lecture', () => {
+    const articles = [
+      { title: 'Objet', body: 'La Face autorise le Producteur.' },
+      { title: 'Usages exclus', body: 'Sauf accord.', bullets: ['Contenu politique'] },
+    ]
 
+    async function openReading(wrapper: VueWrapper): Promise<void> {
       await wrapper.find('[data-testid="image-contract-read-full"]').trigger('click')
       await flushPromises()
+    }
 
-      const articles = wrapper.find('[data-testid="image-contract-articles"]')
+    it('ouvre la vue, charge les articles une seule fois et affiche le nombre réel', async () => {
+      getTemplateMock.mockResolvedValue({ version: 'v1', articles })
+      const wrapper = mountDialog()
+
+      await openReading(wrapper)
+
+      const body = wrapper.find('[data-testid="image-contract-articles"]')
       expect(getTemplateMock).toHaveBeenCalledTimes(1)
-      expect(articles.text()).toContain('Article 1. Objet')
-      expect(articles.text()).toContain('La Face autorise le Producteur.')
-      expect(articles.text()).toContain('Contenu politique')
+      expect(body.text()).toContain('Article 1. Objet')
+      expect(body.text()).toContain('La Face autorise le Producteur.')
+      expect(body.text()).toContain('Article 2. Usages exclus')
+      expect(body.text()).toContain('Contenu politique')
+      expect(wrapper.find('[data-testid="image-contract-articles-count"]').text()).toBe('2 articles')
+      expect(wrapper.find('[data-testid="image-contract-title"]').text()).toBe("Votre contrat d'image")
+
+      await wrapper.find('[data-testid="image-contract-back-to-sign"]').trigger('click')
+      await openReading(wrapper)
+      expect(getTemplateMock).toHaveBeenCalledTimes(1)
     })
 
-    it('signale un échec de chargement du contrat', async () => {
+    it('met les articles sur deux colonnes sans les couper', async () => {
+      getTemplateMock.mockResolvedValue({ version: 'v1', articles })
+      const wrapper = mountDialog()
+
+      await openReading(wrapper)
+
+      expect(wrapper.find('[data-testid="image-contract-articles-columns"]').classes()).toContain('lg:columns-2')
+      expect(wrapper.find('article').classes()).toContain('break-inside-avoid')
+    })
+
+    it('le retour conserve le nom et la case cochée', async () => {
+      getTemplateMock.mockResolvedValue({ version: 'v1', articles })
+      const wrapper = mountDialog()
+      await wrapper.find('[data-testid="image-contract-name"]').setValue('Marie Dupont')
+      await accept(wrapper)
+
+      await openReading(wrapper)
+      await wrapper.find('[data-testid="image-contract-back-to-sign"]').trigger('click')
+
+      expect(wrapper.find('[data-testid="image-contract-articles"]').exists()).toBe(false)
+      expect((wrapper.find('[data-testid="image-contract-name"]').element as HTMLInputElement).value).toBe('Marie Dupont')
+      expect((wrapper.find('[data-testid="image-contract-accept"]').element as HTMLInputElement).checked).toBe(true)
+      expect(isDisabled(wrapper, 'image-contract-send')).toBe(false)
+    })
+
+    it('le retour à l\'étape code conserve les chiffres et le décompte', async () => {
+      vi.useFakeTimers()
+      getTemplateMock.mockResolvedValue({ version: 'v1', articles })
+      requestCodeMock.mockResolvedValue(codeReply())
+      const wrapper = mountDialog()
+      await goToCodeStep(wrapper)
+      await typeCode(wrapper, '123')
+      await vi.advanceTimersByTimeAsync(5000)
+
+      await openReading(wrapper)
+      await wrapper.find('[data-testid="image-contract-back-to-sign"]').trigger('click')
+
+      expect(wrapper.find('[data-testid="image-contract-title"]').text()).toBe('Consultez votre e-mail')
+      expect((wrapper.find('[data-testid="code-digit-0"]').element as HTMLInputElement).value).toBe('1')
+      expect((wrapper.find('[data-testid="code-digit-2"]').element as HTMLInputElement).value).toBe('3')
+      expect(wrapper.find('[data-testid="image-contract-resend"]').text()).toBe('Renvoyer le code (55 s)')
+    })
+
+    it('Échap revient à la signature sans fermer, puis ferme au second appui', async () => {
+      getTemplateMock.mockResolvedValue({ version: 'v1', articles })
+      const wrapper = mountDialog()
+      await openReading(wrapper)
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+
+      expect(wrapper.emitted('close')).toBeUndefined()
+      expect(wrapper.find('[data-testid="image-contract-articles"]').exists()).toBe(false)
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      expect(wrapper.emitted('close')).toHaveLength(1)
+      wrapper.unmount()
+    })
+
+    it('la croix ferme toute la fenêtre depuis la vue de lecture', async () => {
+      getTemplateMock.mockResolvedValue({ version: 'v1', articles })
+      const wrapper = mountDialog()
+      await openReading(wrapper)
+
+      await wrapper.find('[data-testid="image-contract-close"]').trigger('click')
+
+      expect(wrapper.emitted('close')).toHaveLength(1)
+    })
+
+    it('signale un échec de chargement et laisse revenir à la signature', async () => {
       getTemplateMock.mockRejectedValue(new Error('réseau'))
       const wrapper = mountDialog()
 
-      await wrapper.find('[data-testid="image-contract-read-full"]').trigger('click')
-      await flushPromises()
+      await openReading(wrapper)
 
       expect(wrapper.find('[data-testid="image-contract-articles"]').text()).toContain("n'a pas pu être chargé")
+      await wrapper.find('[data-testid="image-contract-back-to-sign"]').trigger('click')
+      expect(wrapper.find('[data-testid="image-contract-articles"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="image-contract-read-full"]').exists()).toBe(true)
     })
   })
 
