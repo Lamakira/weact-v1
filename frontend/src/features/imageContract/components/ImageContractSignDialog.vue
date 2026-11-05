@@ -2,7 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, onUnmounted, ref, watch } from 'vue'
 import { isAxiosError } from 'axios'
 import { RouterLink } from 'vue-router'
-import { Check, Loader2, ShieldCheck, X } from 'lucide-vue-next'
+import { Check, FileText, Loader2, ShieldCheck, X } from 'lucide-vue-next'
 import { useDismissOnDeactivate } from '@/composables/useDismissOnDeactivate'
 import { useModalFocusTrap } from '@/composables/useModalFocusTrap'
 import { formatApiError as getApiErrorMessage, getApiErrorCode, getApiErrorDetails } from '@/services/errorFormatter'
@@ -462,26 +462,15 @@ const protectedItems = computed(() => [
               </div>
             </dl>
 
-            <div v-if="isFace" class="rounded-xl bg-gray-50 p-4" data-testid="image-contract-protected">
-              <p class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-800">
-                <ShieldCheck :size="16" class="text-weact-600" aria-hidden="true" />
-                Ce qui reste protégé
-              </p>
-              <ul class="space-y-1.5 text-sm text-gray-600">
-                <li v-for="item in protectedItems" :key="item" class="flex gap-2">
-                  <Check :size="14" class="mt-0.5 shrink-0 text-weact-600" aria-hidden="true" />
-                  <span>{{ item }}</span>
-                </li>
-              </ul>
-            </div>
-
             <div>
               <button
                 type="button"
-                class="text-sm font-medium text-weact-600 underline underline-offset-2 hover:text-weact-700"
+                class="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border-2 border-weact-500 px-4 py-2 text-sm font-semibold text-weact-700 no-underline transition-colors hover:bg-weact-50"
+                :aria-expanded="showArticles"
                 data-testid="image-contract-read-full"
                 @click="toggleArticles"
               >
+                <FileText :size="18" aria-hidden="true" />
                 {{ showArticles ? 'Masquer le contrat complet' : 'Lire le contrat complet' }}
               </button>
               <div v-if="showArticles" class="mt-3 space-y-3" data-testid="image-contract-articles">
@@ -499,6 +488,19 @@ const protectedItems = computed(() => [
                   </ul>
                 </article>
               </div>
+            </div>
+
+            <div v-if="isFace" class="rounded-xl bg-gray-50 p-4" data-testid="image-contract-protected">
+              <p class="mb-2 flex items-center gap-2 text-sm font-semibold text-gray-800">
+                <ShieldCheck :size="16" class="text-weact-600" aria-hidden="true" />
+                Ce qui reste protégé
+              </p>
+              <ul class="space-y-1.5 text-sm text-gray-600">
+                <li v-for="item in protectedItems" :key="item" class="flex gap-2">
+                  <Check :size="14" class="mt-0.5 shrink-0 text-weact-600" aria-hidden="true" />
+                  <span>{{ item }}</span>
+                </li>
+              </ul>
             </div>
           </div>
 

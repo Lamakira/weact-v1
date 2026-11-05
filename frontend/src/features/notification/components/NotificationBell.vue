@@ -5,6 +5,9 @@ import { Bell } from 'lucide-vue-next'
 import { useNotificationStore } from '@/stores/notification'
 import NotificationsDropdown from './NotificationsDropdown.vue'
 
+// plain : cloche sans cadre (en-tête public) ; défaut = cloche encadrée de l'espace connecté
+withDefaults(defineProps<{ plain?: boolean }>(), { plain: false })
+
 const notificationStore = useNotificationStore()
 const { unreadCount } = storeToRefs(notificationStore)
 
@@ -46,8 +49,13 @@ onUnmounted(() => {
     <!-- Notification Bell Button -->
     <button
       type="button"
-      class="group relative flex h-10 w-10 items-center justify-center rounded-full border border-border bg-background transition-all duration-200 hover:bg-muted hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-      :class="{ 'bg-muted ring-2 ring-primary/10': showDropdown }"
+      class="group relative flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-primary/20"
+      :class="[
+        plain
+          ? 'bg-transparent hover:bg-muted'
+          : 'border border-border bg-background hover:bg-muted hover:shadow-sm',
+        { 'bg-muted ring-2 ring-primary/10': showDropdown },
+      ]"
       aria-label="Notifications"
       @click.stop="toggleDropdown"
     >
