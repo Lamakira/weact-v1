@@ -6,12 +6,24 @@ import AppHeader from '../AppHeader.vue'
 import { useAuthStore } from '@/stores/auth'
 
 // Mock the useAuth composable
+const { mockLogout } = vi.hoisted(() => ({ mockLogout: vi.fn() }))
+
 vi.mock('@/features/auth/composables/useAuth', () => ({
   useAuth: () => ({
-    logout: vi.fn().mockResolvedValue(undefined),
+    logout: mockLogout,
     isLoading: false,
   }),
 }))
+
+// Profils (avatar du menu compte) : pas d'appel réseau
+vi.mock('@/features/face/composables/useProfilePhoto', async () => {
+  const { ref } = await import('vue')
+  return { useProfilePhoto: () => ({ profile: ref(null), fetchProfile: vi.fn().mockResolvedValue(undefined) }) }
+})
+vi.mock('@/features/producer/composables/useProducerProfilePhoto', async () => {
+  const { ref } = await import('vue')
+  return { useProducerProfilePhoto: () => ({ profile: ref(null), fetchProfile: vi.fn().mockResolvedValue(undefined) }) }
+})
 
 // Mock the useToast composable
 vi.mock('@/composables/useToast', () => ({
@@ -36,6 +48,8 @@ describe('AppHeader', () => {
       { path: '/login', name: 'login', component: { template: '<div>Login</div>' } },
       { path: '/register/face', name: 'register-face', component: { template: '<div>Register Face</div>' } },
       { path: '/register/producer', name: 'register-producer', component: { template: '<div>Register Producer</div>' } },
+      { path: '/face/profile', name: 'face-profile', component: { template: '<div>Face Profile</div>' } },
+      { path: '/producer/profile', name: 'producer-profile', component: { template: '<div>Producer Profile</div>' } },
       { path: '/face/dashboard', name: 'face-dashboard', component: { template: '<div>Face Dashboard</div>' } },
       { path: '/producer/dashboard', name: 'producer-dashboard', component: { template: '<div>Producer Dashboard</div>' } },
       { path: '/faces', name: 'faces', component: { template: '<div>Faces</div>' } },
@@ -77,6 +91,8 @@ describe('AppHeader', () => {
   }
 
   beforeEach(async () => {
+    mockLogout.mockReset()
+    mockLogout.mockResolvedValue(undefined)
     await router.push('/')
     await router.isReady()
   })
@@ -113,10 +129,12 @@ describe('AppHeader', () => {
       expect(tarifsLink.text()).toBe('Tarifs')
     })
 
-    it('does not display Dashboard link when not authenticated', () => {
+    it('does not display Tableau de bord link when not authenticated', () => {
       const wrapper = mountHeader()
 
-      expect(wrapper.text()).not.toContain('Dashboard')
+      expect(wrapper.text()).not.toContain('Tableau de bord')
+      expect(wrapper.find('[data-testid="link-dashboard"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="header-avatar"]').exists()).toBe(false)
     })
 
     it('does not display Déconnexion button when not authenticated', () => {
@@ -137,16 +155,40 @@ describe('AppHeader', () => {
       token: 'test-token',
     }
 
-    it('displays Dashboard link for Face user', () => {
+    it('displays Tableau de bord link for Face user', () => {
       const wrapper = mountHeader(faceUser)
 
-      expect(wrapper.text()).toContain('Dashboard')
+      expect(wrapper.find('[data-testid="link-dashboard"]').text()).toContain('Tableau de bord')
     })
 
-    it('displays Déconnexion button for authenticated user', () => {
+    it('no longer shows a logout button in the desktop actions, only the avatar menu', () => {
+      const wrapper = mountHeader(faceUser)
+      const actions = wrapper.find('[data-testid="header-desktop-actions"]')
+
+      expect(actions.find('[data-testid="btn-logout"]').exists()).toBe(false)
+      expect(actions.find('[data-testid="header-avatar"]').exists()).toBe(true)
+      expect(actions.text()).not.toContain('Déconnexion')
+    })
+
+    it('avatar menu opens with profile link to the Face profile', async () => {
       const wrapper = mountHeader(faceUser)
 
-      expect(wrapper.text()).toContain('Déconnexion')
+      expect(wrapper.find('[data-testid="avatar-dropdown"]').exists()).toBe(false)
+      await wrapper.find('[data-testid="header-avatar"]').trigger('click')
+
+      expect(wrapper.find('[data-testid="avatar-dropdown"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="dropdown-profile-link"]').attributes('href')).toBe('/face/profile')
+      expect(wrapper.find('[data-testid="dropdown-logout-button"]').exists()).toBe(true)
+    })
+
+    it('avatar menu logout calls logout', async () => {
+      const wrapper = mountHeader(faceUser)
+
+      await wrapper.find('[data-testid="header-avatar"]').trigger('click')
+      await wrapper.find('[data-testid="dropdown-logout-button"]').trigger('click')
+      await flushPromises()
+
+      expect(mockLogout).toHaveBeenCalledTimes(1)
     })
 
     it('does not display login/register buttons when authenticated', () => {
@@ -179,7 +221,7 @@ describe('AppHeader', () => {
       expect(wrapper.text()).not.toContain('Mes missions')
     })
 
-    it('links Dashboard to Face dashboard', () => {
+    it('links Tableau de bord to Face dashboard', () => {
       const wrapper = mountHeader(faceUser)
       const authStore = useAuthStore()
       authStore.user = faceUser.user
@@ -201,10 +243,18 @@ describe('AppHeader', () => {
       token: 'test-token',
     }
 
-    it('displays Dashboard link for Producer user', () => {
+    it('displays Tableau de bord link for Producer user', () => {
       const wrapper = mountHeader(producerUser)
 
-      expect(wrapper.text()).toContain('Dashboard')
+      expect(wrapper.find('[data-testid="link-dashboard"]').text()).toContain('Tableau de bord')
+    })
+
+    it('avatar menu links to the Producer profile', async () => {
+      const wrapper = mountHeader(producerUser)
+
+      await wrapper.find('[data-testid="header-avatar"]').trigger('click')
+
+      expect(wrapper.find('[data-testid="dropdown-profile-link"]').attributes('href')).toBe('/producer/profile')
     })
 
     it('does not display Mes missions link in header for Producer user', async () => {
@@ -229,7 +279,7 @@ describe('AppHeader', () => {
       expect(wrapper.text()).not.toContain('Mes candidatures')
     })
 
-    it('links Dashboard to Producer dashboard', () => {
+    it('links Tableau de bord to Producer dashboard', () => {
       const wrapper = mountHeader(producerUser)
       const authStore = useAuthStore()
       authStore.user = producerUser.user
@@ -337,7 +387,7 @@ describe('AppHeader', () => {
       expect(mobileMenu.text()).toContain('Se connecter')
     })
 
-    it('mobile menu contains Dashboard for authenticated user', async () => {
+    it('mobile menu contains Tableau de bord for authenticated user', async () => {
       const faceUser = {
         user: {
           id: 1,
@@ -353,7 +403,7 @@ describe('AppHeader', () => {
       await mobileMenuButton.trigger('click')
 
       const mobileMenu = wrapper.find('[data-testid="header-mobile-menu"]')
-      expect(mobileMenu.text()).toContain('Dashboard')
+      expect(mobileMenu.text()).toContain('Tableau de bord')
       expect(mobileMenu.text()).toContain('Déconnexion')
     })
 
