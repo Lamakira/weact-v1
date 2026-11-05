@@ -42,10 +42,10 @@ export function getMissionSteps(isUgc: boolean): StepDef[] {
 export function getCurrentStepIndex(step: MissionSummaryStep, isUgc: boolean): number {
   if (step === 'draft') return -1
   if (isUgc) {
-    return { commission: 0, recruiting: 1, tunnel: 2, completed: 3 }[step as string] ?? -1
+    return { commission: 0, recruiting: 1, tunnel: 2, completed: UGC_STEPS.length }[step as string] ?? -1
   }
   return (
-    { recruiting: 0, payment: 1, confirmations: 2, ready: 3, attendance: 3, completed: 4 }[step as string] ?? -1
+    { recruiting: 0, payment: 1, confirmations: 2, ready: 3, attendance: 3, completed: STANDARD_STEPS.length }[step as string] ?? -1
   )
 }
 

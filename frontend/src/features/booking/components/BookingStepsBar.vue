@@ -4,7 +4,7 @@ import { Check, X } from 'lucide-vue-next'
 
 const props = defineProps<{
   labels: string[]
-  /** Index de l'étape courante (0 = première). */
+  /** Index de l'étape courante (0 = première). Égal au nombre d'étapes : parcours terminé. */
   current: number
   /** Parcours arrêté (refus, expiration, annulation, absence). */
   halted?: boolean
@@ -32,6 +32,9 @@ onMounted(() => {
   void nextTick(applyTarget)
 })
 watch(target, applyTarget)
+
+// Parcours terminé : la dernière étape reste celle dont le libellé est mis en avant.
+const highlighted = computed(() => Math.min(props.current, count.value - 1))
 
 function stateOf(index: number): 'done' | 'now' | 'todo' {
   if (index < props.current) return 'done'
@@ -80,7 +83,7 @@ function stateOf(index: number): 'done' | 'now' | 'todo' {
         <span
           class="text-xs leading-tight"
           :class="
-            index === current
+            index === highlighted
               ? 'font-semibold text-gray-900 max-sm:absolute max-sm:top-[30px] max-sm:whitespace-nowrap'
               : 'text-gray-500 max-sm:hidden'
           "

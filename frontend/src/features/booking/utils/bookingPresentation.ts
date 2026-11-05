@@ -139,7 +139,8 @@ function stepsFor(booking: Booking): BookingSteps {
       current = ugc ? 3 : 2
       break
     case BookingStatus.COMPLETED:
-      current = 4
+      // Au-delà de la dernière étape : toutes sont cochées.
+      current = labels.length
       break
     default:
       // paid, in_progress, confirmed_by_face, confirmed_by_producer
