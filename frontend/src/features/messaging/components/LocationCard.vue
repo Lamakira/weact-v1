@@ -21,7 +21,10 @@ const firstName = computed(() => {
 
 const title = computed(() => {
   if (props.isOwn) return 'Votre position'
-  return firstName.value ? `Position de ${firstName.value}` : 'Position partagée'
+  if (!firstName.value) return 'Position partagée'
+  // Élision devant voyelle ou h muet : « Position d'Aïcha ».
+  const startsWithVowel = /^[aeiouyh]/i.test(firstName.value.normalize('NFD'))
+  return startsWithVowel ? `Position d'${firstName.value}` : `Position de ${firstName.value}`
 })
 </script>
 

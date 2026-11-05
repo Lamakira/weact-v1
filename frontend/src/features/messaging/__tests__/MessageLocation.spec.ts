@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import DeliveryAddressHint from '../components/DeliveryAddressHint.vue'
+import LocationCard from '../components/LocationCard.vue'
 import MessageBubble from '../components/MessageBubble.vue'
 import MessageInput from '../components/MessageInput.vue'
 import MessageThread from '../components/MessageThread.vue'
@@ -380,5 +381,16 @@ describe('MessagesWorkspace : envoi de position', () => {
     expect(wrapper.find('[data-testid="share-location-error"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="location-card"]').exists()).toBe(false)
     wrapper.unmount()
+  })
+
+  it.each([
+    ['Aïcha Bello', "Position d'Aïcha"],
+    ['Émile', "Position d'Émile"],
+    ['Koffi', 'Position de Koffi'],
+  ])('élide le titre selon le prénom (%s)', (senderName, expected) => {
+    const wrapper = mount(LocationCard, {
+      props: { location: { lat: 6.37, lng: 2.39, accuracy_m: null, maps_url: 'https://maps.test' }, isOwn: false, senderName },
+    })
+    expect(wrapper.get('[data-testid="location-title"]').text()).toBe(expected)
   })
 })
