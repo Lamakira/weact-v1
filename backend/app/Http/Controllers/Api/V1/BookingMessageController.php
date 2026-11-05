@@ -12,6 +12,7 @@ use App\Models\Booking;
 use App\Services\Messaging\BookingChatRealtime;
 use App\Services\Messaging\ConversationUnreadCounter;
 use App\Services\Push\WebPushService;
+use App\Support\MessageLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -59,10 +60,13 @@ class BookingMessageController extends Controller
             return $this->chatLockedResponse();
         }
 
+        $location = $request->validated('location');
+
         /** @var \App\Models\BookingMessage $message */
         $message = $booking->messages()->create([
             'sender_id' => $request->user()->id,
-            'content' => $request->validated('content'),
+            // Une position remplace le texte envoyé (content neutre + colonnes de position)
+            ...($location !== null ? MessageLocation::attributes($location) : ['content' => $request->validated('content')]),
         ]);
 
         $message->load('sender.userable');

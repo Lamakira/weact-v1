@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Support\MessageLocation;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -28,6 +29,7 @@ class MessageResource extends JsonResource
         return [
             'id' => $this->id,
             'content' => $this->content,
+            'location' => MessageLocation::payload($this->resource),
             'sender_id' => $this->sender_id,
             'sender_type' => $this->sender_type,
             'sender_name' => $this->getSenderName(),

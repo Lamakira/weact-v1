@@ -101,7 +101,8 @@ class ConversationRealtimeTest extends TestCase
                 && $payload['content'] === 'Bonjour'
                 && $payload['sender_id'] === $this->faceUser->id
                 && ! array_key_exists('is_own_message', $payload)
-                && array_keys($payload) === ['id', 'conversation_id', 'content', 'sender_id', 'sender_type', 'sender_name', 'read_at', 'created_at'];
+                && array_keys($payload) === ['id', 'conversation_id', 'content', 'location', 'sender_id', 'sender_type', 'sender_name', 'read_at', 'created_at']
+                && $payload['location'] === null;
         });
     }
 

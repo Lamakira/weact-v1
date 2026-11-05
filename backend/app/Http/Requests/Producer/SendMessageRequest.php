@@ -4,15 +4,18 @@ declare(strict_types=1);
 
 namespace App\Http\Requests\Producer;
 
+use App\Http\Requests\Concerns\ValidatesMessageLocation;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
  * Form request for sending a message in a conversation.
  *
- * Validates the message content field.
+ * Validates the message content field, or an instant location.
  */
 class SendMessageRequest extends FormRequest
 {
+    use ValidatesMessageLocation;
+
     /**
      * Determine if the user is authorized to make this request.
      */
@@ -30,7 +33,8 @@ class SendMessageRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'content' => ['required', 'string', 'max:5000'],
+            'content' => ['required_without:location', 'nullable', 'string', 'max:5000'],
+            ...$this->locationRules(),
         ];
     }
 
@@ -42,9 +46,9 @@ class SendMessageRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'content.required' => 'Le message ne peut pas être vide.',
             'content.string' => 'Le message doit être du texte.',
             'content.max' => 'Le message ne peut pas dépasser 5000 caractères.',
+            ...$this->locationMessages(),
         ];
     }
 

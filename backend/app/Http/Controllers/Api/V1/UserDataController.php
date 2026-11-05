@@ -33,6 +33,7 @@ use App\Services\PresentationVideoService;
 use App\Services\ProducerProfilePhotoService;
 use App\Services\ProfilePhotoService;
 use App\Support\AccountDeletionGuard;
+use App\Support\MessageLocation;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -48,12 +49,22 @@ class UserDataController extends Controller
     /** Replacement text for every message the deleted user authored. */
     private const DELETED_MESSAGE_PLACEHOLDER = '[message supprimé]';
 
+    /** Content placeholder plus any shared location wiped, for messages the deleted user authored. */
+    private const DELETED_MESSAGE_ATTRIBUTES = [
+        'content' => self::DELETED_MESSAGE_PLACEHOLDER,
+        'location_lat' => null,
+        'location_lng' => null,
+        'location_accuracy_m' => null,
+    ];
+
     /**
      * Export all personal data for the authenticated user (Art. 438 - Portabilite).
      *
      * Messages: the counterpart's message content in the user's own shared threads is
      * included by design (portability of the conversation), with NO counterpart
      * identity (no name, email or phone), only `from_me` and the booking/conversation uuid.
+     * A shared location is exported only for the messages the user authored (`location` is
+     * null for the counterpart's messages: their coordinates are not the user's data).
      */
     public function export(Request $request): JsonResponse
     {
@@ -234,6 +245,7 @@ class UserDataController extends Controller
                 'booking' => $m->booking?->uuid,
                 'from_me' => $m->sender_id === $user->id,
                 'content' => $m->content,
+                'location' => $m->sender_id === $user->id ? MessageLocation::payload($m) : null,
                 'created_at' => $m->created_at->toIso8601String(),
             ])->all();
 
@@ -245,6 +257,7 @@ class UserDataController extends Controller
                 'conversation' => $m->conversation?->uuid,
                 'from_me' => $m->sender_id === $user->id && $m->sender_type === User::class,
                 'content' => $m->content,
+                'location' => $m->sender_id === $user->id && $m->sender_type === User::class ? MessageLocation::payload($m) : null,
                 'created_at' => $m->created_at->toIso8601String(),
             ])->all();
 
@@ -446,11 +459,11 @@ class UserDataController extends Controller
             // thread stays coherent; only the content is replaced.
             BookingMessage::query()
                 ->where('sender_id', $user->id)
-                ->update(['content' => self::DELETED_MESSAGE_PLACEHOLDER]);
+                ->update(self::DELETED_MESSAGE_ATTRIBUTES);
             Message::query()
                 ->where('sender_id', $user->id)
                 ->where('sender_type', User::class)
-                ->update(['content' => self::DELETED_MESSAGE_PLACEHOLDER]);
+                ->update(self::DELETED_MESSAGE_ATTRIBUTES);
 
             // Withdrawal rows stay (accounting); the payout phone number is masked.
             // Both columns are NOT NULL, hence neutral values rather than null.
