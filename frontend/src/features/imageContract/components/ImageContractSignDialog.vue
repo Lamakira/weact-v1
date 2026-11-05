@@ -94,12 +94,15 @@ const isSending = ref(false)
 const isSubmitting = ref(false)
 const resendIn = ref(0)
 
-const showArticles = ref(false)
+const reading = ref(false)
 const articles = ref<ContractArticle[]>([])
 const articlesLoading = ref(false)
 const articlesError = ref<string | null>(null)
 
 const dialogRef = ref<HTMLDivElement | null>(null)
+const readingBodyRef = ref<HTMLDivElement | null>(null)
+const backToSignRef = ref<HTMLButtonElement | null>(null)
+const readFullRef = ref<HTMLButtonElement | null>(null)
 const codeInputs = ref<(HTMLInputElement | null)[]>([])
 const { prepareModalFocus, restoreFocus, trapModalFocus } = useModalFocusTrap()
 
@@ -190,7 +193,7 @@ function resetState(): void {
   sentTo.value = ''
   digits.value = Array(CODE_LENGTH).fill('')
   resendIn.value = 0
-  showArticles.value = false
+  reading.value = false
   isSending.value = false
   isSubmitting.value = false
   clearError()
@@ -356,9 +359,8 @@ async function confirm(): Promise<void> {
   }
 }
 
-async function toggleArticles(): Promise<void> {
-  showArticles.value = !showArticles.value
-  if (!showArticles.value || articles.value.length > 0 || articlesLoading.value) return
+async function loadArticles(): Promise<void> {
+  if (articles.value.length > 0 || articlesLoading.value) return
   articlesLoading.value = true
   articlesError.value = null
   try {
@@ -370,6 +372,20 @@ async function toggleArticles(): Promise<void> {
   }
 }
 
+async function openReading(): Promise<void> {
+  reading.value = true
+  await nextTick()
+  if (readingBodyRef.value) readingBodyRef.value.scrollTop = 0
+  backToSignRef.value?.focus()
+  await loadArticles()
+}
+
+async function closeReading(): Promise<void> {
+  reading.value = false
+  await nextTick()
+  readFullRef.value?.focus()
+}
+
 function requestClose(): void {
   if (isSubmitting.value) return
   emit('close')
@@ -378,7 +394,8 @@ function requestClose(): void {
 function handleKeydown(event: KeyboardEvent): void {
   if (!props.isOpen) return
   if (event.key === 'Escape') {
-    requestClose()
+    if (reading.value) void closeReading()
+    else requestClose()
     return
   }
   if (event.key === 'Tab') trapModalFocus(event, dialogRef.value)
@@ -410,7 +427,8 @@ const protectedItems = computed(() => [
     >
       <div
         ref="dialogRef"
-        class="flex h-full w-full flex-col overflow-y-auto bg-white shadow-2xl focus:outline-none sm:h-auto sm:max-h-[92vh] sm:max-w-4xl sm:rounded-2xl"
+        :class="reading ? 'overflow-hidden' : 'overflow-y-auto'"
+        class="flex h-full w-full flex-col bg-white shadow-2xl focus:outline-none sm:h-auto sm:max-h-[92vh] sm:max-w-4xl sm:rounded-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="image-contract-title"
@@ -432,7 +450,7 @@ const protectedItems = computed(() => [
           </button>
         </header>
 
-        <div class="grid flex-1 gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div v-show="!reading" class="grid flex-1 gap-6 p-5 lg:grid-cols-[minmax(0,1fr)_340px]">
           <!-- Colonne gauche : contenu du contrat -->
           <div :class="['space-y-5', step === 'terms' ? '' : 'hidden lg:block']" data-testid="image-contract-content">
             <dl class="divide-y divide-gray-100 rounded-xl border border-gray-200 text-sm" data-testid="image-contract-summary">
@@ -464,30 +482,15 @@ const protectedItems = computed(() => [
 
             <div>
               <button
+                ref="readFullRef"
                 type="button"
                 class="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border-2 border-weact-500 px-4 py-2 text-sm font-semibold text-weact-700 no-underline transition-colors hover:bg-weact-50"
-                :aria-expanded="showArticles"
                 data-testid="image-contract-read-full"
-                @click="toggleArticles"
+                @click="openReading"
               >
                 <FileText :size="18" aria-hidden="true" />
-                {{ showArticles ? 'Masquer le contrat complet' : 'Lire le contrat complet' }}
+                Lire le contrat complet
               </button>
-              <div v-if="showArticles" class="mt-3 space-y-3" data-testid="image-contract-articles">
-                <p v-if="articlesLoading" class="text-sm text-gray-500">Chargement du contrat...</p>
-                <p v-else-if="articlesError" class="text-sm text-red-600" role="alert">{{ articlesError }}</p>
-                <article
-                  v-for="(article, index) in articles"
-                  :key="article.title"
-                  class="text-sm text-gray-700"
-                >
-                  <h3 class="font-semibold text-gray-900">Article {{ index + 1 }}. {{ article.title }}</h3>
-                  <p class="mt-0.5">{{ article.body }}</p>
-                  <ul v-if="article.bullets?.length" class="mt-1 list-disc space-y-0.5 pl-5">
-                    <li v-for="bullet in article.bullets" :key="bullet">{{ bullet }}</li>
-                  </ul>
-                </article>
-              </div>
             </div>
 
             <div v-if="isFace" class="rounded-xl bg-gray-50 p-4" data-testid="image-contract-protected">
@@ -714,6 +717,41 @@ const protectedItems = computed(() => [
             </template>
           </div>
         </div>
+
+        <!-- Vue de lecture : tout le contrat, en-tête et pied fixes -->
+        <template v-if="reading">
+          <div ref="readingBodyRef" class="min-h-0 flex-1 overflow-y-auto p-5" data-testid="image-contract-articles">
+            <p v-if="articlesLoading" class="text-sm text-gray-500">Chargement du contrat...</p>
+            <p v-else-if="articlesError" class="text-sm text-red-600" role="alert">{{ articlesError }}</p>
+            <div class="gap-x-8 lg:columns-2" data-testid="image-contract-articles-columns">
+              <article
+                v-for="(article, index) in articles"
+                :key="article.title"
+                class="mb-5 break-inside-avoid text-sm text-gray-700"
+              >
+                <h3 class="font-semibold text-gray-900">Article {{ index + 1 }}. {{ article.title }}</h3>
+                <p class="mt-0.5">{{ article.body }}</p>
+                <ul v-if="article.bullets?.length" class="mt-1 list-disc space-y-0.5 pl-5">
+                  <li v-for="bullet in article.bullets" :key="bullet">{{ bullet }}</li>
+                </ul>
+              </article>
+            </div>
+          </div>
+          <footer class="flex shrink-0 items-center justify-between gap-3 border-t border-gray-100 bg-white px-5 py-3">
+            <span class="text-sm text-gray-500" data-testid="image-contract-articles-count">
+              <template v-if="articles.length > 0">{{ articles.length }} {{ articles.length > 1 ? 'articles' : 'article' }}</template>
+            </span>
+            <button
+              ref="backToSignRef"
+              type="button"
+              class="rounded-lg bg-weact-500 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-weact-600"
+              data-testid="image-contract-back-to-sign"
+              @click="closeReading"
+            >
+              Retour à la signature
+            </button>
+          </footer>
+        </template>
       </div>
     </div>
   </Teleport>
