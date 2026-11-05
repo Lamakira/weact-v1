@@ -45,6 +45,9 @@ export interface FaceHubState {
   chatOpen: boolean
 }
 
+/** Libellé de l'action quand la confirmation passe par la signature du contrat d'image. */
+const SIGN_AND_CONFIRM_LABEL = 'Lire, signer et confirmer'
+
 const CHAT_STATUSES = ['accepted', 'confirmed', 'in_progress', 'completed']
 
 /** « jeu. 23 oct. » depuis un `YYYY-MM-DD` (interprété en date locale, sans décalage de fuseau). */
@@ -74,9 +77,9 @@ export function formatRemaining(deadlineIso: string, now: Date): string {
 export function deriveFaceHubState(
   mission: Mission,
   candidature: MissionCandidature,
-  options: { isUgc: boolean; producerName: string },
+  options: { isUgc: boolean; producerName: string; mustSign?: boolean },
 ): FaceHubState {
-  const { isUgc, producerName } = options
+  const { isUgc, producerName, mustSign = false } = options
   const steps = isUgc ? FACE_UGC_STEPS : FACE_STANDARD_STEPS
   const status = candidature.status
   const display = candidature.display_status ?? status
@@ -181,7 +184,7 @@ export function deriveFaceHubState(
         pill: { tone: 'warn', label: 'À reconfirmer' },
         action: {
           key: 'reconfirm',
-          label: 'Reconfirmer ma participation',
+          label: mustSign ? SIGN_AND_CONFIRM_LABEL : 'Reconfirmer ma participation',
           sub: deadline ? `Avant le ${formatConfirmationDeadline(deadline)}` : '',
           kind: 'primary',
         },
@@ -199,7 +202,7 @@ export function deriveFaceHubState(
       pill: { tone: 'warn', label: 'À confirmer' },
       action: {
         key: 'confirm',
-        label: 'Confirmer ma participation',
+        label: mustSign ? SIGN_AND_CONFIRM_LABEL : 'Confirmer ma participation',
         sub: deadline ? `Avant le ${formatConfirmationDeadline(deadline)}` : '',
         kind: 'primary',
       },

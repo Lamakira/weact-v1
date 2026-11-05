@@ -43,7 +43,7 @@ class FaceFactory extends Factory
             'sexe' => fake()->randomElement(FaceGender::cases())->value,
             'date_naissance' => fake()->dateTimeBetween('-50 years', '-16 years')->format('Y-m-d'),
             'nationalite' => fake()->randomElement(['Béninoise', 'Togolaise', 'Nigériane', 'Ivoirienne', 'Française']),
-            'pays' => fake()->randomElement(['Bénin', 'Togo', 'Nigeria', 'Côte d\'Ivoire', 'France']),
+            'pays' => fake()->randomElement(['Bénin', 'Togo', 'Nigeria', 'Côte d’Ivoire', 'France']),
         ]);
     }
 

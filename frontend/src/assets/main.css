@@ -358,3 +358,22 @@
     animation: none;
   }
 }
+
+/* Modales : barre de défilement native masquée, le défilement (molette, tactile, clavier) reste actif */
+.fixed.inset-0,
+.fixed.inset-0 *,
+[role="dialog"],
+[role="dialog"] *,
+[role="alertdialog"],
+[role="alertdialog"] * {
+  scrollbar-width: none;
+}
+
+.fixed.inset-0::-webkit-scrollbar,
+.fixed.inset-0 *::-webkit-scrollbar,
+[role="dialog"]::-webkit-scrollbar,
+[role="dialog"] *::-webkit-scrollbar,
+[role="alertdialog"]::-webkit-scrollbar,
+[role="alertdialog"] *::-webkit-scrollbar {
+  display: none;
+}

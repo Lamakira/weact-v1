@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Events;
 
 use App\Models\BookingMessage;
+use App\Support\MessageLocation;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -61,6 +62,7 @@ class BookingMessageSent implements ShouldBroadcast
             'sender_id' => $this->message->sender_id,
             'sender_name' => is_string($senderName) && $senderName !== '' ? $senderName : 'Utilisateur',
             'content' => $this->message->content,
+            'location' => MessageLocation::payload($this->message),
             'created_at' => $this->message->created_at->toIso8601String(),
         ];
     }

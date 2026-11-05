@@ -19,6 +19,9 @@ const target = computed(() =>
   props.steps.length > 1 ? Math.min(Math.max(props.current, 0) / (props.steps.length - 1), 1) : 0,
 )
 
+// Mission terminée (current = nombre d'étapes) : la dernière étape reste celle dont le libellé est mis en avant.
+const highlighted = computed(() => Math.min(props.current, props.steps.length - 1))
+
 // Part de 0 puis rejoint la cible après deux frames : la transition CSS joue au montage.
 const fill = ref(0)
 onMounted(() => {
@@ -62,8 +65,8 @@ watch(target, (value) => {
         <span
           class="text-xs leading-tight"
           :class="[
-            i === current ? 'font-semibold text-foreground' : 'text-muted-foreground',
-            i === current ? 'max-sm:absolute max-sm:top-[30px] max-sm:whitespace-nowrap' : 'max-sm:hidden',
+            i === highlighted ? 'font-semibold text-foreground' : 'text-muted-foreground',
+            i === highlighted ? 'max-sm:absolute max-sm:top-[30px] max-sm:whitespace-nowrap' : 'max-sm:hidden',
           ]"
         >
           {{ step.label }}

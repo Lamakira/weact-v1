@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Booking;
 
 use App\Enums\CompensationType;
+use App\Http\Requests\ImageContract\ImageTermsRules;
 use App\Models\Booking;
 use App\Models\Face;
 use App\Models\Mission;
@@ -22,6 +23,8 @@ use Illuminate\Validation\Validator;
 
 class CreateBookingRequest extends FormRequest
 {
+    use ImageTermsRules;
+
     private const MAX_UNSIGNED_INTEGER = 4294967295;
 
     /** Heure (fuseau métier) à partir de laquelle on ne peut plus demander un booking pour le lendemain. */
@@ -102,6 +105,12 @@ class CreateBookingRequest extends FormRequest
             // Produit seul : nombre_videos forcé serveur à 2 (BookingService), montant_remuneration ignoré.
         }
 
+        // Autorisation d'utilisation de l'image : conditions + signature du Producteur (code reçu
+        // par e-mail). Le code lui-même est vérifié dans la transaction de création.
+        if (config('image_contracts.enabled')) {
+            $rules = array_merge($rules, $this->imageTermsRules());
+        }
+
         return $rules;
     }
 
@@ -110,7 +119,7 @@ class CreateBookingRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
+        return $this->imageTermsMessages() + [
             'face_id.required' => 'La Face est obligatoire.',
             'face_id.exists' => 'La Face selectionnee n\'existe pas.',
             'date_debut.required' => 'La date de debut est obligatoire.',

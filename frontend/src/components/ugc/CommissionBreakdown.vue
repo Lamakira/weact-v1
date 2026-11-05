@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { formatMoney } from '@/utils/money'
 import { computed } from 'vue'
-import { Receipt } from 'lucide-vue-next'
+import { Check, Receipt } from 'lucide-vue-next'
 import {
   computeUgcCommission,
   UGC_COMMISSION_FLOOR,
@@ -24,12 +24,19 @@ const props = withDefaults(
     mode?: 'booking' | 'mission'
     /** Nombre de Faces recherchées — multiplie le coût cash par-Face (hybride mission). */
     nombreFaces?: number
+    /**
+     * Commission déjà réglée (booking `commission_paid` / `accepted` / `completed`) :
+     * « À payer maintenant » devient « Commission réglée » (produit seul) ou « Réglé »
+     * (hybride on-platform). Sans effet en mode mission.
+     */
+    paid?: boolean
   }>(),
   {
     payAmount: 0,
     onPlatform: false,
     mode: 'booking',
     nombreFaces: 1,
+    paid: false,
   },
 )
 
@@ -117,7 +124,11 @@ const missionHybridTotal = computed(() => onPlatformTotal.value * missionFacesCo
 
         <div class="mt-2 border-t border-gray-100 pt-2">
           <div class="flex items-center justify-between text-xs">
-            <span class="font-semibold text-gray-900">À payer maintenant</span>
+            <span v-if="paid" class="flex items-center gap-1.5 font-semibold text-gray-900">
+              <Check :size="14" class="text-weact" />
+              Réglé
+            </span>
+            <span v-else class="font-semibold text-gray-900">À payer maintenant</span>
             <span class="text-base font-bold text-gray-900">{{ formatMoney(onPlatformTotal) }}</span>
           </div>
           <p class="mt-1 text-[10px] text-gray-400">
@@ -148,7 +159,11 @@ const missionHybridTotal = computed(() => onPlatformTotal.value * missionFacesCo
         <!-- À payer maintenant -->
         <div class="mt-2 border-t border-gray-100 pt-2">
           <div class="flex items-center justify-between text-xs">
-            <span class="font-semibold text-gray-900">À payer maintenant</span>
+            <span v-if="paid && mode !== 'mission'" class="flex items-center gap-1.5 font-semibold text-gray-900">
+              <Check :size="14" class="text-weact" />
+              Commission réglée
+            </span>
+            <span v-else class="font-semibold text-gray-900">À payer maintenant</span>
             <span class="text-base font-bold text-gray-900">{{ formatMoney(commission) }}</span>
           </div>
           <p class="mt-1 text-[10px] text-gray-400">

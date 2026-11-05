@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { Message } from '../types'
 import { formatClock } from '../utils/messageFormat'
+import LocationCard from './LocationCard.vue'
 
 const props = defineProps<{
   message: Message
@@ -20,7 +21,14 @@ const readTime = computed(() => (props.message.read_at ? formatClock(props.messa
     data-testid="message-bubble"
     :data-own="message.is_own_message"
   >
+    <LocationCard
+      v-if="message.location"
+      :location="message.location"
+      :is-own="message.is_own_message"
+      :sender-name="message.sender_name"
+    />
     <div
+      v-else
       class="max-w-[82%] whitespace-pre-wrap break-words rounded-[12px] px-3.5 py-2 text-[14px] leading-[1.45] lg:max-w-[72%] lg:text-[13.5px]"
       :class="
         message.is_own_message

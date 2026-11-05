@@ -153,6 +153,36 @@ describe('CandidatureCard', () => {
     })
   })
 
+  describe('contrat d\'image à signer', () => {
+    const accepted = { status: 'accepted' as const, status_label: 'Acceptée' }
+
+    it('must_sign_image_contract vrai : « Lire et signer » vers la page de la mission, pas de Confirmer', () => {
+      const wrapper = mountCard(makeCandidature({ ...accepted, must_sign_image_contract: true }))
+
+      const link = wrapper.find('[data-testid="candidature-sign"]')
+      expect(link.text()).toContain('Lire et signer')
+      expect(link.findComponent(RouterLinkStub).props('to')).toEqual({
+        name: 'face-mission-detail',
+        params: { id: 'mission-uuid-1' },
+      })
+      expect(wrapper.find('[data-testid="candidature-confirm"]').exists()).toBe(false)
+      expect(wrapper.emitted('confirm')).toBeUndefined()
+    })
+
+    it.each([false, undefined])('must_sign_image_contract %s : bouton Confirmer inchangé', (flag) => {
+      const wrapper = mountCard(makeCandidature({ ...accepted, must_sign_image_contract: flag }))
+
+      expect(wrapper.find('[data-testid="candidature-sign"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="candidature-confirm"]').text()).toContain('Confirmer')
+    })
+
+    it('ne s\'affiche pas pour une candidature non retenue', () => {
+      const wrapper = mountCard(makeCandidature({ status: 'pending', status_label: 'En attente', must_sign_image_contract: true }))
+
+      expect(wrapper.find('[data-testid="candidature-sign"]').exists()).toBe(false)
+    })
+  })
+
   describe('reconfirmation deadline label (9-2)', () => {
     it('renders the deadline label for an accepted candidature with a reconfirm_deadline', () => {
       const wrapper = mountCard(

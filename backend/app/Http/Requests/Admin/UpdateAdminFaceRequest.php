@@ -9,6 +9,8 @@ use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
 use App\Http\Requests\Concerns\FaceUsernameRules;
 use App\Models\Face;
+use App\Rules\InTerritoryList;
+use App\Support\Territories;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -59,7 +61,8 @@ class UpdateAdminFaceRequest extends FormRequest
      */
     public function rules(): array
     {
-        $faceId = $this->route('face')?->id;
+        $face = $this->route('face');
+        $faceId = $face?->id;
 
         return [
             'nom' => ['sometimes', 'string', 'max:255'],
@@ -67,7 +70,7 @@ class UpdateAdminFaceRequest extends FormRequest
             'username' => $this->usernameRules($faceId),
             'bio' => ['sometimes', 'nullable', 'string', 'max:1000'],
             'ville' => ['sometimes', 'nullable', 'string', 'max:100', Rule::in(BeninCities::values())],
-            'pays' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'pays' => ['sometimes', 'nullable', 'string', 'max:255', new InTerritoryList(Territories::countries(), $face instanceof Face ? $face->pays : null)],
             'categories' => ['sometimes', 'nullable', 'array'],
             'categories.*' => [new Enum(FaceCategory::class)],
             'niches' => ['sometimes', 'nullable', 'array'],

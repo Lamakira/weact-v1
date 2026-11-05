@@ -80,6 +80,7 @@ class ConversationContextBuilder
         return $context + [
             'candidature_status_label' => $candidature->status->label(),
             'closed' => $stepKey === null,
+            'awaiting_delivery_address' => $isUgc && $stepKey !== null && $this->awaitsDeliveryAddress($candidature),
             'steps' => $this->steps($stepKey),
             'lieu' => $mission->lieu,
             'mission_id' => $mission->uuid,
@@ -88,6 +89,20 @@ class ConversationContextBuilder
                 ? $this->faceAmounts($candidature)
                 : $this->producerAmounts($candidature),
         ];
+    }
+
+    /**
+     * Deal UGC accepté/confirmé dont le produit n'est pas encore expédié : la Face doit
+     * envoyer son adresse de livraison dans la discussion. Détail seulement (une seule
+     * conversation) : la relation shipment n'est lue que si le statut le justifie.
+     */
+    private function awaitsDeliveryAddress(Candidature $candidature): bool
+    {
+        if (! in_array($candidature->status, [CandidatureStatus::Accepted, CandidatureStatus::Confirmed], true)) {
+            return false;
+        }
+
+        return $candidature->loadMissing('shipment')->shipment === null;
     }
 
     private function stepKey(Candidature $candidature): ?string

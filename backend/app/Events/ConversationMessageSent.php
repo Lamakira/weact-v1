@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Events;
 
 use App\Models\Message;
+use App\Support\MessageLocation;
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
@@ -52,6 +53,7 @@ class ConversationMessageSent implements ShouldBroadcast
             'id' => $this->message->id,
             'conversation_id' => $this->conversationUuid,
             'content' => $this->message->content,
+            'location' => MessageLocation::payload($this->message),
             'sender_id' => $this->message->sender_id,
             'sender_type' => $this->message->sender_type,
             'sender_name' => is_string($senderName) && $senderName !== '' ? $senderName : 'Utilisateur',

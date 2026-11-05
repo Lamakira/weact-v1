@@ -4,6 +4,7 @@
 
 import type { Deliverable, ProductPhoto, Shipment } from '@/components/ugc'
 import type { MissionRating } from '@/features/candidature/types'
+import type { ImageContract, ImageSignature, ImageTerms, MissionImageTerms } from '@/features/imageContract/types'
 
 // Mission status enum
 export const MissionStatus = {
@@ -218,6 +219,9 @@ export interface Mission {
   // Lot C1 : résumé du cycle de vie (détail Producer uniquement)
   summary?: MissionSummary
   candidatures_count?: number
+  // Autorisation d'image (incrément 2) : conditions signées par le Producteur à la publication ;
+  // null/absent = mission sans conditions (publiée avant l'activation), comportement inchangé.
+  image_terms?: MissionImageTerms | null
   // Photos produit UGC (spec photos produit, `whenLoaded`) — clé OMISE sur les
   // listes, chargée sur les détails. URLs publiques directes (disque public).
   product_photos?: ProductPhoto[]
@@ -249,6 +253,9 @@ export interface CreateMissionData {
   // Photos produit (0-2, facultatives, création seulement) — leur présence
   // bascule l'envoi en FormData
   product_photos?: File[]
+  // Autorisation d'image (création seulement, drapeau actif) : conditions + signature du Producteur
+  image_terms?: ImageTerms
+  signature?: ImageSignature
 }
 
 // Candidature data (minimal version for mission detail response)
@@ -286,6 +293,8 @@ export interface MissionCandidature {
   shipment?: Shipment
   /** Livrables vidéo UGC (whenLoaded, 4.6) — review_note du bandeau de refus + start chrono Avis (D-4.6.b). */
   deliverables?: Deliverable[]
+  /** Contrat d'image de la Face pour cette mission (null/absent avant sa signature). */
+  image_contract?: ImageContract | null
 }
 
 // Mission API response

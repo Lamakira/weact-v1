@@ -25,17 +25,42 @@ const hasPricing = computed(() => !!props.tarifHoraire || !!props.tarifJournalie
 </script>
 
 <template>
-  <div class="flex flex-col gap-6" data-testid="profile-info-section">
+  <div class="flex flex-col gap-3" data-testid="profile-info-section">
     <!-- Header Section -->
     <div class="space-y-1">
-      <div class="flex items-center gap-2 flex-wrap">
-        <h1
-          class="text-3xl font-bold text-gray-900 tracking-tight"
-          data-testid="face-prenom"
+      <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+        <div class="flex items-center gap-2">
+          <h1
+            class="text-3xl font-bold text-gray-900 tracking-tight"
+            data-testid="face-prenom"
+          >
+            {{ prenom }}
+          </h1>
+          <WBadge v-if="hasEliteBadge" tier="elite" :size="22" />
+        </div>
+        <!-- Note, à droite du nom -->
+        <div
+          class="ml-auto flex shrink-0 items-center gap-2"
+          data-testid="rating-section"
+          :aria-label="`Note moyenne: ${averageRating?.toFixed(1) || '0'} étoiles sur 5, basée sur ${ratingsCount} avis`"
         >
-          {{ prenom }}
-        </h1>
-        <WBadge v-if="hasEliteBadge" tier="elite" :size="22" />
+          <div class="flex items-center" aria-hidden="true">
+            <Star
+              v-for="i in 5"
+              :key="i"
+              class="w-4 h-4"
+              :class="
+                i <= Math.round(averageRating || 0)
+                  ? 'fill-amber-400 text-amber-400'
+                  : 'text-gray-200'
+              "
+            />
+          </div>
+          <span class="text-sm font-medium text-gray-900">{{
+            averageRating?.toFixed(1) || '0.0'
+          }}</span>
+          <span class="text-sm text-gray-500">({{ ratingsCount }} avis)</span>
+        </div>
       </div>
       <div
         v-if="ville"
@@ -48,7 +73,7 @@ const hasPricing = computed(() => !!props.tarifHoraire || !!props.tarifJournalie
     </div>
 
     <!-- Badges Row -->
-    <div class="flex flex-wrap gap-2" data-testid="face-badges">
+    <div v-if="categories.length || niches.length" class="flex flex-wrap gap-2" data-testid="face-badges">
       <span
         v-for="cat in categories"
         :key="cat.value"
@@ -92,31 +117,5 @@ const hasPricing = computed(() => !!props.tarifHoraire || !!props.tarifJournalie
         </div>
       </div>
     </div>
-
-    <!-- Rating Section -->
-    <div
-      class="flex items-center gap-2"
-      data-testid="rating-section"
-      :aria-label="`Note moyenne: ${averageRating?.toFixed(1) || '0'} étoiles sur 5, basée sur ${ratingsCount} avis`"
-    >
-      <div class="flex items-center" aria-hidden="true">
-        <Star
-          v-for="i in 5"
-          :key="i"
-          class="w-4 h-4"
-          :class="
-            i <= Math.round(averageRating || 0)
-              ? 'fill-amber-400 text-amber-400'
-              : 'text-gray-200'
-          "
-        />
-      </div>
-      <span class="text-sm font-medium text-gray-900">{{
-        averageRating?.toFixed(1) || '0.0'
-      }}</span>
-      <span class="text-sm text-gray-500">({{ ratingsCount }} avis)</span>
-    </div>
-
-
   </div>
 </template>

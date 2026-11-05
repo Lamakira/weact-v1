@@ -92,6 +92,7 @@ class UserResource extends JsonResource
         // booking / list renderings where the viewer merely happens to be the account.
         if ($this->renderedForOwner) {
             $data['whatsapp_alerts'] = app(WhatsappService::class)->alertsPayload($this->resource);
+            $data['image_contracts_enabled'] = (bool) config('image_contracts.enabled');
         }
 
         return $data;

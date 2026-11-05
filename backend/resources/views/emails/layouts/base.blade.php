@@ -33,7 +33,7 @@
                                 <a href="mailto:{{ config('mail.contact_to') }}?subject=D%C3%A9sinscription%20notifications%20email&body=Bonjour%2C%0A%0AJe%20souhaite%20me%20d%C3%A9sinscrire%20des%20notifications%20email%20WEACT.%0A%0AMerci." style="color: #198496; text-decoration: underline;">Se désinscrire des notifications email</a>
                             </p>
                             <p style="margin: 0; color: #9ca3af; font-size: 11px; text-align: center;">
-                                WEACT — Bénin · <a href="{{ rtrim((string) config('app.frontend_url'), '/') }}/mentions-legales" style="color: #9ca3af; text-decoration: underline;">Mentions légales</a>
+                                @yield('footer_brand', 'WEACT · Bénin') · <a href="{{ rtrim((string) config('app.frontend_url'), '/') }}/mentions-legales" style="color: #9ca3af; text-decoration: underline;">Mentions légales</a>
                             </p>
                         </td>
                     </tr>

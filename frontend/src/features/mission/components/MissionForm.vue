@@ -14,6 +14,7 @@ import { BENIN_CITY_OPTIONS } from '@/shared/constants/beninCities'
 import {
   MissionType,
   MissionGender,
+  MissionTypeLabel,
   getMissionTypeOptions,
   getMissionGenderOptions,
   type Mission,
@@ -22,6 +23,25 @@ import {
 import { Button } from '@/components/ui/button'
 import { FloatingField, FloatingTextarea, FloatingSelect } from '@/components/ui/form'
 import UgcDotationFields from './UgcDotationFields.vue'
+import ImageTermsFields from '@/features/imageContract/components/ImageTermsFields.vue'
+import ImageContractCodeNotice from '@/features/imageContract/components/ImageContractCodeNotice.vue'
+import ImageContractSignDialog from '@/features/imageContract/components/ImageContractSignDialog.vue'
+import { useImageContractsEnabled } from '@/features/imageContract/composables/useImageContractsEnabled'
+import {
+  FINALITE_MAX_LENGTH,
+  defaultFinalite,
+  supportLabel,
+  territoireLabel,
+} from '@/features/imageContract/constants'
+import type {
+  ImageDuree,
+  ImageSignature,
+  ImageSupport,
+  ImageTerritoire,
+  SignatureSubmitOutcome,
+} from '@/features/imageContract/types'
+import { signatureFieldError } from '@/features/imageContract/utils/signatureErrors'
+import { useAuthStore } from '@/stores/auth'
 import { CommissionBreakdown, computeUgcCommission, type UgcCompensationType } from '@/components/ugc'
 import {
   Film,
@@ -60,9 +80,18 @@ const emit = defineEmits<{
   submit: [data: CreateMissionData]
 }>()
 
-const { createMission, isSubmitting: isCreating, error, errorCode } = useMissionCreate()
+const { createMission, isSubmitting: isCreating, error, errorCode, clearError } = useMissionCreate()
 const isProcessing = computed(() => props.isSubmitting || isCreating.value)
 const toast = useToast()
+const authStore = useAuthStore()
+const imageContractsEnabled = useImageContractsEnabled()
+
+// Autorisation d'image : seulement à la création (l'édition ne touche jamais aux conditions signées).
+const showImageTerms = computed(() => props.mode === 'create' && imageContractsEnabled.value)
+
+// Le compte vient de localStorage : sans relecture, une session ouverte avant l'activation
+// publierait une mission sans conditions d'image, refusée par le serveur.
+if (props.mode === 'create') void authStore.refreshUser?.()
 
 // Email verification state
 const isResendingVerification = ref(false)
@@ -171,6 +200,47 @@ const productPhotos = ref<File[]>([])
 const productPhotosError = ref<string>('')
 
 const isUgc = computed(() => type_mission.value === 'ugc')
+
+// Conditions d'image (flag serveur) : saisies ici, signature dans la fenêtre dédiée.
+const initialImageTerms = props.initialValues?.image_terms
+const imageFinalite = ref(initialImageTerms?.finalite ?? '')
+const imageFinaliteTouched = ref(initialImageTerms !== undefined)
+const imageSupports = ref<ImageSupport[]>(initialImageTerms ? [...initialImageTerms.supports] : [])
+const imageTerritoire = ref<ImageTerritoire>(initialImageTerms?.territoire ?? 'benin')
+const imageDuree = ref<ImageDuree>(initialImageTerms?.duree_annees ?? 1)
+const imageTermsError = ref<string | null>(null)
+const showSignDialog = ref(false)
+const pendingData = ref<CreateMissionData | null>(null)
+
+const STALE_FORM_MESSAGE = "Une nouvelle étape est nécessaire : renseignez l'utilisation de l'image."
+const IMAGE_TERMS_INTRO = 'Ces choix s\'appliquent à toutes les Faces que vous retiendrez.'
+
+// Finalité proposée d'après le type de mission, sinon d'après le titre, tant que le Producteur n'y a pas touché.
+const suggestedFinalite = computed(() => {
+  const label = isUgc.value ? 'UGC' : (MissionTypeLabel[type_mission.value as keyof typeof MissionTypeLabel] ?? '')
+  return (defaultFinalite(label) || (titre.value ?? '').trim()).slice(0, FINALITE_MAX_LENGTH)
+})
+watch(
+  suggestedFinalite,
+  (value) => {
+    if (!imageFinaliteTouched.value) imageFinalite.value = value
+  },
+  { immediate: true },
+)
+
+function updateImageFinalite(value: string): void {
+  imageFinaliteTouched.value = true
+  imageFinalite.value = value
+}
+
+const signerDefaultName = computed(() => {
+  const userable = authStore.user?.userable as
+    | { first_name?: string | null; last_name?: string | null; display_name?: string }
+    | null
+    | undefined
+  const personal = `${userable?.first_name ?? ''} ${userable?.last_name ?? ''}`.trim()
+  return personal || userable?.display_name || ''
+})
 // Photos produit obligatoires (1-2) pour l'UGC à la CRÉATION uniquement — calque la garde
 // confirm-disabled de la modale de réception Face. Masquées/non requises en édition (v1).
 const ugcPhotosMissing = computed(
@@ -179,6 +249,7 @@ const ugcPhotosMissing = computed(
 const ugcCommission = computed(() => computeUgcCommission(Number(valeur_produit.value) || 0))
 const submitLabel = computed(() => {
   if (props.mode === 'edit') return 'Enregistrer les modifications'
+  if (showImageTerms.value) return 'Lire, signer et publier'
   if (!isUgc.value) return 'Publier la mission'
   // UGC hybride : publié DIRECTEMENT, sans paiement (commission WeAct sur le cash, prélevée
   // par-Face à l'acceptation) — pas de « Payer la commission » au publish (D-8.4.c).
@@ -266,45 +337,148 @@ const onSubmit = handleSubmit(async (values) => {
     return
   }
 
+  // Autorisation d'image : la mission part depuis la fenêtre de signature.
+  if (showImageTerms.value) {
+    if (!validateImageTerms()) return
+    pendingData.value = data
+    showSignDialog.value = true
+    return
+  }
+
   // In create mode, handle the API call directly
   const result = await createMission(data)
 
   if (result.success && result.data) {
     emit('success', result.data)
   } else if (result.errors) {
-    const validFields = [
-      'titre',
-      'description',
-      'date_tournage',
-      'profil_recherche',
-      'budget',
-      'date_limite_candidature',
-      'nombre_faces_voulu',
-      'type_mission',
-      'type_mission_autre',
-      'genre_voulu',
-      'lieu',
-      'duree',
-      'type_compensation',
-      'nom_produit',
-      'valeur_produit',
-      'nombre_videos',
-      'montant_remuneration',
-    ] as const
-    type ValidField = (typeof validFields)[number]
-
-    Object.entries(result.errors).forEach(([field, messages]) => {
-      if (messages && messages.length > 0 && validFields.includes(field as ValidField)) {
-        setFieldError(field as ValidField, messages[0])
-      }
-      // Erreurs photos produit (clés `product_photos` ou `product_photos.N`) —
-      // hors vee-validate, affichées sous l'uploader.
-      if (messages && messages.length > 0 && field.startsWith('product_photos')) {
-        productPhotosError.value = messages[0] ?? ''
-      }
-    })
+    // Seuls image_terms / signature eux-mêmes réclamés (absents) trahissent un formulaire périmé ;
+    // `signature.name` etc. sont de vraies erreurs de saisie traitées dans la fenêtre de signature.
+    const staleForm = Object.keys(result.errors).some(
+      (key) => key.startsWith('image_terms') || key === 'signature',
+    )
+    if (staleForm) {
+      // Formulaire resté ouvert à l'activation : relire le compte fait apparaître la section.
+      await authStore.refreshUser?.()
+      imageTermsError.value = STALE_FORM_MESSAGE
+      toast.error(STALE_FORM_MESSAGE)
+      return
+    }
+    applyServerErrors(result.errors)
   }
 })
+
+const validFields = [
+  'titre',
+  'description',
+  'date_tournage',
+  'profil_recherche',
+  'budget',
+  'date_limite_candidature',
+  'nombre_faces_voulu',
+  'type_mission',
+  'type_mission_autre',
+  'genre_voulu',
+  'lieu',
+  'duree',
+  'type_compensation',
+  'nom_produit',
+  'valeur_produit',
+  'nombre_videos',
+  'montant_remuneration',
+] as const
+type ValidField = (typeof validFields)[number]
+
+function applyServerErrors(errors: Record<string, string[]>): void {
+  Object.entries(errors).forEach(([field, messages]) => {
+    if (messages && messages.length > 0 && validFields.includes(field as ValidField)) {
+      setFieldError(field as ValidField, messages[0])
+    }
+    // Erreurs photos produit (clés `product_photos` ou `product_photos.N`) —
+    // hors vee-validate, affichées sous l'uploader.
+    if (messages && messages.length > 0 && field.startsWith('product_photos')) {
+      productPhotosError.value = messages[0] ?? ''
+    }
+    if (messages && messages.length > 0 && field.startsWith('image_terms')) {
+      imageTermsError.value = messages[0] ?? null
+    }
+  })
+}
+
+function validateImageTerms(): boolean {
+  if (imageFinalite.value.trim() === '') {
+    imageTermsError.value = "Indiquez la finalité de l'utilisation de l'image."
+    return false
+  }
+  if (imageSupports.value.length === 0) {
+    imageTermsError.value = 'Choisissez au moins un support.'
+    return false
+  }
+  imageTermsError.value = null
+  return true
+}
+
+// Contrepartie telle que la Face la verra : cachet par Face, ou produit (+ rémunération en hybride).
+const signCompensation = computed(() => {
+  if (isUgc.value) {
+    const product = `${nom_produit.value || 'Produit'} (${formatMoney(Number(valeur_produit.value) || 0)})`
+    const cash = Number(montant_remuneration.value) || 0
+    return type_compensation.value === 'hybrid' && cash > 0
+      ? `${product} et ${formatMoney(cash)}`
+      : product
+  }
+  return `Rémunération de ${formatMoney(Number(budget.value) || 0)} par Face`
+})
+
+const signSummary = computed(() => ({
+  projet: (titre.value ?? '').trim(),
+  finalite: imageFinalite.value.trim(),
+  supports: imageSupports.value.map(supportLabel),
+  territoire: territoireLabel(imageTerritoire.value),
+  dureeAnnees: imageDuree.value,
+  contrepartie: signCompensation.value,
+}))
+
+async function submitSigned(signature: ImageSignature): Promise<SignatureSubmitOutcome> {
+  if (!pendingData.value) {
+    return { ok: false, message: 'La mission est introuvable. Fermez la fenêtre et recommencez.' }
+  }
+
+  const result = await createMission({
+    ...pendingData.value,
+    image_terms: {
+      finalite: imageFinalite.value.trim(),
+      supports: imageSupports.value,
+      territoire: imageTerritoire.value,
+      duree_annees: imageDuree.value,
+    },
+    signature,
+  })
+
+  if (result.success && result.data) {
+    showSignDialog.value = false
+    pendingData.value = null
+    emit('success', result.data)
+    return { ok: true }
+  }
+
+  // Erreur sur la signature (ex. nom refusé) : la fenêtre reste ouverte, le code reste valide côté serveur.
+  const signatureError = signatureFieldError(result.errors)
+  if (signatureError) return { ok: false, code: signatureError.code, message: signatureError.message }
+
+  const isSignatureError = (result.errorCode ?? '').startsWith('SIGNATURE_CODE')
+  if (!isSignatureError && result.errors && Object.keys(result.errors).length > 0) {
+    // Erreur sur un champ de la mission : retour au formulaire pour la corriger.
+    showSignDialog.value = false
+    applyServerErrors(result.errors)
+  }
+  return { ok: false, code: result.errorCode, message: result.message }
+}
+
+function closeSignDialog(): void {
+  showSignDialog.value = false
+  // L'erreur de code déjà affichée dans la fenêtre ne doit pas rester en bandeau sur le formulaire.
+  clearError()
+}
 
 const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
 </script>
@@ -613,36 +787,81 @@ const sectionClasses = 'bg-white rounded-2xl border border-gray-100 p-6 mb-6'
       </div>
     </div>
 
+    <!-- Section 4: Utilisation de l'image (création, drapeau serveur) -->
+    <div
+      v-if="showImageTerms"
+      class="mb-6 grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]"
+      data-testid="mission-image-terms"
+    >
+      <ImageTermsFields
+        :finalite="imageFinalite"
+        :supports="imageSupports"
+        :territoire="imageTerritoire"
+        :duree-annees="imageDuree"
+        :error="imageTermsError"
+        :intro="IMAGE_TERMS_INTRO"
+        @update:finalite="updateImageFinalite"
+        @update:supports="imageSupports = $event"
+        @update:territoire="imageTerritoire = $event"
+        @update:duree-annees="imageDuree = $event"
+      />
+      <div
+        class="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900"
+        data-testid="mission-image-terms-info"
+      >
+        <Info :size="18" class="mt-0.5 shrink-0 text-blue-500" aria-hidden="true" />
+        <p>
+          Les Faces voient ces conditions avant de candidater. Elles s'appliquent à toutes les Faces retenues
+          et ne changent plus après la publication.
+        </p>
+      </div>
+    </div>
+
     </fieldset>
 
     <!-- Actions -->
-    <div class="flex justify-end gap-3 mt-8">
-      <Button
-        type="button"
-        variant="outline"
-        @click="emit('cancel')"
-        :disabled="isProcessing"
-        class="min-w-[120px]"
-        data-testid="cancel-button"
-      >
-        Annuler
-      </Button>
-      <Button
-        type="submit"
-        :disabled="isProcessing || ugcPhotosMissing"
-        class="min-w-[180px] bg-weact hover:bg-weact/90 text-white shadow-lg shadow-weact/20"
-        data-testid="submit-button"
-      >
-        <template v-if="isProcessing">
-          <Loader2 class="w-4 h-4 mr-2 animate-spin" />
-          {{ props.mode === 'edit' ? 'Enregistrement...' : 'Publication...' }}
-        </template>
-        <template v-else>
-          <component :is="props.mode === 'edit' ? Save : Send" class="w-4 h-4 mr-2" />
-          {{ submitLabel }}
-        </template>
-      </Button>
+    <div class="mt-8 space-y-4">
+      <ImageContractCodeNotice v-if="showImageTerms" />
+      <div class="flex justify-end gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          @click="emit('cancel')"
+          :disabled="isProcessing"
+          class="min-w-[120px]"
+          data-testid="cancel-button"
+        >
+          Annuler
+        </Button>
+        <Button
+          type="submit"
+          :disabled="isProcessing || ugcPhotosMissing"
+          class="min-w-[180px] bg-weact hover:bg-weact/90 text-white shadow-lg shadow-weact/20"
+          data-testid="submit-button"
+        >
+          <template v-if="isProcessing">
+            <Loader2 class="w-4 h-4 mr-2 animate-spin" />
+            {{ props.mode === 'edit' ? 'Enregistrement...' : 'Publication...' }}
+          </template>
+          <template v-else>
+            <component :is="props.mode === 'edit' ? Save : Send" class="w-4 h-4 mr-2" />
+            {{ submitLabel }}
+          </template>
+        </Button>
+      </div>
     </div>
+
+    <!-- Fenêtre de signature (téléportée dans body) -->
+    <ImageContractSignDialog
+      v-if="showImageTerms"
+      flow="mission"
+      :is-open="showSignDialog"
+      role="producer"
+      :summary="signSummary"
+      :default-name="signerDefaultName"
+      :submit="submitSigned"
+      @close="closeSignDialog"
+    />
   </form>
 </template>
 

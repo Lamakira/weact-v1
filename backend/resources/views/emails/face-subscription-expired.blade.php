@@ -11,7 +11,7 @@
     </p>
 
     <p style="margin: 0 0 24px; padding: 12px 16px; background-color: #fef3c7; border-radius: 6px; color: #92400e; font-size: 13px; line-height: 1.5;">
-        ✓ Vos fichiers ne sont <strong>pas supprimés</strong>. Renouvelez votre abonnement <strong>{{ $planLabel }}</strong> pour rendre à nouveau publiques {{ $premiumMediaSummary }} — vous n'avez pas besoin de les téléverser à nouveau.
+        ✓ Vos fichiers ne sont <strong>pas supprimés</strong>. Renouvelez votre abonnement <strong>{{ $planLabel }}</strong> pour rendre à nouveau publiques {{ $premiumMediaSummary }} : vous n'avez pas besoin de les téléverser à nouveau.
     </p>
 
     <table width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 16px;">

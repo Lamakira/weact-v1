@@ -8,6 +8,8 @@ import { CandidatureStatusColor } from '../types'
 import { formatConfirmationDeadline } from '../utils/formatConfirmationDeadline'
 import WBadge from '@/components/ui/WBadge.vue'
 import { StatusPill, tunnelStatusToPillKind, ProductPhotoGallery } from '@/components/ugc'
+import CandidatureContractLine from './CandidatureContractLine.vue'
+import type { MissionImageTerms } from '@/features/imageContract/types'
 
 /**
  * Props
@@ -20,6 +22,8 @@ const props = defineProps<{
   ugcCompensationType?: string | null
   /** Lot B4 : une place libérée peut être proposée à cette candidature non retenue. */
   canOfferFreedPlace?: boolean
+  /** Conditions d'image de la mission (null/absent : mission sans conditions, aucune ligne de contrat). */
+  imageTerms?: MissionImageTerms | null
 }>()
 
 /**
@@ -213,6 +217,18 @@ defineExpose({ resetRejecting, resetAccepting, resetReleasing })
  */
 const formattedConfirmationDeadline = computed(() =>
   props.candidature.status === 'accepted' ? formatConfirmationDeadline(props.candidature.confirmation_deadline) : '',
+)
+
+/**
+ * Computed: échéance affichée dans la ligne du contrat d'image (confirmation cash ou reconfirmation UGC).
+ * Sur une mission à conditions, la ligne « Signature attendue » porte déjà cette échéance : on masque
+ * alors la phrase « Confirmation attendue avant le… » pour ne pas la répéter.
+ */
+const contractDeadline = computed(
+  () => props.candidature.confirmation_deadline ?? props.candidature.reconfirm_deadline ?? null,
+)
+const hasContractLine = computed(
+  () => !!props.candidature.image_contract || (!!props.imageTerms && props.candidature.status === 'accepted'),
 )
 
 /**
@@ -432,12 +448,22 @@ const categoryLabel = computed(() => {
 
     <!-- Confirmation deadline (cash accepted, lot B3) -->
     <p
-      v-if="formattedConfirmationDeadline"
+      v-if="formattedConfirmationDeadline && !hasContractLine"
       data-testid="confirmation-deadline-label"
       class="mt-3 text-xs text-amber-600 dark:text-amber-400"
     >
       Confirmation attendue avant le {{ formattedConfirmationDeadline }}
     </p>
+
+    <!-- Contrat d'image (mission à conditions) : état de la signature de cette Face -->
+    <CandidatureContractLine
+      v-if="hasContractLine"
+      :candidature-id="candidature.id"
+      :status="candidature.status"
+      :has-conditions="!!imageTerms"
+      :contract="candidature.image_contract"
+      :deadline="contractDeadline"
+    />
 
     <!-- Actions -->
     <div class="mt-4 flex items-center justify-between gap-3">

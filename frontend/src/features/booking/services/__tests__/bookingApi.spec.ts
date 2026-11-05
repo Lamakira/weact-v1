@@ -118,3 +118,73 @@ describe('bookingApi.getBookings — tri et pagination serveur', () => {
     expect(mockGet).toHaveBeenCalledWith('/bookings?page=1&status=pending&per_page=15')
   })
 })
+
+describe('bookingApi.acceptBooking : signature du contrat d\'image', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockPost.mockResolvedValue({ data: { data: { id: 'b-1' } } })
+    mockGetCsrfCookie.mockResolvedValue(undefined)
+  })
+
+  it('poste sans corps quand aucune signature n\'est fournie (acceptation inchangée)', async () => {
+    await bookingApi.acceptBooking('b-1')
+
+    expect(mockPost).toHaveBeenCalledTimes(1)
+    expect(mockPost.mock.calls[0]).toEqual(['/bookings/b-1/accept'])
+  })
+
+  it('envoie la signature (nom et code) dans le corps', async () => {
+    await bookingApi.acceptBooking('b-1', { name: 'Aïcha Bello', code: '123456' })
+
+    expect(mockPost).toHaveBeenCalledWith('/bookings/b-1/accept', {
+      signature: { name: 'Aïcha Bello', code: '123456' },
+    })
+  })
+})
+
+describe('bookingApi.createBooking : autorisation d\'image', () => {
+  const imageTerms = {
+    finalite: 'Publicité',
+    supports: ['social', 'web'] as ('social' | 'web')[],
+    territoire: 'benin' as const,
+    duree_annees: 3 as const,
+  }
+  const signature = { name: 'Jean Producteur', code: '654321' }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockPost.mockResolvedValue({ data: { data: { id: 'b-1' } } })
+    mockGetCsrfCookie.mockResolvedValue(undefined)
+  })
+
+  it('envoie image_terms et signature en JSON sans photo', async () => {
+    await bookingApi.createBooking(makeUgcData({ image_terms: imageTerms, signature }))
+
+    const payload = mockPost.mock.calls[0]![1] as Record<string, unknown>
+    expect(payload.image_terms).toEqual(imageTerms)
+    expect(payload.signature).toEqual(signature)
+  })
+
+  it('n\'ajoute aucune clé de contrat quand le drapeau est faux', async () => {
+    await bookingApi.createBooking(makeUgcData())
+
+    const payload = mockPost.mock.calls[0]![1] as Record<string, unknown>
+    expect('image_terms' in payload).toBe(false)
+    expect('signature' in payload).toBe(false)
+  })
+
+  it('aplatit image_terms et signature en notation à crochets dans le FormData', async () => {
+    const photo = new File(['a'], 'a.jpg', { type: 'image/jpeg' })
+
+    await bookingApi.createBooking(makeUgcData({ product_photos: [photo], image_terms: imageTerms, signature }))
+
+    const formData = mockPost.mock.calls[0]![1] as FormData
+    expect(formData.get('image_terms[finalite]')).toBe('Publicité')
+    expect(formData.getAll('image_terms[supports][]')).toEqual(['social', 'web'])
+    expect(formData.get('image_terms[territoire]')).toBe('benin')
+    expect(formData.get('image_terms[duree_annees]')).toBe('3')
+    expect(formData.get('signature[name]')).toBe('Jean Producteur')
+    expect(formData.get('signature[code]')).toBe('654321')
+    expect(formData.has('image_terms')).toBe(false)
+  })
+})

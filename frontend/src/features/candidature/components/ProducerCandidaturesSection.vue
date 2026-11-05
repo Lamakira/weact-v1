@@ -19,6 +19,8 @@ import UgcCandidaturePaymentOverlay from './UgcCandidaturePaymentOverlay.vue'
 import RateFaceDialog from './RateFaceDialog.vue'
 import MissionSelectionSummary from '@/features/mission/components/MissionSelectionSummary.vue'
 import StatusFilter from './StatusFilter.vue'
+import MissionImageTermsBand from '@/features/imageContract/components/MissionImageTermsBand.vue'
+import type { MissionImageTerms } from '@/features/imageContract/types'
 import { useToast } from '@/composables/useToast'
 import { useUgcShipment } from '@/composables/useUgcShipment'
 import { UgcShipmentForm, type ConfirmShipmentPayload } from '@/components/ugc'
@@ -43,6 +45,8 @@ const props = defineProps<{
   canReplaceFreedPlace?: boolean
   /** Mission UGC pleine (toutes les places prises) : « Accepter » propose d'ajouter une place. */
   missionFull?: boolean
+  /** Conditions d'image signées par le Producteur (null/absent : mission sans conditions). */
+  imageTerms?: MissionImageTerms | null
 }>()
 
 const emit = defineEmits<{
@@ -447,6 +451,9 @@ onMounted(() => {
       </div>
     </div>
 
+    <!-- Conditions d'image signées à la publication -->
+    <MissionImageTermsBand :terms="imageTerms" />
+
     <!-- Status Filter -->
     <!-- Pas de pastille « À traiter » côté Producteur (prop with-to-process absente) : le cast est sûr. -->
     <StatusFilter
@@ -568,6 +575,7 @@ onMounted(() => {
           :is-ugc-mission="isUgcMission"
           :ugc-compensation-type="ugcCompensationType"
           :can-offer-freed-place="canReplaceFreedPlace"
+          :image-terms="imageTerms"
           @offer-freed-place="handleOfferFreedPlace"
           @rate="handleRate"
           @reject="handleReject"

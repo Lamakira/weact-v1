@@ -60,6 +60,11 @@ class FaceCandidatureResource extends JsonResource
                 $this->relationLoaded('ratings'),
                 fn () => $this->raterRatingPayload($request->user()?->id)['my_rating'],
             ),
+            // Autorisation d'image : la Face doit signer pour confirmer (clé omise sans les relations chargées).
+            'must_sign_image_contract' => $this->when(
+                $this->mustSignImageContract() !== null,
+                fn () => $this->mustSignImageContract(),
+            ),
             'mission' => $this->whenLoaded('mission', fn () => [
                 'id' => $mission?->uuid,
                 'titre' => $mission?->titre,

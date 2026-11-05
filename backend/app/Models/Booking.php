@@ -421,6 +421,17 @@ class Booking extends Model
     }
 
     /**
+     * Autorisation d'utilisation de l'image rattachée à ce booking (absente tant que le
+     * drapeau image_contracts est désactivé ou pour un booking créé avant son activation).
+     *
+     * @return HasOne<ImageContract, $this>
+     */
+    public function imageContract(): HasOne
+    {
+        return $this->hasOne(ImageContract::class);
+    }
+
+    /**
      * Échéance de réponse de la Face à une demande cash (lot B10) : création + 72 h, ou 08 h
      * le jour du tournage (fuseau métier) si cette heure arrive plus tôt. Null pour une dotation UGC
      * (la Face ne peut répondre qu'après le règlement de la commission, fenêtre UGC dédiée).

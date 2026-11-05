@@ -233,19 +233,23 @@ class BookingIndexTest extends TestCase
 
     public function test_bookings_are_ordered_by_updated_at_desc(): void
     {
+        // Statut hors « à traiter » : sinon le tri par échéance passe avant updated_at et dépend de la seconde de création.
         $oldest = Booking::factory()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            'status' => BookingStatus::Completed,
             'updated_at' => now()->subDays(3),
         ]);
         $middle = Booking::factory()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            'status' => BookingStatus::Completed,
             'updated_at' => now()->subDays(1),
         ]);
         $newest = Booking::factory()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            'status' => BookingStatus::Completed,
             'updated_at' => now(),
         ]);
 

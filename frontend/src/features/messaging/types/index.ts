@@ -3,10 +3,24 @@
  */
 import type { CandidatureStatusType } from '@/features/candidature/types'
 
+// Position instantanée envoyée par l'expéditeur (jamais de suivi en direct)
+export interface SharedLocation {
+  lat: number
+  lng: number
+  accuracy_m: number | null
+}
+
+// Position telle que renvoyée par l'API : lien Google Maps calculé côté serveur
+export interface MessageLocation extends SharedLocation {
+  maps_url: string
+}
+
 // Message data from API
 export interface Message {
   id: number
   content: string
+  // null (ou absente) pour un message texte
+  location?: MessageLocation | null
   sender_id: number
   sender_type: string
   sender_name: string
@@ -69,6 +83,8 @@ export interface ConversationContext extends ConversationContextSummary {
   mission_id: string
   candidature_id: string
   amounts: FaceContextAmounts | ProducerContextAmounts
+  // UGC accepté et produit pas encore expédié : consigne « adresse de livraison » en tête du fil
+  awaiting_delivery_address?: boolean
 }
 
 // Conversation data from API
@@ -94,10 +110,8 @@ export interface MessageResponse {
   message?: string
 }
 
-// Data for sending a message
-export interface SendMessageData {
-  content: string
-}
+// Data for sending a message : un texte OU une position
+export type SendMessageData = { content: string } | { location: SharedLocation }
 
 // API error response structure
 export interface ApiErrorResponse {
@@ -163,6 +177,7 @@ export interface MessageBroadcast {
   id: number
   conversation_id: string
   content: string
+  location?: MessageLocation | null
   sender_id: number
   sender_type: string
   sender_name: string

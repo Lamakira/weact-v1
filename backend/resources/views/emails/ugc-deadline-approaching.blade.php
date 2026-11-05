@@ -34,6 +34,6 @@
     </table>
 
     <p style="margin: 0; padding: 12px 16px; background-color: #ecfeff; border-radius: 6px; color: #155e75; font-size: 13px; line-height: 1.5;">
-        ⏳ Le compte à rebours exact reste affiché dans l'app — c'est votre source de vérité.
+        ⏳ Le compte à rebours exact reste affiché dans l'app : c'est votre source de vérité.
     </p>
 @endsection

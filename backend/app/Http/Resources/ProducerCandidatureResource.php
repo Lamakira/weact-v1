@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Enums\MissionType;
 use App\Services\FaceEntitlementService;
+use App\Support\ImageContractPayload;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Str;
@@ -39,6 +41,10 @@ class ProducerCandidatureResource extends JsonResource
             // Échéance de confirmation (lot B3) : non-null seulement pour une candidature cash `accepted`
             // non encore confirmée ; null si la mission n'est pas chargée (pas de lazy-load en liste).
             'confirmation_deadline' => $this->relationLoaded('mission') ? $this->confirmationDeadline()?->toIso8601String() : null,
+            // Échéance de reconfirmation UGC (signature du contrat) : null hors mission UGC chargée.
+            'reconfirm_deadline' => $this->relationLoaded('mission') && $this->mission?->type_mission === MissionType::Ugc
+                ? $this->reconfirmDeadline()?->toIso8601String()
+                : null,
             // Lot B4 : la candidature peut reprendre une place libérée (même prédicat que le serveur au remplacement).
             'can_replace_freed_place' => (bool) $this->resource->getAttribute('can_replace_freed_place'),
             'created_at' => $this->created_at?->toIso8601String(),
@@ -55,6 +61,7 @@ class ProducerCandidatureResource extends JsonResource
                 ]
                 : null,
             'conversation_id' => $this->whenLoaded('conversation', fn () => $this->conversation?->uuid),
+            'image_contract' => $this->imageContractPayload(),
             'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
             'deliverables' => DeliverableResource::collection($this->whenLoaded('deliverables')),
             'face' => $this->whenLoaded('face', fn () => [
@@ -72,5 +79,22 @@ class ProducerCandidatureResource extends JsonResource
                     : false,
             ]),
         ];
+    }
+
+    /**
+     * Null si la fonctionnalité est éteinte, si la relation n'est pas chargée (pas de N+1 en liste)
+     * ou si la Face n'a pas (encore) signé.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function imageContractPayload(): ?array
+    {
+        if (! config('image_contracts.enabled') || ! $this->resource->relationLoaded('imageContract')) {
+            return null;
+        }
+
+        $contract = $this->resource->imageContract;
+
+        return $contract === null ? null : ImageContractPayload::for($contract);
     }
 }

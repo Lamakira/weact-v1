@@ -20,6 +20,9 @@ import MissionAbsenceContestBlock from '@/features/candidature/components/Missio
 import MissionRatingDialog from '@/features/candidature/components/MissionRatingDialog.vue'
 import type { MissionRating } from '@/features/candidature/types'
 import RatingDisplay from '@/components/RatingDisplay.vue'
+import MissionImageTermsCard from '@/features/imageContract/components/MissionImageTermsCard.vue'
+import ImageContractCard from '@/features/imageContract/components/ImageContractCard.vue'
+import ImageContractCodeNotice from '@/features/imageContract/components/ImageContractCodeNotice.vue'
 import { formatMissionDurationForDisplay } from '@/features/mission/constants/missionDuration'
 import { deriveFaceHubState, formatRemaining, formatShortDate } from '@/features/candidature/utils/faceMissionHub'
 import type { HubActionKey, HubTone } from '@/features/candidature/utils/faceMissionHub'
@@ -38,6 +41,8 @@ const props = defineProps<{
   isSubmittingReceipt: boolean
   isUploadingDeliverable: boolean
   uploadProgress: UgcUploadProgress | null
+  /** La Face doit signer le contrat d'image pour confirmer : l'action devient « Lire, signer et confirmer ». */
+  mustSign?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -58,8 +63,24 @@ const hub = computed(() =>
   deriveFaceHubState(
     props.mission,
     localRating.value ? { ...props.candidature, can_rate: false } : props.candidature,
-    { isUgc: props.isUgc, producerName: props.producerName },
+    { isUgc: props.isUgc, producerName: props.producerName, mustSign: props.mustSign },
   ),
+)
+
+// Conditions d'image : visibles tant que la Face n'a pas de contrat et que sa candidature est encore en jeu.
+const showImageTerms = computed(
+  () =>
+    !!props.mission.image_terms
+    && !props.candidature.image_contract
+    && ['pending', 'accepted'].includes(props.candidature.status),
+)
+const codeNoticeProps = computed(() =>
+  props.mission.image_terms?.requires_guardian
+    ? {
+        title: 'Le code part à votre parent ou tuteur',
+        text: 'Il reçoit le contrat et le code par e-mail. Sans ce code, votre participation ne peut pas être confirmée.',
+      }
+    : {},
 )
 
 function onAction(key: HubActionKey): void {
@@ -201,6 +222,9 @@ const chatTarget = computed(() =>
       </div>
     </header>
 
+    <!-- Signature à faire : encadré du code juste au-dessus de l'action -->
+    <ImageContractCodeNotice v-if="mustSign" v-bind="codeNoticeProps" class="mb-4" />
+
     <!-- Barre d'étapes -->
     <nav class="mb-4 rounded-[10px] border border-border bg-card px-4 py-3.5 max-sm:pb-9" aria-label="Étapes" data-testid="hub-steps">
       <ol class="relative grid" :style="{ gridTemplateColumns: `repeat(${hub.steps.length}, 1fr)` }">
@@ -324,6 +348,20 @@ const chatTarget = computed(() =>
             <span>Le chat avec le producteur s’ouvre quand votre place est payée et confirmée.</span>
           </div>
         </section>
+
+        <!-- Autorisation d'image : conditions avant signature, puis contrat signé -->
+        <MissionImageTermsCard
+          v-if="showImageTerms && mission.image_terms"
+          :terms="mission.image_terms"
+          :retained="candidature.status === 'accepted'"
+        />
+        <ImageContractCard
+          v-if="candidature.image_contract"
+          :contract="candidature.image_contract"
+          :candidature-id="candidature.id"
+          :product-only="mission.type_compensation === 'product'"
+          role="face"
+        />
 
         <!-- Blocs UGC existants : suivi/réception/livrables, contestation d'absence -->
         <UgcFaceTrackingCard

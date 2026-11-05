@@ -7,7 +7,7 @@
         Bonjour {{ $faceFirstName }},
     </h2>
     <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
-        Bonne nouvelle — votre portefeuille WEACT a été crédité de votre rémunération.
+        Bonne nouvelle : votre portefeuille WEACT a été crédité de votre rémunération.
     </p>
     @if(! empty($outcomeNote))
         <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">

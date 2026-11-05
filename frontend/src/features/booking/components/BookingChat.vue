@@ -3,23 +3,45 @@ import { ref, watch, nextTick, onMounted, computed } from 'vue'
 import ChatHeader from './ChatHeader.vue'
 import BookingChatMessage from './BookingChatMessage.vue'
 import FaceResponseNotice from '@/features/messaging/components/FaceResponseNotice.vue'
+import DeliveryAddressHint from '@/features/messaging/components/DeliveryAddressHint.vue'
+import ShareLocationDialog from '@/features/messaging/components/ShareLocationDialog.vue'
+import { useShareLocationDialog } from '@/features/messaging/composables/useShareLocationDialog'
+import { MapPin } from 'lucide-vue-next'
 import { useBookingChat } from '../composables/useBookingChat'
 import { BookingStatus, type Booking } from '../types'
 
 interface Props {
   booking: Booking
   currentUserId: number
+  /** UGC accepté, produit pas encore expédié : consigne « adresse de livraison » en tête. */
+  showAddressHint?: boolean
+  role?: 'face' | 'producer'
+  /** Nom de l'autre partie, pour la consigne d'adresse. */
+  otherPartyName?: string
 }
 
 const props = defineProps<Props>()
 
-const { messages, isLoading, isSending, reverbError, sendMessage, refreshMessages } =
+const { messages, isLoading, isSending, reverbError, sendMessage, sendLocation, refreshMessages } =
   useBookingChat(props.booking.id, props.booking.realtime_channel_key, props.currentUserId)
+
+const locationDialog = useShareLocationDialog(sendLocation)
 
 const draft = ref('')
 const messagesContainer = ref<HTMLDivElement | null>(null)
 
 const isCompleted = computed(() => props.booking.status === BookingStatus.COMPLETED)
+
+// Nom de l'autre partie pour le dialogue : fourni par la page, sinon déduit du booking
+// (même règle que ChatHeader : Face = prénom + nom, Producteur = display_name)
+const dialogPartyName = computed((): string => {
+  if (props.otherPartyName) return props.otherPartyName
+  const other = props.currentUserId === props.booking.face_id ? props.booking.producer : props.booking.face
+  const userable = other?.userable
+  if (!userable) return 'Votre interlocuteur'
+  if ('nom' in userable) return `${userable.prenom} ${userable.nom}`
+  return userable.display_name
+})
 
 function scrollToBottom(): void {
   if (messagesContainer.value) {
@@ -65,6 +87,14 @@ function handleKeydown(event: KeyboardEvent): void {
       kind="booking"
       :thread-id="booking.id"
       :refresh-key="messages.length"
+    />
+
+    <DeliveryAddressHint
+      v-if="showAddressHint && role"
+      :role="role"
+      :other-party-name="otherPartyName ?? ''"
+      :can-share-location="!isCompleted"
+      @share-location="locationDialog.open"
     />
 
     <!-- Reverb connection error banner (AC5) -->
@@ -139,6 +169,16 @@ function handleKeydown(event: KeyboardEvent): void {
       v-else
       class="border-t border-gray-100 bg-white px-3 py-3 flex items-end gap-2 sticky bottom-0"
     >
+      <button
+        type="button"
+        class="shrink-0 size-11 rounded-full text-gray-500 flex items-center justify-center transition-colors hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] disabled:opacity-50 disabled:cursor-not-allowed"
+        :disabled="isSending"
+        aria-label="Envoyer ma position"
+        data-testid="share-location"
+        @click="locationDialog.open()"
+      >
+        <MapPin class="size-5" aria-hidden="true" />
+      </button>
       <textarea
         v-model="draft"
         maxlength="2000"
@@ -177,5 +217,15 @@ function handleKeydown(event: KeyboardEvent): void {
         />
       </button>
     </div>
+
+    <ShareLocationDialog
+      v-if="!isCompleted"
+      :is-open="locationDialog.isOpen.value"
+      :other-party-name="dialogPartyName"
+      :is-busy="locationDialog.isBusy.value"
+      :error="locationDialog.error.value"
+      @confirm="locationDialog.confirm"
+      @cancel="locationDialog.close"
+    />
   </div>
 </template>

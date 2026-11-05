@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { RouterLink, useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useToast } from '@/composables/useToast'
 import { Button } from '@/components/ui/button'
 import { NotificationBell } from '@/features/notification/components'
+import UserAvatarMenu from '@/components/layout/UserAvatarMenu.vue'
+import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
+import { useProducerProfilePhoto } from '@/features/producer/composables/useProducerProfilePhoto'
 import { Menu, X } from 'lucide-vue-next'
 import logoNoir from '@/assets/images/logonoir.png'
 
@@ -14,6 +17,34 @@ const { logout, isLoading } = useAuth()
 const router = useRouter()
 const route = useRoute()
 const toast = useToast()
+
+// Avatar du menu compte : mêmes sources que FaceLayout / ProducerLayout (ressources partagées en cache)
+const { profile: faceProfile, fetchProfile: fetchFaceProfile } = useProfilePhoto()
+const { profile: producerProfile, fetchProfile: fetchProducerProfile } = useProducerProfilePhoto()
+
+const accountName = computed(() => {
+  if (authStore.isFace) {
+    return faceProfile.value ? `${faceProfile.value.prenom} ${faceProfile.value.nom}` : ''
+  }
+  return producerProfile.value?.display_name ?? ''
+})
+
+const accountAvatarUrl = computed(() => {
+  if (authStore.isFace) return faceProfile.value?.profile_photo_url ?? null
+  if (!producerProfile.value) return null
+  return producerProfile.value.profile_photo_url ?? producerProfile.value.agency_logo_url ?? null
+})
+
+async function loadAccountProfile(): Promise<void> {
+  if (!authStore.isAuthenticated) return
+  try {
+    await (authStore.isFace ? fetchFaceProfile() : fetchProducerProfile())
+  } catch {
+    // Échec silencieux : l'avatar se replie sur les initiales
+  }
+}
+
+watch(() => authStore.isAuthenticated, loadAccountProfile)
 
 // Mobile menu state
 const isMobileMenuOpen = ref(false)
@@ -65,6 +96,7 @@ watch(isMobileMenuOpen, async (isOpen) => {
 })
 
 onMounted(() => {
+  void loadAccountProfile()
   document.addEventListener('keydown', handleKeydown)
   document.addEventListener('click', handleClickOutside)
 })
@@ -83,7 +115,7 @@ async function handleLogout(): Promise<void> {
 </script>
 
 <template>
-  <header class="bg-white border-b border-gray-200 relative" data-testid="app-header">
+  <header class="bg-white border-b border-gray-200 relative z-30" data-testid="app-header">
     <div class="max-w-7xl mx-auto px-4 py-4">
       <div class="flex items-center justify-between">
         <!-- Logo -->
@@ -167,25 +199,26 @@ async function handleLogout(): Promise<void> {
           <!-- Authenticated Navigation -->
           <template v-else>
             <!-- Notification Bell -->
-            <NotificationBell data-testid="header-notifications" />
+            <NotificationBell plain data-testid="header-notifications" />
 
-            <RouterLink
-              :to="authStore.isFace ? '/face/dashboard' : '/producer/dashboard'"
-              class="text-sm text-gray-700 hover:text-[#198496] transition-colors"
+            <Button
+              as-child
+              class="bg-[#198496] hover:bg-[#147080] text-white text-sm font-medium px-5 py-2 rounded-md"
               data-testid="link-dashboard"
             >
-              Dashboard
-            </RouterLink>
-            <Button
-              @click="handleLogout"
-              :disabled="isLoading"
-              variant="outline"
-              size="sm"
-              data-testid="btn-logout"
-              aria-label="Se déconnecter"
-            >
-              Déconnexion
+              <RouterLink :to="authStore.isFace ? '/face/dashboard' : '/producer/dashboard'">
+                Tableau de bord
+              </RouterLink>
             </Button>
+
+            <UserAvatarMenu
+              :user-name="accountName"
+              :user-email="authStore.user?.email ?? ''"
+              :avatar-url="accountAvatarUrl"
+              :profile-route="authStore.isFace ? '/face/profile' : '/producer/profile'"
+              :is-logging-out="isLoading"
+              @logout="handleLogout"
+            />
           </template>
         </div>
 
@@ -298,7 +331,7 @@ async function handleLogout(): Promise<void> {
                 class="w-full text-center py-3 text-sm font-medium bg-[#198496] text-white rounded-md hover:bg-[#146c7a] transition-colors"
                 @click="closeMobileMenu"
               >
-                Dashboard
+                Tableau de bord
               </RouterLink>
               <button
                 @click="handleLogout"

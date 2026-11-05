@@ -444,9 +444,9 @@ async function handleRetry(): Promise<void> {
         class="space-y-8"
         data-testid="face-profile"
       >
-        <div class="lg:grid lg:grid-cols-[35%_1fr] lg:gap-12 xl:gap-16 items-start">
+        <div class="lg:grid lg:grid-cols-[35%_1fr] lg:gap-12 xl:gap-16">
           <!-- Photo Section (Left on desktop, top on mobile) -->
-          <aside class="reveal-left mb-8 lg:mb-0 lg:sticky lg:top-8">
+          <aside class="reveal-left mb-8 lg:mb-0">
             <ProfilePhotoSection
               :photo-url="face.profile_photo_large_url || face.profile_photo_medium_url || face.profile_photo_url"
               :original-photo-url="face.profile_photo_url"
@@ -455,11 +455,12 @@ async function handleRetry(): Promise<void> {
               :has-album-photos="face.has_album_photos"
               :album-photos-count="face.album_photos_count"
               :show-album-lock="false"
+              fill-column
             />
           </aside>
 
           <!-- Info Section (Right on desktop, bottom on mobile) -->
-          <div class="reveal-right space-y-6">
+          <div class="reveal-right space-y-4 lg:flex lg:flex-col">
             <!-- Lot B13 : nom complet pour un Producer connecté (fourni par l'API), prénom sinon -->
             <ProfileInfoSection
               :prenom="publicFaceName(face)"
@@ -476,13 +477,14 @@ async function handleRetry(): Promise<void> {
             <!-- Resume Summary (all visitors) -->
             <CandidateResumeSummary
               v-if="displayProfile"
+              class="lg:flex-1"
               :candidate="displayProfile"
               :tarif-horaire="tarifDemiJourneeFormatted"
               :tarif-journalier="tarifJournalierFormatted"
             />
 
             <!-- Booking CTA Button — desktop only (mobile uses fixed bottom bar) -->
-            <div v-if="showBookingButton" class="relative group hidden lg:block">
+            <div v-if="showBookingButton" class="relative group hidden lg:mt-auto lg:block">
               <button
                 type="button"
                 :disabled="bookingButtonDisabled"

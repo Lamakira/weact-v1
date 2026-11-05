@@ -61,6 +61,11 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(20)->by($request->user()?->id ?: $request->ip());
         });
 
+        // Envoi de code de signature : 10/min par utilisateur, compteur propre à cette route
+        RateLimiter::for('signature-code', function (Request $request) {
+            return Limit::perMinute(10)->by($request->user()?->id ?: $request->ip());
+        });
+
         // Rate limiter for polling routes — generous limit keyed by user ID to avoid false throttling
         RateLimiter::for('polling', function (Request $request) {
             return Limit::perMinute(120)->by($request->user()?->id ?: $request->ip());

@@ -16,6 +16,9 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
  * @property int $sender_id
  * @property string $sender_type
  * @property string $content
+ * @property float|null $location_lat
+ * @property float|null $location_lng
+ * @property int|null $location_accuracy_m
  * @property \Illuminate\Support\Carbon|null $read_at
  * @property \Illuminate\Support\Carbon $created_at
  * @property User|null $sender
@@ -34,6 +37,9 @@ class Message extends Model
         'sender_id',
         'sender_type',
         'content',
+        'location_lat',
+        'location_lng',
+        'location_accuracy_m',
         'read_at',
     ];
 
@@ -46,6 +52,9 @@ class Message extends Model
     {
         return [
             'read_at' => 'datetime',
+            'location_lat' => 'float',
+            'location_lng' => 'float',
+            'location_accuracy_m' => 'integer',
         ];
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Support\MessageLocation;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -27,6 +28,7 @@ class BookingMessageResource extends JsonResource
             'sender_id' => $this->sender_id,
             'sender_name' => $this->resolveSenderName($sender),
             'content' => $this->content,
+            'location' => MessageLocation::payload($this->resource),
             'read_at' => $this->read_at?->toIso8601String(),
             'is_own_message' => $currentUser && $this->sender_id === $currentUser->id,
             'created_at' => $this->created_at->toIso8601String(),

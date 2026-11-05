@@ -28,6 +28,7 @@ use App\Models\Candidature;
 use App\Models\Conversation;
 use App\Models\Face;
 use App\Models\FinancialEvent;
+use App\Models\ImageContract;
 use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
@@ -918,6 +919,9 @@ class MissionPaymentService
             'released_at' => now(),
         ]);
 
+        // Autorisation d'image : la Face est payée, le contrat prend effet (classique et UGC hybride).
+        ImageContract::markEffectiveForCandidature((int) $entry->candidature_id);
+
         $this->recordMissionAttendanceFinancialEvent(
             FinancialEventType::EscrowRelease,
             $entry,
@@ -1029,6 +1033,10 @@ class MissionPaymentService
             'escrow_status' => EscrowStatus::Refunded,
             'refunded_at' => now(),
         ]);
+
+        // Autorisation d'image : Face absente, litige tranché pour le Producteur ou remboursement hybride.
+        // Un contrat déjà effectif n'est jamais annulé.
+        ImageContract::voidForCandidature((int) $entry->candidature_id);
 
         $this->recordMissionAttendanceFinancialEvent(
             FinancialEventType::Refund,

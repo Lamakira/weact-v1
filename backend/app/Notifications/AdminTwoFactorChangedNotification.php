@@ -41,19 +41,19 @@ class AdminTwoFactorChangedNotification extends Notification implements ShouldQu
     {
         [$subject, $line] = match ($this->event) {
             self::EVENT_ENABLED => [
-                'Double authentification activée — WEACT Administration',
+                'Double authentification activée : WEACT Administration',
                 'La double authentification vient d\'être activée sur votre compte administrateur.',
             ],
             self::EVENT_DISABLED => [
-                'Double authentification désactivée — WEACT Administration',
+                'Double authentification désactivée : WEACT Administration',
                 'La double authentification vient d\'être désactivée sur votre compte administrateur.',
             ],
             self::EVENT_RECOVERY_CODES_REGENERATED => [
-                'Nouveaux codes de secours générés — WEACT Administration',
+                'Nouveaux codes de secours générés : WEACT Administration',
                 'De nouveaux codes de secours viennent d\'être générés ; les précédents ne fonctionnent plus.',
             ],
             default => [
-                'Double authentification réinitialisée — WEACT Administration',
+                'Double authentification réinitialisée : WEACT Administration',
                 'La double authentification de votre compte administrateur a été réinitialisée par un super-administrateur. Vos sessions ont été fermées : vous devrez la reconfigurer à votre prochaine connexion.',
             ],
         };

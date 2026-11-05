@@ -5,6 +5,7 @@ import ProducerCandidaturesSection from '../ProducerCandidaturesSection.vue'
 import ProducerCandidatureCard from '../ProducerCandidatureCard.vue'
 import UgcCandidaturePaymentOverlay from '../UgcCandidaturePaymentOverlay.vue'
 import RateFaceDialog from '../RateFaceDialog.vue'
+import MissionImageTermsBand from '@/features/imageContract/components/MissionImageTermsBand.vue'
 import { UgcShipmentForm } from '@/components/ugc'
 
 const mockToastSuccess = vi.fn()
@@ -170,6 +171,37 @@ describe('ProducerCandidaturesSection', () => {
 
     expect(wrapper.text()).not.toContain('Sélectionnez les faces à retenir')
     expect(wrapper.find('mission-selection-summary-stub').exists()).toBe(false)
+  })
+
+  describe('conditions d\'image de la mission (incrément 2)', () => {
+    const imageTerms = {
+      finalite: 'Publicité',
+      supports: [{ value: 'social', label: 'Réseaux sociaux' }],
+      territoire: { value: 'benin', label: 'Bénin' },
+      duree_annees: 1,
+      producer_signed_at: '2026-11-04T10:00:00Z',
+      producer_signed_name: 'Jean Producteur',
+    }
+
+    it('transmet les conditions à la bande et à chaque carte', () => {
+      const wrapper = shallowMount(ProducerCandidaturesSection, {
+        props: { missionId: 'mission-uuid-under-test', imageTerms },
+        global: { stubs: { Teleport: true } },
+      })
+
+      expect(wrapper.findComponent(MissionImageTermsBand).props('terms')).toEqual(imageTerms)
+      expect(wrapper.findComponent(ProducerCandidatureCard).props('imageTerms')).toEqual(imageTerms)
+    })
+
+    it('sans conditions : la bande ne reçoit rien', () => {
+      const wrapper = shallowMount(ProducerCandidaturesSection, {
+        props: { missionId: 'mission-uuid-under-test' },
+        global: { stubs: { Teleport: true } },
+      })
+
+      expect(wrapper.findComponent(MissionImageTermsBand).props('terms') ?? null).toBeNull()
+      expect(wrapper.findComponent(ProducerCandidatureCard).props('imageTerms') ?? null).toBeNull()
+    })
   })
 
   describe('UGC shipment modal (story 3.2)', () => {

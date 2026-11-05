@@ -33,6 +33,10 @@ class MissionController extends Controller
     public function show(Request $request, Mission $mission): JsonResponse
     {
         $mission->load(['producer', 'productPhotos']);
+        // Autorisation d'image : les conditions sont visibles avant de candidater.
+        if (config('image_contracts.enabled')) {
+            $mission->load('imageTerms');
+        }
 
         $face = $request->user()->userable;
         $candidature = Candidature::where('face_id', $face->id)
@@ -74,6 +78,9 @@ class MissionController extends Controller
             'conversation',
             'ratings' => fn ($q) => $q->where('rater_id', $request->user()->id),
         ]);
+        if (config('image_contracts.enabled')) {
+            $candidature?->loadMissing('imageContract');
+        }
         $candidature?->setRelation('mission', $mission);
 
         return response()->json([

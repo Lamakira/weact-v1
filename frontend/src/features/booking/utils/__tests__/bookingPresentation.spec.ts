@@ -94,7 +94,7 @@ describe('buildBookingView — étapes', () => {
     ['accepted', 2],
     ['paid', 3],
     ['confirmed_by_face', 3],
-    ['completed', 4],
+    ['completed', 5],
   ])('cash %s → étape %i', (status, expected) => {
     expect(buildBookingView(makeBooking({ status }), 'face').steps.current).toBe(expected)
   })

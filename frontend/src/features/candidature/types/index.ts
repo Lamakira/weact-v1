@@ -3,6 +3,7 @@
  */
 
 import type { Shipment } from '@/components/ugc'
+import type { ImageContract } from '@/features/imageContract/types'
 
 // Candidature status enum
 export const CandidatureStatus = {
@@ -190,6 +191,8 @@ export interface FaceCandidature {
   mission: MissionSummary
   producer: ProducerSummary
   conversation_id: string | null
+  /** Contrat d'image à signer pour confirmer : la Face est menée à la page de la mission (clé absente drapeau éteint). */
+  must_sign_image_contract?: boolean
   /**
    * Date-limite de reconfirmation (ISO 8601) d'une candidature UGC acceptée
    * (accepted_at + ugc.reconfirm_window_hours, 9-1/9-2). null hors UGC accepté
@@ -268,6 +271,10 @@ export interface ProducerCandidature {
   message_motivation: string | null
   /** Échéance de confirmation de la Face (ISO 8601, lot B3) tant que la candidature est `accepted` ; null sinon. */
   confirmation_deadline?: string | null
+  /** Date-limite de reconfirmation UGC (ISO 8601) tant que la candidature est `accepted` ; null sinon. */
+  reconfirm_deadline?: string | null
+  /** Contrat d'image de la Face pour cette mission (null/absent : pas encore signé ou mission sans conditions). */
+  image_contract?: ImageContract | null
   /** Lot B4 : cette candidature non retenue peut reprendre une place libérée (éligibilité calculée côté serveur). */
   can_replace_freed_place?: boolean
   /** Lot C8 : le Producteur peut noter cette Face (candidature terminée, pas encore notée). */

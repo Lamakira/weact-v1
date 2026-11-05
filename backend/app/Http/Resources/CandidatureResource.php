@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Support\ImageContractPayload;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -52,6 +53,13 @@ class CandidatureResource extends JsonResource
                 fn () => $this->raterRatingPayload($request->user()?->id)['my_rating'],
             ),
             'message_motivation' => $this->message_motivation,
+            'image_contract' => $this->imageContractPayload(),
+            // La Face doit-elle signer pour confirmer ? Clé absente si la fonctionnalité est éteinte ou si
+            // les relations ne sont pas chargées (pas de lazy-load en liste).
+            'must_sign_image_contract' => $this->when(
+                $this->mustSignImageContract() !== null,
+                fn () => $this->mustSignImageContract(),
+            ),
             'shipment' => new ShipmentResource($this->whenLoaded('shipment')),
             'deliverables' => DeliverableResource::collection($this->whenLoaded('deliverables')),
             'mission' => new MissionResource($this->whenLoaded('mission')),
@@ -59,5 +67,22 @@ class CandidatureResource extends JsonResource
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Null si la fonctionnalité est éteinte, si la relation n'est pas chargée (pas de N+1 en liste)
+     * ou si la Face n'a pas (encore) signé.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function imageContractPayload(): ?array
+    {
+        if (! config('image_contracts.enabled') || ! $this->resource->relationLoaded('imageContract')) {
+            return null;
+        }
+
+        $contract = $this->resource->imageContract;
+
+        return $contract === null ? null : ImageContractPayload::for($contract);
     }
 }

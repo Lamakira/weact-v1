@@ -33,8 +33,10 @@ import type {
   ConversationKind,
   ConversationListItem,
   ConversationUpdatedBroadcast,
+  Message,
   MessageBroadcast,
   MessagesReadBroadcast,
+  SharedLocation,
 } from '../types'
 
 const props = defineProps<{ role: 'face' | 'producer' }>()
@@ -77,7 +79,7 @@ const {
   reset: resetConversation,
 } = active
 
-const { isSending, error: sendError, sendMessage, resetError: resetSendError } = sender
+const { isSending, error: sendError, sendMessage, sendLocation, resetError: resetSendError } = sender
 
 function routeConversationId(): string | null {
   const param = route.params.conversationId
@@ -171,6 +173,28 @@ function handleBack(): void {
   if (routeConversationId()) void router.push({ name: `${props.role}-messages` })
 }
 
+// Message envoyé par moi dans le fil `id` : ajout au fil ouvert + aperçu de la liste
+function applySentMessage(id: string, sent: Message): void {
+  if (selectedId.value === id) addMessage(sent)
+  // Onglet courant : aperçu + remontée en tête (les autres onglets reçoivent l'événement)
+  applyConversationUpdate(
+    conversations.value,
+    {
+      conversation_id: id,
+      latest_message: {
+        id: sent.id,
+        content: previewContent(sent.content),
+        sender_id: sent.sender_id,
+        sender_name: sent.sender_name,
+        created_at: sent.created_at,
+      },
+      unread_count: 0,
+      updated_at: sent.created_at,
+    },
+    sent.sender_id, // l'expéditeur, c'est moi : is_mine = true
+  )
+}
+
 async function handleSend(): Promise<void> {
   const id = selectedId.value
   const content = newMessageText.value.trim()
@@ -179,26 +203,24 @@ async function handleSend(): Promise<void> {
   resetSendError()
   const sent = await sendMessage(id, content)
   if (sent) {
-    if (selectedId.value === id) addMessage(sent)
     newMessageText.value = ''
-    // Onglet courant : aperçu + remontée en tête (les autres onglets reçoivent l'événement)
-    applyConversationUpdate(
-      conversations.value,
-      {
-        conversation_id: id,
-        latest_message: {
-          id: sent.id,
-          content: previewContent(sent.content),
-          sender_id: sent.sender_id,
-          sender_name: sent.sender_name,
-          created_at: sent.created_at,
-        },
-        unread_count: 0,
-        updated_at: sent.created_at,
-      },
-      sent.sender_id, // l'expéditeur, c'est moi : is_mine = true
-    )
+    applySentMessage(id, sent)
   }
+}
+
+const LOCATION_SEND_FAILED = "Impossible d'envoyer la position. Veuillez réessayer."
+
+// Position instantanée : renvoie un message d'erreur, ou null une fois envoyée
+async function handleSendLocation(location: SharedLocation): Promise<string | null> {
+  const id = selectedId.value
+  if (!id || isSending.value) return LOCATION_SEND_FAILED
+
+  resetSendError()
+  const sent = await sendLocation(id, location)
+  if (!sent) return sendError.value ?? LOCATION_SEND_FAILED
+
+  applySentMessage(id, sent)
+  return null
 }
 
 async function handleRefreshConversation(): Promise<void> {
@@ -247,6 +269,7 @@ function handleIncomingMessage(message: MessageBroadcast): void {
   addMessage({
     id: message.id,
     content: message.content,
+    location: message.location ?? null,
     sender_id: message.sender_id,
     sender_type: message.sender_type,
     sender_name: message.sender_name,
@@ -397,6 +420,7 @@ watch(refreshError, (newError) => {
             :send-error="sendError"
             :compact="!isDesktop"
             :conversation-id="selectedId"
+            :send-location="handleSendLocation"
             @submit="handleSend"
             @back="handleBack"
             @refresh="handleRefreshConversation"
