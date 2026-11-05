@@ -11,11 +11,14 @@ interface Props {
   hasAlbumPhotos: boolean
   albumPhotosCount: number
   showAlbumLock?: boolean
+  /** Ordinateur : la photo prend toute la hauteur de sa colonne (aligne son bas sur la colonne voisine). */
+  fillColumn?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   originalPhotoUrl: null,
   showAlbumLock: true,
+  fillColumn: false,
 })
 
 const emit = defineEmits<{ 'album-click': [] }>()
@@ -51,10 +54,11 @@ function scrollToAlbum(): void {
 </script>
 
 <template>
-  <div class="relative w-full" data-testid="profile-photo-section">
+  <div class="relative w-full" :class="{ 'lg:h-full': fillColumn }" data-testid="profile-photo-section">
     <!-- Main Photo Container (3:4 Aspect Ratio) -->
     <div
       class="relative aspect-[3/4] w-full overflow-hidden rounded-2xl shadow-lg bg-gray-100 border border-gray-100 group"
+      :class="{ 'lg:min-h-full': fillColumn }"
     >
       <!-- Profile Image -->
       <template v-if="photoUrl">
@@ -130,7 +134,7 @@ function scrollToAlbum(): void {
     </div>
 
     <!-- Sub-text / Caption -->
-    <p class="mt-3 text-center text-xs text-gray-500 italic">
+    <p class="mt-3 text-center text-xs text-gray-500 italic" :class="{ 'lg:hidden': fillColumn }">
       Photo officielle de {{ prenom }}
     </p>
 

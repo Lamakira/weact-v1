@@ -161,4 +161,16 @@ describe('ProfilePhotoSection', () => {
       expect(wrapper.find('[data-testid="lightbox-view-original"]').exists()).toBe(false)
     })
   })
+
+  it('fillColumn : la photo occupe la hauteur de la colonne et la légende disparaît sur ordinateur', () => {
+    const wrapper = mount(ProfilePhotoSection, {
+      props: { ...defaultProps, fillColumn: true },
+      global: { stubs: { Teleport: true } },
+    })
+
+    const root = wrapper.get('[data-testid="profile-photo-section"]')
+    expect(root.classes()).toContain('lg:h-full')
+    expect(root.get('.aspect-\\[3\\/4\\]').classes()).toContain('lg:min-h-full')
+    expect(wrapper.get('p.italic').classes()).toContain('lg:hidden')
+  })
 })

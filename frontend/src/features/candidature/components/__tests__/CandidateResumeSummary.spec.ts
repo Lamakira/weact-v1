@@ -63,7 +63,7 @@ describe('CandidateResumeSummary', () => {
     const wrapper = mountComponent()
 
     expect(wrapper.find('[data-testid="resume-sexe"]').text()).toContain('Homme')
-    expect(wrapper.find('[data-testid="resume-age"]').text()).toContain('30 Ans')
+    expect(wrapper.find('[data-testid="resume-age"]').text()).toContain('30 ans')
     expect(wrapper.find('[data-testid="resume-taille"]').text()).toContain('175 cm')
     expect(wrapper.find('[data-testid="resume-nationalite"]').text()).toContain('Béninoise')
     expect(wrapper.find('[data-testid="resume-langues"]').text()).toContain('Français, Anglais')
@@ -140,5 +140,24 @@ describe('CandidateResumeSummary', () => {
     const wrapper = mountComponent(createCandidate({ langues: [] }))
 
     expect(wrapper.find('[data-testid="resume-langues"]').text()).toContain('Non renseigné')
+  })
+
+  it('range les champs sur deux colonnes, sans case vide quand ils sont en nombre impair', () => {
+    const wrapper = mountComponent()
+    expect(wrapper.get('[data-testid="resume-fields"]').classes()).toContain('sm:grid-cols-2')
+    expect(wrapper.get('[data-testid="resume-talents"]').classes()).toContain('sm:col-span-2')
+
+    const noAge = mountComponent(createCandidate({ age: null }))
+    expect(noAge.get('[data-testid="resume-talents"]').classes()).not.toContain('sm:col-span-2')
+  })
+
+  it('la biographie prend toute la largeur sans tarifs', () => {
+    const wrapper = mountComponent()
+    expect(wrapper.get('[data-testid="resume-bio-section"]').classes()).toContain('sm:col-span-2')
+
+    const withTarifs = mount(CandidateResumeSummary, {
+      props: { candidate: createCandidate(), tarifJournalier: '25 000 F CFA' },
+    })
+    expect(withTarifs.get('[data-testid="resume-bio-section"]').classes()).not.toContain('sm:col-span-2')
   })
 })
