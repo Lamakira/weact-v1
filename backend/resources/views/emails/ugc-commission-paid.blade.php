@@ -1,6 +1,6 @@
 @extends('emails.layouts.base')
 
-@section('title', 'Commission réglée — acceptez votre deal')
+@section('title', 'Commission réglée : acceptez votre deal')
 
 @section('content')
     <h2 style="margin: 0 0 16px; color: #111827; font-size: 20px; font-weight: 700; line-height: 1.3;">

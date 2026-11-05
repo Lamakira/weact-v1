@@ -23,7 +23,7 @@ final class BookingAcceptedMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return $this->resolveFaceName().' a accepté votre booking — paiement sous 24h';
+        return $this->resolveFaceName().' a accepté votre booking : paiement sous 24h';
     }
 
     public function content(): Content

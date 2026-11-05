@@ -1488,6 +1488,9 @@ describe('FaceBookingDetailPage — délai d\'annulation Face (24 h avant le jou
     const info = wrapper.find('[data-testid="face-cancel-deadline"]')
     expect(info.exists()).toBe(true)
     expect(info.text()).toContain('Annulation possible jusqu\'au')
+    expect(info.classes()).toEqual(expect.arrayContaining([
+      'rounded-[10px]', 'border', 'border-gray-200', 'bg-gray-50', 'px-4', 'py-3', 'text-sm', 'text-gray-700',
+    ]))
     wrapper.unmount()
   })
 
@@ -1501,6 +1504,9 @@ describe('FaceBookingDetailPage — délai d\'annulation Face (24 h avant le jou
     expect(wrapper.find('[data-testid="face-cancel-closed"]').text()).toContain(
       'Annulation impossible à moins de 24 h du jour du tournage',
     )
+    expect(wrapper.find('[data-testid="face-cancel-closed"]').classes()).toEqual(expect.arrayContaining([
+      'rounded-[10px]', 'border', 'border-amber-200', 'bg-amber-50', 'px-4', 'py-3', 'text-sm', 'text-amber-800',
+    ]))
     wrapper.unmount()
   })
 

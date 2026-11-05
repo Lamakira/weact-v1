@@ -18,7 +18,7 @@ final class UgcDealAcceptedMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return 'Votre deal UGC est accepté — expédiez le produit 🚚';
+        return 'Votre deal UGC est accepté : expédiez le produit 🚚';
     }
 
     public function content(): Content
