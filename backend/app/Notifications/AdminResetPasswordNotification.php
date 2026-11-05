@@ -35,7 +35,7 @@ class AdminResetPasswordNotification extends Notification
             .'?email='.urlencode($notifiable->getEmailForPasswordReset());
 
         return (new MailMessage)
-            ->subject('Réinitialisation de votre mot de passe administrateur — WEACT')
+            ->subject('Réinitialisation de votre mot de passe administrateur : WEACT')
             ->greeting('Bonjour,')
             ->line('Vous recevez cet email car une demande de réinitialisation de mot de passe a été effectuée pour votre compte administrateur.')
             ->action('Réinitialiser le mot de passe', $url)

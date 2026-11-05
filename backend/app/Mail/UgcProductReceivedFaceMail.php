@@ -17,7 +17,7 @@ final class UgcProductReceivedFaceMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return 'Votre produit est arrivé — à vous de filmer 🎬';
+        return 'Votre produit est arrivé : à vous de filmer 🎬';
     }
 
     public function content(): Content

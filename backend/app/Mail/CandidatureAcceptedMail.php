@@ -21,7 +21,7 @@ final class CandidatureAcceptedMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return 'Votre candidature a été acceptée — confirmez votre participation';
+        return 'Votre candidature a été acceptée : confirmez votre participation';
     }
 
     public function content(): Content

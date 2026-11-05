@@ -30,7 +30,7 @@ final class MissionCompletedMailTest extends TestCase
         $envelope = $mail->envelope();
 
         $this->assertSame(
-            'La mission « Pub TV Printemps 2026 » est terminée — votre portefeuille a été crédité',
+            'La mission « Pub TV Printemps 2026 » est terminée : votre portefeuille a été crédité',
             $envelope->subject,
         );
     }

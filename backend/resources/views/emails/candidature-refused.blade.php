@@ -8,7 +8,7 @@
     </h2>
     <p style="margin: 0 0 20px; color: #374151; font-size: 15px; line-height: 1.6;">
         Votre candidature à la mission UGC « <strong>{{ $missionTitle }}</strong> »
-        n'a pas été retenue cette fois-ci. Ne baissez pas les bras — de nouvelles missions
+        n'a pas été retenue cette fois-ci. Ne baissez pas les bras : de nouvelles missions
         sont publiées régulièrement.
     </p>
 

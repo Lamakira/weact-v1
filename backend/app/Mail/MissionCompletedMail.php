@@ -18,7 +18,7 @@ final class MissionCompletedMail extends BaseMail
 
     protected function subjectLine(): string
     {
-        return 'La mission « '.$this->mission->titre.' » est terminée — votre portefeuille a été crédité';
+        return 'La mission « '.$this->mission->titre.' » est terminée : votre portefeuille a été crédité';
     }
 
     public function content(): Content
