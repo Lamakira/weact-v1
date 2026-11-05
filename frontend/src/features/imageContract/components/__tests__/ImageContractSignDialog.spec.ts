@@ -136,6 +136,33 @@ describe('ImageContractSignDialog', () => {
       expect(face.find('[data-testid="image-contract-protected"]').text()).toContain('Ce qui reste protégé')
     })
 
+    it('place le bouton « Lire le contrat complet » sous le résumé et avant « Ce qui reste protégé »', () => {
+      const html = mountDialog({ role: 'face', bookingId: 'b-1' }).html()
+      const summary = html.indexOf('data-testid="image-contract-summary"')
+      const readFull = html.indexOf('data-testid="image-contract-read-full"')
+      const protectedBlock = html.indexOf('data-testid="image-contract-protected"')
+
+      expect(summary).toBeGreaterThan(-1)
+      expect(readFull).toBeGreaterThan(summary)
+      expect(protectedBlock).toBeGreaterThan(readFull)
+    })
+
+    it('expose aria-expanded et le libellé du bouton de lecture du contrat', async () => {
+      getTemplateMock.mockResolvedValue({ version: 'v1', articles: [] })
+      const wrapper = mountDialog()
+      const button = wrapper.find('[data-testid="image-contract-read-full"]')
+
+      expect(button.attributes('aria-expanded')).toBe('false')
+      expect(button.text()).toBe('Lire le contrat complet')
+
+      await button.trigger('click')
+      await flushPromises()
+
+      const after = wrapper.find('[data-testid="image-contract-read-full"]')
+      expect(after.attributes('aria-expanded')).toBe('true')
+      expect(after.text()).toBe('Masquer le contrat complet')
+    })
+
     it('charge et affiche les articles via « Lire le contrat complet »', async () => {
       getTemplateMock.mockResolvedValue({
         version: 'v1',
