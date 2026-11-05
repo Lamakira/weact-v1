@@ -101,6 +101,45 @@ class PersonalInfoTest extends TestCase
         ]);
     }
 
+    public function test_rejects_nationalite_and_pays_outside_the_lists(): void
+    {
+        $response = $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', [
+                'nationalite' => 'Béninois',
+                'pays' => 'Béninoise',
+            ]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['nationalite', 'pays'])
+            ->assertJsonPath('errors.nationalite.0', 'Choisissez une valeur de la liste.')
+            ->assertJsonPath('errors.pays.0', 'Choisissez une valeur de la liste.');
+    }
+
+    public function test_keeps_a_legacy_value_identical_to_the_stored_one_but_rejects_another_legacy_value(): void
+    {
+        $this->face->update(['nationalite' => 'Béninois', 'pays' => 'Béni']);
+
+        $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', ['nationalite' => 'Béninois', 'pays' => 'Béni', 'sexe' => 'homme'])
+            ->assertOk();
+
+        $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', ['nationalite' => 'Béninoi'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['nationalite']);
+    }
+
+    public function test_nationalite_and_pays_remain_nullable(): void
+    {
+        $this->face->update(['nationalite' => 'Béninoise', 'pays' => 'Bénin']);
+
+        $this->actingAs($this->faceUser)
+            ->putJson('/api/v1/face/personal-info', ['nationalite' => null, 'pays' => null])
+            ->assertOk()
+            ->assertJsonPath('data.nationalite', null)
+            ->assertJsonPath('data.pays', null);
+    }
+
     public function test_rejects_invalid_sexe(): void
     {
         $response = $this->actingAs($this->faceUser)

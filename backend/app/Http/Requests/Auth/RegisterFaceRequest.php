@@ -7,6 +7,8 @@ namespace App\Http\Requests\Auth;
 use App\Enums\FaceGender;
 use App\Http\Requests\Concerns\FaceUsernameRules;
 use App\Http\Requests\Concerns\RejectsWhenRegistrationDisabled;
+use App\Rules\InTerritoryList;
+use App\Support\Territories;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -61,8 +63,8 @@ class RegisterFaceRequest extends FormRequest
             // endpoints (UpdatePersonalInfoRequest, FaceUsernameRules).
             'username' => $this->usernameRules(null),
             'sexe' => ['nullable', Rule::enum(FaceGender::class)],
-            'nationalite' => ['nullable', 'string', 'max:100'],
-            'pays' => ['nullable', 'string', 'max:100'],
+            'nationalite' => ['nullable', 'string', 'max:100', new InTerritoryList(Territories::nationalities())],
+            'pays' => ['nullable', 'string', 'max:100', new InTerritoryList(Territories::countries())],
             'whatsapp_number' => ['nullable', 'string', 'max:30'],
         ];
     }

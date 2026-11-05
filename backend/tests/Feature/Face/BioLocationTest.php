@@ -137,6 +137,19 @@ class BioLocationTest extends TestCase
         ]);
     }
 
+    public function test_rejects_pays_outside_the_list_but_keeps_a_stored_legacy_value(): void
+    {
+        $this->putJson('/api/v1/face/bio-location', ['pays' => 'Béninoise'], $this->faceHeaders)
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.pays.0', 'Choisissez une valeur de la liste.');
+
+        $this->face->update(['pays' => 'Béni']);
+
+        $this->putJson('/api/v1/face/bio-location', ['pays' => 'Béni', 'bio' => 'Salut'], $this->faceHeaders)
+            ->assertOk()
+            ->assertJsonPath('data.pays', 'Béni');
+    }
+
     public function test_rejects_city_outside_official_benin_list(): void
     {
         $response = $this->putJson('/api/v1/face/bio-location', [
