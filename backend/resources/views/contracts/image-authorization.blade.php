@@ -30,7 +30,7 @@
     <p class="ref">Référence {{ $reference }} · Modèle {{ $version }}</p>
 
     <p>
-        Entre <strong>{{ $faceName }}</strong>@if($faceVille), {{ $faceVille }}@endif (la « Face »)
+        Entre <strong>{{ $faceName }}</strong>{{ $faceVille ? ', '.$faceVille : '' }} (la « Face »)
         et <strong>{{ $producerName }}</strong> (le « Producteur »).
     </p>
 

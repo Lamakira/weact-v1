@@ -196,6 +196,8 @@ class ImageContractPdfTest extends TestCase
         $this->assertStringContainsString('Réseaux sociaux, Site web', $html);
         $this->assertStringContainsString('Article 13 : Signature électronique.', $html);
         $this->assertStringContainsString('Fatou Bello', $html);
+        $this->assertStringContainsString('(la « Face »)', $html);
+        $this->assertStringContainsString('(le « Producteur »)', $html);
         $this->assertStringContainsString('a•••••@gmail.com', $html);
         $this->assertStringNotContainsString(str_repeat('ab', 32), $html);
         $this->assertStringNotContainsString('—', $html);
