@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { afterEach, describe, it, expect, vi } from 'vitest'
+import { flushPromises, mount } from '@vue/test-utils'
+import { cleanupPortals, clickOption, getOptionLabels, openSelect } from '@/components/ui/__tests__/selectTestUtils'
 import PersonalInfoForm from '../PersonalInfoForm.vue'
 
 // Le bloc d'alertes WhatsApp a ses propres tests (WhatsappAlertsToggle.spec.ts) et dépend de Pinia.
@@ -117,6 +118,96 @@ describe('PersonalInfoForm — WhatsApp Field', () => {
     const emitted = wrapper.emitted('save')
     expect(emitted).toBeTruthy()
     expect(emitted![0][0]).toHaveProperty('whatsapp_number', '+22997001234')
+  })
+})
+
+describe('PersonalInfoForm — nationalité et pays (listes avec recherche)', () => {
+  const baseInfo = {
+    sexe: null,
+    date_naissance: null,
+    nationalite: null as string | null,
+    pays: null as string | null,
+    show_age: true,
+    whatsapp_number: null,
+  }
+
+  function mountForm(info = baseInfo) {
+    return mount(PersonalInfoForm, {
+      attachTo: document.body,
+      props: { personalInfo: info, isSaving: false, error: null },
+    })
+  }
+
+  async function typeSearch(placeholder: string, value: string): Promise<void> {
+    const input = document.body.querySelector<HTMLInputElement>(`input[placeholder="${placeholder}"]`)!
+    input.value = value
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await flushPromises()
+  }
+
+  afterEach(() => {
+    cleanupPortals()
+  })
+
+  it('affiche le libellé « Nationalité » accentué', () => {
+    const wrapper = mountForm()
+    expect(wrapper.find('label[for="personal-nationalite"]').text()).toBe('Nationalité')
+    wrapper.unmount()
+  })
+
+  it('propose le pays « Bénin » en tête et le choisit depuis la recherche', async () => {
+    const wrapper = mountForm()
+    await openSelect(wrapper.get('[data-testid="pays-input"]'))
+
+    expect(getOptionLabels()[1]).toBe('Bénin')
+
+    await typeSearch('Rechercher un pays…', 'benin')
+    expect(getOptionLabels()).toEqual(['Bénin'])
+
+    await clickOption('Bénin')
+    await wrapper.find('form').trigger('submit')
+    expect(wrapper.emitted('save')![0][0]).toHaveProperty('pays', 'Bénin')
+    wrapper.unmount()
+  })
+
+  it('trouve « Béninoise » en tapant « beninoise » et émet la valeur', async () => {
+    const wrapper = mountForm()
+    await openSelect(wrapper.get('[data-testid="nationalite-input"]'))
+
+    await typeSearch('Rechercher une nationalité…', 'beninoise')
+    expect(getOptionLabels()).toEqual(['Béninoise'])
+
+    await clickOption('Béninoise')
+    await wrapper.find('form').trigger('submit')
+    expect(wrapper.emitted('save')![0][0]).toHaveProperty('nationalite', 'Béninoise')
+    wrapper.unmount()
+  })
+
+  it('choisit « Bénin » au clavier (flèche bas puis Entrée dans la recherche)', async () => {
+    const wrapper = mountForm()
+    await openSelect(wrapper.get('[data-testid="pays-input"]'))
+    await typeSearch('Rechercher un pays…', 'benin')
+
+    const input = document.body.querySelector<HTMLInputElement>('input[placeholder="Rechercher un pays…"]')!
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))
+    await flushPromises()
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    await flushPromises()
+
+    await wrapper.find('form').trigger('submit')
+    expect(wrapper.emitted('save')![0][0]).toHaveProperty('pays', 'Bénin')
+    wrapper.unmount()
+  })
+
+  it('garde affichée une ancienne valeur hors liste', async () => {
+    const wrapper = mountForm({ ...baseInfo, nationalite: 'Béninois', pays: 'Béni' })
+
+    expect(wrapper.get('[data-testid="nationalite-input"]').text()).toBe('Béninois')
+    expect(wrapper.get('[data-testid="pays-input"]').text()).toBe('Béni')
+
+    await wrapper.find('form').trigger('submit')
+    expect(wrapper.emitted('save')![0][0]).toMatchObject({ nationalite: 'Béninois', pays: 'Béni' })
+    wrapper.unmount()
   })
 })
 

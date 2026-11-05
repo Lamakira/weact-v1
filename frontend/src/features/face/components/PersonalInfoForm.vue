@@ -1,9 +1,15 @@
 <script setup lang="ts">
-import { reactive, watch } from 'vue'
+import { computed, reactive, watch } from 'vue'
 import type { PersonalInfoInfo } from '../types'
 import { FloatingField, FloatingSelect } from '@/components/ui/form'
 import WhatsappAlertsToggle from '@/features/notification/components/WhatsappAlertsToggle.vue'
 import { Users, Calendar, Globe, MapPin, Phone } from 'lucide-vue-next'
+import {
+  COUNTRY_OPTIONS,
+  COUNTRY_OPTION_VALUES,
+  NATIONALITY_OPTIONS,
+  NATIONALITY_OPTION_VALUES,
+} from '@/shared/constants/territoryOptions'
 
 const props = defineProps<{
   personalInfo: PersonalInfoInfo | null
@@ -29,6 +35,22 @@ const form = reactive({
   show_age: true,
   whatsapp_number: '',
 })
+
+// Une ancienne valeur hors liste reste affichée (et peut être gardée telle quelle).
+function withLegacyValue(
+  options: typeof COUNTRY_OPTIONS,
+  known: Set<string>,
+  current: string,
+): typeof COUNTRY_OPTIONS {
+  const value = current.trim()
+
+  return value === '' || known.has(value) ? options : [...options, { value, label: value }]
+}
+
+const nationaliteOptions = computed(() =>
+  withLegacyValue(NATIONALITY_OPTIONS, NATIONALITY_OPTION_VALUES, form.nationalite),
+)
+const paysOptions = computed(() => withLegacyValue(COUNTRY_OPTIONS, COUNTRY_OPTION_VALUES, form.pays))
 
 // Watch for personalInfo changes and update form
 watch(
@@ -104,18 +126,26 @@ const handleSubmit = () => {
 
     <!-- Nationalite + Pays -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <FloatingField
+      <FloatingSelect
         id="personal-nationalite"
         v-model="form.nationalite"
-        label="Nationalite"
+        label="Nationalité"
         :icon="Globe"
+        :options="nationaliteOptions"
+        searchable
+        search-placeholder="Rechercher une nationalité…"
+        empty-text="Aucune nationalité trouvée"
         data-testid="nationalite-input"
       />
-      <FloatingField
+      <FloatingSelect
         id="personal-pays"
         v-model="form.pays"
         label="Pays"
         :icon="MapPin"
+        :options="paysOptions"
+        searchable
+        search-placeholder="Rechercher un pays…"
+        empty-text="Aucun pays trouvé"
         data-testid="pays-input"
       />
     </div>
