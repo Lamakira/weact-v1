@@ -68,6 +68,11 @@ class CandidatureController extends Controller
             ])
             ->latest();
 
+        // Autorisation d'image : le contrat signé par chaque Face (1 requête pour toute la page).
+        if (config('image_contracts.enabled')) {
+            $query->with('imageContract');
+        }
+
         // Apply status filter if provided
         $statusFilter = $request->getStatusFilter();
         if ($statusFilter) {

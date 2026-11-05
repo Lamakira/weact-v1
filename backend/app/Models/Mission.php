@@ -229,6 +229,16 @@ class Mission extends Model
     }
 
     /**
+     * Conditions d'image signées par le Producteur à la publication (absentes avant l'activation).
+     *
+     * @return HasOne<MissionImageTerms, $this>
+     */
+    public function imageTerms(): HasOne
+    {
+        return $this->hasOne(MissionImageTerms::class);
+    }
+
+    /**
      * Photos produit de la dotation UGC (0-2, uploadées à la création — spec
      * photos produit). Rows sur disque `public` (colonne `disk`) : vitrine
      * visible des candidates, URLs asset directes.

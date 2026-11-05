@@ -20,9 +20,18 @@ class SignatureChallengeService
 
     public const PURPOSE_BOOKING_ACCEPT_PREFIX = 'booking_accept:';
 
+    public const PURPOSE_MISSION_PUBLISH = 'mission_publish';
+
+    public const PURPOSE_CANDIDATURE_CONFIRM_PREFIX = 'candidature_confirm:';
+
     public static function bookingAcceptPurpose(string $bookingUuid): string
     {
         return self::PURPOSE_BOOKING_ACCEPT_PREFIX.$bookingUuid;
+    }
+
+    public static function candidatureConfirmPurpose(string $candidatureUuid): string
+    {
+        return self::PURPOSE_CANDIDATURE_CONFIRM_PREFIX.$candidatureUuid;
     }
 
     /**

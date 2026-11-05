@@ -6,6 +6,7 @@ namespace App\Http\Requests\Mission;
 
 use App\Enums\CompensationType;
 use App\Enums\MissionType;
+use App\Http\Requests\ImageContract\ImageTermsRules;
 use App\Models\Producer;
 use App\Support\UploadedMedia;
 use Illuminate\Foundation\Http\FormRequest;
@@ -14,6 +15,7 @@ use Illuminate\Validation\Rules\File;
 
 class StoreMissionRequest extends FormRequest
 {
+    use ImageTermsRules;
     use MissionValidationRules;
 
     /**
@@ -74,6 +76,14 @@ class StoreMissionRequest extends FormRequest
             // produit seul : nombre_videos forcé serveur à 2 (MissionService), montant_remuneration ignoré.
         }
 
+        // Autorisation d'image : le Producteur signe UNE fois, à la publication (conditions + code reçu
+        // par e-mail). Règles posées ICI sous le drapeau, jamais dans MissionValidationRules (ugc-1-3) :
+        // UpdateMissionRequest n'accepte ni conditions ni signature. Le code est vérifié dans la
+        // transaction de création (MissionService::createMission).
+        if (config('image_contracts.enabled')) {
+            $rules = array_merge($rules, $this->imageTermsRules());
+        }
+
         return $rules;
     }
 
@@ -84,7 +94,7 @@ class StoreMissionRequest extends FormRequest
      */
     public function messages(): array
     {
-        return array_merge($this->missionMessages(), [
+        return array_merge($this->missionMessages(), $this->imageTermsMessages(), [
             'type_compensation.required' => 'Le type de compensation est obligatoire.',
             'type_compensation.in' => 'Le type de compensation sélectionné est invalide.',
             'nom_produit.required' => 'Le nom du produit est obligatoire.',

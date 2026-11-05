@@ -14,4 +14,9 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'api.token', 'face_or_producer'
     Route::post('/image-contract/code', [ImageContractController::class, 'sendCode'])
         ->middleware('throttle:signature-code')
         ->name('image-contract.code');
+
+    // Contrat d'une candidature de mission (PDF) : la Face propriétaire et le Producteur de la mission seulement
+    Route::get('/candidatures/{candidature}/image-contract/pdf', [ImageContractController::class, 'candidaturePdf'])
+        ->middleware('throttle:60,1')
+        ->name('candidatures.image-contract.pdf');
 });

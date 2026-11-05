@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\Booking;
 
 use App\Enums\CompensationType;
-use App\Enums\ImageContractSupport;
-use App\Enums\ImageContractTerritoire;
+use App\Http\Requests\ImageContract\ImageTermsRules;
 use App\Models\Booking;
 use App\Models\Face;
 use App\Models\Mission;
@@ -14,7 +13,6 @@ use App\Models\Producer;
 use App\Models\User;
 use App\Rules\NoContactDetails;
 use App\Services\FaceEntitlementService;
-use App\Support\ImageContractTemplate;
 use App\Support\UploadedMedia;
 use App\ValueObjects\BookingPricing;
 use Carbon\CarbonImmutable;
@@ -25,6 +23,8 @@ use Illuminate\Validation\Validator;
 
 class CreateBookingRequest extends FormRequest
 {
+    use ImageTermsRules;
+
     private const MAX_UNSIGNED_INTEGER = 4294967295;
 
     /** Heure (fuseau métier) à partir de laquelle on ne peut plus demander un booking pour le lendemain. */
@@ -108,24 +108,7 @@ class CreateBookingRequest extends FormRequest
         // Autorisation d'utilisation de l'image : conditions + signature du Producteur (code reçu
         // par e-mail). Le code lui-même est vérifié dans la transaction de création.
         if (config('image_contracts.enabled')) {
-            $rules['image_terms'] = ['required', 'array'];
-            $rules['image_terms.finalite'] = ['required', 'string', 'max:200', new NoContactDetails];
-            $rules['image_terms.supports'] = [
-                'required',
-                'array',
-                'min:1',
-                function (string $attribute, mixed $value, \Closure $fail): void {
-                    if (is_array($value) && in_array(ImageContractSupport::All->value, $value, true) && count($value) > 1) {
-                        $fail('« Tous supports » ne se combine avec aucun autre support.');
-                    }
-                },
-            ];
-            $rules['image_terms.supports.*'] = ['string', 'distinct', Rule::in(ImageContractSupport::values())];
-            $rules['image_terms.territoire'] = ['required', 'string', Rule::in(ImageContractTerritoire::values())];
-            $rules['image_terms.duree_annees'] = ['required', 'integer', Rule::in(ImageContractTemplate::DUREES)];
-            $rules['signature'] = ['required', 'array'];
-            $rules['signature.name'] = ['required', 'string', 'min:3', 'max:150', new NoContactDetails];
-            $rules['signature.code'] = ['required', 'string', 'max:20'];
+            $rules = array_merge($rules, $this->imageTermsRules());
         }
 
         return $rules;
@@ -136,7 +119,7 @@ class CreateBookingRequest extends FormRequest
      */
     public function messages(): array
     {
-        return [
+        return $this->imageTermsMessages() + [
             'face_id.required' => 'La Face est obligatoire.',
             'face_id.exists' => 'La Face selectionnee n\'existe pas.',
             'date_debut.required' => 'La date de debut est obligatoire.',
@@ -174,21 +157,6 @@ class CreateBookingRequest extends FormRequest
             'product_photos.*.image' => 'Chaque photo du produit doit être une image.',
             'product_photos.*.mimes' => 'Chaque photo du produit doit être au format JPG ou PNG.',
             'product_photos.*.max' => 'Chaque photo du produit ne doit pas dépasser 8 Mo.',
-            'image_terms.required' => 'Les conditions d\'utilisation de l\'image sont obligatoires.',
-            'image_terms.finalite.required' => 'La finalité de l\'utilisation de l\'image est obligatoire.',
-            'image_terms.finalite.max' => 'La finalité ne peut pas dépasser :max caractères.',
-            'image_terms.supports.required' => 'Choisissez au moins un support.',
-            'image_terms.supports.min' => 'Choisissez au moins un support.',
-            'image_terms.supports.*.in' => 'Ce support est invalide.',
-            'image_terms.territoire.required' => 'Le territoire est obligatoire.',
-            'image_terms.territoire.in' => 'Ce territoire est invalide.',
-            'image_terms.duree_annees.required' => 'La durée d\'utilisation est obligatoire.',
-            'image_terms.duree_annees.in' => 'Cette durée est invalide.',
-            'signature.required' => 'La signature du contrat est obligatoire.',
-            'signature.name.required' => 'Votre nom complet est obligatoire pour signer.',
-            'signature.name.min' => 'Votre nom complet doit comporter au moins :min caractères.',
-            'signature.name.max' => 'Votre nom complet ne peut pas dépasser :max caractères.',
-            'signature.code.required' => 'Le code reçu par e-mail est obligatoire.',
         ];
     }
 
