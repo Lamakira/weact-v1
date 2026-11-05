@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { isAxiosError } from 'axios'
 import { messagingApi } from '../services/messagingApi'
 import { formatApiError, getApiErrorDetails } from '@/services/errorFormatter'
-import type { Message } from '../types'
+import type { Message, SharedLocation } from '../types'
 
 /**
  * Composable for sending messages in a conversation (Producer)
@@ -12,6 +12,30 @@ export function useSendProducerMessage() {
   const isSending = ref(false)
   const error = ref<string | null>(null)
   const validationErrors = ref<string[]>([])
+
+  function applyError(err: unknown): void {
+    if (isAxiosError(err)) {
+      if (err.response?.status === 422) {
+        const errors = getApiErrorDetails(err)
+        const firstField = Object.keys(errors)[0]
+        const firstMessage = firstField
+          ? (errors[firstField]?.[0] ?? formatApiError(err, 'Erreur de validation'))
+          : formatApiError(err, 'Erreur de validation')
+
+        validationErrors.value = errors.content ?? []
+        error.value = firstMessage || 'Erreur de validation'
+      } else if (err.response?.status === 403) {
+        error.value = "Vous n'êtes pas autorisé à envoyer des messages dans cette conversation"
+      } else if (err.response?.status === 404) {
+        error.value = 'Conversation introuvable'
+      } else {
+        error.value = formatApiError(err, "Impossible d'envoyer le message. Veuillez réessayer.")
+      }
+    } else {
+      error.value = formatApiError(err, 'Une erreur est survenue. Veuillez réessayer.')
+    }
+    console.error('Failed to send message:', err)
+  }
 
   /**
    * Send a message in a conversation (Producer endpoint)
@@ -44,27 +68,27 @@ export function useSendProducerMessage() {
       })
       return response.data
     } catch (err: unknown) {
-      if (isAxiosError(err)) {
-        if (err.response?.status === 422) {
-          const errors = getApiErrorDetails(err)
-          const firstField = Object.keys(errors)[0]
-          const firstMessage = firstField
-            ? (errors[firstField]?.[0] ?? formatApiError(err, 'Erreur de validation'))
-            : formatApiError(err, 'Erreur de validation')
+      applyError(err)
+      return null
+    } finally {
+      isSending.value = false
+    }
+  }
 
-          validationErrors.value = errors.content ?? []
-          error.value = firstMessage || 'Erreur de validation'
-        } else if (err.response?.status === 403) {
-          error.value = "Vous n'êtes pas autorisé à envoyer des messages dans cette conversation"
-        } else if (err.response?.status === 404) {
-          error.value = 'Conversation introuvable'
-        } else {
-          error.value = formatApiError(err, "Impossible d'envoyer le message. Veuillez réessayer.")
-        }
-      } else {
-        error.value = formatApiError(err, 'Une erreur est survenue. Veuillez réessayer.')
-      }
-      console.error('Failed to send message:', err)
+  /**
+   * Share an instant location in a conversation (no text, no live tracking)
+   * @returns The created message or null if failed
+   */
+  async function sendLocation(conversationId: string, location: SharedLocation): Promise<Message | null> {
+    isSending.value = true
+    error.value = null
+    validationErrors.value = []
+
+    try {
+      const response = await messagingApi.sendProducerMessage(conversationId, { location })
+      return response.data
+    } catch (err: unknown) {
+      applyError(err)
       return null
     } finally {
       isSending.value = false
@@ -84,6 +108,7 @@ export function useSendProducerMessage() {
     error,
     validationErrors,
     sendMessage,
+    sendLocation,
     resetError,
   }
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue'
-import { Send, Loader2 } from 'lucide-vue-next'
+import { Send, Loader2, MapPin } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 
 interface Props {
@@ -8,6 +8,8 @@ interface Props {
   isLoading?: boolean
   error?: string | null
   placeholder?: string
+  /** Affiche le bouton « Envoyer ma position » (chat ouvert en écriture). */
+  canShareLocation?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -15,11 +17,13 @@ const props = withDefaults(defineProps<Props>(), {
   isLoading: false,
   error: null,
   placeholder: 'Écrivez votre message...',
+  canShareLocation: false,
 })
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void
   (e: 'submit', value: string): void
+  (e: 'share-location'): void
 }>()
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
@@ -84,6 +88,17 @@ onMounted(() => {
         @keydown="onKeydown"
       />
       <div class="flex items-center justify-end gap-3 px-2 pb-2">
+        <button
+          v-if="canShareLocation"
+          type="button"
+          :disabled="isLoading"
+          class="mr-auto flex size-11 shrink-0 items-center justify-center rounded-full text-ink-3 transition-colors hover:bg-sidebar hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-weact-600 disabled:pointer-events-none disabled:opacity-50"
+          aria-label="Envoyer ma position"
+          data-testid="share-location"
+          @click="emit('share-location')"
+        >
+          <MapPin class="size-5" aria-hidden="true" />
+        </button>
         <span class="hidden text-[11.5px] text-ink-3 lg:inline">
           Entrée pour envoyer · Maj+Entrée pour un retour à la ligne
         </span>

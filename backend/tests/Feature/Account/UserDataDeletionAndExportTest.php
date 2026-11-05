@@ -284,7 +284,67 @@ class UserDataDeletionAndExportTest extends TestCase
         $this->assertSame('chat producteur', $theirChat->fresh()?->content);
     }
 
+    public function test_deletion_erases_the_shared_location_of_authored_messages_but_not_the_counterparts(): void
+    {
+        $user = $this->faceUser();
+        $other = $this->producerUser();
+        $booking = Booking::factory()->create(['face_id' => $user->id, 'producer_id' => $other->id, 'status' => 'completed']);
+        $position = ['content' => 'Position partagée', 'location_lat' => 6.366667, 'location_lng' => 2.433333, 'location_accuracy_m' => 15];
+
+        $mine = BookingMessage::factory()->create(['booking_id' => $booking->id, 'sender_id' => $user->id, ...$position]);
+        $theirs = BookingMessage::factory()->create(['booking_id' => $booking->id, 'sender_id' => $other->id, ...$position]);
+
+        $conversation = $this->conversationFor($user, $other);
+        $myChat = Message::factory()->create(['conversation_id' => $conversation->id, 'sender_id' => $user->id, 'sender_type' => User::class, ...$position]);
+        $theirChat = Message::factory()->create(['conversation_id' => $conversation->id, 'sender_id' => $other->id, 'sender_type' => User::class, ...$position]);
+
+        $this->deleteAccount($user)->assertOk();
+
+        foreach ([$mine, $myChat] as $message) {
+            $fresh = $message->fresh();
+            $this->assertSame('[message supprimé]', $fresh->content);
+            $this->assertNull($fresh->location_lat);
+            $this->assertNull($fresh->location_lng);
+            $this->assertNull($fresh->location_accuracy_m);
+        }
+        foreach ([$theirs, $theirChat] as $message) {
+            $fresh = $message->fresh();
+            $this->assertSame(6.366667, $fresh->location_lat);
+            $this->assertSame(15, $fresh->location_accuracy_m);
+        }
+    }
+
     // --------------------------------------------------------------- export
+
+    public function test_export_includes_the_location_of_own_messages_only(): void
+    {
+        $user = $this->faceUser();
+        $other = $this->producerUser();
+        $booking = Booking::factory()->create(['face_id' => $user->id, 'producer_id' => $other->id, 'status' => 'completed']);
+        $position = ['content' => 'Position partagée', 'location_lat' => 6.366667, 'location_lng' => 2.433333, 'location_accuracy_m' => 15];
+
+        BookingMessage::factory()->create(['booking_id' => $booking->id, 'sender_id' => $user->id, ...$position]);
+        BookingMessage::factory()->create(['booking_id' => $booking->id, 'sender_id' => $other->id, ...$position]);
+        BookingMessage::factory()->create(['booking_id' => $booking->id, 'sender_id' => $user->id, 'content' => 'texte']);
+
+        $conversation = $this->conversationFor($user, $other);
+        Message::factory()->create(['conversation_id' => $conversation->id, 'sender_id' => $user->id, 'sender_type' => User::class, ...$position]);
+        Message::factory()->create(['conversation_id' => $conversation->id, 'sender_id' => $other->id, 'sender_type' => User::class, ...$position]);
+
+        $response = $this->actingAs($user)->getJson('/api/v1/user/data-export')->assertOk();
+
+        $bookingMessages = $response->json('data.booking_messages');
+        $this->assertSame(6.366667, $bookingMessages[0]['location']['lat']);
+        $this->assertSame(2.433333, $bookingMessages[0]['location']['lng']);
+        $this->assertSame(15, $bookingMessages[0]['location']['accuracy_m']);
+        $this->assertNull($bookingMessages[1]['location']);
+        $this->assertNull($bookingMessages[2]['location']);
+
+        $conversationMessages = $response->json('data.conversation_messages');
+        $this->assertSame(6.366667, $conversationMessages[0]['location']['lat']);
+        $this->assertNull($conversationMessages[1]['location']);
+        $this->assertStringNotContainsString('2.433333', json_encode([$bookingMessages[1], $conversationMessages[1]]));
+    }
 
     public function test_export_contains_the_new_sections_for_a_face(): void
     {

@@ -5,6 +5,7 @@
 import type { Component } from 'vue'
 import type { Deliverable, ProductPhoto, Shipment } from '@/components/ugc'
 import type { ImageContract, ImageSignature, ImageTerms } from '@/features/imageContract/types'
+import type { MessageLocation } from '@/features/messaging/types'
 
 // Booking status enum
 export const BookingStatus = {
@@ -349,6 +350,7 @@ export interface BookingMessage {
   sender_id: number
   sender_name: string
   content: string
+  location?: MessageLocation | null // position partagée, null pour un texte
   is_own_message: boolean
   read_at?: string | null // ISO 8601, null tant que l'autre partie n'a pas lu
   created_at: string // ISO 8601
@@ -361,6 +363,7 @@ export interface BookingMessageBroadcast {
   sender_id: number
   sender_name: string
   content: string
+  location?: MessageLocation | null
   created_at: string // ISO 8601
 }
 

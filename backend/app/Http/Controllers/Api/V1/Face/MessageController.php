@@ -10,6 +10,7 @@ use App\Http\Resources\MessageResource;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Services\Messaging\ConversationRealtime;
+use App\Support\MessageLocation;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
@@ -29,12 +30,14 @@ class MessageController extends Controller
         Gate::authorize('sendMessage', $conversation);
 
         $user = $request->user();
+        $location = $request->validated('location');
 
         $message = Message::create([
             'conversation_id' => $conversation->id,
             'sender_id' => $user->id,
             'sender_type' => get_class($user),
-            'content' => $request->validated('content'),
+            // Une position remplace le texte envoyé (content neutre + colonnes de position)
+            ...($location !== null ? MessageLocation::attributes($location) : ['content' => $request->validated('content')]),
         ]);
 
         // Load the sender relationship for the resource

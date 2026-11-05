@@ -13,6 +13,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $booking_id
  * @property int $sender_id
  * @property string $content
+ * @property float|null $location_lat
+ * @property float|null $location_lng
+ * @property int|null $location_accuracy_m
  * @property \Carbon\CarbonInterface|null $read_at
  * @property \Carbon\CarbonInterface $created_at
  * @property-read \App\Models\Booking|null $booking
@@ -26,6 +29,9 @@ class BookingMessage extends Model
         'booking_id',
         'sender_id',
         'content',
+        'location_lat',
+        'location_lng',
+        'location_accuracy_m',
         'read_at',
     ];
 
@@ -36,6 +42,9 @@ class BookingMessage extends Model
     {
         return [
             'read_at' => 'datetime',
+            'location_lat' => 'float',
+            'location_lng' => 'float',
+            'location_accuracy_m' => 'integer',
         ];
     }
 

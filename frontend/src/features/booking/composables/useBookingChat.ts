@@ -1,5 +1,7 @@
 import { ref, onMounted, onUnmounted, type Ref } from 'vue'
 import { bookingChatApi } from '../services/bookingChatApi'
+import { formatApiError } from '@/services/errorFormatter'
+import type { SharedLocation } from '@/features/messaging/types'
 import type { BookingMessage, BookingMessageBroadcast } from '../types'
 
 export interface UseBookingChatReturn {
@@ -8,6 +10,8 @@ export interface UseBookingChatReturn {
   isSending: Ref<boolean>
   reverbError: Ref<boolean>
   sendMessage: (content: string) => Promise<void>
+  /** Partage une position instantanée ; renvoie un message d'erreur, ou null une fois envoyée. */
+  sendLocation: (location: SharedLocation) => Promise<string | null>
   refreshMessages: () => Promise<void>
 }
 
@@ -154,6 +158,21 @@ export function useBookingChat(
     }
   }
 
+  async function sendLocation(location: SharedLocation): Promise<string | null> {
+    if (isSending.value) return "Un envoi est déjà en cours. Veuillez patienter."
+    isSending.value = true
+    try {
+      const response = await bookingChatApi.sendLocation(bookingId, location)
+      const alreadyExists = messages.value.some((m) => m.id === response.data.id)
+      if (!alreadyExists) messages.value.push(response.data)
+      return null
+    } catch (err: unknown) {
+      return formatApiError(err, "Impossible d'envoyer la position. Veuillez réessayer.")
+    } finally {
+      isSending.value = false
+    }
+  }
+
   async function refreshMessages(): Promise<void> {
     reverbError.value = false
     await unsubscribeFromChannel()
@@ -182,6 +201,7 @@ export function useBookingChat(
     isSending,
     reverbError,
     sendMessage,
+    sendLocation,
     refreshMessages,
   }
 }
