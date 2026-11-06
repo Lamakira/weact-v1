@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { missionSchema } from '../mission'
+import { createMissionSchema, missionSchema } from '../mission'
 
 /**
  * Schéma conditionnel UGC (story 1.4 AC6) :
@@ -160,6 +160,72 @@ describe('missionSchema — refines UGC (gardés par type_mission === "ugc")', (
 
     const result = missionSchema.safeParse({ ...baseUgc, nom_produit: validTrimmedName })
 
+    expect(result.success).toBe(true)
+  })
+})
+
+describe('createMissionSchema — clôture inchangée en édition', () => {
+  const pastDate = futureDate(-5)
+  const base = { ...baseStandard, budget: 50000, date_limite_candidature: pastDate, date_tournage: futureDate(20) }
+
+  it('création : une clôture passée reste refusée', () => {
+    const result = missionSchema.safeParse(base)
+    expect(result.success).toBe(false)
+    expect(hasIssueOn(result, 'date_limite_candidature')).toBe(true)
+  })
+
+  it('édition : la clôture initiale, même passée, est acceptée', () => {
+    const result = createMissionSchema({ unchangedDeadline: pastDate }).safeParse(base)
+    expect(result.success).toBe(true)
+  })
+
+  it('édition : la valeur initiale au format ISO complet est reconnue comme inchangée', () => {
+    const result = createMissionSchema({ unchangedDeadline: `${pastDate}T00:00:00+00:00` }).safeParse(base)
+    expect(result.success).toBe(true)
+  })
+
+  it('édition : une clôture modifiée vers une autre date passée garde la règle', () => {
+    const result = createMissionSchema({ unchangedDeadline: pastDate }).safeParse({
+      ...base,
+      date_limite_candidature: futureDate(-2),
+    })
+    expect(result.success).toBe(false)
+    expect(hasIssueOn(result, 'date_limite_candidature')).toBe(true)
+  })
+
+  it('édition : une clôture modifiée vers une date future est acceptée', () => {
+    const result = createMissionSchema({ unchangedDeadline: pastDate }).safeParse({
+      ...base,
+      date_limite_candidature: futureDate(10),
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('édition : le tournage doit rester postérieur à la clôture inchangée', () => {
+    const result = createMissionSchema({ unchangedDeadline: pastDate }).safeParse({
+      ...base,
+      date_tournage: pastDate,
+    })
+    expect(result.success).toBe(false)
+    expect(hasIssueOn(result, 'date_tournage')).toBe(true)
+  })
+
+  it('édition sans valeur initiale : la règle de création s’applique', () => {
+    const result = createMissionSchema({ unchangedDeadline: null }).safeParse(base)
+    expect(result.success).toBe(false)
+  })
+
+  it('édition, clôture passée conservée : tournage aujourd’hui ou passé refusé', () => {
+    const schema = createMissionSchema({ unchangedDeadline: pastDate })
+    const today = schema.safeParse({ ...base, date_tournage: futureDate(0) })
+    expect(today.success).toBe(false)
+    expect(hasIssueOn(today, 'date_tournage')).toBe(true)
+    const past = schema.safeParse({ ...base, date_tournage: futureDate(-2) })
+    expect(hasIssueOn(past, 'date_tournage')).toBe(true)
+  })
+
+  it('édition, clôture passée conservée : tournage demain accepté', () => {
+    const result = createMissionSchema({ unchangedDeadline: pastDate }).safeParse({ ...base, date_tournage: futureDate(1) })
     expect(result.success).toBe(true)
   })
 })

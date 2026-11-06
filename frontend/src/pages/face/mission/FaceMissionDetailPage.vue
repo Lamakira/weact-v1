@@ -37,6 +37,8 @@ import type { HubActionKey } from '@/features/candidature/utils/faceMissionHub'
 import { authApi } from '@/features/auth/services/authApi'
 import type { Face } from '@/features/auth/types'
 import { useToast } from '@/composables/useToast'
+import { useDateChangeActions } from '@/features/dateChange/composables/useDateChangeActions'
+import type { MissionDateDecision } from '@/features/dateChange/types'
 import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'
 import { useUgcShipment } from '@/composables/useUgcShipment'
 import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
@@ -520,7 +522,28 @@ async function submitSignature(signature: ImageSignature): Promise<SignatureSubm
   return { ok: false, code, message }
 }
 
-const hubBusy = computed(() => isConfirming.value || isReconfirming.value || isCancelling.value)
+// Changement de date du tournage (mission payée) : confirmer la nouvelle date ou quitter la mission.
+const { isSubmitting: isRespondingDateChange, error: dateChangeError, respondMission } = useDateChangeActions()
+
+const hubBusy = computed(
+  () => isConfirming.value || isReconfirming.value || isCancelling.value || isRespondingDateChange.value,
+)
+
+async function handleDateChangeRespond(decision: MissionDateDecision): Promise<void> {
+  if (!candidature.value || !missionId.value) return
+
+  const result = await respondMission(candidature.value.id, decision)
+  if (result) {
+    toast.success(
+      result.message
+        || (decision === 'confirm' ? 'Nouvelle date confirmée.' : 'Vous avez quitté la mission. Aucune pénalité appliquée.'),
+    )
+  } else {
+    toast.error(dateChangeError.value || 'Impossible d’enregistrer votre réponse.')
+  }
+  // Relecture silencieuse : l'état réel (confirmée, retirée, date déjà prise) vient du serveur.
+  await fetchMission(missionId.value, { silent: true })
+}
 
 function handleHubAction(key: HubActionKey): void {
   switch (key) {
@@ -683,6 +706,7 @@ onMounted(() => {
       @upload="handleUploadDeliverable"
       @contested="handleAbsenceContested"
       @rated="handleRated"
+      @date-change-respond="handleDateChangeRespond"
     />
 
     <!-- Mission Detail Content (avant candidature) -->
