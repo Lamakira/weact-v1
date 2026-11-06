@@ -111,6 +111,51 @@ describe('FaceMissionHub — états honnêtes', () => {
     expect(wrapper.get('[data-testid="hub-next-headline"]').text()).toBe('Le producteur n’a pas répondu')
   })
 
+  it.each(['withdrawn', 'expired'])('retirée après changement de date (%s) : pastille « Retirée », sans « pas confirmé à temps »', (status) => {
+    const dateChange = {
+      old_date: '2026-10-20', new_date: '2026-10-23', reason_label: 'Météo', respond_by: '2026-10-21T10:00:00Z',
+      status, conflict: false, can_respond: false,
+    }
+    const wrapper = mountHub(
+      makeCandidature({ status: 'expired', display_status: 'expired', display_status_label: 'Expirée' }),
+      { mission: makeMission({ date_change: dateChange } as Partial<Mission>) },
+    )
+    const pill = wrapper.get('[data-testid="hub-pill"]')
+    expect(pill.text()).toBe('Retirée')
+    expect(pill.attributes('data-tone')).toBe('mute')
+    expect(wrapper.text()).not.toContain('pas confirmé à temps')
+    expect(wrapper.get('[data-testid="hub-next-headline"]').text()).toBe('Vous avez quitté cette mission')
+    expect(wrapper.find('[data-testid="hub-money"]').exists()).toBe(false)
+  })
+
+  it('réponse attendue à une nouvelle date : la pastille le dit et le montant reste affiché', () => {
+    const dateChange = {
+      old_date: '2026-10-20', new_date: '2026-10-23', reason_label: 'Météo', respond_by: '2026-10-21T10:00:00Z',
+      status: 'pending', conflict: false, can_respond: true,
+    }
+    const wrapper = mountHub(
+      makeCandidature({ status: 'confirmed', display_status: 'confirmed', display_status_label: 'Confirmée' }),
+      { mission: makeMission({ date_change: dateChange } as Partial<Mission>) },
+    )
+    const pill = wrapper.get('[data-testid="hub-pill"]')
+    expect(pill.text()).toBe('Réponse attendue')
+    expect(pill.attributes('data-tone')).toBe('warn')
+    expect(wrapper.find('[data-testid="hub-money"]').exists()).toBe(true)
+  })
+
+  it('expirée faute de confirmation, sans retrait de date : comportement inchangé', () => {
+    const dateChange = {
+      old_date: '2026-10-20', new_date: '2026-10-23', reason_label: 'Météo', respond_by: '2026-10-21T10:00:00Z',
+      status: 'confirmed', conflict: false, can_respond: false,
+    }
+    const wrapper = mountHub(
+      makeCandidature({ status: 'expired', display_status: 'expired', display_status_label: 'Expirée' }),
+      { mission: makeMission({ date_change: dateChange } as Partial<Mission>) },
+    )
+    expect(wrapper.get('[data-testid="hub-pill"]').text()).toBe('Expirée')
+    expect(wrapper.get('[data-testid="hub-next-headline"]').text()).toBe('Vous n’avez pas confirmé à temps')
+  })
+
   it('sélection en cours de paiement : ambre + retrait possible', () => {
     const wrapper = mountHub(makeCandidature({ display_status: 'selection_payment_pending' }))
     expect(wrapper.get('[data-testid="hub-pill"]').attributes('data-tone')).toBe('warn')

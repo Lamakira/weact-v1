@@ -6,6 +6,7 @@ import type { Component } from 'vue'
 import type { Deliverable, ProductPhoto, Shipment } from '@/components/ugc'
 import type { ImageContract, ImageSignature, ImageTerms } from '@/features/imageContract/types'
 import type { MessageLocation } from '@/features/messaging/types'
+import type { BookingDateChange } from '@/features/dateChange/types'
 
 // Booking status enum
 export const BookingStatus = {
@@ -209,6 +210,8 @@ export interface Booking {
   product_photos?: ProductPhoto[]
   // Autorisation d'utilisation de l'image : fournie au détail seulement, null/absente sans contrat.
   image_contract?: ImageContract | null
+  // Changement de date (détail et réponses des actions seulement) ; absent des listes
+  date_change?: BookingDateChange | null
   created_at: string
   updated_at: string
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1\Producer;
 
+use App\Enums\DateChangeReason;
 use App\Enums\MissionStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Mission\AddMissionPlacesRequest;
@@ -13,14 +14,17 @@ use App\Http\Requests\Mission\DeleteMissionRequest;
 use App\Http\Requests\Mission\IndexProducerMissionsRequest;
 use App\Http\Requests\Mission\ReopenMissionRequest;
 use App\Http\Requests\Mission\ReplaceFreedPlaceRequest;
+use App\Http\Requests\Mission\RequestMissionDateChangeRequest;
 use App\Http\Requests\Mission\StoreMissionRequest;
 use App\Http\Requests\Mission\UpdateMissionRequest;
 use App\Http\Resources\MissionResource;
 use App\Models\Mission;
 use App\Models\Producer;
+use App\Services\DateChange\MissionDateChangeService;
 use App\Services\FreedPlaceService;
 use App\Services\MissionService;
 use App\Services\MissionSummaryService;
+use App\Support\DateChangePayload;
 use App\Support\LifecycleSort;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -150,6 +154,8 @@ class MissionController extends Controller
         $mission->setAttribute('can_complete', $mission->hasCompletableStatus() && $summary['completion_blocker'] === null);
         $mission->setAttribute('has_paid_payment', $summary['payment']['status'] === 'paid');
         $mission->setAttribute('can_add_places', $mission->canAddPlaces());
+        // Changement de date (détail seulement : pas de requête par ligne sur les listes).
+        $mission->setAttribute('date_change', DateChangePayload::forProducer($mission));
     }
 
     /**
@@ -278,6 +284,31 @@ class MissionController extends Controller
         return response()->json([
             'data' => new MissionResource($updated),
             'message' => $places === 1 ? '1 place ajoutée.' : "{$places} places ajoutées.",
+        ]);
+    }
+
+    /**
+     * Change la date de tournage d'une mission payée : les Faces confirmées ou en cours doivent confirmer.
+     * Autorisation : RequestMissionDateChangeRequest::authorize() ; gardes métier : MissionDateChangeService (422).
+     */
+    public function requestDateChange(
+        RequestMissionDateChangeRequest $request,
+        Mission $mission,
+        MissionDateChangeService $dateChanges,
+        FreedPlaceService $freedPlaces,
+        MissionSummaryService $summaries,
+    ): JsonResponse {
+        $updated = $dateChanges->request(
+            $mission,
+            (string) $request->validated('new_date'),
+            DateChangeReason::from((string) $request->validated('reason')),
+            $request->user(),
+        );
+        $this->loadDetailAttributes($updated, $freedPlaces, $summaries);
+
+        return response()->json([
+            'data' => new MissionResource($updated),
+            'message' => 'Nouvelle date enregistrée. Les Faces concernées ont été prévenues.',
         ]);
     }
 

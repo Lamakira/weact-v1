@@ -17,6 +17,7 @@ use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\DateChange\DateChangeNotifier;
 use App\Services\ImageContract\ImageContractService;
 use App\Services\Ugc\UgcCommissionService;
 use App\Services\Ugc\UgcMediaCleanupService;
@@ -32,6 +33,7 @@ class MissionService
         private readonly ProductPhotoService $productPhotoService,
         private readonly UgcMediaCleanupService $ugcMediaCleanupService,
         private readonly ImageContractService $imageContractService,
+        private readonly DateChangeNotifier $dateChangeNotifier,
     ) {}
 
     /**
@@ -212,6 +214,8 @@ class MissionService
         $shootingDateChanged = array_key_exists('date_tournage', $data)
             && $mission->date_tournage?->format('Y-m-d') !== $data['date_tournage'];
 
+        $previousDay = $mission->date_tournage?->toDateString();
+
         $payload = [
             'titre' => $data['titre'],
             'description' => $data['description'],
@@ -235,6 +239,20 @@ class MissionService
 
         /** @var Mission $freshMission */
         $freshMission = $mission->fresh();
+
+        // Mission publiée dont la date de tournage change (une ancienne date existait) : les candidatures
+        // en attente ou acceptées sont prévenues, sans réponse attendue ni quota.
+        if ($previousDay !== null
+            && array_key_exists('date_tournage', $data)
+            && $freshMission->date_tournage?->toDateString() !== $previousDay) {
+            $this->dateChangeNotifier->notifyMissionDateChanged(
+                $freshMission,
+                Candidature::query()
+                    ->where('mission_id', $freshMission->id)
+                    ->whereIn('status', [CandidatureStatus::Pending->value, CandidatureStatus::Accepted->value])
+                    ->get(),
+            );
+        }
 
         return $freshMission;
     }

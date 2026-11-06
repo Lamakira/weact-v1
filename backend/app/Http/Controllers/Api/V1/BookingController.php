@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Enums\BookingStatus;
+use App\Enums\DateChangeReason;
 use App\Enums\ErrorCodes;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Booking\AcceptBookingRequest;
@@ -15,14 +16,18 @@ use App\Http\Requests\Booking\CreateBookingRequest;
 use App\Http\Requests\Booking\IndexBookingsRequest;
 use App\Http\Requests\Booking\PayBookingRequest;
 use App\Http\Requests\Booking\PayUgcCommissionRequest;
+use App\Http\Requests\Booking\ProposeBookingDateChangeRequest;
 use App\Http\Requests\Booking\RefuseBookingRequest;
+use App\Http\Requests\Booking\RespondBookingDateChangeRequest;
 use App\Http\Resources\BookingResource;
 use App\Models\Booking;
 use App\Models\Face;
 use App\Models\User;
 use App\Services\BookingService;
+use App\Services\DateChange\BookingDateChangeService;
 use App\Services\FaceEntitlementService;
 use App\Services\Ugc\UgcCommissionPaymentService;
+use App\Support\DateChangePayload;
 use App\Support\LifecycleSort;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -201,7 +206,7 @@ class BookingController extends Controller
     /**
      * Display the specified booking.
      */
-    public function show(Booking $booking): JsonResponse
+    public function show(Request $request, Booking $booking): JsonResponse
     {
         Gate::authorize('view', $booking);
 
@@ -219,6 +224,8 @@ class BookingController extends Controller
                     ->with(['rater.userable', 'rated.userable']);
             },
         ]);
+
+        $booking->setAttribute('date_change', DateChangePayload::forBooking($booking, $request->user()));
 
         return response()->json([
             'data' => new BookingResource($booking),
@@ -355,6 +362,59 @@ class BookingController extends Controller
         return response()->json([
             'data' => new BookingResource($booking->load($this->detailRelations())),
             'message' => 'Contestation enregistrée',
+        ]);
+    }
+
+    /**
+     * Propose un nouveau jour de tournage (Producteur ou Face) : l'autre partie doit répondre.
+     */
+    public function proposeDateChange(ProposeBookingDateChangeRequest $request, Booking $booking, BookingDateChangeService $dateChanges): JsonResponse
+    {
+        $booking = $dateChanges->propose(
+            $booking,
+            $request->user(),
+            (string) $request->validated('new_date'),
+            DateChangeReason::from((string) $request->validated('reason')),
+        );
+
+        return $this->dateChangeResponse($booking, $request->user(), 'Votre proposition de nouvelle date a été envoyée.');
+    }
+
+    /**
+     * Répond à une proposition de nouvelle date (l'autre partie que l'auteur).
+     */
+    public function respondDateChange(RespondBookingDateChangeRequest $request, Booking $booking, BookingDateChangeService $dateChanges): JsonResponse
+    {
+        $decision = (string) $request->validated('decision');
+        $booking = $dateChanges->respond($booking, $request->user(), $decision);
+
+        return $this->dateChangeResponse(
+            $booking,
+            $request->user(),
+            $decision === 'accept' ? 'Nouvelle date acceptée.' : 'Proposition refusée : la date du tournage ne change pas.',
+        );
+    }
+
+    /**
+     * Retire sa proposition de nouvelle date tant qu'elle est en attente (auteur seul).
+     */
+    public function withdrawDateChange(Request $request, Booking $booking, BookingDateChangeService $dateChanges): JsonResponse
+    {
+        Gate::authorize('withdrawDateChange', $booking);
+
+        $booking = $dateChanges->withdraw($booking, $request->user());
+
+        return $this->dateChangeResponse($booking, $request->user(), 'Votre proposition a été retirée.');
+    }
+
+    private function dateChangeResponse(Booking $booking, User $viewer, string $message): JsonResponse
+    {
+        $booking->load($this->detailRelations());
+        $booking->setAttribute('date_change', DateChangePayload::forBooking($booking, $viewer));
+
+        return response()->json([
+            'data' => new BookingResource($booking),
+            'message' => $message,
         ]);
     }
 

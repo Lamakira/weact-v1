@@ -27,6 +27,8 @@ import { formatMissionDurationForDisplay } from '@/features/mission/constants/mi
 import { deriveFaceHubState, formatRemaining, formatShortDate } from '@/features/candidature/utils/faceMissionHub'
 import type { HubActionKey, HubTone } from '@/features/candidature/utils/faceMissionHub'
 import type { Mission, MissionCandidature } from '@/features/mission/types'
+import MissionDateChangeFaceBlock from '@/features/dateChange/components/MissionDateChangeFaceBlock.vue'
+import { isFaceDateChange, type FaceMissionDateChange, type MissionDateDecision } from '@/features/dateChange/types'
 
 const props = defineProps<{
   mission: Mission
@@ -52,6 +54,8 @@ const emit = defineEmits<{
   contested: []
   /** La Face vient de noter le producteur : la page peut relire la mission en silence. */
   rated: [rating: MissionRating]
+  /** Réponse de la Face au changement de date (la page porte l'appel réseau). */
+  'date-change-respond': [decision: MissionDateDecision]
 }>()
 
 // Notation donnée dans cette session : prime sur le payload tant que la page n'a pas relu la mission.
@@ -108,6 +112,20 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (timer) clearInterval(timer)
 })
+
+// Changement de date : la Face voit sa ligne de réponse ; le montant est celui que la page connaît déjà.
+const dateChange = computed<FaceMissionDateChange | null>(() => {
+  const value = props.mission.date_change
+  return isFaceDateChange(value) ? value : null
+})
+// Réponse attendue : la pastille le dit. Face retirée : plus aucun montant à lui annoncer.
+const hubPill = computed(() =>
+  dateChange.value?.can_respond ? { label: 'Réponse attendue', tone: 'warn' as const } : hub.value.pill,
+)
+const hasLeftAfterDateChange = computed(
+  () => dateChange.value?.status === 'withdrawn' || dateChange.value?.status === 'expired',
+)
+const dateChangeAmount = computed(() => props.candidature.montant_face_recoit ?? props.mission.budget ?? null)
 
 const remaining = computed(() =>
   hub.value.next.deadline ? formatRemaining(hub.value.next.deadline, now.value) : '',
@@ -182,12 +200,12 @@ const chatTarget = computed(() =>
         <div class="mt-1.5 flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-[13px] text-muted-foreground">
           <span
             class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap"
-            :class="toneClasses[hub.pill.tone]"
+            :class="toneClasses[hubPill.tone]"
             data-testid="hub-pill"
-            :data-tone="hub.pill.tone"
+            :data-tone="hubPill.tone"
           >
             <span class="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
-            {{ hub.pill.label }}
+            {{ hubPill.label }}
           </span>
           <span v-if="!isUgc && shootDate" class="inline-flex items-center gap-1.5" data-testid="hub-date">
             <Calendar class="h-3.5 w-3.5" aria-hidden="true" />Tournage {{ shootDate }}
@@ -195,7 +213,7 @@ const chatTarget = computed(() =>
           <span v-if="!isUgc && mission.lieu" class="inline-flex items-center gap-1.5">
             <MapPin class="h-3.5 w-3.5" aria-hidden="true" />{{ mission.lieu }}
           </span>
-          <span class="inline-flex items-center gap-1.5" data-testid="hub-money">
+          <span v-if="!hasLeftAfterDateChange" class="inline-flex items-center gap-1.5" data-testid="hub-money">
             <Wallet class="h-3.5 w-3.5" aria-hidden="true" />{{ moneyLabel }}
           </span>
         </div>
@@ -224,6 +242,16 @@ const chatTarget = computed(() =>
 
     <!-- Signature à faire : encadré du code juste au-dessus de l'action -->
     <ImageContractCodeNotice v-if="mustSign" v-bind="codeNoticeProps" class="mb-4" />
+
+    <!-- Changement de date du tournage : juste au-dessus de la barre d'étapes -->
+    <MissionDateChangeFaceBlock
+      v-if="dateChange"
+      :date-change="dateChange"
+      :amount="dateChangeAmount"
+      :now="now"
+      :busy="busy"
+      @respond="emit('date-change-respond', $event)"
+    />
 
     <!-- Barre d'étapes -->
     <nav class="mb-4 rounded-[10px] border border-border bg-card px-4 py-3.5 max-sm:pb-9" aria-label="Étapes" data-testid="hub-steps">
@@ -309,7 +337,7 @@ const chatTarget = computed(() =>
               <dt class="text-muted-foreground">Durée</dt>
               <dd class="text-right font-semibold text-foreground">{{ formatMissionDurationForDisplay(mission.duree) }}</dd>
             </div>
-            <div class="flex justify-between gap-3">
+            <div v-if="!hasLeftAfterDateChange" class="flex justify-between gap-3">
               <dt class="text-muted-foreground">
                 {{ candidature.montant_face_recoit != null || isUgc ? 'Votre part' : 'Rémunération proposée' }}
               </dt>
