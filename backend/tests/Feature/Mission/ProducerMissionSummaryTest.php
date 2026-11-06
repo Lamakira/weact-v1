@@ -410,8 +410,9 @@ class ProducerMissionSummaryTest extends TestCase
     }
 
     /**
-     * Mesuré : 20 requêtes (≈ 17 avant C1 : auth, mission, ratings Producer, completionBlocker...).
+     * Mesuré : 21 requêtes (≈ 17 avant C1 : auth, mission, ratings Producer, completionBlocker...).
      * Le résumé ajoute 3 requêtes ; completionBlocker et has_paid_payment ne sont plus rejoués.
+     * Le bloc date_change (changement de date) en ajoute 1 : la liste des demandes de la mission.
      */
     public function test_show_query_count_is_bounded(): void
     {
@@ -427,6 +428,6 @@ class ProducerMissionSummaryTest extends TestCase
         $count = count(DB::getQueryLog());
         DB::disableQueryLog();
 
-        $this->assertLessThanOrEqual(20, $count, "show a exécuté {$count} requêtes");
+        $this->assertLessThanOrEqual(21, $count, "show a exécuté {$count} requêtes");
     }
 }

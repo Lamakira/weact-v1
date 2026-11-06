@@ -40,7 +40,23 @@ class UpdateMissionRequest extends FormRequest
      */
     public function rules(): array
     {
-        return $this->missionRules();
+        $rules = $this->missionRules();
+
+        // Clôture inchangée : plus d'`after:today`, pour pouvoir déplacer le tournage une fois la clôture passée.
+        // Une clôture modifiée garde `after:today` ; `date_tournage` reste `after:date_limite_candidature`.
+        /** @var Mission $mission */
+        $mission = $this->route('mission');
+        $submitted = $this->input('date_limite_candidature');
+
+        if (is_string($submitted)
+            && $mission->date_limite_candidature !== null
+            && substr($submitted, 0, 10) === $mission->date_limite_candidature->toDateString()) {
+            $rules['date_limite_candidature'] = ['required', 'date'];
+            // Sans `after:today` sur la clôture, le tournage ne doit pas pouvoir passer dans le passé.
+            $rules['date_tournage'] = ['required', 'date', 'after:date_limite_candidature', 'after:today'];
+        }
+
+        return $rules;
     }
 
     /**

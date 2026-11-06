@@ -1084,84 +1084,12 @@ class MissionPaymentService
      */
     public function expireUnconfirmedFace(Candidature $candidature, string $reason = 'face_confirmation_expired'): bool
     {
-        /** @var MissionPaymentCandidature|null $entryRef */
-        $entryRef = MissionPaymentCandidature::query()
-            ->where('candidature_id', $candidature->id)
-            ->whereNotNull('mission_payment_id')
-            ->first();
-
-        if ($entryRef === null) {
-            return false;
-        }
-
-        $result = DB::transaction(function () use ($candidature, $reason, $entryRef): ?array {
-            $this->lockCashSelection((int) $entryRef->mission_payment_id);
-
-            /** @var MissionPayment|null $payment */
-            $payment = MissionPayment::query()->find($entryRef->mission_payment_id);
-            /** @var Mission|null $mission */
-            $mission = $payment !== null ? Mission::query()->lockForUpdate()->find($payment->mission_id) : null;
-            /** @var Candidature|null $locked */
-            $locked = Candidature::query()->lockForUpdate()->find($candidature->id);
-            /** @var MissionPaymentCandidature|null $entry */
-            $entry = MissionPaymentCandidature::query()->find($entryRef->id);
-
-            if ($payment === null || $mission === null || $locked === null || $entry === null
-                || $payment->status !== MissionPaymentStatus::Paid
-                || $mission->type_mission === MissionType::Ugc
-                // Avant toute action de présence : une absence déclarée suit sa propre règle
-                // (contestation 72 h puis remboursement de la part nette), jamais les deux.
-                // Lot B4 : un tournage commencé (pending_attendance_validation) laisse une échéance au plancher
-                // de 12 h dépasser son début ; la place suit alors le chemin du remboursement.
-                || ! in_array($mission->status, [MissionStatus::Closed, MissionStatus::PendingAttendanceValidation], true)
-                // getAttribute : la colonne est nullable en base (lignes historiques) malgré le PHPDoc.
-                || ! in_array($entry->getAttribute('attendance_status'), [null, AttendanceStatus::Pending], true)
-                || $locked->status !== CandidatureStatus::Accepted
-                || $entry->freed_at !== null
-                || $entry->escrow_status !== EscrowStatus::Locked) {
-                return null;
-            }
-
-            $refundAmount = (int) $payment->budget_par_face;
-
-            // Lot B4 (D2) : tant qu'une remplaçante est possible (candidature non retenue éligible,
-            // jour du tournage pas commencé), la place est seulement libérée : l'argent reste en
-            // séquestre sur l'entry, le Producer choisit une remplaçante ou est remboursé au début
-            // du jour de tournage (missions:refund-freed-places). Sinon, remboursement immédiat (D1).
-            $freed = $this->canFreedPlaceBeReplaced($mission);
-
-            if ($freed) {
-                $entry->update(['freed_at' => now()]);
-            } else {
-                $this->refundToProducer(
-                    $entry,
-                    $mission,
-                    $reason,
-                    ['candidature_id' => $locked->id, 'refund_basis' => 'budget_par_face'],
-                    walletLabel: "Mission : place non confirmée — {$mission->titre}",
-                    amountOverride: $refundAmount,
-                );
-
-                // refundToProducer sort sans rien faire si le Producteur est introuvable : on ne libère jamais
-                // la place sans avoir rendu l'argent (rollback, le sweep réessaiera et alertera).
-                if ($entry->fresh()?->escrow_status !== EscrowStatus::Refunded) {
-                    throw new \RuntimeException("Impossible de rembourser l'entry {$entry->id} (place non confirmée).");
-                }
-            }
-
-            $locked->update(['status' => CandidatureStatus::Expired]);
-
-            $this->startConfirmedCandidaturesIfNonePending($payment);
-
-            return [
-                'mission' => $mission,
-                'face_id' => (int) $locked->face_id,
-                'candidature_id' => (int) $locked->id,
-                'amount' => $refundAmount,
-                'freed' => $freed,
-                'no_face_left' => ! $freed && ! $this->hasActiveSelectedFace($payment),
-            ];
-        });
+        $result = $this->releaseOrRefundPlace(
+            $candidature,
+            [CandidatureStatus::Accepted],
+            $reason,
+            fn (Mission $mission): string => "Mission : place non confirmée — {$mission->titre}",
+        );
 
         if ($result === null) {
             return false;
@@ -1231,6 +1159,182 @@ class MissionPaymentService
         if ($result['no_face_left']) {
             $this->notifyAllPlacesRefunded($mission);
         }
+
+        return true;
+    }
+
+    /**
+     * Libère ou rembourse la place d'une Face sélectionnée (mission cash payée) et passe sa candidature
+     * en `expired`. Cœur commun de l'expiration B3 et du retrait après changement de date.
+     *
+     * Idempotent : null sans effet si la candidature n'est plus dans un des statuts admis, ou si l'entry
+     * n'est plus `Locked` / déjà libérée. Ordre de verrous aligné sur markAsPaid : payment → entries →
+     * mission → candidature. `$guard` (optionnel) s'exécute dans la transaction, verrous posés et gardes
+     * passées, avant tout effet ; retourner false abandonne (null), lever une exception annule tout.
+     *
+     * @param  list<CandidatureStatus>  $allowedStatuses
+     * @param  \Closure(Mission): string  $walletLabel
+     * @param  (\Closure(Candidature, Mission): bool)|null  $guard
+     * @return array{mission: Mission, face_id: int, candidature_id: int, amount: int, freed: bool, no_face_left: bool}|null
+     */
+    private function releaseOrRefundPlace(
+        Candidature $candidature,
+        array $allowedStatuses,
+        string $reason,
+        \Closure $walletLabel,
+        ?\Closure $guard = null,
+    ): ?array {
+        /** @var MissionPaymentCandidature|null $entryRef */
+        $entryRef = MissionPaymentCandidature::query()
+            ->where('candidature_id', $candidature->id)
+            ->whereNotNull('mission_payment_id')
+            ->first();
+
+        if ($entryRef === null) {
+            return null;
+        }
+
+        return DB::transaction(function () use ($candidature, $reason, $entryRef, $allowedStatuses, $walletLabel, $guard): ?array {
+            $this->lockCashSelection((int) $entryRef->mission_payment_id);
+
+            /** @var MissionPayment|null $payment */
+            $payment = MissionPayment::query()->find($entryRef->mission_payment_id);
+            /** @var Mission|null $mission */
+            $mission = $payment !== null ? Mission::query()->lockForUpdate()->find($payment->mission_id) : null;
+            /** @var Candidature|null $locked */
+            $locked = Candidature::query()->lockForUpdate()->find($candidature->id);
+            /** @var MissionPaymentCandidature|null $entry */
+            $entry = MissionPaymentCandidature::query()->find($entryRef->id);
+
+            if ($payment === null || $mission === null || $locked === null || $entry === null
+                || $payment->status !== MissionPaymentStatus::Paid
+                || $mission->type_mission === MissionType::Ugc
+                // Avant toute action de présence : une absence déclarée suit sa propre règle
+                // (contestation 72 h puis remboursement de la part nette), jamais les deux.
+                // Lot B4 : un tournage commencé (pending_attendance_validation) laisse une échéance au plancher
+                // de 12 h dépasser son début ; la place suit alors le chemin du remboursement.
+                || ! in_array($mission->status, [MissionStatus::Closed, MissionStatus::PendingAttendanceValidation], true)
+                // getAttribute : la colonne est nullable en base (lignes historiques) malgré le PHPDoc.
+                || ! in_array($entry->getAttribute('attendance_status'), [null, AttendanceStatus::Pending], true)
+                || ! in_array($locked->status, $allowedStatuses, true)
+                || $entry->freed_at !== null
+                || $entry->escrow_status !== EscrowStatus::Locked) {
+                return null;
+            }
+
+            if ($guard !== null && $guard($locked, $mission) === false) {
+                return null;
+            }
+
+            $refundAmount = (int) $payment->budget_par_face;
+
+            // Lot B4 (D2) : tant qu'une remplaçante est possible (candidature non retenue éligible,
+            // jour du tournage pas commencé), la place est seulement libérée : l'argent reste en
+            // séquestre sur l'entry, le Producer choisit une remplaçante ou est remboursé au début
+            // du jour de tournage (missions:refund-freed-places). Sinon, remboursement immédiat (D1).
+            $freed = $this->canFreedPlaceBeReplaced($mission);
+
+            if ($freed) {
+                $entry->update(['freed_at' => now()]);
+            } else {
+                $this->refundToProducer(
+                    $entry,
+                    $mission,
+                    $reason,
+                    ['candidature_id' => $locked->id, 'refund_basis' => 'budget_par_face'],
+                    walletLabel: $walletLabel($mission),
+                    amountOverride: $refundAmount,
+                );
+
+                // refundToProducer sort sans rien faire si le Producteur est introuvable : on ne libère jamais
+                // la place sans avoir rendu l'argent (rollback, le sweep réessaiera et alertera).
+                if ($entry->fresh()?->escrow_status !== EscrowStatus::Refunded) {
+                    throw new \RuntimeException("Impossible de rembourser l'entry {$entry->id} (place non confirmée).");
+                }
+            }
+
+            $locked->update(['status' => CandidatureStatus::Expired]);
+
+            $this->startConfirmedCandidaturesIfNonePending($payment);
+
+            return [
+                'mission' => $mission,
+                'face_id' => (int) $locked->face_id,
+                'candidature_id' => (int) $locked->id,
+                'amount' => $refundAmount,
+                'freed' => $freed,
+                'no_face_left' => ! $freed && ! $this->hasActiveSelectedFace($payment),
+            ];
+        });
+    }
+
+    /**
+     * Retrait d'une Face après un changement de date de mission (réponse « se retirer » ou silence
+     * à l'échéance) : même mécanisme que l'expiration B3 (candidature `expired`, place libérée ou
+     * remboursée de `budget_par_face`, contrat d'image annulé), sans pénalité de note. Seules les
+     * candidatures `Confirmed` / `InProgress` sont concernées. Prévient le Producteur (pas la Face).
+     *
+     * @param  (\Closure(Candidature, Mission): bool)|null  $guard  voir releaseOrRefundPlace()
+     * @return bool true ssi la place a été libérée ou remboursée.
+     */
+    public function withdrawFaceAfterDateChange(Candidature $candidature, string $reason = 'date_change_withdrawn', ?\Closure $guard = null): bool
+    {
+        $result = $this->releaseOrRefundPlace(
+            $candidature,
+            [CandidatureStatus::Confirmed, CandidatureStatus::InProgress],
+            $reason,
+            fn (Mission $mission): string => "Mission : Face retirée après changement de date, {$mission->titre}",
+            $guard,
+        );
+
+        if ($result === null) {
+            return false;
+        }
+
+        /** @var Mission $mission */
+        $mission = $result['mission'];
+        /** @var Face|null $face */
+        $face = Face::query()->find($result['face_id']);
+        $faceName = trim((string) $face?->display_name) !== '' ? (string) $face?->display_name : 'Une Face';
+        $formattedAmount = \App\Support\Money::format($result['amount']);
+        $url = "/producer/missions/{$mission->uuid}?tab=candidatures";
+        $producerUserId = $this->getUserIdForProducer((int) $mission->producer_id);
+
+        if ($result['freed']) {
+            $refundLabel = $this->formatShootingDayStart($mission);
+            $message = "{$faceName} a quitté la mission « {$mission->titre} » après le changement de date : sa place est libérée. "
+                ."Choisissez une remplaçante parmi les candidatures non retenues avant le {$refundLabel}, "
+                ."sans frais supplémentaires ; sinon {$formattedAmount} seront crédités sur votre wallet.";
+            $ctaLabel = 'Choisir une remplaçante';
+        } else {
+            $message = "{$faceName} a quitté la mission « {$mission->titre} » après le changement de date : sa place est libérée et {$formattedAmount} ont été crédités sur votre wallet.";
+            $ctaLabel = 'Voir la mission';
+        }
+
+        $this->notifySafely(
+            userId: $producerUserId,
+            type: 'mission_date_change_withdrawn',
+            data: [
+                'message' => $message,
+                'mission_id' => $mission->id,
+                'candidature_id' => $result['candidature_id'],
+                'montant' => $result['amount'],
+                'url' => $url,
+                'reason' => $reason,
+            ],
+        );
+        $this->queueMailSafely(
+            $producerUserId,
+            fn () => new \App\Mail\DateChangeMail(
+                "{$faceName} se retire : remplacez cette Face ou récupérez le budget de la place",
+                'Une Face a quitté la mission',
+                [$message],
+                $ctaLabel,
+                rtrim((string) config('app.frontend_url'), '/').$url,
+            ),
+            $mission,
+            'DateChangeMail',
+        );
 
         return true;
     }

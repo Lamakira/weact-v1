@@ -219,6 +219,11 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
     Route::post('/candidatures/{candidature}/reconfirm', [CandidatureController::class, 'reconfirm'])
         ->middleware(['face', 'throttle:30,1']);
 
+    // Changement de date de mission : confirmer ou se retirer (Face concernée seulement)
+    Route::post('/candidatures/{candidature}/date-change/respond', [CandidatureController::class, 'respondDateChange'])
+        ->middleware(['face', 'throttle:30,1'])
+        ->name('face.candidatures.date-change.respond');
+
     // Candidature routes - cancel pending candidature (Face only)
     Route::post('/candidatures/{candidature}/cancel', [CandidatureController::class, 'cancel'])
         ->middleware(['face', 'throttle:30,1']);

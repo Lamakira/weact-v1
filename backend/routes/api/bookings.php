@@ -69,6 +69,19 @@ Route::prefix('v1')->middleware(['auth:sanctum', 'api.token'])->group(function (
         ->middleware('throttle:60,1')
         ->name('bookings.contest');
 
+    // Changement de date : proposition, réponse de l'autre partie, retrait par l'auteur
+    Route::post('/bookings/{booking}/date-change', [BookingController::class, 'proposeDateChange'])
+        ->middleware('throttle:60,1')
+        ->name('bookings.date-change.propose');
+
+    Route::post('/bookings/{booking}/date-change/respond', [BookingController::class, 'respondDateChange'])
+        ->middleware('throttle:60,1')
+        ->name('bookings.date-change.respond');
+
+    Route::delete('/bookings/{booking}/date-change', [BookingController::class, 'withdrawDateChange'])
+        ->middleware('throttle:60,1')
+        ->name('bookings.date-change.withdraw');
+
     Route::post('/bookings/{booking}/rate', [BookingRatingController::class, 'store'])
         ->middleware('throttle:60,1')
         ->name('bookings.rate');

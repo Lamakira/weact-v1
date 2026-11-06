@@ -15,6 +15,7 @@ use App\Events\UgcMissionDealAccepted;
 use App\Exceptions\SignatureCodeException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Face\ConfirmCandidatureRequest;
+use App\Http\Requests\Face\RespondDateChangeRequest;
 use App\Http\Requests\Face\StoreCandidatureRequest;
 use App\Http\Resources\CandidatureResource;
 use App\Http\Resources\FaceCandidatureResource;
@@ -25,9 +26,11 @@ use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\DateChange\MissionDateChangeService;
 use App\Services\ImageContract\ImageContractService;
 use App\Services\MissionEligibility;
 use App\Services\MissionPaymentService;
+use App\Support\DateChangePayload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -214,6 +217,27 @@ class CandidatureController extends Controller
             'data' => new CandidatureResource($candidature),
             'message' => 'Candidature envoyée avec succès',
         ], 201);
+    }
+
+    /**
+     * Réponse à un changement de date de mission : confirmer ou se retirer (sans pénalité).
+     * Autorisation : RespondDateChangeRequest::authorize() ; gardes métier : MissionDateChangeService (422).
+     */
+    public function respondDateChange(RespondDateChangeRequest $request, Candidature $candidature, MissionDateChangeService $dateChanges): JsonResponse
+    {
+        $decision = (string) $request->validated('decision');
+
+        $dateChanges->respond($candidature, $decision);
+
+        /** @var Mission $mission */
+        $mission = $candidature->mission()->firstOrFail();
+
+        return response()->json([
+            'data' => DateChangePayload::forFace($mission, $candidature, $request->user()),
+            'message' => $decision === 'confirm'
+                ? 'Votre participation à la nouvelle date est confirmée.'
+                : 'Vous avez quitté la mission, sans pénalité.',
+        ]);
     }
 
     /**

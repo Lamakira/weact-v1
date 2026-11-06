@@ -221,6 +221,16 @@ class Mission extends Model
     }
 
     /**
+     * Demandes de changement de date de la mission (toutes, quel que soit leur statut).
+     *
+     * @return HasMany<DateChangeRequest, $this>
+     */
+    public function dateChangeRequests(): HasMany
+    {
+        return $this->hasMany(DateChangeRequest::class);
+    }
+
+    /**
      * Get the payment record for this mission.
      */
     public function payment(): HasOne
