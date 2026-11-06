@@ -15,6 +15,7 @@ use App\Models\Candidature;
 use App\Models\Mission;
 use App\Services\FaceEntitlementService;
 use App\Services\MissionEligibility;
+use App\Support\DateChangePayload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -82,6 +83,10 @@ class MissionController extends Controller
             $candidature?->loadMissing('imageContract');
         }
         $candidature?->setRelation('mission', $mission);
+        // Changement de date : null sans ligne de réponse pour sa candidature.
+        $mission->setAttribute('date_change', $candidature !== null
+            ? DateChangePayload::forFace($mission, $candidature, $request->user())
+            : null);
 
         return response()->json([
             'data' => new MissionResource($mission),

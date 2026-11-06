@@ -15,6 +15,7 @@ use App\Console\Commands\ExpireUnpaidMissionSelectionsCommand;
 use App\Console\Commands\ExpireUnpaidUgcBookingsCommand;
 use App\Console\Commands\ExpireUnreconfirmedUgcCandidaturesCommand;
 use App\Console\Commands\FailStalePendingFaceSubscriptionsCommand;
+use App\Console\Commands\ProcessDateChangesCommand;
 use App\Console\Commands\ProcessUgcDeadlinesCommand;
 use App\Console\Commands\PrunePublicResponseCacheCommand;
 use App\Console\Commands\PurgeExpiredCacheCommand;
@@ -81,6 +82,9 @@ app(Schedule::class)->command(RefundFreedPlacesCommand::class)->hourly()->withou
 // défense supplémentaire (D-4.5.d).
 app(Schedule::class)->command(ProcessUgcDeadlinesCommand::class)->everyFifteenMinutes()->withoutOverlapping();
 app(Schedule::class)->command(RemindBookingPaymentCommand::class)->hourly()->withoutOverlapping();
+// Changements de date en attente (missions payées, bookings) : relance à mi-parcours puis expiration.
+// Idempotente (reminder_sent_at, statut sous verrou).
+app(Schedule::class)->command(ProcessDateChangesCommand::class)->everyFifteenMinutes()->withoutOverlapping()->onOneServer();
 app(Schedule::class)->command(ReconcileWalletCommand::class)->daily();
 app(Schedule::class)->command(AutoReleaseMissionFundsCommand::class)->daily();
 app(Schedule::class)->command(AutoValidateMissionAttendanceCommand::class)->hourly();

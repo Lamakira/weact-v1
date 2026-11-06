@@ -89,6 +89,18 @@ final class PushAllowlist
         'mission_candidatures_response_reminder' => self::REMINDER,
         'mission_confirmation_expired' => self::MISSION,
 
+        // Changement de date (mission payée, booking)
+        'mission_date_change_requested' => self::MISSION,
+        'mission_date_changed' => self::MISSION,
+        'mission_date_change_withdrawn' => self::MISSION,
+        'mission_date_change_summary' => self::MISSION,
+        'mission_date_change_expired' => self::MISSION,
+        'booking_date_change_proposed' => self::BOOKING,
+        'booking_date_change_accepted' => self::BOOKING,
+        'booking_date_change_kept' => self::BOOKING,
+        'booking_date_change_withdrawn' => self::BOOKING,
+        'date_change_reminder' => self::REMINDER,
+
         // UGC tunnel
         'ugc_deal_accepted' => self::UGC,
         'ugc_shipment_confirmed' => self::UGC,

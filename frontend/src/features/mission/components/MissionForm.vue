@@ -3,7 +3,7 @@ import { formatMoney } from '@/utils/money'
 import { ref, computed, watch } from 'vue'
 import { useForm, useField } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
-import { missionSchema } from '../schemas/mission'
+import { createMissionSchema } from '../schemas/mission'
 import { useMissionCreate } from '../composables/useMissionCreate'
 import {
   MISSION_DURATION_PRESETS,
@@ -135,8 +135,10 @@ const customDureeJours = ref<number>(initialDuree.customDays ?? 6)
 const customDureeError = ref<string>('')
 const isLegacyDuree = ref(initialDuree.isLegacy === true)
 
+// Édition : la clôture initiale reste valable même passée (on peut déplacer le tournage après la clôture).
+const initialDeadline = props.mode === 'edit' ? (props.initialValues?.date_limite_candidature ?? null) : null
 const { handleSubmit, setFieldError } = useForm({
-  validationSchema: toTypedSchema(missionSchema),
+  validationSchema: toTypedSchema(createMissionSchema({ unchangedDeadline: initialDeadline })),
   initialValues: {
     titre: props.initialValues?.titre ?? '',
     description: props.initialValues?.description ?? '',
@@ -175,13 +177,20 @@ const { value: date_limite_candidature, errorMessage: dateLimiteError } =
 const { value: date_tournage, errorMessage: dateTournageError } = useField<string>('date_tournage')
 
 // Bornes alignées sur les règles backend : clôture `after:today`, tournage `after:date_limite_candidature`.
-const dateLimiteMin = tomorrowIso()
+// Édition : la valeur initiale (même passée) reste sélectionnable ; une autre valeur garde `after:today`.
+const dateLimiteMin = (() => {
+  const tomorrow = tomorrowIso()
+  const initial = initialDeadline ? initialDeadline.slice(0, 10) : null
+  return initial !== null && initial < tomorrow ? initial : tomorrow
+})()
 const dateLimiteMax = computed(() =>
   date_tournage.value && !isUgc.value ? addDaysIso(date_tournage.value, -1) : undefined,
 )
-const dateTournageMin = computed(() =>
-  addDaysIso(date_limite_candidature.value || dateLimiteMin, 1),
-)
+const dateTournageMin = computed(() => {
+  const afterDeadline = addDaysIso(date_limite_candidature.value || dateLimiteMin, 1)
+  // Édition avec clôture passée conservée : le tournage ne peut pas être aujourd'hui ni passé.
+  return props.mode === 'edit' ? [afterDeadline, tomorrowIso()].sort().pop()! : afterDeadline
+})
 
 // UGC dotation fields (rendus uniquement quand type_mission === 'ugc')
 const { value: type_compensation, errorMessage: typeCompensationError } =

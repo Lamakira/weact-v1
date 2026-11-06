@@ -5,6 +5,7 @@
 import type { Deliverable, ProductPhoto, Shipment } from '@/components/ugc'
 import type { MissionRating } from '@/features/candidature/types'
 import type { ImageContract, ImageSignature, ImageTerms, MissionImageTerms } from '@/features/imageContract/types'
+import type { MissionDateChange } from '@/features/dateChange/types'
 
 // Mission status enum
 export const MissionStatus = {
@@ -216,6 +217,8 @@ export interface Mission {
   // Ajout de places (détail Producer, mission UGC publiée ou clôturée non remboursée)
   can_add_places?: boolean
   freed_places_refund_at?: string | null
+  // Changement de date : forme Producteur (détail) ou forme Face (sa ligne de réponse) ; null/absent sinon
+  date_change?: MissionDateChange | null
   // Lot C1 : résumé du cycle de vie (détail Producer uniquement)
   summary?: MissionSummary
   candidatures_count?: number

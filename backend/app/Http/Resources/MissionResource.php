@@ -88,6 +88,12 @@ class MissionResource extends JsonResource
                 ! $requesterIsFace && array_key_exists('can_add_places', $this->resource->getAttributes()),
                 fn () => (bool) $this->resource->getAttribute('can_add_places'),
             ),
+            // Changement de date : détail Producteur (posé par loadDetailAttributes) ou page mission Face
+            // (posé par Face\MissionController::show, null sans demande). Omis ailleurs.
+            'date_change' => $this->when(
+                array_key_exists('date_change', $this->resource->getAttributes()),
+                fn () => $this->resource->getAttribute('date_change'),
+            ),
             'freed_places_refund_at' => $this->when(
                 ! $requesterIsFace && array_key_exists('freed_places_count', $this->resource->getAttributes()),
                 fn () => (int) $this->resource->getAttribute('freed_places_count') > 0

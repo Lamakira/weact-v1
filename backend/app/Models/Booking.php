@@ -413,6 +413,16 @@ class Booking extends Model
     }
 
     /**
+     * Demandes de changement de date du booking (toutes, quel que soit leur statut).
+     *
+     * @return HasMany<DateChangeRequest, $this>
+     */
+    public function dateChangeRequests(): HasMany
+    {
+        return $this->hasMany(DateChangeRequest::class);
+    }
+
+    /**
      * Get the escrow transaction for this booking.
      */
     public function escrowTransaction(): HasOne

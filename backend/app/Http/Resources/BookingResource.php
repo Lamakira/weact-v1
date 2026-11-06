@@ -94,6 +94,11 @@ class BookingResource extends JsonResource
             // Autorisation d'image : null si la fonctionnalité est désactivée, si le booking n'en
             // porte pas, ou sur les listes (relation non chargée : pas de N+1).
             'image_contract' => $this->imageContractPayload($user),
+            // Changement de date : détail et réponses des actions seulement (posé par BookingController).
+            'date_change' => $this->when(
+                array_key_exists('date_change', $this->resource->getAttributes()),
+                fn () => $this->resource->getAttribute('date_change'),
+            ),
             'face' => new UserResource($this->whenLoaded('face')),
             'producer' => new UserResource($this->whenLoaded('producer')),
             'can_accept' => $user && $user->can('accept', $this->resource),

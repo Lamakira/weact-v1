@@ -19,6 +19,7 @@ import {
   Star,
   Package,
   Gift,
+  CalendarDays,
 } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import PushMomentCard from '@/features/notification/components/PushMomentCard.vue'
@@ -44,6 +45,7 @@ import {
   CANCELLABLE_BY_FACE_STATUSES,
   CANCELLABLE_BY_PRODUCER_STATUSES,
   getCancellationReasonLabel,
+  type Booking,
   type BookingCancellationPayload,
   type BookingStatusType,
   type BookingRating,
@@ -65,6 +67,10 @@ import {
   type ConfirmShipmentPayload,
 } from '@/components/ugc'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
+import DateChangeDialog from '@/features/dateChange/components/DateChangeDialog.vue'
+import BookingDateChangeBlock from '@/features/dateChange/components/BookingDateChangeBlock.vue'
+import { useDateChangeActions } from '@/features/dateChange/composables/useDateChangeActions'
+import type { BookingDateDecision } from '@/features/dateChange/types'
 import ImageContractSignDialog from '@/features/imageContract/components/ImageContractSignDialog.vue'
 import ImageContractCard from '@/features/imageContract/components/ImageContractCard.vue'
 import type { ContractSummary, ImageSignature, SignatureSubmitOutcome } from '@/features/imageContract/types'
@@ -802,6 +808,48 @@ async function handleCancel(payload: BookingCancellationPayload): Promise<void> 
   }
 }
 
+// Changement de date (booking cash accepté ou payé, les deux parties).
+const {
+  isSubmitting: isSubmittingDateChange,
+  error: dateChangeError,
+  respondBooking: respondDateChange,
+  withdrawBooking: withdrawDateChange,
+} = useDateChangeActions()
+const showDateChangeDialog = ref(false)
+const canProposeDate = computed(() => booking.value?.date_change?.can_propose === true)
+const otherPartyName = computed(() => (isFace.value ? producerName.value : faceName.value))
+const canProducerCancelFromDateChange = computed(() => !isFace.value && canCancelBooking.value)
+
+function handleDateProposed(updated: Booking, message?: string): void {
+  showDateChangeDialog.value = false
+  booking.value = updated
+  toast.success(message || 'Votre proposition est envoyée.')
+}
+
+async function handleDateChangeRespond(decision: BookingDateDecision): Promise<void> {
+  if (!booking.value) return
+  const result = await respondDateChange(booking.value.id, decision)
+  if (result) {
+    booking.value = result.data
+    toast.success(result.message || (decision === 'accept' ? 'Nouvelle date acceptée.' : 'Vous gardez la date actuelle.'))
+  } else {
+    toast.error(dateChangeError.value || 'Impossible d’enregistrer votre réponse.')
+    await refetchBooking()
+  }
+}
+
+async function handleDateChangeWithdraw(): Promise<void> {
+  if (!booking.value) return
+  const result = await withdrawDateChange(booking.value.id)
+  if (result) {
+    booking.value = result.data
+    toast.success(result.message || 'Votre proposition est retirée.')
+  } else {
+    toast.error(dateChangeError.value || 'Impossible de retirer la proposition.')
+    await refetchBooking()
+  }
+}
+
 async function handleReportNoShow(): Promise<void> {
   if (!booking.value) return
   clearError()
@@ -1106,12 +1154,29 @@ onUnmounted(() => {
             </div>
           </div>
           <div
-            v-if="primaryAction"
-            class="hidden sm:flex sm:items-center sm:gap-2"
-            :class="{ 'booking-primary-action--chat': primaryAction.key === 'chat' }"
-            data-testid="booking-primary-action"
+            v-if="primaryAction || canProposeDate"
+            class="flex flex-wrap items-center gap-2 sm:justify-end"
+            data-testid="booking-head-actions"
           >
-            <BookingPrimaryAction :action="primaryAction" @click="handlePrimaryAction" />
+            <!-- Changement de date : visible sur ordinateur et téléphone -->
+            <button
+              v-if="canProposeDate"
+              type="button"
+              class="booking-press inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+              data-testid="booking-propose-date-btn"
+              @click="showDateChangeDialog = true"
+            >
+              <CalendarDays class="h-4 w-4" aria-hidden="true" />
+              Proposer une autre date
+            </button>
+            <div
+              v-if="primaryAction"
+              class="hidden sm:flex sm:items-center sm:gap-2"
+              :class="{ 'booking-primary-action--chat': primaryAction.key === 'chat' }"
+              data-testid="booking-primary-action"
+            >
+              <BookingPrimaryAction :action="primaryAction" @click="handlePrimaryAction" />
+            </div>
           </div>
         </header>
 
@@ -1149,6 +1214,22 @@ onUnmounted(() => {
           :deliverables="booking.deliverables ?? []"
           @confirm-receipt="openReceiptModal"
           @upload="handleUploadDeliverable"
+        />
+
+        <!-- Changement de date : en tête, visible sans défiler sur téléphone -->
+        <BookingDateChangeBlock
+          v-if="booking.date_change?.latest"
+          class="mb-4"
+          :latest="booking.date_change.latest"
+          :is-face="isFace"
+          :other-party-name="otherPartyName"
+          :now="nowTimestamp"
+          :busy="isSubmittingDateChange"
+          :can-cancel="canProducerCancelFromDateChange"
+          :is-paid="booking.status === BookingStatus.PAID"
+          @respond="handleDateChangeRespond"
+          @withdraw="handleDateChangeWithdraw"
+          @cancel-booking="showCancellationDialog = true"
         />
 
         <div class="grid grid-cols-1 items-start gap-4 @3xl/info:grid-cols-[minmax(0,1fr)_300px]">
@@ -1590,6 +1671,20 @@ onUnmounted(() => {
       kind="booking"
       :owner-id="booking.id"
       :amount="booking.montant_total_producteur ?? 0"
+    />
+
+    <DateChangeDialog
+      v-if="booking && booking.date_change"
+      :is-open="showDateChangeDialog"
+      kind="booking"
+      :target-id="booking.id"
+      :current-date="booking.date_debut"
+      :used="booking.date_change.used"
+      :max="booking.date_change.max"
+      :max-date="booking.date_change.max_date"
+      :other-party-name="otherPartyName"
+      @booking-proposed="handleDateProposed"
+      @cancel="showDateChangeDialog = false"
     />
 
     <CancellationDialog

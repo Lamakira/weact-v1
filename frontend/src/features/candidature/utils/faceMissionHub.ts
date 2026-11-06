@@ -5,6 +5,7 @@
  */
 import { formatMoney } from '@/utils/money'
 import type { Mission, MissionCandidature } from '@/features/mission/types'
+import { isFaceDateChange } from '@/features/dateChange/types'
 import { formatConfirmationDeadline } from './formatConfirmationDeadline'
 
 export const FACE_STANDARD_STEPS = ['Candidature', 'Sélection', 'Confirmation', 'Tournage', 'Payée'] as const
@@ -111,6 +112,19 @@ export function deriveFaceHubState(
   }
 
   if (status === 'expired') {
+    // Retrait après un changement de date (volontaire ou faute de réponse) : sans pénalité, pas « non confirmée à temps ».
+    const dateChange = mission.date_change
+    if (isFaceDateChange(dateChange) && (dateChange.status === 'withdrawn' || dateChange.status === 'expired')) {
+      return {
+        steps, currentStep: 2, stopped: true, chatOpen,
+        pill: { tone: 'mute', label: 'Retirée' },
+        action: browseAction,
+        next: closed(
+          'Vous avez quitté cette mission',
+          'Le tournage a changé de date et vous ne pouvez pas y participer. Aucune pénalité n’a été appliquée. D’autres missions vous attendent.',
+        ),
+      }
+    }
     const label = candidature.display_status_label || 'Expirée'
     // « Sans réponse du producteur » = jamais retenue ; « Expirée » = retenue mais non confirmée à temps.
     const neverSelected = label === 'Sans réponse du producteur'

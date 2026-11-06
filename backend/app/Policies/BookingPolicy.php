@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace App\Policies;
 
 use App\Enums\BookingStatus;
+use App\Enums\DateChangeStatus;
 use App\Models\Booking;
 use App\Models\BookingRating;
+use App\Models\DateChangeRequest;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\DateChange\BookingDateChangeService;
 
 class BookingPolicy
 {
@@ -277,5 +280,51 @@ class BookingPolicy
         ];
 
         return $isParty && in_array($booking->status, $chatActiveStatuses, true);
+    }
+
+    /**
+     * Proposer un nouveau jour de tournage : l'une des deux parties, booking cash accepté ou payé
+     * et daté (UGC et demandes en attente hors périmètre). Préavis et quota : 422 du service.
+     */
+    public function proposeDateChange(User $user, Booking $booking): bool
+    {
+        return $this->isParty($user, $booking) && BookingDateChangeService::isEligible($booking);
+    }
+
+    /**
+     * Répondre à une proposition de date : l'autre partie que l'auteur, tant qu'une proposition est en attente.
+     */
+    public function respondDateChange(User $user, Booking $booking): bool
+    {
+        $pending = $this->pendingDateChange($booking);
+
+        return $pending !== null
+            && $this->isParty($user, $booking)
+            && $pending->requested_by_user_id !== $user->id;
+    }
+
+    /**
+     * Retirer sa proposition de date : l'auteur seul, tant qu'elle est en attente.
+     */
+    public function withdrawDateChange(User $user, Booking $booking): bool
+    {
+        $pending = $this->pendingDateChange($booking);
+
+        return $pending !== null
+            && $this->isParty($user, $booking)
+            && $pending->requested_by_user_id === $user->id;
+    }
+
+    private function isParty(User $user, Booking $booking): bool
+    {
+        return $user->id === $booking->producer_id || $user->id === $booking->face_id;
+    }
+
+    private function pendingDateChange(Booking $booking): ?DateChangeRequest
+    {
+        return $booking->dateChangeRequests()
+            ->where('status', DateChangeStatus::Pending->value)
+            ->latest('id')
+            ->first();
     }
 }

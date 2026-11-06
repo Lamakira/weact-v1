@@ -49,6 +49,9 @@ import MissionNextBlock from '@/features/mission/components/MissionNextBlock.vue
 import MissionPaymentCard from '@/features/mission/components/MissionPaymentCard.vue'
 import MissionPaymentBanners from '@/features/mission/components/MissionPaymentBanners.vue'
 import MissionDetailTabs, { type MissionTab } from '@/features/mission/components/MissionDetailTabs.vue'
+import DateChangeDialog from '@/features/dateChange/components/DateChangeDialog.vue'
+import MissionDateChangeResponses from '@/features/dateChange/components/MissionDateChangeResponses.vue'
+import { isProducerDateChange, type ProducerMissionDateChange } from '@/features/dateChange/types'
 import {
   buildNextBlock,
   buildPaymentCard,
@@ -294,6 +297,33 @@ const isReopenDialogOpen = ref(false)
 const isCompleteDialogOpen = ref(false)
 
 // ---------------------------------------------------------------------------
+// Changement de date (mission payée)
+// ---------------------------------------------------------------------------
+const dateChange = computed<ProducerMissionDateChange | null>(() => {
+  const value = mission.value?.date_change
+  return isProducerDateChange(value) ? value : null
+})
+const canChangeDate = computed(() => dateChange.value?.can_change === true)
+const isDateChangeOpen = ref(false)
+const dateChangeResponses = computed(() => {
+  const latest = dateChange.value?.latest
+  return latest && latest.responses.length > 0 ? latest : null
+})
+
+function handleDateChanged(updated: Mission, message?: string): void {
+  isDateChangeOpen.value = false
+  toast.success(message || 'La date du tournage a été déplacée.')
+  // La réponse porte la mission rafraîchie avec les attributs du détail.
+  mission.value = updated
+}
+
+// « Remplacer » : la place libérée se propose depuis l'onglet Candidatures, comme l'action principale.
+function replaceFreedPlace(): void {
+  setTab('candidatures')
+  focusTabs()
+}
+
+// ---------------------------------------------------------------------------
 // Ajouter des places (mission UGC)
 // ---------------------------------------------------------------------------
 const canAddPlaces = computed(() => mission.value?.can_add_places === true)
@@ -487,7 +517,20 @@ function goToEdit(): void {
           </div>
         </div>
 
-        <div class="flex items-center gap-2 sm:justify-end" data-testid="mission-head-actions">
+        <div class="flex flex-wrap items-center gap-2 sm:justify-end" data-testid="mission-head-actions">
+          <!-- Changement de date : visible sur ordinateur et téléphone -->
+          <Button
+            v-if="canChangeDate"
+            type="button"
+            variant="outline"
+            class="press h-10"
+            data-testid="mission-change-date-btn"
+            @click="isDateChangeOpen = true"
+          >
+            <CalendarDays aria-hidden="true" />
+            Changer la date
+          </Button>
+
           <!-- Secondaire (étape paiement) : changer de sélection -->
           <Button
             v-if="mission.status === 'pending_payment' && !isUgc"
@@ -635,6 +678,15 @@ function goToEdit(): void {
 
       <!-- Étapes -->
       <MissionStepBar v-if="summary && currentStep >= 0" :steps="steps" :current="currentStep" :whens="stepWhens" />
+
+      <!-- Réponses des Faces au changement de date -->
+      <MissionDateChangeResponses
+        v-if="dateChangeResponses"
+        :latest="dateChangeResponses"
+        :can-replace="mission.can_replace_freed_place === true"
+        :now="now"
+        @replace="replaceFreedPlace"
+      />
 
       <div class="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <!-- Carte principale : onglets + panneaux -->
@@ -829,6 +881,19 @@ function goToEdit(): void {
       :is-closed="mission.status === 'closed'"
       @cancel="closeAddPlaces"
       @added="handlePlacesAdded"
+    />
+    <DateChangeDialog
+      v-if="mission && dateChange"
+      :is-open="isDateChangeOpen"
+      kind="mission"
+      :target-id="mission.id"
+      :current-date="mission.date_tournage"
+      :used="dateChange.used"
+      :max="dateChange.max"
+      :max-date="dateChange.max_date"
+      :faces-to-confirm="dateChange.faces_to_confirm"
+      @mission-changed="handleDateChanged"
+      @cancel="isDateChangeOpen = false"
     />
     <CompleteMissionDialog
       :is-open="isCompleteDialogOpen"
