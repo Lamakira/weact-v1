@@ -20,6 +20,10 @@ import {
   Coins,
   Lock,
   Database,
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  Star,
 } from 'lucide-vue-next'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
 import { usePhotoAlbum } from '@/features/face/composables/usePhotoAlbum'
@@ -372,7 +376,13 @@ const activeSection = computed(() => activeSectionByFamily.value[activeFamily.va
 // click on the stacked (mobile) layout, where the panel sits far below the sidebar.
 const panelRef = ref<HTMLElement | null>(null)
 
+// Section mobile « photo » : n'existe que dans la famille Profil, sans figurer dans FAMILIES
+// (la nav bureau reste inchangée). Sur md+, ?section=photo affiche le panneau « infos ».
+const PHOTO_SECTION_ID = 'photo'
+const photoOpen = ref(false)
+
 function sectionExists(familyId: FamilyId, sectionId: string): boolean {
+  if (familyId === 'profil' && sectionId === PHOTO_SECTION_ID) return true
   return FAMILIES.find((f) => f.id === familyId)?.sections.some((s) => s.id === sectionId) ?? false
 }
 function isActiveSection(familyId: FamilyId, sectionId: string): boolean {
@@ -401,7 +411,13 @@ function applyRouteToState(): void {
     activeFamily.value = tab as FamilyId
   }
   const section = route.query.section
-  if (typeof section === 'string' && sectionExists(activeFamily.value, section)) {
+  photoOpen.value = section === PHOTO_SECTION_ID && activeFamily.value === 'profil'
+  if (photoOpen.value) activeSectionByFamily.value.profil = 'infos'
+  if (
+    typeof section === 'string' &&
+    section !== PHOTO_SECTION_ID &&
+    sectionExists(activeFamily.value, section)
+  ) {
     activeSectionByFamily.value[activeFamily.value] = section
   }
 }
@@ -413,6 +429,14 @@ function syncUrlFromState(): void {
 }
 function navigateTab(familyId: FamilyId, sectionId?: string): void {
   activeFamily.value = familyId
+  if (sectionId === PHOTO_SECTION_ID && familyId === 'profil') {
+    photoOpen.value = true
+    activeSectionByFamily.value.profil = 'infos'
+    if (route.query.tab === 'profil' && route.query.section === PHOTO_SECTION_ID) return
+    void router.push({ query: { ...route.query, tab: 'profil', section: PHOTO_SECTION_ID } })
+    return
+  }
+  photoOpen.value = false
   if (sectionId) activeSectionByFamily.value[familyId] = sectionId
   syncUrlFromState()
 }
@@ -424,6 +448,13 @@ function selectSection(id: string): void {
 }
 
 watch(() => [route.query.tab, route.query.section], applyRouteToState, { immediate: true })
+
+// Téléphone (< md) : liste de sections OU détail d'une section. Un seul calcul d'état,
+// le reste est piloté en CSS (md:hidden / hidden md:block), sans détection JS de largeur.
+const isSectionOpen = computed(() => {
+  const section = route.query.section
+  return typeof section === 'string' && sectionExists(activeFamily.value, section)
+})
 
 // Completion criteria → (family, section). Drives both the missing-item navigation
 // and the amber "à compléter" dot on the section nav. `profile_photo` lives in the
@@ -483,6 +514,140 @@ const summaryAge = computed<number | null>(() => {
 const tarifDisplay = computed(() => {
   const t = tarifsInfo.value?.tarif_journalier
   return typeof t === 'number' ? formatMoney(t) : '—'
+})
+
+// -------------------------------------------------------------
+// Liste mobile (< md) : aperçus calculés depuis les refs déjà chargées
+// -------------------------------------------------------------
+interface MobileRow {
+  familyId: FamilyId
+  sectionId: string
+  label: string
+  icon: Component
+}
+const PHOTO_ROW: MobileRow = {
+  familyId: 'profil',
+  sectionId: PHOTO_SECTION_ID,
+  label: 'Photo de mise en avant',
+  icon: Camera,
+}
+// Ordre plat de navigation : photo, puis FAMILIES dans l'ordre.
+const FLAT_SECTIONS: MobileRow[] = [
+  PHOTO_ROW,
+  ...FAMILIES.flatMap((f) =>
+    f.sections.map((s) => ({ familyId: f.id, sectionId: s.id, label: s.label, icon: s.icon })),
+  ),
+]
+
+const DASH = '—'
+function countLabel(n: number, one: string, many: string, none?: string): string {
+  if (n === 0 && none) return none
+  return `${n} ${n > 1 ? many : one}`
+}
+function maskEmail(email: string | null | undefined): string {
+  if (!email || !email.includes('@')) return DASH
+  const [local = '', domain = ''] = email.split('@')
+  return `${local.charAt(0)}•••@${domain}`
+}
+function fullName(): string {
+  return [profile.value?.prenom, profile.value?.nom].filter(Boolean).join(' ')
+}
+function sectionPreview(sectionId: string): string {
+  switch (sectionId) {
+    case PHOTO_SECTION_ID:
+      return profile.value?.profile_photo_url ? 'Ajoutée' : 'À ajouter'
+    case 'infos':
+      return fullName() || DASH
+    case 'identite': {
+      const parts = [
+        personalInfo.value?.nationalite,
+        summaryAge.value !== null ? `${summaryAge.value} ans` : null,
+      ].filter(Boolean)
+      return parts.length ? parts.join(' · ') : DASH
+    }
+    case 'physique': {
+      const taille = physicalCharacteristicsInfo.value?.taille
+      return taille ? `${taille} cm` : DASH
+    }
+    case 'langues': {
+      const langues = languesInfo.value?.langues
+      return langues && langues.length ? langues.join(', ') : DASH
+    }
+    case 'bio':
+      return bioLocationInfo.value?.ville || DASH
+    case 'album':
+      return countLabel(albumPhotos.value.length, 'photo', 'photos')
+    case 'video-pres':
+      return videoInfo.value?.presentation_video_url ? 'Ajoutée' : 'Aucune'
+    case 'video-acting':
+      return countLabel(actingVideos.value.length, 'vidéo', 'vidéos', 'Aucune')
+    case 'video-ugc':
+      return countLabel(ugcVideos.value.length, 'vidéo', 'vidéos', 'Aucune')
+    case 'categorie': {
+      const cats = (categoryNicheInfo.value?.categories ?? []).map((c) => c.label).join(', ')
+      const niches = (categoryNicheInfo.value?.niches ?? []).map((n) => n.label).join(', ')
+      if (!cats) return DASH
+      return niches ? `${cats} · ${niches}` : cats
+    }
+    case 'experiences':
+      return countLabel(experiences.value.length, 'expérience', 'expériences', 'Aucune')
+    case 'tarif':
+      return tarifDisplay.value === DASH ? DASH : `${tarifDisplay.value} / jour`
+    case 'securite':
+      return maskEmail(authStore.user?.email)
+    case 'donnees':
+      return 'Export et suppression'
+    default:
+      return DASH
+  }
+}
+function isRowIncomplete(row: MobileRow): boolean {
+  if (row.sectionId === PHOTO_SECTION_ID) {
+    return (completionMissingItems.value ?? []).some((i) => i.key === 'profile_photo')
+  }
+  return isSectionIncomplete(row.familyId, row.sectionId)
+}
+const mobileGroups = computed(() =>
+  FAMILIES.map((f) => ({
+    id: f.id,
+    label: f.label,
+    rows: FLAT_SECTIONS.filter((r) => r.familyId === f.id).map((r) => ({
+      ...r,
+      preview: sectionPreview(r.sectionId),
+      incomplete: isRowIncomplete(r),
+    })),
+  })),
+)
+
+const mobileDisplayName = computed(() => fullName() || profile.value?.username || '')
+const mobileInitials = computed(() => {
+  const initials = [profile.value?.prenom, profile.value?.nom]
+    .map((p) => p?.trim().charAt(0).toUpperCase() ?? '')
+    .join('')
+  return initials || '?'
+})
+const mobileCompletionTodo = computed(() => (completionMissingItems.value ?? []).length)
+const mobileCompletionPct = computed(() =>
+  Math.max(0, Math.min(100, completionPercentage.value ?? 0)),
+)
+
+function openMobileRow(row: MobileRow): void {
+  navigateTab(row.familyId, row.sectionId)
+  window.scrollTo({ top: 0 })
+}
+function closeMobileSection(): void {
+  const { tab: _tab, section: _section, ...rest } = route.query
+  void router.push({ query: rest })
+  window.scrollTo({ top: 0 })
+}
+const nextMobileSection = computed<MobileRow | null>(() => {
+  const idx = photoOpen.value
+    ? 0
+    : FLAT_SECTIONS.findIndex(
+        (r) => r.familyId === activeFamily.value && r.sectionId === activeSection.value,
+      )
+  if (idx < 0) return null
+  return FLAT_SECTIONS[idx + 1] ?? null
 })
 
 // Fetch profile, album, videos, bio/location, physical characteristics, category/niche, experiences, tarifs, availability, and completion on mount
@@ -796,6 +961,12 @@ async function handleAvailabilityToggle(): Promise<void> {
  */
 async function handleCompletionItemClick(itemKey: string): Promise<void> {
   if (itemKey === 'profile_photo') {
+    // Téléphone : la photo a sa propre section ; bureau : la carte de la colonne gauche clignote.
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      navigateTab('profil', PHOTO_SECTION_ID)
+      window.scrollTo({ top: 0 })
+      return
+    }
     flashPhotoCard()
     return
   }
@@ -825,10 +996,112 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
       <Loader2 class="h-8 w-8 animate-spin text-primary" />
     </div>
 
+    <template v-else>
+    <!-- Téléphone (< md) : écran liste -->
+    <div v-if="!isSectionOpen" class="md:hidden space-y-5" data-testid="profile-mobile-list">
+      <!-- En-tête identité -->
+      <div class="flex items-center gap-3" data-testid="mobile-identity">
+        <img
+          v-if="profile?.profile_photo_url"
+          :src="profile.profile_photo_url"
+          alt=""
+          class="h-12 w-12 flex-shrink-0 rounded-full object-cover"
+        />
+        <div
+          v-else
+          class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-teal-100 text-base font-semibold text-teal-800"
+        >
+          {{ mobileInitials }}
+        </div>
+        <div class="min-w-0">
+          <p class="truncate text-base font-semibold text-slate-900">{{ mobileDisplayName }}</p>
+          <p v-if="profile?.username" class="truncate text-sm text-slate-500">@{{ profile.username }}</p>
+          <p
+            v-if="profile?.average_rating && profile.ratings_count > 0"
+            class="mt-0.5 flex items-center gap-1 text-xs text-slate-500"
+          >
+            <Star class="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+            <span class="font-medium text-slate-700">{{ profile.average_rating }}</span>
+            <span>({{ profile.ratings_count }} avis)</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Complétion compacte -->
+      <div data-testid="mobile-completion">
+        <div class="flex items-center justify-between text-sm">
+          <span class="font-medium text-slate-900">Profil complété à {{ mobileCompletionPct }} %</span>
+          <span v-if="mobileCompletionTodo > 0" class="text-xs text-slate-500">
+            {{ mobileCompletionTodo }} à faire
+          </span>
+        </div>
+        <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+          <div class="h-full rounded-full bg-teal-600" :style="{ width: `${mobileCompletionPct}%` }" />
+        </div>
+      </div>
+
+      <AvailabilityToggle
+        :is-available="availabilityInfo?.is_available ?? true"
+        :is-loading="isAvailabilityLoading"
+        :is-saving="isAvailabilitySaving"
+        :error="availabilityError"
+        @toggle="handleAvailabilityToggle"
+      />
+
+      <!-- Un groupe par famille -->
+      <div v-for="g in mobileGroups" :key="g.id" :data-testid="`mobile-group-${g.id}`">
+        <p class="mb-2 px-1 text-xs text-slate-500">{{ g.label }}</p>
+        <div class="overflow-hidden rounded-2xl border border-gray-100 bg-white">
+          <button
+            v-for="(r, i) in g.rows"
+            :key="r.sectionId"
+            type="button"
+            :data-testid="`mobile-row-${r.sectionId}`"
+            class="flex min-h-[56px] w-full items-center gap-3 px-4 py-2 text-left"
+            :class="i > 0 ? 'border-t border-gray-100' : ''"
+            @click="openMobileRow(r)"
+          >
+            <component :is="r.icon" class="h-5 w-5 flex-shrink-0 text-teal-600" />
+            <span class="min-w-0 flex-1">
+              <span class="block text-sm font-medium text-slate-900">{{ r.label }}</span>
+              <span
+                v-if="r.incomplete"
+                class="flex items-center gap-1.5 text-xs text-amber-700"
+                :data-testid="`mobile-incomplete-${r.sectionId}`"
+              >
+                <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-600" />
+                À compléter
+              </span>
+              <span v-else class="block truncate text-xs text-slate-500">{{ r.preview }}</span>
+            </span>
+            <ChevronRight class="h-4 w-4 flex-shrink-0 text-slate-400" />
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Téléphone (< md) : barre retour du détail -->
+    <div v-if="isSectionOpen" class="md:hidden mb-4">
+      <button
+        type="button"
+        data-testid="mobile-back"
+        class="inline-flex items-center gap-1 py-2 text-sm font-medium text-teal-600"
+        @click="closeMobileSection"
+      >
+        <ChevronLeft class="h-4 w-4" />
+        Mon profil
+      </button>
+    </div>
+
     <!-- Profile content - Two column layout on desktop -->
-    <div v-else class="flex flex-col lg:flex-row gap-6">
-      <!-- Left Sidebar (sticky on desktop) -->
-      <div class="lg:w-80 flex-shrink-0">
+    <div
+      :class="[
+        'flex-col lg:flex-row gap-6',
+        isSectionOpen ? 'flex' : 'hidden md:flex',
+      ]"
+    >
+      <!-- Left Sidebar (sticky on desktop) ; téléphone : seulement la carte photo, en détail « photo » -->
+      <div :class="['lg:w-80 flex-shrink-0', photoOpen ? '' : 'hidden md:block']">
         <div class="lg:sticky lg:top-6 space-y-6">
           <!-- Profile photo card -->
           <div
@@ -848,7 +1121,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
           </div>
 
           <!-- Profile completion card (à conserver intacte) -->
-          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <h2 class="text-base font-medium text-gray-900 mb-4 flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-teal-600">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" />
@@ -869,7 +1142,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
           </div>
 
           <!-- Statut card — Disponibilité + Tarif (lecture seule) + Note -->
-          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6" data-testid="status-card">
+          <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 p-6" data-testid="status-card">
             <h2 class="text-base font-medium text-gray-900 mb-4">Statut</h2>
             <div class="space-y-5">
               <div>
@@ -910,7 +1183,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
           </div>
 
           <!-- Résumé card (lecture seule) -->
-          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6" data-testid="resume-card">
+          <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 p-6" data-testid="resume-card">
             <h2 class="text-base font-medium text-gray-900 mb-4">Résumé</h2>
             <dl class="space-y-3 text-sm">
               <div class="flex justify-between gap-3">
@@ -945,12 +1218,12 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
       </div>
 
       <!-- Right Main Content -->
-      <div class="flex-1 min-w-0">
+      <div :class="['flex-1 min-w-0', photoOpen ? 'hidden md:block' : '']">
         <!-- Family tabs (underlined) -->
         <nav
           role="tablist"
           aria-label="Familles du profil"
-          class="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200 px-1"
+          class="mb-6 hidden md:flex gap-1overflow-x-auto border-b border-slate-200 px-1"
           data-testid="profile-family-tabs"
         >
           <button
@@ -978,7 +1251,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
           <div class="grid grid-cols-1 md:grid-cols-[224px_minmax(0,1fr)]">
             <!-- Section nav for the active family -->
             <nav
-              class="flex gap-0.5 overflow-x-auto border-b border-gray-100 p-3.5 md:flex-col md:border-b-0 md:border-r"
+              class="hidden md:flex gap-0.5 overflow-x-auto border-b border-gray-100 p-3.5 md:flex-col md:border-b-0 md:border-r"
               :aria-label="`Sections ${currentFamily.label}`"
             >
               <button
@@ -1247,6 +1520,23 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
         </div>
       </div>
     </div>
+
+    <!-- Téléphone (< md) : section suivante -->
+    <div v-if="isSectionOpen && nextMobileSection" class="md:hidden mt-4">
+      <button
+        type="button"
+        data-testid="mobile-next"
+        class="flex min-h-[48px] w-full items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-2 text-sm"
+        @click="openMobileRow(nextMobileSection)"
+      >
+        <span class="text-slate-500">Section suivante</span>
+        <span class="flex items-center gap-1 font-medium text-teal-600">
+          {{ nextMobileSection.label }}
+          <ChevronRight class="h-4 w-4" />
+        </span>
+      </button>
+    </div>
+    </template>
   </div>
 </template>
 

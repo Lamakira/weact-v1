@@ -154,7 +154,7 @@ vi.mock('@/features/face/composables/usePersonalInfo', () => ({
 
 vi.mock('@/features/face/composables/usePhysicalCharacteristics', () => ({
   usePhysicalCharacteristics: () => ({
-    physicalCharacteristics: { value: null },
+    physicalCharacteristicsInfo: { value: null },
     isLoading: { value: false },
     isSaving: { value: false },
     error: { value: null },
@@ -165,7 +165,7 @@ vi.mock('@/features/face/composables/usePhysicalCharacteristics', () => ({
 
 vi.mock('@/features/face/composables/useCategoryNiche', () => ({
   useCategoryNiche: () => ({
-    categoryNiche: { value: null },
+    categoryNicheInfo: { value: null },
     isLoading: { value: false },
     isSaving: { value: false },
     error: { value: null },
