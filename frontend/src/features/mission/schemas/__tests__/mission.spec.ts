@@ -1,5 +1,15 @@
-import { describe, it, expect } from 'vitest'
+import { afterAll, describe, it, expect, vi } from 'vitest'
 import { createMissionSchema, missionSchema } from '../mission'
+import { addDaysIso, toLocalIsoDate } from '@/lib/dates'
+
+// Horloge figée à 0 h 30 au Bénin (23 h 30 UTC la veille) : l'heure où la date locale et la
+// date UTC divergent. Ces tests échouaient chaque nuit entre minuit et 1 h ; figés ici, ils
+// rejouent ce cas à toute heure (quand le fuseau de la machine est celui du Bénin).
+vi.useFakeTimers({ toFake: ['Date'] })
+vi.setSystemTime(new Date('2026-11-07T23:30:00Z'))
+afterAll(() => {
+  vi.useRealTimers()
+})
 
 /**
  * Schéma conditionnel UGC (story 1.4 AC6) :
@@ -10,11 +20,9 @@ import { createMissionSchema, missionSchema } from '../mission'
  */
 
 // Dates futures cohérentes (tournage > limite > aujourd'hui) — calculées pour ne pas pourrir avec le temps.
-const futureDate = (daysAhead: number): string => {
-  const d = new Date()
-  d.setDate(d.getDate() + daysAhead)
-  return d.toISOString().slice(0, 10)
-}
+// En date LOCALE, comme le schéma (tomorrowIso) et le champ <input type="date"> : toISOString()
+// donnerait la date UTC, en retard d'un jour au Bénin entre minuit et 1 h.
+const futureDate = (daysAhead: number): string => addDaysIso(toLocalIsoDate(new Date()), daysAhead)
 
 const baseStandard = {
   titre: 'Pub été',
