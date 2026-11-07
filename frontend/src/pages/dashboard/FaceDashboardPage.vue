@@ -24,6 +24,7 @@ import FaceTodoPanel from '@/features/dashboard/components/FaceTodoPanel.vue'
 import FaceActivityMatrix from '@/features/dashboard/components/FaceActivityMatrix.vue'
 import FaceWalletPanel from '@/features/dashboard/components/FaceWalletPanel.vue'
 import FaceProfilePanel from '@/features/dashboard/components/FaceProfilePanel.vue'
+import FaceAgendaPanel from '@/features/agenda/components/FaceAgendaPanel.vue'
 import { useWallet } from '@/features/wallet'
 import { Button } from '@/components/ui/button'
 import PushSoftPrompt from '@/features/notification/components/PushSoftPrompt.vue'
@@ -273,6 +274,9 @@ function goToProfile(): void {
         :is-loading="isStatsLoading || isBookingStatsLoading"
       />
     </div>
+
+    <!-- Agenda : prochains engagements (pleine largeur, la rangée du bas reste à 3 colonnes) -->
+    <FaceAgendaPanel />
 
     <!-- Portefeuille / Profil / Abonnement -->
     <div class="grid grid-cols-1 gap-4 md:grid-cols-3" data-testid="face-dashboard-bottom-row">

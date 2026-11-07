@@ -13,6 +13,17 @@ import type { Mission, MissionCandidature } from '@/features/mission/types'
  */
 
 const mockToast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }))
+// Avertissement d'agenda (jour de tournage bloqué) : l'API est simulée, jamais de requête réelle.
+vi.mock('@/features/agenda/services/agendaApi', () => ({
+  agendaApi: {
+    getAgenda: vi.fn().mockResolvedValue({
+      data: { from: '', to: '', today: '2026-11-08', unavailable_days: [], events: [] },
+    }),
+    updateUnavailableDays: vi.fn(),
+    getFaceAvailability: vi.fn(),
+  },
+}))
+
 vi.mock('@/composables/useToast', () => ({ useToast: () => mockToast }))
 vi.mock('@/features/auth/services/authApi', () => ({ authApi: { resendVerificationEmail: vi.fn() } }))
 

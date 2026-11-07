@@ -20,6 +20,12 @@ vi.mock('../../composables/useBookingCreate', () => ({
   }),
 }))
 
+// Disponibilité de la Face : aucun jour indisponible par défaut, les tests dédiés la pilotent.
+const { getFaceAvailabilityMock } = vi.hoisted(() => ({ getFaceAvailabilityMock: vi.fn() }))
+vi.mock('@/features/agenda/services/agendaApi', () => ({
+  agendaApi: { getAgenda: vi.fn(), updateUnavailableDays: vi.fn(), getFaceAvailability: getFaceAvailabilityMock },
+}))
+
 vi.mock('@/composables/useToast', () => ({
   useToast: () => ({
     success: vi.fn(),
@@ -122,6 +128,119 @@ describe('BookingFormSheet — bornes des dates', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Après 16 h, vous ne pouvez plus envoyer de demande pour le lendemain.')
+  })
+})
+
+describe('BookingFormSheet — disponibilité de la Face', () => {
+  const FACE_UUID = '3f2b8c1e-9d4a-4e6b-8a1c-2d5f7e9b0a13'
+
+  /** Réponse du mois demandé : jours indisponibles fixes, filtrés sur le mois. */
+  function mockUnavailable(days: string[]): void {
+    getFaceAvailabilityMock.mockImplementation(async (_face: string, from: string, to: string) => ({
+      data: { from, to, today: '2026-11-08', unavailable_days: days.filter((d) => d >= from && d <= to) },
+    }))
+  }
+
+  beforeEach(() => {
+    createBookingMock.mockReset()
+    getFaceAvailabilityMock.mockReset()
+    mockUnavailable([])
+    // 09 nov 2026, 11 h à Porto-Novo : date minimale = 10 nov.
+    vi.useFakeTimers({ now: new Date('2026-11-09T10:00:00Z'), toFake: ['Date'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  async function fillDates(wrapper: ReturnType<typeof mountForm>, start: string, end: string): Promise<void> {
+    await wrapper.find('input#date_debut').setValue(start)
+    await wrapper.find('input#date_fin').setValue(end)
+    await flushPromises()
+  }
+
+  it('affiche les jours indisponibles du mois sous les dates', async () => {
+    mockUnavailable(['2026-11-12', '2026-11-13', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-05'])
+    const wrapper = mountForm({ faceId: FACE_UUID })
+    await fillDates(wrapper, '2026-11-14', '2026-11-16')
+
+    expect(getFaceAvailabilityMock).toHaveBeenCalledWith(FACE_UUID, '2026-11-01', '2026-11-30')
+    expect(wrapper.find('[data-testid="unavailable-days-hint"]').text()).toBe(
+      'Jours indisponibles en novembre : 12, 13, 18 au 20',
+    )
+  })
+
+  it('charge aussi le mois de date_fin quand il diffère', async () => {
+    mockUnavailable(['2026-12-02'])
+    const wrapper = mountForm({ faceId: FACE_UUID })
+    await fillDates(wrapper, '2026-11-27', '2026-12-01')
+
+    expect(getFaceAvailabilityMock).toHaveBeenCalledWith(FACE_UUID, '2026-12-01', '2026-12-31')
+    expect(wrapper.find('[data-testid="unavailable-days-hint"]').text()).toContain('en décembre : 2')
+  })
+
+  it('affiche une erreur en ligne sous date_debut et bloque la soumission quand la plage touche un jour indisponible', async () => {
+    mockUnavailable(['2026-11-12'])
+    const wrapper = mountForm({ faceId: FACE_UUID })
+    await fillDates(wrapper, '2026-11-11', '2026-11-13')
+    await setSelectValue(wrapper, '#lieu', 'Cotonou')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Cette Face est indisponible le 12 novembre. Choisissez d\'autres dates.')
+    expect(wrapper.find('[data-testid="submit-booking"]').attributes('disabled')).toBeDefined()
+
+    await wrapper.find('form').trigger('submit')
+    await flushPromises()
+    expect(createBookingMock).not.toHaveBeenCalled()
+  })
+
+  it('lève le blocage quand la plage évite les jours indisponibles', async () => {
+    mockUnavailable(['2026-11-12'])
+    const wrapper = mountForm({ faceId: FACE_UUID })
+    await fillDates(wrapper, '2026-11-11', '2026-11-13')
+    expect(wrapper.text()).toContain('indisponible le 12 novembre')
+
+    await fillDates(wrapper, '2026-11-14', '2026-11-15')
+    expect(wrapper.text()).not.toContain('indisponible le 12 novembre')
+    expect(wrapper.find('[data-testid="submit-booking"]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('n\'affecte pas un booking UGC (pas de dates, pas de blocage, pas d\'appel)', async () => {
+    mockUnavailable(['2026-11-12'])
+    const wrapper = mountForm({ faceId: FACE_UUID })
+    await setSelectValue(wrapper, '#type_contenu', 'UGC')
+    await flushPromises()
+
+    expect(getFaceAvailabilityMock).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="unavailable-days-hint"]').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Cette Face est indisponible')
+  })
+
+  it('un jour indisponible après avoir choisi des dates puis UGC ne bloque plus', async () => {
+    mockUnavailable(['2026-11-12'])
+    const wrapper = mountForm({ faceId: FACE_UUID })
+    await fillDates(wrapper, '2026-11-11', '2026-11-13')
+    expect(wrapper.text()).toContain('indisponible le 12 novembre')
+
+    await setSelectValue(wrapper, '#type_contenu', 'UGC')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('Cette Face est indisponible')
+  })
+
+  it('affiche l\'erreur 422 du serveur sur date_debut comme les autres erreurs', async () => {
+    createBookingMock.mockResolvedValue({
+      success: false,
+      errors: { date_debut: ['Cette Face a indiqué être indisponible le 12 novembre. Choisissez d\'autres dates.'] },
+    })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+    await fillDates(wrapper, '2026-11-11', '2026-11-13')
+    await setSelectValue(wrapper, '#lieu', 'Cotonou')
+    await flushPromises()
+    await wrapper.find('form').trigger('submit')
+    await vi.waitFor(() => expect(createBookingMock).toHaveBeenCalledTimes(1), { timeout: 3000 })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Cette Face a indiqué être indisponible le 12 novembre.')
   })
 })
 

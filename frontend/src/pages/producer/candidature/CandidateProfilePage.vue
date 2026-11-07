@@ -10,6 +10,7 @@ import CandidateInfoSection from '@/features/candidature/components/CandidateInf
 import CandidateExperiencesSection from '@/features/candidature/components/CandidateExperiencesSection.vue'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import ReviewsList from '@/components/ReviewsList.vue'
+import FaceAvailabilityCalendar from '@/features/agenda/components/FaceAvailabilityCalendar.vue'
 import { publicApi } from '@/features/public/services/publicApi'
 import type { Review } from '@/features/rating/types'
 
@@ -192,6 +193,9 @@ function goBack(): void {
 
         <!-- Photo Gallery -->
         <CandidatePhotoGallery :photos="candidate.photos" />
+
+        <!-- Disponibilités de la Face -->
+        <FaceAvailabilityCalendar :face-id="faceId" />
 
         <!-- Bio and Info -->
         <CandidateInfoSection :candidate="candidate" />
