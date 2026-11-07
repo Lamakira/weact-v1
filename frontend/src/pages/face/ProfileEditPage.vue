@@ -1223,7 +1223,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
         <nav
           role="tablist"
           aria-label="Familles du profil"
-          class="mb-6 hidden md:flex gap-1overflow-x-auto border-b border-slate-200 px-1"
+          class="mb-6 hidden md:flex gap-1 overflow-x-auto border-b border-slate-200 px-1"
           data-testid="profile-family-tabs"
         >
           <button
