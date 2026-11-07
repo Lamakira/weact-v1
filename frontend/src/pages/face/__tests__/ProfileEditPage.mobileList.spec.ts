@@ -233,7 +233,6 @@ describe('ProfileEditPage - liste mobile', () => {
     h.route.query = {}
     h.missing.value = []
     h.push.mockClear()
-    window.scrollTo = vi.fn() as unknown as typeof window.scrollTo
   })
 
   it('sans section dans la query, rend la liste avec les 15 lignes', async () => {
@@ -265,15 +264,24 @@ describe('ProfileEditPage - liste mobile', () => {
     expect(wrapper.find('[data-testid="mobile-back"]').exists()).toBe(true)
   })
 
-  it('un appui sur une ligne pousse { tab, section } et ouvre le détail', async () => {
-    const wrapper = await mountPage()
+  it('un appui sur une ligne pousse { tab, section }, ouvre le détail et remonte en haut de la page', async () => {
+    // La zone qui défile est le <main> du layout : on remonte par scrollIntoView, pas window.scrollTo.
+    const innerWidth = window.innerWidth
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 })
+    const scrollSpy = vi.fn()
+    Element.prototype.scrollIntoView = scrollSpy
+    try {
+      const wrapper = await mountPage()
 
-    await wrapper.get('[data-testid="mobile-row-bio"]').trigger('click')
-    await flushPromises()
+      await wrapper.get('[data-testid="mobile-row-bio"]').trigger('click')
+      await flushPromises()
 
-    expect(h.push).toHaveBeenCalledWith({ query: { tab: 'profil', section: 'bio' } })
-    expect(wrapper.find('[data-testid="profile-mobile-list"]').exists()).toBe(false)
-    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0 })
+      expect(h.push).toHaveBeenCalledWith({ query: { tab: 'profil', section: 'bio' } })
+      expect(wrapper.find('[data-testid="profile-mobile-list"]').exists()).toBe(false)
+      expect(scrollSpy).toHaveBeenCalledWith({ block: 'start' })
+    } finally {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: innerWidth })
+    }
   })
 
   it('« Mon profil » pousse une query sans tab ni section, en gardant les autres clés', async () => {

@@ -633,13 +633,23 @@ const mobileCompletionPct = computed(() =>
 
 function openMobileRow(row: MobileRow): void {
   navigateTab(row.familyId, row.sectionId)
-  window.scrollTo({ top: 0 })
 }
 function closeMobileSection(): void {
   const { tab: _tab, section: _section, ...rest } = route.query
   void router.push({ query: rest })
-  window.scrollTo({ top: 0 })
 }
+
+// Téléphone : chaque passage liste / section remonte en haut de la page. La zone qui défile est
+// le <main> du layout, pas la fenêtre : window.scrollTo n'y fait rien, scrollIntoView si.
+const pageRootRef = ref<HTMLElement | null>(null)
+watch(
+  () => route.query.section,
+  async () => {
+    if (typeof window === 'undefined' || window.innerWidth >= 768) return
+    await nextTick()
+    pageRootRef.value?.scrollIntoView?.({ block: 'start' })
+  },
+)
 const nextMobileSection = computed<MobileRow | null>(() => {
   const idx = photoOpen.value
     ? 0
@@ -964,7 +974,6 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
     // Téléphone : la photo a sa propre section ; bureau : la carte de la colonne gauche clignote.
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
       navigateTab('profil', PHOTO_SECTION_ID)
-      window.scrollTo({ top: 0 })
       return
     }
     flashPhotoCard()
@@ -984,7 +993,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 </script>
 
 <template>
-  <div>
+  <div ref="pageRootRef" class="scroll-mt-4">
     <!-- Page Header -->
     <div class="mb-8">
       <h1 class="text-2xl font-bold text-slate-800">Mon profil</h1>
