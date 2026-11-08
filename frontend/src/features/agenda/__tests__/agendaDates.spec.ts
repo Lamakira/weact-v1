@@ -21,6 +21,9 @@ import {
   groupByWeek,
   groupConsecutiveDays,
   isDayTouchable,
+  formatSelectionSummary,
+  isWideSelection,
+  monthPickerLabel,
   monthEnd,
   monthGrid,
   monthStart,
@@ -225,6 +228,38 @@ describe('agendaDates', () => {
     expect(isDayTouchable(undefined, '2026-11-07', '2026-11-08', null)).toBe(false)
     expect(isDayTouchable(undefined, '2027-12-01', '2026-11-08', '2027-11-08')).toBe(false)
     expect(isDayTouchable(undefined, '2026-11-09', null, null)).toBe(false)
+  })
+
+  it('donne les libellés courts des 12 mois du sélecteur', () => {
+    expect(Array.from({ length: 12 }, (_, i) => monthPickerLabel(i))).toEqual([
+      'janv.',
+      'févr.',
+      'mars',
+      'avr.',
+      'mai',
+      'juin',
+      'juil.',
+      'août',
+      'sept.',
+      'oct.',
+      'nov.',
+      'déc.',
+    ])
+    expect(monthPickerLabel(12)).toBe('')
+  })
+
+  it('juge une sélection large : plus de 7 jours entre premier et dernier, ou plusieurs mois', () => {
+    expect(isWideSelection([])).toBe(false)
+    expect(isWideSelection(['2026-11-09', '2026-11-15'])).toBe(false)
+    expect(isWideSelection(['2026-11-09', '2026-11-16'])).toBe(true)
+    expect(isWideSelection(['2026-11-30', '2026-12-01'])).toBe(true)
+  })
+
+  it('résume une sélection : premier et dernier jour, nombre réel de jours', () => {
+    expect(formatSelectionSummary([])).toBe('')
+    const range = Array.from({ length: 17 }, (_, i) => addDays('2026-12-20', i))
+    expect(formatSelectionSummary(range)).toBe('Du 20 décembre au 5 janvier · 17 jours')
+    expect(formatSelectionSummary(['2026-11-28', '2026-11-09', '2026-11-12'])).toBe('Du 9 novembre au 28 novembre · 3 jours')
   })
 
   it('formate une période de liste avec jours de semaine', () => {

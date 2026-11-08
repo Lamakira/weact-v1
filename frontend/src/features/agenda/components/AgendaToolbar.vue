@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import type { AgendaView } from '../types'
+import MonthTitle from './MonthTitle.vue'
 
-/** Barre d'outils de l'agenda ordinateur : titre de période, navigation, « Aujourd'hui », sélecteur de vue. */
-defineProps<{ title: string; view: AgendaView }>()
+/**
+ * Barre d'outils de l'agenda ordinateur : titre de période (ouvre le sélecteur de mois), navigation,
+ * « Aujourd'hui », sélecteur de vue. `month` / `today` alimentent le sélecteur de mois.
+ */
+defineProps<{ title: string; view: AgendaView; month: string; today: string }>()
 
 const emit = defineEmits<{
+  'select-month': [month: string]
   previous: []
   next: []
   today: []
@@ -21,9 +26,16 @@ const VIEWS: { value: AgendaView; label: string }[] = [
 
 <template>
   <div class="flex flex-wrap items-center gap-2" data-testid="agenda-toolbar">
-    <h2 class="mr-2 min-w-0 text-[16px] font-semibold text-ink" aria-live="polite" data-testid="agenda-toolbar-title">
-      {{ title }}
-    </h2>
+    <MonthTitle
+      class="mr-2"
+      :title="title"
+      :month="month"
+      :today="today"
+      variant="popover"
+      heading-class="text-[16px] font-semibold text-ink"
+      testid="agenda-toolbar-title"
+      @select="emit('select-month', $event)"
+    />
     <button
       type="button"
       class="grid size-9 place-items-center rounded-full text-ink-2 hover:bg-sidebar"

@@ -268,6 +268,200 @@ describe('FaceAgendaPage', () => {
     expect(wrapper.find('[data-testid="agenda-error"]').exists()).toBe(false)
   })
 
+  describe('sélecteur de mois', () => {
+    it('le titre du mois du téléphone ouvre le sélecteur ; un mois choisi charge ce mois et rend le focus', async () => {
+      const wrapper = await mountPage()
+      const button = wrapper.get('[data-testid="agenda-month-title-button"]')
+      expect(button.attributes('aria-haspopup')).toBe('dialog')
+      expect(button.attributes('aria-expanded')).toBe('false')
+      expect(wrapper.get('[data-testid="agenda-month-title"]').text()).toBe('Novembre 2026')
+
+      await button.trigger('click')
+      expect(button.attributes('aria-expanded')).toBe('true')
+      expect(wrapper.find('[data-testid="month-picker"]').exists()).toBe(true)
+
+      await wrapper.get('[data-testid="month-option-2026-12-01"]').trigger('click')
+      await flushPromises()
+
+      expect(agendaApi.getAgenda).toHaveBeenLastCalledWith('2026-12-01', '2026-12-31')
+      expect(wrapper.get('[data-testid="agenda-month-title"]').text()).toBe('Décembre 2026')
+      expect(wrapper.find('[data-testid="month-picker"]').exists()).toBe(false)
+      expect(document.activeElement).toBe(button.element)
+    })
+
+    it('le titre de la barre d\'outils ouvre le sélecteur ; Échap le ferme sans changer de mois', async () => {
+      const wrapper = await mountPage()
+      await wrapper.get('[data-testid="agenda-toolbar-title-button"]').trigger('click')
+      expect(wrapper.find('[data-testid="month-picker"]').exists()).toBe(true)
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await flushPromises()
+      expect(wrapper.find('[data-testid="month-picker"]').exists()).toBe(false)
+      expect(agendaApi.getAgenda).toHaveBeenCalledTimes(1)
+
+      await wrapper.get('[data-testid="agenda-toolbar-title-button"]').trigger('click')
+      await wrapper.get('[data-testid="month-option-2026-10-01"]').trigger('click')
+      await flushPromises()
+      expect(agendaApi.getAgenda).toHaveBeenLastCalledWith('2026-10-01', '2026-10-31')
+      expect(wrapper.get('[data-testid="agenda-toolbar-title"]').text()).toBe('Octobre 2026')
+    })
+
+    it('en vue Semaine, le titre reste « Semaine du … » et le mois choisi mène à sa première semaine', async () => {
+      const wrapper = await mountPage()
+      await wrapper.get('[data-testid="agenda-view-week"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.get('[data-testid="agenda-toolbar-title"]').text()).toBe('Semaine du 2 au 8 novembre')
+
+      await wrapper.get('[data-testid="agenda-toolbar-title-button"]').trigger('click')
+      await wrapper.get('[data-testid="month-option-2026-12-01"]').trigger('click')
+      await flushPromises()
+
+      // Le 1er décembre est un mardi : première semaine du lundi 30 novembre au dimanche 6 décembre.
+      expect(wrapper.get('[data-testid="agenda-toolbar-title"]').text()).toBe('Semaine du 30 novembre au 6 décembre')
+      expect(agendaApi.getAgenda).toHaveBeenLastCalledWith('2026-11-30', '2026-12-31')
+    })
+  })
+
+  describe('blocage « du … au … »', () => {
+    const emptyRange = { data: { ...agenda, unavailable_days: [], events: [] } }
+
+    async function openSelection() {
+      const wrapper = await mountPage()
+      await wrapper.get('[data-testid="agenda-block-days"]').trigger('click')
+      return wrapper
+    }
+
+    async function addRange(wrapper: Awaited<ReturnType<typeof mountPage>>, from: string, to: string) {
+      await wrapper.get('[data-testid="agenda-range-from"]').setValue(from)
+      await wrapper.get('[data-testid="agenda-range-to"]').setValue(to)
+      await wrapper.get('[data-testid="agenda-range-add"]').trigger('click')
+      await flushPromises()
+    }
+
+    const message = (wrapper: Awaited<ReturnType<typeof mountPage>>) =>
+      wrapper.get('[data-testid="agenda-range-message"]').text()
+
+    it('n\'affiche la ligne qu\'en mode sélection, bornée à aujourd\'hui et à l\'horizon', async () => {
+      const wrapper = await mountPage()
+      expect(wrapper.find('[data-testid="agenda-range"]').exists()).toBe(false)
+
+      await wrapper.get('[data-testid="agenda-block-days"]').trigger('click')
+      const from = wrapper.get('[data-testid="agenda-range-from"]')
+      expect(from.attributes('min')).toBe('2026-11-08')
+      expect(from.attributes('max')).toBe('2027-11-08')
+      expect(wrapper.get('[data-testid="agenda-range-to"]').attributes('max')).toBe('2027-11-08')
+      expect(wrapper.get('[data-testid="agenda-range-add"]').text()).toBe('Ajouter ces jours')
+    })
+
+    it('ajoute les jours touchables, ignore un jour engagé et un jour bloqué, sans toucher au mois affiché', async () => {
+      const wrapper = await openSelection()
+      // 12 et 13 bloqués, 18 au 20 engagés (booking) : du 11 au 20 = 10 jours, 5 ajoutés.
+      await addRange(wrapper, '2026-11-11', '2026-11-20')
+
+      expect(agendaApi.getAgenda).toHaveBeenLastCalledWith('2026-11-11', '2026-11-20')
+      expect(message(wrapper)).toBe('5 jours ajoutés, 5 ignorés (déjà engagés ou déjà bloqués).')
+      expect(wrapper.get('[data-testid="agenda-selected-count"]').text()).toBe('5 jours sélectionnés')
+      expect(wrapper.get('[data-testid="agenda-selected-list"]').text()).toBe('Mer 11, sam 14, dim 15 et 2 autres')
+      // Le mois affiché n'a pas été rechargé ni changé.
+      expect(wrapper.get('[data-testid="agenda-month-title"]').text()).toBe('Novembre 2026')
+      expect(agendaApi.getAgenda).toHaveBeenCalledTimes(2)
+    })
+
+    it('dit « 12 jours ajoutés. » sans ignorés, garde l\'union triée sans doublon', async () => {
+      const wrapper = await openSelection()
+      await wrapper.get(day('2026-11-28')).trigger('click')
+      vi.mocked(agendaApi.getAgenda).mockResolvedValueOnce(emptyRange)
+      await addRange(wrapper, '2026-11-26', '2026-11-30')
+
+      // 28 déjà sélectionné : 4 nouveaux jours.
+      expect(message(wrapper)).toBe('4 jours ajoutés.')
+      expect(wrapper.get('[data-testid="agenda-selected-count"]').text()).toBe('5 jours sélectionnés')
+    })
+
+    it('dit « Aucun jour à bloquer sur cette plage. » quand rien n\'est touchable', async () => {
+      const wrapper = await openSelection()
+      await addRange(wrapper, '2026-11-12', '2026-11-13')
+      expect(message(wrapper)).toBe('Aucun jour à bloquer sur cette plage.')
+      expect(wrapper.get('[data-testid="agenda-selected-count"]').text()).toBe('0 jour sélectionné')
+    })
+
+    it('valide en ligne : champ vide, ordre inversé, plus de 62 jours, sans appel', async () => {
+      const wrapper = await openSelection()
+
+      await wrapper.get('[data-testid="agenda-range-from"]').setValue('2026-11-10')
+      await wrapper.get('[data-testid="agenda-range-add"]').trigger('click')
+      await flushPromises()
+      expect(message(wrapper)).toBe('Choisissez une date de début et une date de fin.')
+
+      await addRange(wrapper, '2026-11-20', '2026-11-10')
+      expect(message(wrapper)).toBe('La date de fin doit être après la date de début.')
+
+      await addRange(wrapper, '2026-11-09', '2027-01-20')
+      expect(message(wrapper)).toBe('62 jours au plus à la fois.')
+
+      expect(agendaApi.getAgenda).toHaveBeenCalledTimes(1)
+      expect(wrapper.get('[data-testid="agenda-selected-count"]').text()).toBe('0 jour sélectionné')
+    })
+
+    it('accepte une plage de 62 jours exactement', async () => {
+      const wrapper = await openSelection()
+      vi.mocked(agendaApi.getAgenda).mockResolvedValueOnce(emptyRange)
+      // Du 9 novembre au 9 janvier : 62 jours.
+      await addRange(wrapper, '2026-11-09', '2027-01-09')
+      expect(message(wrapper)).toBe('62 jours ajoutés.')
+    })
+
+    it('n\'ajoute rien et le dit quand l\'appel échoue', async () => {
+      const wrapper = await openSelection()
+      vi.mocked(agendaApi.getAgenda).mockRejectedValueOnce(new Error('boom'))
+      await addRange(wrapper, '2026-11-09', '2026-11-11')
+
+      expect(message(wrapper)).toBe('Impossible de vérifier ces dates. Réessayez.')
+      expect(wrapper.get('[data-testid="agenda-selected-count"]').text()).toBe('0 jour sélectionné')
+    })
+
+    it('n\'ajoute rien quand le total dépasserait 62 jours', async () => {
+      const wrapper = await openSelection()
+      vi.mocked(agendaApi.getAgenda).mockResolvedValueOnce(emptyRange)
+      await addRange(wrapper, '2026-11-09', '2027-01-06')
+      expect(wrapper.get('[data-testid="agenda-selected-count"]').text()).toBe('59 jours sélectionnés')
+
+      vi.mocked(agendaApi.getAgenda).mockResolvedValueOnce(emptyRange)
+      await addRange(wrapper, '2027-01-07', '2027-01-12')
+      expect(message(wrapper)).toBe("62 jours au plus par envoi : marquez d'abord ces jours indisponibles.")
+      expect(wrapper.get('[data-testid="agenda-selected-count"]').text()).toBe('59 jours sélectionnés')
+    })
+
+    it('affiche le mois du premier jour ajouté et un résumé « Du … au … · N jours » dans la barre basse', async () => {
+      const wrapper = await openSelection()
+      vi.mocked(agendaApi.getAgenda).mockResolvedValueOnce(emptyRange)
+      await addRange(wrapper, '2026-12-20', '2027-01-05')
+
+      expect(message(wrapper)).toBe('17 jours ajoutés.')
+      expect(agendaApi.getAgenda).toHaveBeenLastCalledWith('2026-12-01', '2026-12-31')
+      expect(wrapper.get('[data-testid="agenda-month-title"]').text()).toBe('Décembre 2026')
+      expect(wrapper.get('[data-testid="agenda-selected-list"]').text()).toBe('Du 20 décembre au 5 janvier · 17 jours')
+    })
+
+    it('garde la liste détaillée pour une petite sélection', async () => {
+      const wrapper = await openSelection()
+      await addRange(wrapper, '2026-11-09', '2026-11-11')
+      expect(wrapper.get('[data-testid="agenda-selected-list"]').text()).toBe('Lun 9, mar 10 et mer 11 nov')
+    })
+
+    it('envoie PUT add avec les jours de la plage, puis revient au mode normal', async () => {
+      const wrapper = await openSelection()
+      await addRange(wrapper, '2026-11-09', '2026-11-11')
+      await wrapper.get('[data-testid="agenda-selection-submit"]').trigger('click')
+      await flushPromises()
+
+      expect(agendaApi.updateUnavailableDays).toHaveBeenCalledWith({ add: ['2026-11-09', '2026-11-10', '2026-11-11'] })
+      expect(mockToast.success).toHaveBeenCalledWith('Agenda mis à jour')
+      expect(wrapper.find('[data-testid="agenda-selection-bar"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="agenda-range"]').exists()).toBe(false)
+    })
+  })
+
   describe('version ordinateur', () => {
     it('mémorise la bascule de vue et la restaure au montage suivant', async () => {
       const wrapper = await mountPage()
