@@ -994,8 +994,8 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
 <template>
   <div ref="pageRootRef" class="scroll-mt-4">
-    <!-- Page Header -->
-    <div class="mb-8">
+    <!-- Page Header : sur téléphone, la barre du haut affiche déjà « Mon profil » -->
+    <div class="mb-8 hidden md:block" data-testid="profile-page-heading">
       <h1 class="text-2xl font-bold text-slate-800">Mon profil</h1>
       <p class="mt-1 text-slate-500">Gérez vos informations et paramètres</p>
     </div>
@@ -1098,7 +1098,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
         @click="closeMobileSection"
       >
         <ChevronLeft class="h-4 w-4" />
-        Mon profil
+        Toutes les sections
       </button>
     </div>
 
