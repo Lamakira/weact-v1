@@ -8,6 +8,7 @@ use App\Enums\BookingStatus;
 use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Models\Booking;
+use App\Models\EscrowTransaction;
 use App\Models\Face;
 use App\Models\FaceUnavailableDay;
 use App\Models\MissionPaymentCandidature;
@@ -58,7 +59,7 @@ class FaceAgendaService
     /**
      * Calendrier complet de la Face sur [from, to].
      *
-     * @return array{from: string, to: string, today: string, unavailable_days: list<string>, events: list<array<string, string>>}
+     * @return array{from: string, to: string, today: string, unavailable_days: list<string>, events: list<array<string, mixed>>, upcoming_earnings: array{amount: int, count: int}}
      */
     public function agenda(User $faceUser, Face $face, string $from, string $to): array
     {
@@ -81,6 +82,10 @@ class FaceAgendaService
                 'start' => $this->businessDay($booking->date_debut),
                 'end' => $this->businessDay($booking->date_fin),
                 'counterpart' => $producerName,
+                'amount_face' => $this->positiveOrNull($booking->montant_face_recoit),
+                'secured' => $booking->escrowTransaction?->status === EscrowStatus::Locked->value,
+                'start_time' => $this->businessTime($booking->date_debut),
+                'end_time' => $this->businessTime($booking->date_fin),
             ];
         }
 
@@ -97,6 +102,11 @@ class FaceAgendaService
                 'start' => $day,
                 'end' => $day,
                 'counterpart' => $mission->producer->display_name,
+                'amount_face' => $this->positiveOrNull($entry->montant_face_recoit),
+                // Les entrées engagées sont par définition en séquestre bloqué et non libérées.
+                'secured' => true,
+                'start_time' => null,
+                'end_time' => null,
             ];
         }
 
@@ -108,6 +118,35 @@ class FaceAgendaService
             'today' => $this->today(),
             'unavailable_days' => $this->blockedDays($face->id, $from, $to),
             'events' => $events,
+            'upcoming_earnings' => $this->upcomingEarnings($faceUser, $face),
+        ];
+    }
+
+    /**
+     * Montants nets encore en séquestre bloqué pour la Face, toutes dates confondues.
+     *
+     * @return array{amount: int, count: int}
+     */
+    private function upcomingEarnings(User $faceUser, Face $face): array
+    {
+        $bookings = EscrowTransaction::query()
+            ->where('status', EscrowStatus::Locked->value)
+            ->whereHas('booking', fn ($booking) => $booking->where('face_id', $faceUser->id))
+            ->selectRaw('COALESCE(SUM(amount), 0) as total, COUNT(*) as n')
+            ->toBase()
+            ->first();
+
+        $entries = MissionPaymentCandidature::query()
+            ->where('face_id', $face->id)
+            ->where('escrow_status', EscrowStatus::Locked->value)
+            ->whereNull('freed_at')
+            ->selectRaw('COALESCE(SUM(montant_face_recoit), 0) as total, COUNT(*) as n')
+            ->toBase()
+            ->first();
+
+        return [
+            'amount' => (int) $bookings?->total + (int) $entries?->total,
+            'count' => (int) $bookings?->n + (int) $entries?->n,
         ];
     }
 
@@ -269,7 +308,7 @@ class FaceAgendaService
             ->whereIn('status', array_map(fn (BookingStatus $s): string => $s->value, $statuses))
             ->whereNotNull('date_debut')
             ->whereNotNull('date_fin')
-            ->with('producer.userable')
+            ->with(['producer.userable', 'escrowTransaction'])
             ->orderBy('date_debut')
             ->get();
     }
@@ -330,6 +369,17 @@ class FaceAgendaService
     private function businessDay(CarbonInterface $instant): string
     {
         return $instant->copy()->setTimezone($this->timezone())->toDateString();
+    }
+
+    /** Heure `HH:MM` d'un instant stocké (UTC) en fuseau métier. */
+    private function businessTime(CarbonInterface $instant): string
+    {
+        return $instant->copy()->setTimezone($this->timezone())->format('H:i');
+    }
+
+    private function positiveOrNull(?int $amount): ?int
+    {
+        return $amount !== null && $amount > 0 ? $amount : null;
     }
 
     /** Instant ou date saisie, lus comme à l'enregistrement (fuseau de l'application), puis convertis en jour métier. */
