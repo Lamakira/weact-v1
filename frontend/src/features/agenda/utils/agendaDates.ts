@@ -116,6 +116,26 @@ export function formatMonthTitle(iso: string): string {
   return `${capitalize(MONTHS_LONG[date.getUTCMonth()] ?? '')} ${date.getUTCFullYear()}`
 }
 
+const MONTH_PICKER_LABELS = [
+  'janv.',
+  'févr.',
+  'mars',
+  'avr.',
+  'mai',
+  'juin',
+  'juil.',
+  'août',
+  'sept.',
+  'oct.',
+  'nov.',
+  'déc.',
+] as const
+
+/** Libellé court d'un mois du sélecteur : indice 0 = « janv. » … 11 = « déc. ». */
+export function monthPickerLabel(index: number): string {
+  return MONTH_PICKER_LABELS[index] ?? ''
+}
+
 /** « novembre ». */
 export function formatMonthName(iso: string): string {
   return MONTHS_LONG[fromIso(iso).getUTCMonth()] ?? ''
@@ -166,6 +186,23 @@ export function formatDayList(days: string[]): string {
     text = `${shown.join(', ')} et ${sorted.length - 3} autres`
   }
   return capitalize(text)
+}
+
+/** Sélection large : plus de 7 jours entre le premier et le dernier, ou plusieurs mois. */
+export function isWideSelection(days: string[]): boolean {
+  if (days.length === 0) return false
+  const sorted = [...days].sort()
+  const first = sorted[0]!
+  const last = sorted[sorted.length - 1]!
+  return first.slice(0, 7) !== last.slice(0, 7) || daysInclusive(first, last) > 7
+}
+
+/** « Du 20 décembre au 5 janvier · 17 jours » (nombre réel de jours sélectionnés). */
+export function formatSelectionSummary(days: string[]): string {
+  const sorted = [...new Set(days)].sort()
+  if (sorted.length === 0) return ''
+  const count = sorted.length
+  return `Du ${formatDayMonth(sorted[0]!)} au ${formatDayMonth(sorted[count - 1]!)} · ${count} jour${count > 1 ? 's' : ''}`
 }
 
 /** « 24 nov », « 18 au 20 nov », « 30 oct au 2 nov ». */

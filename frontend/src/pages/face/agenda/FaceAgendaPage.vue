@@ -12,18 +12,26 @@ import AgendaToolbar from '@/features/agenda/components/AgendaToolbar.vue'
 import DayDetailPanel from '@/features/agenda/components/DayDetailPanel.vue'
 import MonthCalendar from '@/features/agenda/components/MonthCalendar.vue'
 import MonthGridLarge from '@/features/agenda/components/MonthGridLarge.vue'
+import MonthTitle from '@/features/agenda/components/MonthTitle.vue'
 import WeekView from '@/features/agenda/components/WeekView.vue'
 import { useAgendaFilters } from '@/features/agenda/composables/useAgendaFilters'
 import { useFaceAgenda } from '@/features/agenda/composables/useFaceAgenda'
+import { agendaApi } from '@/features/agenda/services/agendaApi'
 import type { AgendaEvent, AgendaView } from '@/features/agenda/types'
 import {
   addDays,
+  buildDayStates,
+  daysInclusive,
+  eachDay,
   eventsOnDay,
   filterEvents,
   formatDayList,
   formatEventWhen,
   formatMonthTitle,
+  formatSelectionSummary,
   formatWeekTitle,
+  isDayTouchable,
+  isWideSelection,
   monthEnd,
   monthStart,
 } from '@/features/agenda/utils/agendaDates'
@@ -74,15 +82,96 @@ const selectedLabel = computed(() => {
   return `${n} jour${n > 1 ? 's' : ''} sélectionné${n > 1 ? 's' : ''}`
 })
 
+const selectionSummary = computed(() =>
+  isWideSelection(selected.value) ? formatSelectionSummary(selected.value) : formatDayList(selected.value),
+)
+
+// --- Blocage « du … au … » ---------------------------------------------------------------------
+
+/** Le serveur refuse plus de 62 dates par envoi. */
+const MAX_SELECTED_DAYS = 62
+
+const rangeFrom = ref('')
+const rangeTo = ref('')
+const rangeBusy = ref(false)
+const rangeMessage = ref<{ kind: 'error' | 'info'; text: string } | null>(null)
+
+function resetRange(): void {
+  rangeFrom.value = ''
+  rangeTo.value = ''
+  rangeMessage.value = null
+}
+
 function enterSelection(): void {
   sheetDay.value = null
   selected.value = []
+  resetRange()
   selectionMode.value = true
 }
 
 function leaveSelection(): void {
   selectionMode.value = false
   selected.value = []
+  resetRange()
+}
+
+/** Charge la plage à part (sans toucher aux données du mois affiché) et ajoute ses jours touchables. */
+async function addRange(): Promise<void> {
+  if (rangeBusy.value) return
+  const from = rangeFrom.value
+  const to = rangeTo.value
+  if (!from || !to) {
+    rangeMessage.value = { kind: 'error', text: 'Choisissez une date de début et une date de fin.' }
+    return
+  }
+  if (to < from) {
+    rangeMessage.value = { kind: 'error', text: 'La date de fin doit être après la date de début.' }
+    return
+  }
+  if (daysInclusive(from, to) > MAX_SELECTED_DAYS) {
+    rangeMessage.value = { kind: 'error', text: `${MAX_SELECTED_DAYS} jours au plus à la fois.` }
+    return
+  }
+
+  rangeBusy.value = true
+  rangeMessage.value = null
+  try {
+    const response = await agendaApi.getAgenda(from, to)
+    const days = eachDay(from, to)
+    const states = buildDayStates(response.data.unavailable_days, response.data.events, from, to)
+    const touchable = days.filter((iso) => isDayTouchable(states[iso], iso, today.value, horizonEnd.value))
+    const ignored = days.length - touchable.length
+    const merged = [...new Set([...selected.value, ...touchable])].sort()
+    const fresh = touchable.filter((iso) => !selected.value.includes(iso))
+
+    if (merged.length > MAX_SELECTED_DAYS) {
+      rangeMessage.value = {
+        kind: 'error',
+        text: `${MAX_SELECTED_DAYS} jours au plus par envoi : marquez d'abord ces jours indisponibles.`,
+      }
+      return
+    }
+    if (fresh.length === 0) {
+      rangeMessage.value = { kind: 'info', text: 'Aucun jour à bloquer sur cette plage.' }
+      return
+    }
+
+    selected.value = merged
+    const added = `${fresh.length} jour${fresh.length > 1 ? 's' : ''} ajouté${fresh.length > 1 ? 's' : ''}`
+    rangeMessage.value = {
+      kind: 'info',
+      text:
+        ignored > 0
+          ? `${added}, ${ignored} ignoré${ignored > 1 ? 's' : ''} (déjà engagés ou déjà bloqués).`
+          : `${added}.`,
+    }
+    const first = fresh[0]!
+    if (monthStart(first) !== month.value) await showMonthOf(first)
+  } catch {
+    rangeMessage.value = { kind: 'error', text: 'Impossible de vérifier ces dates. Réessayez.' }
+  } finally {
+    rangeBusy.value = false
+  }
 }
 
 function onSelectDay(day: string): void {
@@ -152,6 +241,14 @@ async function navigate(delta: number): Promise<void> {
   if (view.value === 'week') await showWeek(addDays(weekDay.value, 7 * delta))
   else if (delta < 0) await previousMonth()
   else await nextMonth()
+  syncDetailDay()
+}
+
+/** Affiche le mois de `iso` (vue Semaine : sa première semaine) ; sert au sélecteur de mois. */
+async function showMonthOf(iso: string): Promise<void> {
+  const first = monthStart(iso)
+  if (view.value === 'week') await showWeek(first)
+  else await showMonth(first)
   syncDetailDay()
 }
 
@@ -232,6 +329,51 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           </button>
         </div>
         <p class="mt-1 text-dash text-ink-2">Touchez les jours où vous n'êtes pas disponible.</p>
+        <div class="mt-3" data-testid="agenda-range">
+          <div class="flex flex-wrap items-end gap-2">
+            <label class="grid gap-1 text-[12.5px] font-medium text-ink-2">
+              Du
+              <input
+                v-model="rangeFrom"
+                type="date"
+                class="min-h-11 rounded-lg border border-line bg-white px-3 text-[14px] text-ink"
+                :min="effectiveToday"
+                :max="horizonEnd ?? undefined"
+                data-testid="agenda-range-from"
+              />
+            </label>
+            <label class="grid gap-1 text-[12.5px] font-medium text-ink-2">
+              Au
+              <input
+                v-model="rangeTo"
+                type="date"
+                class="min-h-11 rounded-lg border border-line bg-white px-3 text-[14px] text-ink"
+                :min="effectiveToday"
+                :max="horizonEnd ?? undefined"
+                data-testid="agenda-range-to"
+              />
+            </label>
+            <button
+              type="button"
+              class="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-line px-4 text-sm font-medium text-ink hover:bg-sidebar disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="rangeBusy"
+              data-testid="agenda-range-add"
+              @click="addRange"
+            >
+              <Loader2 v-if="rangeBusy" class="size-4 animate-spin" aria-hidden="true" />
+              Ajouter ces jours
+            </button>
+          </div>
+          <p
+            v-if="rangeMessage"
+            class="mt-2 text-[12.5px]"
+            :class="rangeMessage.kind === 'error' ? 'text-red-700' : 'text-ink-2'"
+            :role="rangeMessage.kind === 'error' ? 'alert' : 'status'"
+            data-testid="agenda-range-message"
+          >
+            {{ rangeMessage.text }}
+          </p>
+        </div>
         <p class="mt-3 rounded-lg bg-slate-100 px-3 py-2.5 text-[12.5px] text-slate-600">
           Les jours déjà engagés (booking, mission) ne peuvent pas être bloqués : passez par l'annulation ou le
           changement de date.
@@ -253,9 +395,15 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
             >
               <ChevronLeft class="size-5" aria-hidden="true" />
             </button>
-            <h2 class="text-[15px] font-semibold text-ink" aria-live="polite" data-testid="agenda-month-title">
-              {{ formatMonthTitle(month) }}
-            </h2>
+            <MonthTitle
+              :title="formatMonthTitle(month)"
+              :month="month"
+              :today="effectiveToday"
+              variant="sheet"
+              heading-class="text-[15px] font-semibold text-ink"
+              testid="agenda-month-title"
+              @select="showMonthOf"
+            />
             <button
               type="button"
               class="grid size-10 place-items-center rounded-full text-ink-2 hover:bg-sidebar"
@@ -363,6 +511,9 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
             class="mb-3"
             :title="toolbarTitle"
             :view="view"
+            :month="month"
+            :today="effectiveToday"
+            @select-month="showMonthOf"
             @previous="navigate(-1)"
             @next="navigate(1)"
             @today="goToToday"
@@ -441,7 +592,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
     >
       <p class="text-[14px] font-semibold text-ink" data-testid="agenda-selected-count">{{ selectedLabel }}</p>
       <p v-if="selected.length > 0" class="mb-2 text-[12.5px] text-ink-3" data-testid="agenda-selected-list">
-        {{ formatDayList(selected) }}
+        {{ selectionSummary }}
       </p>
       <button
         type="button"
