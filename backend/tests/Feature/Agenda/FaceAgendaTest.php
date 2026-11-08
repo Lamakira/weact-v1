@@ -74,7 +74,7 @@ class FaceAgendaTest extends DateChangeTestCase
             ->assertJsonPath('data.today', '2026-11-10')
             ->assertJsonPath('data.unavailable_days', ['2026-11-12', '2026-11-13'])
             ->assertJsonCount(2, 'data.events')
-            ->assertJsonStructure(['data' => ['from', 'to', 'today', 'unavailable_days', 'events' => [['kind', 'uuid', 'title', 'status', 'state', 'start', 'end', 'counterpart', 'amount_face', 'secured', 'start_time', 'end_time']], 'upcoming_earnings' => ['amount', 'count']]]);
+            ->assertJsonStructure(['data' => ['from', 'to', 'today', 'unavailable_days', 'events' => [['kind', 'uuid', 'title', 'status', 'state', 'start', 'end', 'counterpart', 'amount_face', 'secured']], 'upcoming_earnings' => ['amount', 'count']]]);
 
         $producerName = $this->producer->display_name;
 
@@ -89,8 +89,6 @@ class FaceAgendaTest extends DateChangeTestCase
             'counterpart' => $producerName,
             'amount_face' => 90000,
             'secured' => true,
-            'start_time' => '09:00',
-            'end_time' => '17:00',
         ], $response->json('data.events.0'));
 
         $this->assertSame([
@@ -104,8 +102,6 @@ class FaceAgendaTest extends DateChangeTestCase
             'counterpart' => $producerName,
             'amount_face' => 90000,
             'secured' => true,
-            'start_time' => null,
-            'end_time' => null,
         ], $response->json('data.events.1'));
     }
 
@@ -118,17 +114,6 @@ class FaceAgendaTest extends DateChangeTestCase
 
         $this->assertFalse($event['secured']);
         $this->assertSame(90000, $event['amount_face']);
-    }
-
-    public function test_the_hours_are_in_the_business_timezone(): void
-    {
-        $faceUser = $this->faceUser();
-        $this->cashBooking(['date_debut' => '2026-11-18 08:00:00', 'date_fin' => '2026-11-18 16:30:00'], $faceUser);
-
-        $event = $this->getAgenda($faceUser)->assertOk()->json('data.events.0');
-
-        $this->assertSame('09:00', $event['start_time']);
-        $this->assertSame('17:30', $event['end_time']);
     }
 
     public function test_upcoming_earnings_sums_locked_escrows_regardless_of_the_range(): void

@@ -84,8 +84,6 @@ class FaceAgendaService
                 'counterpart' => $producerName,
                 'amount_face' => $this->positiveOrNull($booking->montant_face_recoit),
                 'secured' => $booking->escrowTransaction?->status === EscrowStatus::Locked->value,
-                'start_time' => $this->businessTime($booking->date_debut),
-                'end_time' => $this->businessTime($booking->date_fin),
             ];
         }
 
@@ -105,8 +103,6 @@ class FaceAgendaService
                 'amount_face' => $this->positiveOrNull($entry->montant_face_recoit),
                 // Les entrées engagées sont par définition en séquestre bloqué et non libérées.
                 'secured' => true,
-                'start_time' => null,
-                'end_time' => null,
             ];
         }
 
@@ -369,12 +365,6 @@ class FaceAgendaService
     private function businessDay(CarbonInterface $instant): string
     {
         return $instant->copy()->setTimezone($this->timezone())->toDateString();
-    }
-
-    /** Heure `HH:MM` d'un instant stocké (UTC) en fuseau métier. */
-    private function businessTime(CarbonInterface $instant): string
-    {
-        return $instant->copy()->setTimezone($this->timezone())->format('H:i');
     }
 
     private function positiveOrNull(?int $amount): ?int
