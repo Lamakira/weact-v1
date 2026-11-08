@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { formatMoney } from '@/utils/money'
-import { ref, computed, watch, nextTick } from 'vue'
+import { ref, computed, watch, nextTick, toRef } from 'vue'
 import { useForm, useField } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
 import { bookingSchema } from '../schemas/booking'
@@ -32,6 +32,14 @@ import { FloatingField, FloatingDateField, FloatingSelect, FloatingTextarea } fr
 import { Button } from '@/components/ui/button'
 import { BENIN_CITY_OPTIONS } from '@/shared/constants/beninCities'
 import { useToast } from '@/composables/useToast'
+import { useFaceAvailability } from '@/features/agenda/composables/useFaceAvailability'
+import {
+  firstUnavailableIn,
+  formatDayMonth,
+  formatDayNumbers,
+  formatMonthName,
+  monthStart,
+} from '@/features/agenda/utils/agendaDates'
 import { BOOKING_NEXT_DAY_CUTOFF_HOUR, bookingMinStartDateIso, isBookingNextDayClosed } from '@/lib/dates'
 import {
   X,
@@ -157,6 +165,47 @@ const productPhotos = ref<File[]>([])
 const productPhotosError = ref<string>('')
 
 const isUgc = computed(() => type_contenu.value === 'UGC')
+
+// Disponibilité de la Face (booking cash seulement) : les champs date sont natifs et ne peuvent pas
+// griser des jours, on prévient donc ici. Le serveur refuse aussi la plage (même message).
+const availability = useFaceAvailability(toRef(props, 'faceId'))
+const isIsoDay = (value: unknown): value is string => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+const shootRange = computed<{ start: string; end: string } | null>(() => {
+  if (isUgc.value || !isIsoDay(date_debut.value)) return null
+  const end = isIsoDay(date_fin.value) && date_fin.value >= date_debut.value ? date_fin.value : date_debut.value
+  return { start: date_debut.value, end }
+})
+
+watch(
+  [() => props.isOpen, () => props.faceId, shootRange],
+  ([open, , range]) => {
+    if (open && range) void availability.loadRange(range.start, range.end)
+  },
+  { immediate: true },
+)
+
+const unavailableConflictDay = computed(() =>
+  shootRange.value
+    ? firstUnavailableIn(availability.allUnavailable.value, shootRange.value.start, shootRange.value.end)
+    : null,
+)
+const availabilityError = computed(() =>
+  unavailableConflictDay.value
+    ? `Cette Face est indisponible le ${formatDayMonth(unavailableConflictDay.value)}. Choisissez d'autres dates.`
+    : undefined,
+)
+const dateDebutShownError = computed(() => dateDebutError.value || availabilityError.value)
+
+/** « Jours indisponibles en novembre : 12, 13, 18 au 20 » pour le mois du début, puis celui de la fin. */
+const unavailableHints = computed<string[]>(() => {
+  const range = shootRange.value
+  if (!range) return []
+  const months = [...new Set([monthStart(range.start), monthStart(range.end)])]
+  return months.flatMap((month) => {
+    const days = availability.unavailableInMonth(month).filter((day) => day >= dateDebutMin)
+    return days.length > 0 ? [`Jours indisponibles en ${formatMonthName(month)} : ${formatDayNumbers(days)}`] : []
+  })
+})
 
 // Autorisation d'image (flag serveur) : conditions saisies ici, signature dans la fenêtre dédiée.
 const imageFinalite = ref('')
@@ -358,6 +407,9 @@ function onSuccess(booking: Booking): void {
 }
 
 const onSubmit = handleSubmit(async (values) => {
+  // Plage touchant un jour indisponible : l'erreur est déjà affichée sous la date de début.
+  if (values.type_contenu !== 'UGC' && unavailableConflictDay.value) return
+
   // Garde photos produit UGC : au moins une photo requise (le bouton est déjà
   // désactivé, garde défensive miroir du backend `product_photos.required`).
   if (values.type_contenu === 'UGC' && productPhotos.value.length === 0) {
@@ -563,7 +615,7 @@ function closeSignDialog(): void {
                   label="Date de début"
                   :min="dateDebutMin"
                   :icon="Calendar"
-                  :error="dateDebutError"
+                  :error="dateDebutShownError"
                   required
                 />
                 <FloatingDateField
@@ -581,6 +633,13 @@ function closeSignDialog(): void {
                   ? `Après ${BOOKING_NEXT_DAY_CUTOFF_HOUR} h (heure du Bénin), les demandes pour le lendemain ne sont plus possibles.`
                   : `Les demandes pour le lendemain sont possibles jusqu'à ${BOOKING_NEXT_DAY_CUTOFF_HOUR} h (heure du Bénin).` }}
               </p>
+              <ul
+                v-if="unavailableHints.length > 0"
+                class="-mt-2 space-y-0.5 text-xs text-gray-500"
+                data-testid="unavailable-days-hint"
+              >
+                <li v-for="hint in unavailableHints" :key="hint">{{ hint }}</li>
+              </ul>
 
               <!-- Duration -->
               <FloatingSelect
@@ -709,7 +768,7 @@ function closeSignDialog(): void {
                 <Button
                   type="submit"
                   class="w-full"
-                  :disabled="isSubmitting || ugcPhotosMissing"
+                  :disabled="isSubmitting || ugcPhotosMissing || !!unavailableConflictDay"
                   data-testid="submit-booking"
                 >
                   <Loader2 v-if="isSubmitting" :size="18" class="animate-spin mr-2" />

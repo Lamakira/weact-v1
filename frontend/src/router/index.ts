@@ -291,6 +291,12 @@ const router = createRouter({
           component: () => import('../pages/face/booking/FaceBookingDetailPage.vue'),
         },
         {
+          path: 'agenda',
+          name: 'face-agenda',
+          component: () => import('../pages/face/agenda/FaceAgendaPage.vue'),
+          meta: { title: 'Mon agenda - WEACT' },
+        },
+        {
           path: 'wallet',
           name: 'face-wallet',
           component: () => import('../pages/face/wallet/FaceWalletPage.vue'),

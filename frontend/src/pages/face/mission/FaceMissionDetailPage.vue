@@ -37,6 +37,7 @@ import type { HubActionKey } from '@/features/candidature/utils/faceMissionHub'
 import { authApi } from '@/features/auth/services/authApi'
 import type { Face } from '@/features/auth/types'
 import { useToast } from '@/composables/useToast'
+import { agendaApi } from '@/features/agenda/services/agendaApi'
 import { useDateChangeActions } from '@/features/dateChange/composables/useDateChangeActions'
 import type { MissionDateDecision } from '@/features/dateChange/types'
 import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'
@@ -66,6 +67,26 @@ watch(
         ugcPaywallMessage.value || "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.",
       )
       router.replace({ name: 'pricing', query: { redirect: route.fullPath } })
+    }
+  },
+  { immediate: true },
+)
+
+// Agenda : avertissement non bloquant quand le jour de tournage est marqué indisponible par la Face.
+const shootDayBlocked = ref(false)
+watch(
+  () => mission.value?.date_tournage,
+  async (date) => {
+    shootDayBlocked.value = false
+    const day = date?.slice(0, 10)
+    if (!day) return
+    try {
+      const response = await agendaApi.getAgenda(day, day)
+      if (mission.value?.date_tournage?.slice(0, 10) === day) {
+        shootDayBlocked.value = response.data.unavailable_days.includes(day)
+      }
+    } catch {
+      // L'avertissement est facultatif : en cas d'échec, la page reste inchangée.
     }
   },
   { immediate: true },
@@ -629,6 +650,23 @@ onMounted(() => {
       >
         <ArrowLeft class="h-4 w-4" />
         Retour aux missions
+      </button>
+    </div>
+
+    <!-- Jour de tournage marqué indisponible dans l'agenda : avertissement, sans effet sur la candidature -->
+    <div
+      v-if="shootDayBlocked && !isLoading"
+      class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800"
+      data-testid="mission-day-blocked-notice"
+    >
+      Vous avez marqué ce jour comme indisponible dans votre agenda.
+      <button
+        type="button"
+        class="ml-1 font-semibold underline underline-offset-2"
+        data-testid="mission-day-blocked-link"
+        @click="router.push({ name: 'face-agenda' })"
+      >
+        Ouvrir mon agenda
       </button>
     </div>
 

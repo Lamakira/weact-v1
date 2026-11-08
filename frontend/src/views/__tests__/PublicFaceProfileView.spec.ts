@@ -66,6 +66,17 @@ vi.mock('@/features/public/services/publicFacesApi', async () => {
   }
 })
 
+// Disponibilités vues par un Producteur : l'API est simulée, le calendrier a ses propres tests.
+vi.mock('@/features/agenda/services/agendaApi', () => ({
+  agendaApi: {
+    getAgenda: vi.fn(),
+    updateUnavailableDays: vi.fn(),
+    getFaceAvailability: vi.fn().mockResolvedValue({
+      data: { from: '2026-11-01', to: '2026-11-30', today: '2026-11-08', unavailable_days: [] },
+    }),
+  },
+}))
+
 vi.mock('@/components/ui/skeleton', () => ({
   Skeleton: { template: '<div class="skeleton"></div>' },
 }))
@@ -159,6 +170,7 @@ vi.mock('lucide-vue-next', () => {
   })
   return {
     ChevronLeft: m('ChevronLeft'),
+    ChevronRight: m('ChevronRight'),
     AlertCircle: m('AlertCircle'),
     RefreshCw: m('RefreshCw'),
     UserX: m('UserX'),
@@ -622,5 +634,41 @@ describe('PublicFaceProfileView — UGC booking redirect (story 1.6)', () => {
     await flushPromises()
     expect(guestView.find('[data-testid="profile-info-section"]').text()).toBe('Adjoua')
     guestView.unmount()
+  })
+})
+
+describe('PublicFaceProfileView — disponibilités de la Face', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockParams.username = 'adjoua'
+    mockFullPath = '/faces/adjoua'
+    Object.keys(mockQuery).forEach((key) => delete mockQuery[key])
+    vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({
+      success: true,
+      profile: mockProfile,
+    })
+  })
+
+  it('affiche le calendrier de disponibilités pour un Producteur avec accès au profil', async () => {
+    if (accessHolder.accessLevel) accessHolder.accessLevel.value = 'producer_with_access'
+    if (accessHolder.fullProfile) {
+      accessHolder.fullProfile.value = { id: 1, prenom: 'Adjoua', is_available: true, tarif_journalier: 50000, tarif_horaire: 10000 }
+    }
+    const wrapper = mountView()
+    await flushPromises()
+
+    const calendar = wrapper.find('[data-testid="face-availability-calendar"]')
+    expect(calendar.exists()).toBe(true)
+    expect(calendar.text()).toContain('Disponibilités')
+  })
+
+  it('ne l\'affiche pas à un visiteur non connecté', async () => {
+    if (accessHolder.accessLevel) accessHolder.accessLevel.value = 'guest'
+    if (accessHolder.fullProfile) accessHolder.fullProfile.value = null
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="face-profile"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="face-availability-calendar"]').exists()).toBe(false)
   })
 })

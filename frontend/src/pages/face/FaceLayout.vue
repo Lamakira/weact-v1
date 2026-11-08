@@ -7,7 +7,7 @@
  */
 import { onMounted, onBeforeUnmount, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarCheck, Wallet, CreditCard, Tags, Video, House } from 'lucide-vue-next'
+import { LayoutDashboard, FileText, MessageCircle, User, Briefcase, CalendarCheck, Wallet, CreditCard, Tags, Video, House, CalendarDays } from 'lucide-vue-next'
 import { useAuth } from '@/features/auth/composables/useAuth'
 import { useAuthStore } from '@/stores/auth'
 import { DashboardLayout, KeepAliveRouterView, type SidebarItem } from '@/components/layout'
@@ -35,6 +35,7 @@ const sidebarItems = computed<SidebarItem[]>(() => [
     badge: actionCountsStore.counts.candidatures },
   { label: 'Mes bookings', icon: CalendarCheck, to: '/face/bookings',
     badge: actionCountsStore.counts.bookings },
+  { label: 'Mon agenda', icon: CalendarDays, to: '/face/agenda' },
   { label: 'Messages', icon: MessageCircle, to: '/face/messages', match: ['/face/conversations'],
     badge: messagesUnreadStore.count, badgeMax: 9, badgeKind: 'messages' },
   { label: 'Portefeuille', icon: Wallet, to: '/face/wallet' },
