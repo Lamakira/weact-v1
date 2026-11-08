@@ -10,6 +10,7 @@ use App\Enums\UgcSuspensionReason;
 use App\Events\BookingCreated;
 use App\Models\Face;
 use App\Models\FaceSubscription;
+use App\Models\FaceUnavailableDay;
 use App\Models\Producer;
 use App\Models\UgcSuspension;
 use App\Models\User;
@@ -591,6 +592,18 @@ class CreateUgcBookingTest extends TestCase
                 'type_contenu' => 'Publicité',
                 'lieu' => 'Cotonou',
             ])
+            ->assertCreated();
+    }
+
+    public function test_ugc_booking_ignores_the_days_blocked_by_the_face(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $data = $this->getValidUgcProductData();
+        FaceUnavailableDay::create(['face_id' => $this->face->id, 'day' => $data['date_debut']]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
             ->assertCreated();
     }
 }

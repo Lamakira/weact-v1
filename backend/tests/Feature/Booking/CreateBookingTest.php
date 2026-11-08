@@ -9,6 +9,7 @@ use App\Events\BookingCreated;
 use App\Mail\BookingReceivedMail;
 use App\Models\Booking;
 use App\Models\Face;
+use App\Models\FaceUnavailableDay;
 use App\Models\Producer;
 use App\Models\User;
 use App\ValueObjects\BookingPricing;
@@ -516,5 +517,55 @@ class CreateBookingTest extends TestCase
                 ],
                 'message',
             ]);
+    }
+
+    public function test_cash_booking_on_a_day_blocked_by_the_face_is_refused_with_the_first_blocked_day(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $data = $this->getValidBookingData();
+        $first = Carbon::parse($data['date_debut'])->addDays(2);
+        $second = Carbon::parse($data['date_debut'])->addDays(4);
+        FaceUnavailableDay::create(['face_id' => $this->face->id, 'day' => $second->toDateString()]);
+        FaceUnavailableDay::create(['face_id' => $this->face->id, 'day' => $first->toDateString()]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('date_debut');
+
+        $this->assertSame(
+            'Cette Face a indiqué être indisponible le '.$first->copy()->locale('fr')->translatedFormat('j F').'. Choisissez d\'autres dates.',
+            $response->json('errors.date_debut.0'),
+        );
+        $this->assertDatabaseCount('bookings', 0);
+        Event::assertNotDispatched(BookingCreated::class);
+    }
+
+    public function test_cash_booking_on_free_days_is_created_even_when_other_days_are_blocked(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $data = $this->getValidBookingData();
+        // Jour bloqué juste avant et juste après la plage : sans effet.
+        FaceUnavailableDay::create(['face_id' => $this->face->id, 'day' => Carbon::parse($data['date_debut'])->subDay()->toDateString()]);
+        FaceUnavailableDay::create(['face_id' => $this->face->id, 'day' => Carbon::parse($data['date_fin'])->addDay()->toDateString()]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
+            ->assertCreated();
+    }
+
+    public function test_a_day_blocked_by_another_face_does_not_matter(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $data = $this->getValidBookingData();
+        $other = Face::factory()->create();
+        FaceUnavailableDay::create(['face_id' => $other->id, 'day' => $data['date_debut']]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
+            ->assertCreated();
     }
 }

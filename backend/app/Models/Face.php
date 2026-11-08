@@ -164,6 +164,16 @@ class Face extends Model
     }
 
     /**
+     * Jours que la Face a marqués indisponibles dans son calendrier.
+     *
+     * @return HasMany<FaceUnavailableDay, $this>
+     */
+    public function unavailableDays(): HasMany
+    {
+        return $this->hasMany(FaceUnavailableDay::class);
+    }
+
+    /**
      * Get the display name for this Face.
      * Returns "prenom nom" or username if neither are set.
      */
