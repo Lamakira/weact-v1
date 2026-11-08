@@ -20,7 +20,8 @@
                     <tr>
                         <td style="padding: 32px;">
                             <p style="margin: 0 0 20px; color: #374151; font-size: 14px; line-height: 1.6;">
-                                {{ $userDisplayName }} a soumis une nouvelle demande de retrait.
+                                {{ $userDisplayName }} ({{ $profileLabel }}) demande un retrait.
+                                Les Faces et Producteurs attendent un traitement sous 48 h.
                             </p>
                             <table width="100%" cellpadding="0" cellspacing="0">
                                 <tr>
@@ -28,25 +29,32 @@
                                     <td style="padding: 0 0 12px; color: #111827; font-size: 14px; font-weight: 600; text-align: right;">{{ $formattedAmount }}</td>
                                 </tr>
                                 <tr>
+                                    <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Profil</td>
+                                    <td style="padding: 0 0 12px; color: #111827; font-size: 14px; text-align: right;">{{ $profileLabel }}</td>
+                                </tr>
+                                <tr>
                                     <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Opérateur</td>
-                                    <td style="padding: 0 0 12px; color: #111827; font-size: 14px; text-align: right;">{{ $withdrawalRequest->payment_mode }}</td>
+                                    <td style="padding: 0 0 12px; color: #111827; font-size: 14px; text-align: right;">{{ $operatorLabel }}</td>
                                 </tr>
                                 <tr>
                                     <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Numéro</td>
                                     <td style="padding: 0 0 12px; color: #111827; font-size: 14px; text-align: right;">{{ $withdrawalRequest->phone_number }}</td>
                                 </tr>
                                 <tr>
-                                    <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">Email</td>
+                                    <td style="padding: 0 0 12px; color: #6b7280; font-size: 13px;">E-mail</td>
                                     <td style="padding: 0 0 12px; color: #111827; font-size: 14px; text-align: right;">{{ $withdrawalRequest->user?->email }}</td>
                                 </tr>
                                 <tr>
                                     <td style="padding: 0; color: #6b7280; font-size: 13px;">Soumise le</td>
-                                    <td style="padding: 0; color: #111827; font-size: 14px; text-align: right;">{{ $withdrawalRequest->created_at?->format('d/m/Y H:i') }}</td>
+                                    <td style="padding: 0; color: #111827; font-size: 14px; text-align: right;">{{ $submittedAt }} (heure du Bénin)</td>
                                 </tr>
                             </table>
+                            <p style="margin: 20px 0 0; color: #374151; font-size: 13px; line-height: 1.6;">
+                                Demandes en attente : {{ $pendingCount }}, pour {{ $pendingTotal }}
+                            </p>
                             <p style="margin: 24px 0 0;">
                                 <a href="{{ $adminUrl }}" style="display: inline-block; background-color: #198496; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 6px; font-size: 14px; font-weight: 600;">
-                                    Ouvrir le panel finance
+                                    Traiter la demande
                                 </a>
                             </p>
                         </td>

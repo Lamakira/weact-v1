@@ -6,12 +6,14 @@ namespace Tests\Feature\Wallet;
 
 use App\Exceptions\WithdrawalLockException;
 use App\Mail\WithdrawalRequestSubmittedMail;
+use App\Models\Admin;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
 use App\Services\FedapayService;
 use App\Services\WithdrawalService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Mockery;
 use Tests\TestCase;
@@ -161,9 +163,11 @@ class WalletWithdrawalTest extends TestCase
     {
         config([
             'app.withdrawal_mode' => 'manual',
-            'app.admin_email' => 'admin@example.com',
         ]);
         Mail::fake();
+        $admin = Admin::factory()->create();
+        $superAdmin = Admin::factory()->superAdmin()->create();
+        $editor = Admin::factory()->editor()->create();
 
         $this->withApiToken($this->faceUser)
             ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 20000]))
@@ -184,7 +188,27 @@ class WalletWithdrawalTest extends TestCase
 
         $this->assertDatabaseCount('wallet_transactions', 0);
         $this->assertDatabaseCount('financial_events', 0);
-        Mail::assertQueued(WithdrawalRequestSubmittedMail::class);
+        Mail::assertQueued(WithdrawalRequestSubmittedMail::class, 2);
+        Mail::assertQueued(WithdrawalRequestSubmittedMail::class, fn ($mail) => $mail->hasTo($admin->email) && ! $mail->hasTo($superAdmin->email));
+        Mail::assertQueued(WithdrawalRequestSubmittedMail::class, fn ($mail) => $mail->hasTo($superAdmin->email) && ! $mail->hasTo($admin->email));
+        Mail::assertNotQueued(WithdrawalRequestSubmittedMail::class, fn ($mail) => $mail->hasTo($editor->email));
+    }
+
+    public function test_manual_withdrawal_without_admin_accounts_sends_no_mail_and_logs_warning(): void
+    {
+        config(['app.withdrawal_mode' => 'manual']);
+        Mail::fake();
+        Log::spy();
+
+        $this->withApiToken($this->faceUser)
+            ->postJson('/api/v1/wallet/withdraw', $this->validPayload(['amount' => 20000]))
+            ->assertOk();
+
+        Mail::assertNothingQueued();
+        Log::shouldHaveReceived('warning')->once()->withArgs(
+            fn (string $message, array $context) => isset($context['withdrawal_request_id'], $context['user_id'])
+                && $context['user_id'] === $this->faceUser->id
+        );
     }
 
     public function test_withdrawal_fails_when_amount_exceeds_balance(): void
@@ -217,7 +241,6 @@ class WalletWithdrawalTest extends TestCase
 
         config([
             'app.withdrawal_mode' => 'manual',
-            'app.admin_email' => 'admin@example.com',
         ]);
         Mail::fake();
 
@@ -243,7 +266,6 @@ class WalletWithdrawalTest extends TestCase
 
         config([
             'app.withdrawal_mode' => 'manual',
-            'app.admin_email' => 'admin@example.com',
         ]);
         Mail::fake();
 
@@ -277,7 +299,6 @@ class WalletWithdrawalTest extends TestCase
     {
         config([
             'app.withdrawal_mode' => 'manual',
-            'app.admin_email' => 'admin@example.com',
         ]);
         Mail::fake();
 
@@ -298,7 +319,7 @@ class WalletWithdrawalTest extends TestCase
         // OWASP A04 (L-2): the FormRequest "one pending" check runs BEFORE this call and
         // is TOCTOU-racy. Calling the service directly (as two racing requests would once
         // both pass the validator) must still refuse the duplicate under the per-user lock.
-        config(['app.withdrawal_mode' => 'manual', 'app.admin_email' => 'admin@example.com']);
+        config(['app.withdrawal_mode' => 'manual']);
         Mail::fake();
 
         $service = app(WithdrawalService::class);

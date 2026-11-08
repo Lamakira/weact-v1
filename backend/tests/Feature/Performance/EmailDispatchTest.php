@@ -115,8 +115,8 @@ class EmailDispatchTest extends TestCase
     {
         config([
             'app.withdrawal_mode' => 'manual',
-            'app.admin_email' => 'admin@example.com',
         ]);
+        \App\Models\Admin::factory()->create(['email' => 'admin@example.com']);
 
         $face = Face::factory()->create();
         $faceUser = User::factory()->create([

@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
+use App\Models\Face;
+use App\Models\Producer;
 use App\Models\User;
 use App\Models\WithdrawalRequest;
+use App\Support\Money;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
@@ -24,21 +27,31 @@ class WithdrawalRequestSubmittedMail extends Mailable
     {
         return new Envelope(
             subject: sprintf(
-                'Nouvelle demande de retrait - %s %s',
-                $this->userDisplayName(),
-                $this->formattedAmount()
+                'À traiter : demande de retrait de %s (%s)',
+                $this->formattedAmount(),
+                $this->profileLabel()
             ),
         );
     }
 
     public function content(): Content
     {
+        $pending = WithdrawalRequest::query()->where('status', 'pending');
+
         return new Content(
             view: 'emails.withdrawal-submitted',
             with: [
                 'withdrawalRequest' => $this->withdrawalRequest,
                 'userDisplayName' => $this->userDisplayName(),
+                'profileLabel' => $this->profileLabel(),
                 'formattedAmount' => $this->formattedAmount(),
+                'operatorLabel' => $this->operatorLabel(),
+                'submittedAt' => $this->withdrawalRequest->created_at
+                    ?->copy()
+                    ->setTimezone((string) config('app.business_timezone'))
+                    ->format('d/m/Y à H:i'),
+                'pendingCount' => (clone $pending)->count(),
+                'pendingTotal' => Money::format((int) (clone $pending)->sum('amount')),
                 'adminUrl' => rtrim((string) config('app.frontend_url'), '/').'/admin/finance',
             ],
         );
@@ -49,16 +62,40 @@ class WithdrawalRequestSubmittedMail extends Mailable
         /** @var User|null $user */
         $user = $this->withdrawalRequest->user;
 
-        return (string) (
-            data_get($user, 'userable.display_name')
-            ?? data_get($user, 'userable.prenom')
-            ?? ($user instanceof User ? $user->email : null)
-            ?? 'Utilisateur'
-        );
+        $name = data_get($user, 'userable.display_name');
+
+        if (is_string($name) && $name !== '') {
+            return $name;
+        }
+
+        return $user instanceof User && $user->email ? $user->email : 'Utilisateur';
+    }
+
+    private function profileLabel(): string
+    {
+        $userable = $this->withdrawalRequest->user->userable;
+
+        return match (true) {
+            $userable instanceof Face => 'Face',
+            $userable instanceof Producer => 'Producteur',
+            default => 'Utilisateur',
+        };
+    }
+
+    private function operatorLabel(): string
+    {
+        $mode = (string) $this->withdrawalRequest->payment_mode;
+
+        return match ($mode) {
+            'mtn' => 'MTN MoMo',
+            'moov' => 'Moov Money',
+            'momo_test' => 'Test MoMo',
+            default => $mode,
+        };
     }
 
     private function formattedAmount(): string
     {
-        return \App\Support\Money::format((int) $this->withdrawalRequest->amount);
+        return Money::format((int) $this->withdrawalRequest->amount);
     }
 }
