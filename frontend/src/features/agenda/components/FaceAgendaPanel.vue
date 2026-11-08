@@ -11,6 +11,7 @@ import { businessTodayIso } from '@/lib/dates'
 import { agendaApi } from '../services/agendaApi'
 import type { AgendaEvent } from '../types'
 import { addDays, formatEventWhen } from '../utils/agendaDates'
+import { eventDotClass, eventRoute } from '../utils/agendaEvents'
 
 const MAX_EVENTS = 3
 const HORIZON_DAYS = 30
@@ -20,17 +21,6 @@ const isLoading = ref(true)
 const failed = ref(false)
 
 const upcoming = computed(() => events.value.slice(0, MAX_EVENTS))
-
-function barClass(event: AgendaEvent): string {
-  if (event.state === 'pending') return 'bg-amber-500'
-  return event.kind === 'mission' ? 'bg-violet-700' : 'bg-teal-600'
-}
-
-function detailRoute(event: AgendaEvent) {
-  return event.kind === 'mission'
-    ? { name: 'face-mission-detail', params: { id: event.uuid } }
-    : { name: 'face-booking-detail', params: { id: event.uuid } }
-}
 
 onMounted(async () => {
   const from = businessTodayIso()
@@ -61,11 +51,11 @@ onMounted(async () => {
       <ul v-else class="space-y-2.5" data-testid="face-agenda-panel-list">
         <li v-for="event in upcoming" :key="`${event.kind}-${event.uuid}`">
           <RouterLink
-            :to="detailRoute(event)"
+            :to="eventRoute(event)"
             class="flex items-center gap-3 hover:opacity-80"
             data-testid="face-agenda-panel-item"
           >
-            <span class="h-8 w-1 shrink-0 rounded-full" :class="barClass(event)" aria-hidden="true" />
+            <span class="size-2 shrink-0 rounded-full" :class="eventDotClass(event)" aria-hidden="true" />
             <span class="min-w-0">
               <span class="block truncate text-dash font-medium text-ink">{{ event.title }}</span>
               <span class="block text-[12.5px] text-ink-3">{{ formatEventWhen(event) }}</span>

@@ -5,17 +5,28 @@ import {
   buildDayStates,
   daysInclusive,
   eachDay,
+  eventDayLabels,
   eventsOnDay,
+  filterEvents,
   firstUnavailableIn,
   formatDayList,
   formatDayLong,
   formatDayNumbers,
   formatEventWhen,
+  formatListWhen,
   formatMonthTitle,
   formatPeriod,
+  formatWeekLabel,
+  formatWeekTitle,
+  groupByWeek,
+  groupConsecutiveDays,
+  isDayTouchable,
   monthEnd,
   monthGrid,
   monthStart,
+  monthStats,
+  weekDays,
+  weekStart,
   weekdayIndex,
 } from '../utils/agendaDates'
 import type { AgendaEvent } from '../types'
@@ -125,5 +136,101 @@ describe('agendaDates', () => {
     const events = [event({}), event({ uuid: 'm', kind: 'mission', start: '2026-11-19', end: '2026-11-19' })]
     expect(eventsOnDay(events, '2026-11-19').map((e) => e.uuid)).toEqual(['u', 'm'])
     expect(eventsOnDay(events, '2026-11-21')).toEqual([])
+  })
+
+  it('calcule la semaine du 16 au 22 novembre 2026 et son titre', () => {
+    expect(weekStart('2026-11-19')).toBe('2026-11-16')
+    expect(weekStart('2026-11-22')).toBe('2026-11-16')
+    expect(weekStart('2026-11-16')).toBe('2026-11-16')
+    expect(weekDays('2026-11-19')).toEqual([
+      '2026-11-16', '2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21', '2026-11-22',
+    ])
+    expect(formatWeekTitle('2026-11-19')).toBe('Semaine du 16 au 22 novembre')
+    expect(formatWeekTitle('2026-12-02')).toBe('Semaine du 30 novembre au 6 décembre')
+    expect(formatWeekLabel('2026-11-16')).toBe('Semaine du 16 nov')
+  })
+
+  it('regroupe par semaine, trié, et ramène à la période un début antérieur', () => {
+    const groups = groupByWeek([
+      event({ uuid: 'c', start: '2026-11-24', end: '2026-11-24' }),
+      event({ uuid: 'a', start: '2026-11-18', end: '2026-11-20' }),
+      event({ uuid: 'b', start: '2026-11-19', end: '2026-11-19' }),
+    ])
+    expect(groups.map((g) => [g.week, g.items.map((e) => e.uuid)])).toEqual([
+      ['2026-11-16', ['a', 'b']],
+      ['2026-11-23', ['c']],
+    ])
+    const early = groupByWeek([event({ uuid: 'z', start: '2026-10-29', end: '2026-11-03' })], '2026-11-01')
+    expect(early[0]!.week).toBe('2026-10-26')
+  })
+
+  it('regroupe les jours consécutifs en plages', () => {
+    expect(groupConsecutiveDays(['2026-11-13', '2026-11-12', '2026-11-20'])).toEqual([
+      { start: '2026-11-12', end: '2026-11-13' },
+      { start: '2026-11-20', end: '2026-11-20' },
+    ])
+    expect(groupConsecutiveDays(['2026-11-30', '2026-12-01'])).toEqual([{ start: '2026-11-30', end: '2026-12-01' }])
+  })
+
+  it("calcule les statistiques du mois : jours libres à partir d'aujourd'hui, 0 pour un mois passé", () => {
+    const events = [
+      event({}),
+      event({ kind: 'mission', start: '2026-11-24', end: '2026-11-24' }),
+      event({ state: 'pending', start: '2026-11-26', end: '2026-11-27' }),
+      event({ state: 'done', start: '2026-11-02', end: '2026-11-03' }),
+    ]
+    const blocked = ['2026-11-12', '2026-11-13', '2026-10-30']
+    // Engagés : 18, 19, 20, 24 = 4 jours ; bloqués dans le mois : 2.
+    // Libres : du 8 au 30 = 23 jours, moins 4 engagés, moins 2 bloqués = 17.
+    expect(monthStats('2026-11-01', '2026-11-08', blocked, events)).toEqual({ booked: 4, blocked: 2, free: 17 })
+    expect(monthStats('2026-10-01', '2026-11-08', blocked, events)).toEqual({ booked: 0, blocked: 1, free: 0 })
+    expect(monthStats('2026-11-01', null, blocked, events).free).toBe(0)
+  })
+
+  it('découpe une plage du jeudi au mardi : texte le jeudi et le lundi seulement', () => {
+    const labels = eventDayLabels(event({ start: '2026-11-19', end: '2026-11-24' }))
+    expect(labels.map((l) => [l.iso, l.withText])).toEqual([
+      ['2026-11-19', true],
+      ['2026-11-20', false],
+      ['2026-11-21', false],
+      ['2026-11-22', false],
+      ['2026-11-23', true],
+      ['2026-11-24', false],
+    ])
+    // Plage débutant avant la grille : le premier jour visible n'a pas de texte, sauf s'il est lundi.
+    const clipped = eventDayLabels(event({ start: '2026-10-29', end: '2026-11-02' }), '2026-10-31', '2026-11-30')
+    expect(clipped.map((l) => [l.iso, l.withText])).toEqual([
+      ['2026-10-31', false],
+      ['2026-11-01', false],
+      ['2026-11-02', true],
+    ])
+  })
+
+  it('filtre les événements par type coché', () => {
+    const events = [
+      event({ uuid: 'b' }),
+      event({ uuid: 'm', kind: 'mission' }),
+      event({ uuid: 'p', state: 'pending' }),
+      event({ uuid: 'd', state: 'done' }),
+    ]
+    const filters = { bookings: true, missions: false, pending: true, blocked: true, done: false }
+    expect(filterEvents(events, filters).map((e) => e.uuid)).toEqual(['b', 'p'])
+  })
+
+  it("juge un jour touchable : futur, dans l'horizon, ni bloqué ni engagé", () => {
+    expect(isDayTouchable(undefined, '2026-11-08', '2026-11-08', null)).toBe(true)
+    expect(isDayTouchable(['pending'], '2026-11-09', '2026-11-08', null)).toBe(true)
+    expect(isDayTouchable(['booking'], '2026-11-09', '2026-11-08', null)).toBe(false)
+    expect(isDayTouchable(['blocked'], '2026-11-09', '2026-11-08', null)).toBe(false)
+    expect(isDayTouchable(undefined, '2026-11-07', '2026-11-08', null)).toBe(false)
+    expect(isDayTouchable(undefined, '2027-12-01', '2026-11-08', '2027-11-08')).toBe(false)
+    expect(isDayTouchable(undefined, '2026-11-09', null, null)).toBe(false)
+  })
+
+  it('formate une période de liste avec jours de semaine', () => {
+    expect(formatListWhen(event({}))).toBe('Mer 18 au ven 20 · 3 jours')
+    expect(formatListWhen(event({ start: '2026-11-24', end: '2026-11-24' }))).toBe('Mar 24 · 1 jour')
+    expect(formatListWhen(event({ kind: 'mission', start: '2026-11-24', end: '2026-11-24' }))).toBe('Mar 24 · mission')
+    expect(formatListWhen(event({ start: '2026-10-31', end: '2026-11-02' }))).toBe('Sam 31 oct au lun 2 nov · 3 jours')
   })
 })

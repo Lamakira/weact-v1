@@ -1,4 +1,4 @@
-import type { AgendaEvent, DayState } from '../types'
+import type { AgendaEvent, AgendaFilters, DayState } from '../types'
 
 /**
  * Fonctions pures sur des jours AAAA-MM-JJ. Aucune date locale du navigateur : tout passe par des
@@ -251,4 +251,145 @@ export function buildDayStates(
 /** Événements qui couvrent le jour `iso`. */
 export function eventsOnDay(events: AgendaEvent[], iso: string): AgendaEvent[] {
   return events.filter((event) => event.start <= iso && iso <= event.end)
+}
+
+/** Lundi de la semaine contenant `iso`. */
+export function weekStart(iso: string): string {
+  return addDays(iso, -weekdayIndex(iso))
+}
+
+/** Les 7 jours (lundi au dimanche) de la semaine contenant `iso`. */
+export function weekDays(iso: string): string[] {
+  const start = weekStart(iso)
+  return eachDay(start, addDays(start, 6))
+}
+
+/** « Semaine du 16 au 22 novembre », « Semaine du 30 novembre au 6 décembre ». */
+export function formatWeekTitle(iso: string): string {
+  const start = weekStart(iso)
+  const end = addDays(start, 6)
+  const sameMonth = fromIso(start).getUTCMonth() === fromIso(end).getUTCMonth()
+  const startText = sameMonth ? String(fromIso(start).getUTCDate()) : formatDayMonth(start)
+  return `Semaine du ${startText} au ${formatDayMonth(end)}`
+}
+
+/** « Semaine du 16 nov » (titre de groupe d'une liste). */
+export function formatWeekLabel(weekStartIso: string): string {
+  const date = fromIso(weekStartIso)
+  return `Semaine du ${date.getUTCDate()} ${MONTHS_SHORT[date.getUTCMonth()] ?? ''}`
+}
+
+/**
+ * Regroupe par semaine (lundi) du jour de début, trié chronologiquement. `from` ramène à son lundi
+ * un élément qui commence avant la période affichée.
+ */
+export function groupByWeek<T extends { start: string }>(items: T[], from?: string): { week: string; items: T[] }[] {
+  const sorted = [...items].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0))
+  const groups: { week: string; items: T[] }[] = []
+  for (const item of sorted) {
+    const week = weekStart(from && item.start < from ? from : item.start)
+    const last = groups[groups.length - 1]
+    if (last && last.week === week) last.items.push(item)
+    else groups.push({ week, items: [item] })
+  }
+  return groups
+}
+
+/** Jours consécutifs regroupés en plages : ['11-12','11-13','11-20'] => [12→13, 20→20]. */
+export function groupConsecutiveDays(days: string[]): { start: string; end: string }[] {
+  const sorted = [...new Set(days)].sort()
+  const ranges: { start: string; end: string }[] = []
+  for (const day of sorted) {
+    const last = ranges[ranges.length - 1]
+    if (last && addDays(last.end, 1) === day) last.end = day
+    else ranges.push({ start: day, end: day })
+  }
+  return ranges
+}
+
+export interface MonthStats {
+  booked: number
+  blocked: number
+  free: number
+}
+
+/**
+ * Statistiques du mois de `month` : jours couverts par un booking ou une mission engagés, jours
+ * bloqués, jours libres (à partir d'aujourd'hui, ni engagés ni bloqués ; 0 pour un mois passé).
+ */
+export function monthStats(
+  month: string,
+  today: string | null,
+  unavailableDays: string[],
+  events: AgendaEvent[],
+): MonthStats {
+  const first = monthStart(month)
+  const last = monthEnd(month)
+  const engaged = new Set<string>()
+  events
+    .filter((event) => event.state === 'engaged')
+    .forEach((event) => {
+      eachDay(event.start < first ? first : event.start, event.end > last ? last : event.end).forEach((iso) =>
+        engaged.add(iso),
+      )
+    })
+  const blocked = new Set(unavailableDays.filter((iso) => iso >= first && iso <= last))
+  const free =
+    today === null
+      ? 0
+      : eachDay(first, last).filter((iso) => iso >= today && !engaged.has(iso) && !blocked.has(iso)).length
+  return { booked: engaged.size, blocked: blocked.size, free }
+}
+
+export interface DayLabel {
+  iso: string
+  /** true = étiquette avec le titre ; false = barre pleine sans texte. */
+  withText: boolean
+}
+
+/**
+ * Découpe une plage en étiquettes par jour (bornée à [from, to] si fournis) : le texte apparaît le
+ * premier jour de la plage et chaque lundi, les autres jours sont une barre pleine.
+ */
+export function eventDayLabels(event: Pick<AgendaEvent, 'start' | 'end'>, from?: string, to?: string): DayLabel[] {
+  const start = from && event.start < from ? from : event.start
+  const end = to && event.end > to ? to : event.end
+  return eachDay(start, end).map((iso) => ({ iso, withText: iso === event.start || weekdayIndex(iso) === 0 }))
+}
+
+/** Case à cocher qui gouverne un événement. */
+export function eventFilterKey(event: AgendaEvent): keyof AgendaFilters {
+  if (event.state === 'pending') return 'pending'
+  if (event.state === 'done') return 'done'
+  return event.kind === 'mission' ? 'missions' : 'bookings'
+}
+
+/** Événements dont le type est coché. */
+export function filterEvents(events: AgendaEvent[], filters: AgendaFilters): AgendaEvent[] {
+  return events.filter((event) => filters[eventFilterKey(event)])
+}
+
+/**
+ * Jour touchable pour un blocage : aujourd'hui ou futur, dans l'horizon, ni bloqué ni engagé. Une
+ * demande en attente n'engage rien (le serveur accepte le blocage), le jour reste touchable.
+ */
+export function isDayTouchable(
+  states: DayState[] | undefined,
+  iso: string,
+  today: string | null,
+  horizonEnd: string | null,
+): boolean {
+  if (today === null || iso < today) return false
+  if (horizonEnd && iso > horizonEnd) return false
+  return (states ?? []).every((state) => state === 'pending')
+}
+
+/** Libellé court avec jours de semaine : « Mer 18 au ven 20 · 3 jours », « Mar 24 · mission ». */
+export function formatListWhen(event: Pick<AgendaEvent, 'kind' | 'start' | 'end'>): string {
+  const sameMonth = event.start.slice(0, 7) === event.end.slice(0, 7)
+  const startText = capitalize(shortDay(event.start, !sameMonth))
+  const range = event.start === event.end ? startText : `${startText} au ${shortDay(event.end, !sameMonth)}`
+  if (event.kind === 'mission' && event.start === event.end) return `${range} · mission`
+  const count = daysInclusive(event.start, event.end)
+  return `${range} · ${count} jour${count > 1 ? 's' : ''}`
 }

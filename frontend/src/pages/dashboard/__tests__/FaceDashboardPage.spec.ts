@@ -224,6 +224,14 @@ describe('FaceDashboardPage', () => {
       ])
       expect(items[0]!.text()).toContain('18 au 20 nov · 3 jours')
       expect(wrapper.find('[data-testid="face-agenda-panel-link"]').text()).toBe('Ouvrir mon agenda')
+
+      // Plus de barre d'accent : une pastille ronde de 8 px, de la couleur du type.
+      items.forEach((item) => expect(item.find('span.w-1').exists()).toBe(false))
+      const dots = items.map((item) => item.find('span.size-2.rounded-full'))
+      expect(dots.every((dot) => dot.exists())).toBe(true)
+      expect(dots[0]!.classes()).toContain('bg-teal-600')
+      expect(dots[1]!.classes()).toContain('bg-violet-700')
+      expect(dots[2]!.classes()).toContain('bg-amber-500')
     })
 
     it('affiche « Aucun engagement dans les 30 prochains jours » quand il n\'y a rien', async () => {

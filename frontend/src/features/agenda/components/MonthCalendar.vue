@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { DayState } from '../types'
-import { WEEKDAY_INITIALS, formatDayLong, monthGrid } from '../utils/agendaDates'
+import { WEEKDAY_INITIALS, formatDayLong, isDayTouchable, monthGrid } from '../utils/agendaDates'
 
 /**
  * Grille d'un mois (lundi au dimanche), partagée par l'agenda de la Face et la disponibilité vue
@@ -69,9 +69,7 @@ function isPast(iso: string): boolean {
  * en attente n'engage rien (le serveur accepte le blocage), le jour reste donc touchable.
  */
 function isTouchable(iso: string): boolean {
-  if (props.today === null || iso < props.today) return false
-  if (props.horizonEnd && iso > props.horizonEnd) return false
-  return (props.states[iso] ?? []).every((state) => state === 'pending')
+  return isDayTouchable(props.states[iso], iso, props.today, props.horizonEnd)
 }
 
 function label(iso: string): string {
