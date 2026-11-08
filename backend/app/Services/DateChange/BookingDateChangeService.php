@@ -12,6 +12,7 @@ use App\Models\DateChangeRequest;
 use App\Models\Face;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\Agenda\FaceAgendaService;
 use App\Support\DateChangeRules;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ class BookingDateChangeService
     public function __construct(
         private readonly DateChangeNotifier $notifier,
         private readonly AgendaConflictChecker $agenda,
+        private readonly FaceAgendaService $faceAgenda,
     ) {}
 
     /** Booking dont la date peut faire l'objet d'une proposition : cash, accepté ou payé, daté. */
@@ -62,6 +64,13 @@ class BookingDateChangeService
             DateChangeRules::assertCanRequest($debut, $newDate, $used, $hasPending);
 
             $delta = $this->dayDelta($debut->toDateString(), $newDate);
+
+            $this->assertNoBlockedDay(
+                $locked,
+                $actor,
+                $newDate,
+                $locked->date_fin?->copy()->addDays($delta)->toDateString() ?? $newDate,
+            );
 
             $request = DateChangeRequest::query()->create([
                 'booking_id' => $locked->id,
@@ -121,6 +130,8 @@ class BookingDateChangeService
 
                 return ['request' => $request, 'booking' => $locked];
             }
+
+            $this->assertNoBlockedDay($locked, $actor, $request->new_date, $request->new_end_date ?? $request->new_date);
 
             if ($this->agenda->hasConflict(
                 (int) $locked->face_id,
@@ -316,6 +327,20 @@ class BookingDateChangeService
         if ($actor->id !== $booking->producer_id && $actor->id !== $booking->face_id) {
             DateChangeRules::fail('Vous ne faites pas partie de ce booking.');
         }
+    }
+
+    /** Refuse une nouvelle plage qui contient un jour que la Face a marqué indisponible dans son calendrier. */
+    private function assertNoBlockedDay(Booking $booking, User $actor, \Carbon\CarbonInterface|string $first, \Carbon\CarbonInterface|string $last): void
+    {
+        $faceId = User::query()->whereKey($booking->face_id)->value('userable_id');
+
+        if ($faceId === null || $this->faceAgenda->firstBlockedDay((int) $faceId, $first, $last) === null) {
+            return;
+        }
+
+        DateChangeRules::fail($actor->id === $booking->face_id
+            ? 'Vous avez marqué cette date comme indisponible dans votre agenda. Libérez-la d\'abord.'
+            : 'La Face a indiqué être indisponible à cette date.');
     }
 
     /** Dernière demande en attente du booking, verrouillée (le booking l'est déjà). */

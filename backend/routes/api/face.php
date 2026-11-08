@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Http\Controllers\Api\V1\Face\AgendaController;
 use App\Http\Controllers\Api\V1\Face\AlbumController;
 use App\Http\Controllers\Api\V1\Face\AvailabilityController;
 use App\Http\Controllers\Api\V1\Face\BasicInfoController;
@@ -145,6 +146,12 @@ Route::prefix('v1/face')->middleware(['auth:sanctum', 'api.token'])->group(funct
     Route::get('/availability', [AvailabilityController::class, 'show'])
         ->middleware('throttle:ui-read');
     Route::put('/availability', [AvailabilityController::class, 'update'])
+        ->middleware('throttle:60,1');
+
+    // Calendrier (jours indisponibles, bookings et missions engagés)
+    Route::get('/agenda', [AgendaController::class, 'index'])
+        ->middleware('throttle:ui-read');
+    Route::put('/agenda/unavailable-days', [AgendaController::class, 'updateUnavailableDays'])
         ->middleware('throttle:60,1');
 
     // Profile completion route

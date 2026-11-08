@@ -135,6 +135,31 @@ abstract class DateChangeTestCase extends TestCase
         return compact('candidature', 'entry', 'faceUser', 'face');
     }
 
+    /**
+     * Engage une Face existante sur une mission (candidature + séquestre).
+     *
+     * @return array{candidature: Candidature, entry: MissionPaymentCandidature}
+     */
+    protected function selectedFaceFor(User $faceUser, Mission $mission, MissionPayment $payment, CandidatureStatus $status): array
+    {
+        $candidature = Candidature::factory()->create([
+            'mission_id' => $mission->id,
+            'face_id' => $faceUser->userable_id,
+            'status' => $status,
+            'accepted_at' => now()->subDay(),
+        ]);
+        $entry = MissionPaymentCandidature::create([
+            'mission_payment_id' => $payment->id,
+            'candidature_id' => $candidature->id,
+            'face_id' => $faceUser->userable_id,
+            'montant_face_recoit' => 90000,
+            'escrow_status' => EscrowStatus::Locked,
+            'locked_at' => now()->subDays(3),
+        ]);
+
+        return ['candidature' => $candidature, 'entry' => $entry];
+    }
+
     /** Candidature non retenue d'une Face abonnée : rend la place libérable (remplacement possible). */
     protected function replacementCandidate(Mission $mission): Candidature
     {
