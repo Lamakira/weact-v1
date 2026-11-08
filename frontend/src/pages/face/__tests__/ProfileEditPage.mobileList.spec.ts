@@ -284,9 +284,13 @@ describe('ProfileEditPage - liste mobile', () => {
     }
   })
 
-  it('« Mon profil » pousse une query sans tab ni section, en gardant les autres clés', async () => {
+  it('« Toutes les sections » pousse une query sans tab ni section, en gardant les autres clés', async () => {
     h.route.query = { tab: 'portfolio', section: 'album', foo: 'bar' }
     const wrapper = await mountPage()
+
+    // Sur téléphone, « Mon profil » n'apparaît que dans la barre du haut : ni titre de page visible, ni retour homonyme.
+    expect(wrapper.get('[data-testid="profile-page-heading"]').classes()).toEqual(expect.arrayContaining(['hidden', 'md:block']))
+    expect(wrapper.get('[data-testid="mobile-back"]').text()).toBe('Toutes les sections')
 
     await wrapper.get('[data-testid="mobile-back"]').trigger('click')
     await flushPromises()
