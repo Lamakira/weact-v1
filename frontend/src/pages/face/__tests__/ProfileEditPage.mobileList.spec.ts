@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, shallowMount } from '@vue/test-utils'
 import { ref } from 'vue'
 import ProfileEditPage from '../ProfileEditPage.vue'
@@ -204,6 +204,7 @@ vi.mock('@/features/face/composables/useSubscriptionStatus', () => ({
   }),
 }))
 
+
 const ROW_IDS = [
   'photo',
   'infos',
@@ -222,17 +223,54 @@ const ROW_IDS = [
   'donnees',
 ]
 
+// matchMedia simulé : `mobile` = vrai sous md (max-width: 767px).
+function mockMatchMedia(mobile: boolean): void {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    writable: true,
+    value: (query: string) => ({
+      matches: query.includes('max-width') ? mobile : !mobile,
+      media: query,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }),
+  })
+}
+
+let wrappers: Array<{ unmount: () => void }> = []
+
+// attachTo : les panneaux téléportés vivent hors du wrapper, il faut un vrai document.
 async function mountPage() {
-  const wrapper = shallowMount(ProfileEditPage)
+  const wrapper = shallowMount(ProfileEditPage, {
+    attachTo: document.body,
+    global: { stubs: { teleport: false } },
+  })
+  wrappers.push(wrapper)
   await flushPromises()
   return wrapper
 }
 
-describe('ProfileEditPage - liste mobile', () => {
+const slot = (id: string): Element | null => document.querySelector(`[data-testid="mobile-slot-${id}"]`)
+const row = (id: string): Element | null => document.querySelector(`[data-testid="mobile-row-${id}"]`)
+const panel = (id: string): Element | null => document.querySelector(`[data-testid="panel-${id}"]`)
+
+describe('ProfileEditPage - liste mobile (dépliant)', () => {
+  let scrollSpy: ReturnType<typeof vi.fn>
+
   beforeEach(() => {
     h.route.query = {}
     h.missing.value = []
     h.push.mockClear()
+    mockMatchMedia(true)
+    scrollSpy = vi.fn()
+    Element.prototype.scrollIntoView = scrollSpy as unknown as Element['scrollIntoView']
+  })
+
+  afterEach(() => {
+    wrappers.forEach((w) => w.unmount())
+    wrappers = []
+    // @ts-expect-error nettoyage du mock
+    delete window.matchMedia
   })
 
   it('sans section dans la query, rend la liste avec les 15 lignes', async () => {
@@ -242,8 +280,11 @@ describe('ProfileEditPage - liste mobile', () => {
     expect(wrapper.find('[data-testid="mobile-back"]').exists()).toBe(false)
     for (const id of ROW_IDS) {
       expect(wrapper.find(`[data-testid="mobile-row-${id}"]`).exists(), id).toBe(true)
+      expect(row(id)?.getAttribute('aria-expanded'), id).toBe('false')
+      expect(row(id)?.getAttribute('aria-controls'), id).toBe(`mobile-slot-${id}`)
     }
     expect(wrapper.findAll('[data-testid^="mobile-row-"]')).toHaveLength(15)
+    expect(scrollSpy).not.toHaveBeenCalled()
   })
 
   it('affiche les aperçus calculés depuis les données déjà chargées', async () => {
@@ -256,47 +297,73 @@ describe('ProfileEditPage - liste mobile', () => {
     expect(wrapper.get('[data-testid="mobile-row-securite"]').text()).toContain('a•••@exemple.com')
   })
 
-  it('avec ?tab=profil&section=identite, masque la liste et affiche la barre retour', async () => {
+  it('avec ?tab=profil&section=identite, la liste reste rendue et Identité est dépliée sous sa ligne', async () => {
     h.route.query = { tab: 'profil', section: 'identite' }
     const wrapper = await mountPage()
 
-    expect(wrapper.find('[data-testid="profile-mobile-list"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="mobile-back"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="profile-mobile-list"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="mobile-back"]').exists()).toBe(false)
+    expect(row('identite')?.getAttribute('aria-expanded')).toBe('true')
+    expect(slot('identite')?.querySelector('[data-testid="panel-identite"]')).not.toBeNull()
+    expect(row('infos')?.getAttribute('aria-expanded')).toBe('false')
   })
 
-  it('un appui sur une ligne pousse { tab, section }, ouvre le détail et remonte en haut de la page', async () => {
-    // La zone qui défile est le <main> du layout : on remonte par scrollIntoView, pas window.scrollTo.
-    const innerWidth = window.innerWidth
-    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 })
-    const scrollSpy = vi.fn()
-    Element.prototype.scrollIntoView = scrollSpy
-    try {
-      const wrapper = await mountPage()
-
-      await wrapper.get('[data-testid="mobile-row-bio"]').trigger('click')
-      await flushPromises()
-
-      expect(h.push).toHaveBeenCalledWith({ query: { tab: 'profil', section: 'bio' } })
-      expect(wrapper.find('[data-testid="profile-mobile-list"]').exists()).toBe(false)
-      expect(scrollSpy).toHaveBeenCalledWith({ block: 'start' })
-    } finally {
-      Object.defineProperty(window, 'innerWidth', { configurable: true, value: innerWidth })
-    }
-  })
-
-  it('« Toutes les sections » pousse une query sans tab ni section, en gardant les autres clés', async () => {
-    h.route.query = { tab: 'portfolio', section: 'album', foo: 'bar' }
+  it('un appui sur une ligne fermée pousse { tab, section } et déplie la section', async () => {
     const wrapper = await mountPage()
 
-    // Sur téléphone, « Mon profil » n'apparaît que dans la barre du haut : ni titre de page visible, ni retour homonyme.
-    expect(wrapper.get('[data-testid="profile-page-heading"]').classes()).toEqual(expect.arrayContaining(['hidden', 'md:block']))
-    expect(wrapper.get('[data-testid="mobile-back"]').text()).toBe('Toutes les sections')
+    await wrapper.get('[data-testid="mobile-row-bio"]').trigger('click')
+    await flushPromises()
 
-    await wrapper.get('[data-testid="mobile-back"]').trigger('click')
+    expect(h.push).toHaveBeenCalledWith({ query: { tab: 'profil', section: 'bio' } })
+    expect(wrapper.find('[data-testid="profile-mobile-list"]').exists()).toBe(true)
+    expect(row('bio')?.getAttribute('aria-expanded')).toBe('true')
+    expect(slot('bio')?.querySelector('[data-testid="panel-bio"]')).not.toBeNull()
+  })
+
+  it('un appui sur la ligne ouverte la referme : push sans tab ni section, autres clés gardées, sans défilement', async () => {
+    h.route.query = { tab: 'portfolio', section: 'album', foo: 'bar' }
+    const wrapper = await mountPage()
+    scrollSpy.mockClear()
+
+    // Sur téléphone, « Mon profil » n'apparaît que dans la barre du haut.
+    expect(wrapper.get('[data-testid="profile-page-heading"]').classes()).toEqual(
+      expect.arrayContaining(['hidden', 'md:block']),
+    )
+    expect(row('album')?.getAttribute('aria-expanded')).toBe('true')
+
+    await wrapper.get('[data-testid="mobile-row-album"]').trigger('click')
     await flushPromises()
 
     expect(h.push).toHaveBeenCalledWith({ query: { foo: 'bar' } })
-    expect(wrapper.find('[data-testid="profile-mobile-list"]').exists()).toBe(true)
+    expect(row('album')?.getAttribute('aria-expanded')).toBe('false')
+    expect(slot('album')?.children).toHaveLength(0)
+    expect(scrollSpy).not.toHaveBeenCalled()
+  })
+
+  it('une seule section ouverte à la fois : ouvrir Langues ferme Identité', async () => {
+    h.route.query = { tab: 'profil', section: 'identite' }
+    const wrapper = await mountPage()
+
+    await wrapper.get('[data-testid="mobile-row-langues"]').trigger('click')
+    await flushPromises()
+
+    expect(h.push).toHaveBeenCalledWith({ query: { tab: 'profil', section: 'langues' } })
+    expect(row('langues')?.getAttribute('aria-expanded')).toBe('true')
+    expect(row('identite')?.getAttribute('aria-expanded')).toBe('false')
+    expect(slot('langues')?.querySelector('[data-testid="panel-langues"]')).not.toBeNull()
+    expect(slot('identite')?.querySelector('[data-testid="panel-identite"]')).toBeNull()
+    expect(document.querySelectorAll('[aria-expanded="true"]')).toHaveLength(1)
+  })
+
+  it('le panneau n\'est rendu qu\'une fois dans le DOM (pas de double instance)', async () => {
+    h.route.query = { tab: 'profil', section: 'identite' }
+    await mountPage()
+    expect(document.querySelectorAll('[data-testid="panel-identite"]')).toHaveLength(1)
+
+    h.route.query = { tab: 'profil', section: 'langues' }
+    await flushPromises()
+    expect(document.querySelectorAll('[data-testid="panel-identite"]')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-testid="panel-langues"]')).toHaveLength(1)
   })
 
   it('une section incomplète affiche « À compléter » sur sa ligne', async () => {
@@ -311,27 +378,29 @@ describe('ProfileEditPage - liste mobile', () => {
     expect(wrapper.get('[data-testid="mobile-row-bio"]').text()).not.toContain('À compléter')
   })
 
-  it('« Section suivante » depuis identite mène à physique', async () => {
+  it('« Section suivante » depuis identite ouvre physique', async () => {
     h.route.query = { tab: 'profil', section: 'identite' }
     const wrapper = await mountPage()
 
     const next = wrapper.get('[data-testid="mobile-next"]')
-    expect(next.text()).toContain('Caractéristiques physiques')
+    expect(next.text()).toContain('Section suivante : Caractéristiques physiques')
     await next.trigger('click')
+    await flushPromises()
 
     expect(h.push).toHaveBeenCalledWith({ query: { tab: 'profil', section: 'physique' } })
+    expect(row('physique')?.getAttribute('aria-expanded')).toBe('true')
   })
 
-  it('section=photo est accepté, ouvre le détail, et « Section suivante » mène à infos', async () => {
+  it('section=photo : la ligne photo est dépliée avec la carte photo, et « Section suivante » mène à infos', async () => {
     h.route.query = { tab: 'profil', section: 'photo' }
     const wrapper = await mountPage()
 
-    expect(wrapper.find('[data-testid="profile-mobile-list"]').exists()).toBe(false)
-    expect(wrapper.find('[data-testid="mobile-back"]').exists()).toBe(true)
-    // Sur md+, le panneau « infos » reste le panneau actif.
-    expect(wrapper.get('[data-testid="panel-infos"]').attributes('style') ?? '').not.toContain(
-      'display: none',
-    )
+    expect(wrapper.find('[data-testid="profile-mobile-list"]').exists()).toBe(true)
+    expect(row('photo')?.getAttribute('aria-expanded')).toBe('true')
+    expect(slot('photo')?.querySelector('#section-profile-photo')).not.toBeNull()
+    // Le panneau « infos » reste actif côté ordinateur mais n'est pas déplié sur téléphone.
+    expect(row('infos')?.getAttribute('aria-expanded')).toBe('false')
+    expect(slot('infos')?.querySelector('[data-testid="panel-infos"]')).toBeNull()
 
     const next = wrapper.get('[data-testid="mobile-next"]')
     expect(next.text()).toContain('Infos perso')
@@ -352,6 +421,54 @@ describe('ProfileEditPage - liste mobile', () => {
     h.route.query = { tab: 'compte', section: 'donnees' }
     const wrapper = await mountPage()
 
+    expect(row('donnees')?.getAttribute('aria-expanded')).toBe('true')
     expect(wrapper.find('[data-testid="mobile-next"]').exists()).toBe(false)
+  })
+
+  it('à l\'ouverture, fait défiler l\'en-tête de la ligne ouverte en haut de la zone visible', async () => {
+    const wrapper = await mountPage()
+    expect(scrollSpy).not.toHaveBeenCalled()
+
+    await wrapper.get('[data-testid="mobile-row-bio"]').trigger('click')
+    await flushPromises()
+
+    expect(scrollSpy).toHaveBeenCalledWith({ block: 'start' })
+    expect(scrollSpy.mock.contexts[0]).toBe(row('bio'))
+  })
+
+  it('un lien profond arrive avec la section dépliée et calée en haut', async () => {
+    h.route.query = { tab: 'profil', section: 'identite' }
+    await mountPage()
+
+    expect(scrollSpy).toHaveBeenCalledWith({ block: 'start' })
+    expect(scrollSpy.mock.contexts[0]).toBe(row('identite'))
+  })
+
+  it('au-dessus de md, rien n\'est téléporté et la mise en page ordinateur est intacte', async () => {
+    mockMatchMedia(false)
+    h.route.query = { tab: 'profil', section: 'identite' }
+    const wrapper = await mountPage()
+
+    for (const id of ['identite', 'infos', 'langues']) {
+      expect(slot(id)?.children, id).toHaveLength(0)
+    }
+    expect(slot('photo')?.children).toHaveLength(0)
+    const desktop = wrapper.get('div.hidden.md\\:flex')
+    expect(desktop.find('[data-testid="panel-identite"]').exists()).toBe(true)
+    expect(desktop.find('#section-profile-photo').exists()).toBe(true)
+    expect(desktop.get('[data-testid="panel-identite"]').attributes('style') ?? '').not.toContain(
+      'display: none',
+    )
+    expect(desktop.get('[data-testid="panel-langues"]').attributes('style') ?? '').toContain(
+      'display: none',
+    )
+    expect(scrollSpy).not.toHaveBeenCalled()
+  })
+
+  it('le panneau reste monté à sa place tant qu\'aucune section n\'est ouverte', async () => {
+    await mountPage()
+
+    expect(panel('infos')).not.toBeNull()
+    expect(slot('infos')?.children).toHaveLength(0)
   })
 })
