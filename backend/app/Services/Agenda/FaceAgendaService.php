@@ -70,8 +70,8 @@ class FaceAgendaService
             $events[] = [
                 'kind' => 'booking',
                 'uuid' => $booking->uuid,
-                // La carte de booking de la Face a pour titre le nom du Producteur : on reprend le même.
-                'title' => $producerName,
+                // Type de contenu demandé (« Clip vidéo », « Publicité »…) : le Producteur est déjà dans `counterpart`.
+                'title' => $booking->type_contenu ?: 'Booking',
                 'status' => $booking->status->value,
                 'state' => match ($booking->status) {
                     BookingStatus::Pending => 'pending',

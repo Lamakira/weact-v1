@@ -45,6 +45,7 @@ class FaceAgendaTest extends DateChangeTestCase
 
         [$booking] = $this->cashBooking([
             'status' => BookingStatus::Paid,
+            'type_contenu' => 'Clip vidéo',
             'date_debut' => '2026-11-18 09:00:00',
             'date_fin' => '2026-11-20 17:00:00',
         ], $faceUser);
@@ -66,7 +67,7 @@ class FaceAgendaTest extends DateChangeTestCase
         $this->assertSame([
             'kind' => 'booking',
             'uuid' => $booking->uuid,
-            'title' => $producerName,
+            'title' => 'Clip vidéo',
             'status' => 'paid',
             'state' => 'engaged',
             'start' => '2026-11-18',
