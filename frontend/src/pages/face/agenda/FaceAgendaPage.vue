@@ -341,7 +341,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
     <!-- Version ordinateur : colonnes gauche (240 px), centre, droite (300 px à partir de xl) -->
     <div
-      class="hidden lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start lg:gap-4 xl:grid-cols-[240px_minmax(0,1fr)_300px]"
+      class="hidden lg:grid lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start lg:gap-4 xl:grid-cols-[220px_minmax(0,1fr)_280px]"
       data-testid="agenda-desktop"
     >
       <AgendaSidebar

@@ -102,36 +102,46 @@ function label(iso: string): string {
 function cellClasses(iso: string): string[] {
   const classes: string[] = []
   if (props.selectionMode) {
-    if (isSelected(iso)) classes.push('bg-amber-100 ring-2 ring-amber-600')
+    if (isSelected(iso)) classes.push('bg-amber-100 ring-2 ring-inset ring-amber-600')
     else if (!isTouchable(iso)) classes.push('bg-slate-100')
   } else if (isSelected(iso)) {
-    classes.push('bg-amber-100 ring-2 ring-amber-600')
+    classes.push('bg-amber-100 ring-2 ring-inset ring-amber-600')
   } else if (isBlockedVisible(iso)) {
     classes.push('bg-slate-100')
   }
-  if (props.activeDay === iso && !props.selectionMode) classes.push('ring-2 ring-slate-900')
+  if (props.activeDay === iso && !props.selectionMode) classes.push('ring-2 ring-inset ring-slate-900')
   return classes
 }
 </script>
 
 <template>
-  <div role="grid" class="select-none" data-testid="month-grid-large">
-    <div role="row" class="mb-1 grid grid-cols-7">
+  <div
+    role="grid"
+    class="select-none overflow-hidden rounded-xl border border-slate-200 bg-white"
+    data-testid="month-grid-large"
+  >
+    <div role="row" class="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
       <div
         v-for="(initial, i) in WEEKDAY_INITIALS"
         :key="i"
         role="columnheader"
-        class="py-1 text-center text-[12px] font-medium text-slate-500"
+        class="px-2 py-1.5 text-left text-[12px] font-medium text-slate-500"
       >
         {{ ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'][i] }}
       </div>
     </div>
 
-    <div v-for="(week, w) in weeks" :key="w" role="row" class="grid grid-cols-7">
-      <div v-for="day in week" :key="day.iso" role="gridcell" class="p-0.5">
+    <div
+      v-for="(week, w) in weeks"
+      :key="w"
+      role="row"
+      class="grid grid-cols-7 divide-x divide-slate-200"
+      :class="w > 0 ? 'border-t border-slate-200' : ''"
+    >
+      <div v-for="day in week" :key="day.iso" role="gridcell" class="min-w-0">
         <span
           v-if="!day.inMonth"
-          class="block min-h-[104px] p-1.5 text-[12.5px] text-slate-300"
+          class="block h-full min-h-[112px] bg-slate-50/60 px-2 py-1.5 text-[12.5px] text-slate-300"
           aria-hidden="true"
           :data-testid="`cell-outside-${day.iso}`"
         >
@@ -141,7 +151,7 @@ function cellClasses(iso: string): string[] {
         <button
           v-else
           type="button"
-          class="block w-full rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-900 focus-visible:ring-offset-1 disabled:cursor-not-allowed"
+          class="block h-full w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-slate-900 disabled:cursor-not-allowed"
           :aria-label="label(day.iso)"
           :aria-pressed="selectionMode ? selectedSet.has(day.iso) : undefined"
           :disabled="selectionMode && !isTouchable(day.iso)"
@@ -151,7 +161,7 @@ function cellClasses(iso: string): string[] {
           @click="selection.onClick(day.iso, $event)"
         >
           <span
-            class="block min-h-[104px] rounded-lg border border-slate-200 p-1.5"
+            class="block h-full min-h-[112px] px-1.5 py-1.5 transition-colors hover:bg-slate-50"
             :class="cellClasses(day.iso)"
           >
             <span class="mb-1 flex items-center justify-between">

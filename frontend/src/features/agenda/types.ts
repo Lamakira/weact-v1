@@ -22,8 +22,6 @@ export interface AgendaEvent {
   /** true si cet argent est en séquestre bloqué pour la Face. */
   secured?: boolean
   /** HH:MM, heure métier (booking uniquement). */
-  start_time?: string | null
-  end_time?: string | null
 }
 
 export interface AgendaEarnings {

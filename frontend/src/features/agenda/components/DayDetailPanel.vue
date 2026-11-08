@@ -32,10 +32,6 @@ const emit = defineEmits<{
 const canAct = computed(() => canActOnDay(props.day, props.today, props.horizonEnd))
 const hasEngagement = computed(() => props.events.some((e) => e.state === 'engaged'))
 
-function hours(event: AgendaEvent): string | null {
-  return event.kind === 'booking' && event.start_time && event.end_time ? `${event.start_time} à ${event.end_time}` : null
-}
-
 function amountOf(event: AgendaEvent): string | null {
   return event.secured && event.amount_face ? formatMoney(event.amount_face) : null
 }
@@ -54,7 +50,7 @@ function amountOf(event: AgendaEvent): string | null {
               <p class="truncate text-[14px] font-semibold text-ink">{{ event.title }}</p>
               <p class="text-[13px] text-ink-2">{{ eventStateLabel(event) }}</p>
               <p class="text-[13px] text-ink-3">
-                {{ formatPeriod(event.start, event.end) }}<template v-if="hours(event)"> · {{ hours(event) }}</template>
+                {{ formatPeriod(event.start, event.end) }}
               </p>
               <p class="text-[13px] text-ink-3">avec {{ event.counterpart }}</p>
               <p v-if="amountOf(event)" class="text-[13px] font-medium text-ink" data-testid="detail-amount">

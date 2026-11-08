@@ -67,10 +67,6 @@ function isSelected(iso: string): boolean {
   return selectedSet.value.has(iso) || selection.dragDays().includes(iso)
 }
 
-function chipText(event: AgendaEvent): string {
-  return event.kind === 'booking' && event.start_time ? `${event.start_time} ${event.title}` : event.title
-}
-
 function label(iso: string): string {
   const base = formatDayLong(iso)
   if (props.selectionMode) {
@@ -123,7 +119,7 @@ function cellClasses(iso: string): string[] {
 
           <span class="grid gap-1.5">
             <span v-for="event in dayEvents(iso)" :key="`${event.kind}-${event.uuid}`" class="block">
-              <AgendaEventChip :event="event" :with-text="true" :text="chipText(event)" large />
+              <AgendaEventChip :event="event" :with-text="true" large />
               <span class="mt-0.5 block truncate px-0.5 text-[11.5px] text-slate-500">{{ event.counterpart }}</span>
             </span>
           </span>
