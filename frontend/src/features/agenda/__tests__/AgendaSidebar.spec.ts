@@ -73,21 +73,9 @@ describe('AgendaSidebar', () => {
     expect(text(wrapper, 'stat-free')).toBe('16')
   })
 
-  it('affiche les gains formatés, le nombre d\'engagements et la mention de versement', () => {
-    const wrapper = mountSidebar()
-    expect(text(wrapper, 'earnings-amount')).toBe(formatMoney(75000))
-    expect(text(wrapper, 'earnings-count')).toBe('2 engagements en séquestre')
-    expect(wrapper.text()).toContain('Versés sur votre portefeuille après le tournage.')
-
-    const single = mountSidebar({ earnings: { amount: 30000, count: 1 } })
-    expect(text(single, 'earnings-count')).toBe('1 engagement en séquestre')
-  })
-
-  it('affiche « Aucun gain en attente » à 0 ou sans donnée', () => {
-    expect(text(mountSidebar({ earnings: { amount: 0, count: 0 } }), 'earnings-empty')).toBe('Aucun gain en attente')
-    const none = mountSidebar({ earnings: null })
-    expect(text(none, 'earnings-empty')).toBe('Aucun gain en attente')
-    expect(none.find('[data-testid="earnings-amount"]').exists()).toBe(false)
+  it('inclut la carte « Gains à venir » (détail couvert par AgendaEarnings.spec)', () => {
+    expect(text(mountSidebar(), 'earnings-amount')).toBe(formatMoney(75000))
+    expect(text(mountSidebar({ earnings: null }), 'earnings-empty')).toBe('Aucun gain en attente')
   })
 
   it('émet block-days depuis le bouton principal', async () => {
