@@ -424,6 +424,8 @@ class Booking extends Model
 
     /**
      * Get the escrow transaction for this booking.
+     *
+     * @return HasOne<EscrowTransaction, $this>
      */
     public function escrowTransaction(): HasOne
     {

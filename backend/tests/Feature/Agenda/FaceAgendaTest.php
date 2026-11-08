@@ -6,6 +6,9 @@ namespace Tests\Feature\Agenda;
 
 use App\Enums\BookingStatus;
 use App\Enums\CandidatureStatus;
+use App\Enums\EscrowStatus;
+use App\Models\Booking;
+use App\Models\EscrowTransaction;
 use App\Models\FaceUnavailableDay;
 use App\Models\User;
 use Tests\Feature\DateChange\DateChangeTestCase;
@@ -34,6 +37,16 @@ class FaceAgendaTest extends DateChangeTestCase
         }
     }
 
+    private function escrow(Booking $booking, EscrowStatus $status = EscrowStatus::Locked): EscrowTransaction
+    {
+        return EscrowTransaction::create([
+            'booking_id' => $booking->id,
+            'amount' => $booking->montant_face_recoit,
+            'status' => $status,
+            'locked_at' => now()->subDay(),
+        ]);
+    }
+
     // -------------------------------------------------------------------------
     // GET
     // -------------------------------------------------------------------------
@@ -46,9 +59,10 @@ class FaceAgendaTest extends DateChangeTestCase
         [$booking] = $this->cashBooking([
             'status' => BookingStatus::Paid,
             'type_contenu' => 'Clip vidéo',
-            'date_debut' => '2026-11-18 09:00:00',
-            'date_fin' => '2026-11-20 17:00:00',
+            'date_debut' => '2026-11-18 08:00:00',
+            'date_fin' => '2026-11-20 16:00:00',
         ], $faceUser);
+        $this->escrow($booking);
 
         [$mission, $payment] = $this->paidMission([], '2026-11-24', ['titre' => 'Pub boisson']);
         $this->selectedFaceFor($faceUser, $mission, $payment, CandidatureStatus::Confirmed);
@@ -60,7 +74,7 @@ class FaceAgendaTest extends DateChangeTestCase
             ->assertJsonPath('data.today', '2026-11-10')
             ->assertJsonPath('data.unavailable_days', ['2026-11-12', '2026-11-13'])
             ->assertJsonCount(2, 'data.events')
-            ->assertJsonStructure(['data' => ['from', 'to', 'today', 'unavailable_days', 'events' => [['kind', 'uuid', 'title', 'status', 'state', 'start', 'end', 'counterpart']]]]);
+            ->assertJsonStructure(['data' => ['from', 'to', 'today', 'unavailable_days', 'events' => [['kind', 'uuid', 'title', 'status', 'state', 'start', 'end', 'counterpart', 'amount_face', 'secured']], 'upcoming_earnings' => ['amount', 'count']]]);
 
         $producerName = $this->producer->display_name;
 
@@ -73,6 +87,8 @@ class FaceAgendaTest extends DateChangeTestCase
             'start' => '2026-11-18',
             'end' => '2026-11-20',
             'counterpart' => $producerName,
+            'amount_face' => 90000,
+            'secured' => true,
         ], $response->json('data.events.0'));
 
         $this->assertSame([
@@ -84,7 +100,66 @@ class FaceAgendaTest extends DateChangeTestCase
             'start' => '2026-11-24',
             'end' => '2026-11-24',
             'counterpart' => $producerName,
+            'amount_face' => 90000,
+            'secured' => true,
         ], $response->json('data.events.1'));
+    }
+
+    public function test_an_unpaid_accepted_booking_is_not_secured(): void
+    {
+        $faceUser = $this->faceUser();
+        $this->cashBooking(['status' => BookingStatus::Accepted, 'date_debut' => '2026-11-16 09:00:00', 'date_fin' => '2026-11-16 17:00:00'], $faceUser);
+
+        $event = $this->getAgenda($faceUser)->assertOk()->json('data.events.0');
+
+        $this->assertFalse($event['secured']);
+        $this->assertSame(90000, $event['amount_face']);
+    }
+
+    public function test_upcoming_earnings_sums_locked_escrows_regardless_of_the_range(): void
+    {
+        $faceUser = $this->faceUser();
+
+        // Compté : booking à séquestre bloqué dans la plage (90 000).
+        [$inRange] = $this->cashBooking(['status' => BookingStatus::Paid, 'date_debut' => '2026-11-18 09:00:00', 'date_fin' => '2026-11-18 17:00:00'], $faceUser);
+        $this->escrow($inRange);
+
+        // Compté : booking hors plage from/to mais encore bloqué (90 000).
+        [$outOfRange] = $this->cashBooking(['status' => BookingStatus::Paid, 'date_debut' => '2026-12-20 09:00:00', 'date_fin' => '2026-12-20 17:00:00'], $faceUser);
+        $this->escrow($outOfRange);
+
+        // Compté : mission engagée (90 000).
+        [$mission, $payment] = $this->paidMission([], '2026-11-24');
+        $this->selectedFaceFor($faceUser, $mission, $payment, CandidatureStatus::Confirmed);
+
+        // Ignoré : séquestre libéré.
+        [$released] = $this->cashBooking(['status' => BookingStatus::Completed, 'date_debut' => '2026-11-03 09:00:00', 'date_fin' => '2026-11-03 17:00:00'], $faceUser);
+        $this->escrow($released, EscrowStatus::Released);
+
+        // Ignoré : entrée de mission libérée (freed_at).
+        [$mission2, $payment2] = $this->paidMission([], '2026-11-26');
+        ['entry' => $freed] = $this->selectedFaceFor($faceUser, $mission2, $payment2, CandidatureStatus::Confirmed);
+        $freed->forceFill(['freed_at' => now()])->save();
+
+        // Ignoré : séquestre d'une autre Face (booking et mission).
+        $other = $this->faceUser();
+        [$otherBooking] = $this->cashBooking(['status' => BookingStatus::Paid, 'date_debut' => '2026-11-18 09:00:00', 'date_fin' => '2026-11-18 17:00:00'], $other);
+        $this->escrow($otherBooking);
+        [$mission3, $payment3] = $this->paidMission([], '2026-11-27');
+        $this->selectedFaceFor($other, $mission3, $payment3, CandidatureStatus::Confirmed);
+
+        $this->getAgenda($faceUser)->assertOk()
+            ->assertJsonPath('data.upcoming_earnings', ['amount' => 270000, 'count' => 3]);
+
+        // Indépendant de la plage demandée.
+        $this->getAgenda($faceUser, '2026-11-01', '2026-11-02')->assertOk()
+            ->assertJsonPath('data.upcoming_earnings', ['amount' => 270000, 'count' => 3]);
+    }
+
+    public function test_upcoming_earnings_is_zero_without_locked_escrow(): void
+    {
+        $this->getAgenda($this->faceUser())->assertOk()
+            ->assertJsonPath('data.upcoming_earnings', ['amount' => 0, 'count' => 0]);
     }
 
     public function test_states_pending_engaged_and_done_and_excluded_statuses(): void
