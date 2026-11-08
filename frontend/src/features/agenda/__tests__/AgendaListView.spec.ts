@@ -86,6 +86,33 @@ describe('AgendaListView', () => {
     expect(wrapper.text()).not.toContain(formatMoney(60000))
   })
 
+  it('en mode selectable, les lignes sont des boutons qui émettent le premier jour (borné au mois)', async () => {
+    const wrapper = mountList({
+      selectable: true,
+      events: [
+        event({ uuid: 'b' }),
+        event({ uuid: 'long', title: 'Long', start: '2026-10-28', end: '2026-11-02' }),
+      ],
+      unavailableDays: ['2026-11-12', '2026-11-13'],
+    })
+    const rows = wrapper.findAll('[data-testid="list-row"]')
+    // Deux jours bloqués consécutifs = une seule ligne.
+    expect(rows).toHaveLength(3)
+    rows.forEach((row) => expect(row.element.tagName).toBe('BUTTON'))
+    expect(wrapper.find('a').exists()).toBe(false)
+
+    for (const row of rows) await row.trigger('click')
+    expect(wrapper.emitted('select-day')).toEqual([['2026-11-01'], ['2026-11-12'], ['2026-11-18']])
+  })
+
+  it('sans selectable, un événement reste un lien et rien n\'est émis', async () => {
+    const wrapper = mountList({ events: [event({})] })
+    const row = wrapper.get('[data-testid="list-row"]')
+    expect(row.element.tagName).toBe('A')
+    await row.trigger('click')
+    expect(wrapper.emitted('select-day')).toBeUndefined()
+  })
+
   it('affiche un message quand rien n\'est à lister', () => {
     expect(mountList().get('[data-testid="list-empty"]').text()).toBe('Rien à afficher ce mois-ci.')
   })

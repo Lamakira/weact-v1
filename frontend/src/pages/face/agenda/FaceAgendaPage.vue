@@ -6,6 +6,7 @@ import RPanel from '@/components/regie/RPanel.vue'
 import { useToast } from '@/composables/useToast'
 import { businessTodayIso } from '@/lib/dates'
 import AgendaDaySheet from '@/features/agenda/components/AgendaDaySheet.vue'
+import AgendaEarnings from '@/features/agenda/components/AgendaEarnings.vue'
 import AgendaListView from '@/features/agenda/components/AgendaListView.vue'
 import AgendaSidebar from '@/features/agenda/components/AgendaSidebar.vue'
 import AgendaToolbar from '@/features/agenda/components/AgendaToolbar.vue'
@@ -14,7 +15,8 @@ import MonthCalendar from '@/features/agenda/components/MonthCalendar.vue'
 import MonthGridLarge from '@/features/agenda/components/MonthGridLarge.vue'
 import MonthTitle from '@/features/agenda/components/MonthTitle.vue'
 import WeekView from '@/features/agenda/components/WeekView.vue'
-import { useAgendaFilters } from '@/features/agenda/composables/useAgendaFilters'
+import { defaultFilters, useAgendaFilters } from '@/features/agenda/composables/useAgendaFilters'
+import { useAgendaMobileView, type AgendaMobileView } from '@/features/agenda/composables/useAgendaMobileView'
 import { useFaceAgenda } from '@/features/agenda/composables/useFaceAgenda'
 import { agendaApi } from '@/features/agenda/services/agendaApi'
 import type { AgendaEvent, AgendaView } from '@/features/agenda/types'
@@ -62,11 +64,22 @@ const {
 } = useFaceAgenda()
 const { filters, view, toggle: toggleFilter } = useAgendaFilters()
 
+const { mobileView } = useAgendaMobileView()
+
+const MOBILE_VIEWS: { value: AgendaMobileView; label: string }[] = [
+  { value: 'month', label: 'Mois' },
+  { value: 'list', label: 'Liste' },
+]
+/** Téléphone : pas de filtres, la liste montre tout sauf les Terminés (sans toucher à ceux de l'ordinateur). */
+const mobileFilters = defaultFilters()
+
 const BLOCK_HORIZON_DAYS = 365
 const horizonEnd = computed(() => (today.value ? addDays(today.value, BLOCK_HORIZON_DAYS) : null))
 
 const selectionMode = ref(false)
 const selected = ref<string[]>([])
+/** En mode « Bloquer des jours », la sélection se fait sur la grille : Mois forcé, la vue choisie revient ensuite. */
+const shownMobileView = computed<AgendaMobileView>(() => (selectionMode.value ? 'month' : mobileView.value))
 const sheetDay = ref<string | null>(null)
 
 const upcoming = computed<AgendaEvent[]>(() => {
@@ -382,7 +395,28 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
     </RPanel>
 
     <!-- Version téléphone -->
-    <div class="space-y-4 lg:hidden">
+    <div class="space-y-4 lg:hidden" data-testid="agenda-mobile">
+      <div
+        v-if="!selectionMode"
+        class="flex w-full rounded-lg bg-sidebar p-0.5"
+        role="group"
+        aria-label="Affichage"
+        data-testid="agenda-mobile-views"
+      >
+        <button
+          v-for="item in MOBILE_VIEWS"
+          :key="item.value"
+          type="button"
+          class="min-h-10 flex-1 rounded-md px-3 text-[13.5px] font-medium"
+          :class="mobileView === item.value ? 'bg-white text-ink shadow-sm' : 'text-ink-2 hover:text-ink'"
+          :aria-pressed="mobileView === item.value"
+          :data-testid="`agenda-mobile-view-${item.value}`"
+          @click="mobileView = item.value"
+        >
+          {{ item.label }}
+        </button>
+      </div>
+
       <RPanel>
         <div class="p-3 sm:p-4">
           <div class="mb-2 flex items-center justify-between">
@@ -427,6 +461,7 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
           <div :class="{ 'opacity-60': isLoading }" :aria-busy="isLoading">
             <MonthCalendar
+              v-if="shownMobileView === 'month'"
               :month="month"
               :today="today"
               :states="dayStates"
@@ -435,9 +470,20 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
               :horizon-end="horizonEnd"
               @select-day="onSelectDay"
             />
+            <AgendaListView
+              v-else
+              :month="month"
+              :events="events"
+              :unavailable-days="unavailableDays"
+              :filters="mobileFilters"
+              selectable
+              @select-day="onSelectDay"
+            />
           </div>
 
-          <ul class="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-slate-600" data-testid="agenda-legend">
+          <ul
+            v-if="shownMobileView === 'month'"
+            class="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 text-[12px] text-slate-600" data-testid="agenda-legend">
             <li class="flex items-center gap-1.5">
               <span class="size-3 rounded bg-slate-200" aria-hidden="true" />Indisponible
             </li>
@@ -464,6 +510,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
           <CalendarOff class="size-4" aria-hidden="true" />
           Bloquer des jours
         </button>
+
+        <AgendaEarnings :earnings="earnings" data-testid="agenda-mobile-earnings" />
 
         <RPanel title="À venir" data-testid="agenda-upcoming">
           <p v-if="upcoming.length === 0" class="p-4 text-dash text-ink-3 sm:p-5">Rien de prévu ce mois-ci.</p>

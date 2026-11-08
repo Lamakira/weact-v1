@@ -462,6 +462,160 @@ describe('FaceAgendaPage', () => {
     })
   })
 
+  describe('version téléphone : gains et choix Mois / Liste', () => {
+    const MOBILE_KEY = 'weact:agenda:view-mobile'
+    const DESKTOP_KEY = 'weact:agenda:view'
+    const mobile = (wrapper: Awaited<ReturnType<typeof mountPage>>) => wrapper.get('[data-testid="agenda-mobile"]')
+
+    it('montre la carte « Gains à venir » dans le bloc téléphone, entre le bouton et « À venir »', async () => {
+      vi.mocked(agendaApi.getAgenda).mockResolvedValue({
+        data: { ...agenda, upcoming_earnings: { amount: 75000, count: 2 } },
+      })
+      const wrapper = await mountPage()
+      const phone = mobile(wrapper)
+
+      const card = phone.get('[data-testid="agenda-mobile-earnings"]')
+      expect(card.text()).toContain('Gains à venir')
+      expect(card.get('[data-testid="earnings-count"]').text()).toBe('2 engagements en séquestre')
+      expect(card.text()).toContain('Versés sur votre portefeuille après le tournage.')
+
+      const html = phone.html()
+      expect(html.indexOf('agenda-block-days')).toBeLessThan(html.indexOf('agenda-mobile-earnings'))
+      expect(html.indexOf('agenda-mobile-earnings')).toBeLessThan(html.indexOf('agenda-upcoming"'))
+    })
+
+    it('affiche « Aucun gain en attente » sur téléphone sans gain', async () => {
+      const wrapper = await mountPage()
+      expect(mobile(wrapper).get('[data-testid="earnings-empty"]').text()).toBe('Aucun gain en attente')
+    })
+
+    it('par défaut Mois : grille et légende, sans liste', async () => {
+      const wrapper = await mountPage()
+      const phone = mobile(wrapper)
+      expect(phone.get('[data-testid="agenda-mobile-view-month"]').attributes('aria-pressed')).toBe('true')
+      expect(phone.find(day('2026-11-19')).exists()).toBe(true)
+      expect(phone.find('[data-testid="agenda-legend"]').exists()).toBe(true)
+      expect(phone.find('[data-testid="agenda-list-view"]').exists()).toBe(false)
+    })
+
+    it('la bascule Liste remplace la grille et la légende par la liste, et mémorise sous sa propre clé', async () => {
+      const wrapper = await mountPage()
+      await wrapper.get('[data-testid="agenda-mobile-view-list"]').trigger('click')
+      await flushPromises()
+      const phone = mobile(wrapper)
+
+      expect(phone.find('[data-testid="agenda-list-view"]').exists()).toBe(true)
+      expect(phone.find(day('2026-11-19')).exists()).toBe(false)
+      expect(phone.find('[data-testid="agenda-legend"]').exists()).toBe(false)
+      // Filtres par défaut : « Terminés » masqué, jours bloqués visibles.
+      expect(phone.text()).toContain('Clip Afro Vibes')
+      expect(phone.text()).not.toContain('Shooting passé')
+      expect(phone.text()).toContain('Indisponible')
+      // L'en-tête de mois, le bouton, les gains et « À venir » restent.
+      expect(phone.find('[data-testid="agenda-month-title"]').exists()).toBe(true)
+      expect(phone.find('[data-testid="agenda-block-days"]').exists()).toBe(true)
+      expect(phone.find('[data-testid="agenda-mobile-earnings"]').exists()).toBe(true)
+      expect(phone.find('[data-testid="agenda-upcoming"]').exists()).toBe(true)
+
+      expect(localStorage.getItem(MOBILE_KEY)).toBe('list')
+      expect(localStorage.getItem(DESKTOP_KEY)).toBeNull()
+
+      const second = await mountPage()
+      expect(mobile(second).find('[data-testid="agenda-list-view"]').exists()).toBe(true)
+    })
+
+    it('la navigation entre mois fonctionne en vue Liste', async () => {
+      const wrapper = await mountPage()
+      await wrapper.get('[data-testid="agenda-mobile-view-list"]').trigger('click')
+      await wrapper.get('[data-testid="agenda-next"]').trigger('click')
+      await flushPromises()
+
+      expect(agendaApi.getAgenda).toHaveBeenLastCalledWith('2026-12-01', '2026-12-31')
+      expect(wrapper.get('[data-testid="agenda-month-title"]').text()).toBe('Décembre 2026')
+      expect(mobile(wrapper).find('[data-testid="agenda-list-view"]').exists()).toBe(true)
+    })
+
+    it('ne lit pas la vue de l\'ordinateur : Semaine côté ordinateur laisse le téléphone en Mois', async () => {
+      localStorage.setItem(DESKTOP_KEY, 'week')
+      const wrapper = await mountPage()
+      expect(mobile(wrapper).get('[data-testid="agenda-mobile-view-month"]').attributes('aria-pressed')).toBe('true')
+      expect(mobile(wrapper).find(day('2026-11-19')).exists()).toBe(true)
+      expect(wrapper.find('[data-testid="week-view"]').exists()).toBe(true)
+    })
+
+    it('ignore une valeur mémorisée invalide pour le téléphone', async () => {
+      localStorage.setItem(MOBILE_KEY, 'week')
+      const wrapper = await mountPage()
+      expect(mobile(wrapper).get('[data-testid="agenda-mobile-view-month"]').attributes('aria-pressed')).toBe('true')
+    })
+
+    it('la vue de l\'ordinateur reste inchangée après une bascule sur téléphone, et inversement', async () => {
+      const wrapper = await mountPage()
+      await wrapper.get('[data-testid="agenda-mobile-view-list"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="month-grid-large"]').exists()).toBe(true)
+      expect(wrapper.get('[data-testid="agenda-desktop"]').find('[data-testid="agenda-list-view"]').exists()).toBe(false)
+      expect(localStorage.getItem(DESKTOP_KEY)).toBeNull()
+
+      await wrapper.get('[data-testid="agenda-view-week"]').trigger('click')
+      await flushPromises()
+      expect(localStorage.getItem(DESKTOP_KEY)).toBe('week')
+      expect(localStorage.getItem(MOBILE_KEY)).toBe('list')
+      expect(mobile(wrapper).get('[data-testid="agenda-mobile-view-list"]').attributes('aria-pressed')).toBe('true')
+    })
+
+    it('la vue Liste du téléphone ne lit pas les filtres de l\'ordinateur', async () => {
+      localStorage.setItem('weact:agenda:filters', JSON.stringify({ bookings: false, done: true }))
+      const wrapper = await mountPage()
+      await wrapper.get('[data-testid="agenda-mobile-view-list"]').trigger('click')
+      await flushPromises()
+      const phone = mobile(wrapper)
+      expect(phone.text()).toContain('Clip Afro Vibes')
+      expect(phone.text()).not.toContain('Shooting passé')
+    })
+
+    it('« Bloquer des jours » remet la grille, puis la vue Liste revient à la sortie', async () => {
+      const wrapper = await mountPage()
+      await wrapper.get('[data-testid="agenda-mobile-view-list"]').trigger('click')
+      await wrapper.get('[data-testid="agenda-block-days"]').trigger('click')
+      await flushPromises()
+
+      let phone = mobile(wrapper)
+      expect(phone.find(day('2026-11-28')).exists()).toBe(true)
+      expect(phone.find('[data-testid="agenda-list-view"]').exists()).toBe(false)
+      expect(phone.find('[data-testid="agenda-mobile-views"]').exists()).toBe(false)
+      await wrapper.get(day('2026-11-28')).trigger('click')
+      expect(wrapper.get('[data-testid="agenda-selected-count"]').text()).toBe('1 jour sélectionné')
+      // Le choix mémorisé n'est pas écrasé par le forçage.
+      expect(localStorage.getItem(MOBILE_KEY)).toBe('list')
+
+      await wrapper.get('[data-testid="agenda-selection-exit"]').trigger('click')
+      await flushPromises()
+      phone = mobile(wrapper)
+      expect(phone.find('[data-testid="agenda-list-view"]').exists()).toBe(true)
+      expect(phone.find(day('2026-11-28')).exists()).toBe(false)
+      expect(phone.get('[data-testid="agenda-mobile-view-list"]').attributes('aria-pressed')).toBe('true')
+    })
+
+    it('un appui sur une ligne de la liste ouvre le panneau du jour (premier jour d\'une plage bloquée)', async () => {
+      const wrapper = await mountPage()
+      await wrapper.get('[data-testid="agenda-mobile-view-list"]').trigger('click')
+      await flushPromises()
+      const rows = mobile(wrapper).findAll('[data-testid="list-row"]')
+
+      const booking = rows.find((row) => row.text().includes('Clip Afro Vibes'))!
+      await booking.trigger('click')
+      expect(wrapper.get('[data-testid="agenda-day-title"]').text()).toBe('Mercredi 18 novembre')
+      await wrapper.get('[data-testid="agenda-day-close"]').trigger('click')
+      await flushPromises()
+
+      const blocked = rows.find((row) => row.text().includes('Indisponible'))!
+      await blocked.trigger('click')
+      expect(wrapper.get('[data-testid="agenda-day-title"]').text()).toBe('Jeudi 12 novembre')
+      expect(wrapper.find('[data-testid="agenda-day-unblock"]').exists()).toBe(true)
+    })
+  })
+
   describe('version ordinateur', () => {
     it('mémorise la bascule de vue et la restaure au montage suivant', async () => {
       const wrapper = await mountPage()

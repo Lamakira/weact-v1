@@ -24,7 +24,11 @@ const props = defineProps<{
   events: AgendaEvent[]
   unavailableDays: string[]
   filters: AgendaFilters
+  /** Téléphone : une ligne est un bouton qui émet `select-day` (au lieu d'un lien vers le détail). */
+  selectable?: boolean
 }>()
+
+const emit = defineEmits<{ 'select-day': [day: string] }>()
 
 type Row =
   | { type: 'event'; start: string; end: string; event: AgendaEvent }
@@ -48,6 +52,11 @@ function dayCount(row: Row): number {
   return eachDay(row.start, row.end).length
 }
 
+/** Premier jour de la ligne dans le mois affiché (une plage commencée le mois précédent s'ouvre au 1er). */
+function onSelectRow(row: Row): void {
+  emit('select-day', row.start < from.value ? from.value : row.start)
+}
+
 function amountOf(event: AgendaEvent): string | null {
   return event.secured && event.amount_face ? formatMoney(event.amount_face) : null
 }
@@ -65,11 +74,12 @@ function amountOf(event: AgendaEvent): string | null {
       <ul class="divide-y divide-line rounded-lg ring-1 ring-line">
         <li v-for="row in group.items" :key="`${row.type}-${row.start}-${row.type === 'event' ? row.event.uuid : ''}`">
           <component
-            :is="row.type === 'event' ? RouterLink : 'div'"
-            v-bind="row.type === 'event' ? { to: eventRoute(row.event) } : {}"
+            :is="selectable ? 'button' : row.type === 'event' ? RouterLink : 'div'"
+            v-bind="selectable ? { type: 'button' } : row.type === 'event' ? { to: eventRoute(row.event) } : {}"
             class="flex min-h-12 items-center gap-3 px-3 py-2"
-            :class="row.type === 'event' ? 'hover:bg-sidebar' : ''"
+            :class="[selectable ? 'w-full text-left' : '', selectable || row.type === 'event' ? 'hover:bg-sidebar' : '']"
             data-testid="list-row"
+            @click="selectable && onSelectRow(row)"
           >
             <span
               class="size-2 shrink-0 rounded-full"
