@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { RouterLink } from 'vue-router'
-import { Loader2, X } from 'lucide-vue-next'
+import { X } from 'lucide-vue-next'
 import { useDismissOnDeactivate } from '@/composables/useDismissOnDeactivate'
 import type { AgendaEvent } from '../types'
 import { formatDayLong, formatPeriod } from '../utils/agendaDates'
+import { canActOnDay, eventDotClass, eventRoute, eventStateLabel } from '../utils/agendaEvents'
+import AgendaDayActions from './AgendaDayActions.vue'
 
 /**
  * Panneau bas d'un jour de l'agenda : événements du jour, puis l'unique action possible
@@ -31,35 +33,11 @@ const emit = defineEmits<{
 
 const isOpen = computed(() => props.day !== null)
 
-/** Le jour est modifiable : aujourd'hui ou futur, dans l'horizon. */
-const canAct = computed(() => {
-  if (!props.day || !props.today) return false
-  if (props.day < props.today) return false
-  return !props.horizonEnd || props.day <= props.horizonEnd
-})
+const canAct = computed(() => canActOnDay(props.day, props.today, props.horizonEnd))
 const hasEngagement = computed(() => props.events.some((e) => e.state === 'engaged'))
 
 const dialogRef = ref<HTMLElement | null>(null)
 let previouslyFocused: HTMLElement | null = null
-
-function stateLabel(event: AgendaEvent): string {
-  if (event.kind === 'mission') return 'mission'
-  if (event.state === 'pending') return 'demande en attente'
-  if (event.state === 'done') return 'booking terminé'
-  return 'booking accepté'
-}
-
-function barClass(event: AgendaEvent): string {
-  if (event.state === 'pending') return 'bg-amber-500'
-  if (event.state === 'done') return 'bg-teal-300'
-  return event.kind === 'mission' ? 'bg-violet-700' : 'bg-teal-600'
-}
-
-function detailRoute(event: AgendaEvent) {
-  return event.kind === 'mission'
-    ? { name: 'face-mission-detail', params: { id: event.uuid } }
-    : { name: 'face-booking-detail', params: { id: event.uuid } }
-}
 
 watch(isOpen, async (open) => {
   if (open) {
@@ -143,15 +121,15 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
 
           <ul v-if="events.length > 0" class="mb-4 grid gap-3" data-testid="agenda-day-events">
             <li v-for="event in events" :key="`${event.kind}-${event.uuid}`" class="flex gap-3">
-              <span class="w-1 shrink-0 rounded-full" :class="barClass(event)" aria-hidden="true" />
+              <span class="mt-1.5 size-2 shrink-0 rounded-full" :class="eventDotClass(event)" aria-hidden="true" />
               <div class="min-w-0 flex-1">
                 <p class="truncate text-[14px] font-semibold text-gray-900">{{ event.title }}</p>
-                <p class="text-[13px] text-gray-600">{{ stateLabel(event) }}</p>
+                <p class="text-[13px] text-gray-600">{{ eventStateLabel(event) }}</p>
                 <p class="text-[13px] text-gray-500">
                   {{ formatPeriod(event.start, event.end) }} · avec {{ event.counterpart }}
                 </p>
                 <RouterLink
-                  :to="detailRoute(event)"
+                  :to="eventRoute(event)"
                   class="mt-1.5 inline-flex min-h-9 items-center text-[13px] font-medium text-weact underline-offset-2 hover:underline"
                   data-testid="agenda-event-link"
                 >
@@ -166,33 +144,15 @@ onUnmounted(() => document.removeEventListener('keydown', handleKeydown))
           </p>
           <p v-else-if="events.length === 0" class="mb-4 text-[13.5px] text-gray-600">Aucun événement ce jour.</p>
 
-          <template v-if="canAct">
-            <button
-              v-if="blocked"
-              type="button"
-              class="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-4 text-sm font-semibold text-gray-800 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="busy"
-              data-testid="agenda-day-unblock"
-              @click="emit('unblock', day)"
-            >
-              <Loader2 v-if="busy" class="size-4 animate-spin" aria-hidden="true" />
-              Rendre disponible
-            </button>
-            <button
-              v-else-if="!hasEngagement"
-              type="button"
-              class="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-weact px-4 text-sm font-semibold text-white hover:bg-weact/90 disabled:cursor-not-allowed disabled:opacity-60"
-              :disabled="busy"
-              data-testid="agenda-day-block"
-              @click="emit('block', day)"
-            >
-              <Loader2 v-if="busy" class="size-4 animate-spin" aria-hidden="true" />
-              Marquer indisponible
-            </button>
-            <p v-else class="text-[12.5px] text-gray-500">
-              Un jour engagé ne peut pas être bloqué : passez par l'annulation ou le changement de date.
-            </p>
-          </template>
+          <AgendaDayActions
+            :day="day"
+            :blocked="blocked"
+            :can-act="canAct"
+            :has-engagement="hasEngagement"
+            :busy="busy"
+            @block="emit('block', $event)"
+            @unblock="emit('unblock', $event)"
+          />
         </div>
       </div>
     </Transition>

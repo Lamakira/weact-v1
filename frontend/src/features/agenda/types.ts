@@ -17,6 +17,18 @@ export interface AgendaEvent {
   start: string
   end: string
   counterpart: string
+  /** Montant net que la Face reçoit (F CFA) ; null si inconnu. */
+  amount_face?: number | null
+  /** true si cet argent est en séquestre bloqué pour la Face. */
+  secured?: boolean
+  /** HH:MM, heure métier (booking uniquement). */
+  start_time?: string | null
+  end_time?: string | null
+}
+
+export interface AgendaEarnings {
+  amount: number
+  count: number
 }
 
 export interface AgendaData {
@@ -25,6 +37,8 @@ export interface AgendaData {
   today: string
   unavailable_days: string[]
   events: AgendaEvent[]
+  /** Gains nets encore en séquestre, toutes dates confondues. */
+  upcoming_earnings?: AgendaEarnings
 }
 
 export interface AgendaResponse {
@@ -54,3 +68,9 @@ export interface UnavailableDaysResponse {
 
 /** États visuels d'un jour, du plus prioritaire au moins prioritaire : booking > mission > pending > done > blocked. */
 export type DayState = 'booking' | 'mission' | 'pending' | 'done' | 'blocked'
+
+/** Types affichables du calendrier ordinateur (cases à cocher « Afficher »). */
+export type AgendaFilterKey = 'bookings' | 'missions' | 'pending' | 'blocked' | 'done'
+export type AgendaFilters = Record<AgendaFilterKey, boolean>
+
+export type AgendaView = 'month' | 'week' | 'list'

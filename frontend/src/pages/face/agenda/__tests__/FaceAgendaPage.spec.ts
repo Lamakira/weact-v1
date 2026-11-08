@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { AxiosError, type AxiosResponse } from 'axios'
 import FaceAgendaPage from '../FaceAgendaPage.vue'
@@ -73,16 +73,30 @@ function unprocessable(message: string): AxiosError {
   return error
 }
 
+// Les pages montées sont démontées après chaque test : l'écoute clavier est sur window.
+const mounted: ReturnType<typeof mount>[] = []
+
 async function mountPage() {
-  const wrapper = mount(FaceAgendaPage, { global: { stubs: { Teleport: { template: '<div><slot /></div>' } } } })
+  const wrapper = mount(FaceAgendaPage, {
+    attachTo: document.body,
+    global: { stubs: { Teleport: { template: '<div><slot /></div>' } } },
+  })
+  mounted.push(wrapper)
   await flushPromises()
   return wrapper
 }
 
 const day = (iso: string) => `[data-testid="day-${iso}"]`
 
+const cell = (iso: string) => `[data-testid="cell-${iso}"]`
+
 describe('FaceAgendaPage', () => {
+  afterEach(() => {
+    mounted.splice(0).forEach((w) => w.unmount())
+  })
+
   beforeEach(() => {
+    localStorage.clear()
     vi.mocked(agendaApi.getAgenda).mockReset().mockResolvedValue({ data: agenda })
     vi.mocked(agendaApi.updateUnavailableDays)
       .mockReset()
@@ -252,5 +266,141 @@ describe('FaceAgendaPage', () => {
     await wrapper.get('[data-testid="agenda-error"] button').trigger('click')
     await flushPromises()
     expect(wrapper.find('[data-testid="agenda-error"]').exists()).toBe(false)
+  })
+
+  describe('version ordinateur', () => {
+    it('mémorise la bascule de vue et la restaure au montage suivant', async () => {
+      const wrapper = await mountPage()
+      expect(wrapper.find('[data-testid="month-grid-large"]').exists()).toBe(true)
+
+      await wrapper.get('[data-testid="agenda-view-list"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.find('[data-testid="agenda-list-view"]').exists()).toBe(true)
+      expect(wrapper.find('[data-testid="month-grid-large"]').exists()).toBe(false)
+      expect(localStorage.getItem('weact:agenda:view')).toBe('list')
+
+      const second = await mountPage()
+      expect(second.find('[data-testid="agenda-list-view"]').exists()).toBe(true)
+    })
+
+    it('affiche la semaine en vue Semaine et navigue de semaine en semaine', async () => {
+      const wrapper = await mountPage()
+      await wrapper.get('[data-testid="agenda-view-week"]').trigger('click')
+      await flushPromises()
+
+      // Aujourd'hui est le dimanche 8 novembre : semaine du lundi 2 au dimanche 8.
+      expect(wrapper.get('[data-testid="agenda-toolbar-title"]').text()).toBe('Semaine du 2 au 8 novembre')
+      expect(wrapper.find('[data-testid="week-view"]').exists()).toBe(true)
+
+      await wrapper.get('[data-testid="agenda-toolbar-next"]').trigger('click')
+      await flushPromises()
+      expect(wrapper.get('[data-testid="agenda-toolbar-title"]').text()).toBe('Semaine du 9 au 15 novembre')
+    })
+
+    it('charge aussi le mois voisin pour une semaine à cheval sur deux mois', async () => {
+      const wrapper = await mountPage()
+      await wrapper.get('[data-testid="agenda-view-week"]').trigger('click')
+      for (let i = 0; i < 4; i++) {
+        await wrapper.get('[data-testid="agenda-toolbar-next"]').trigger('click')
+        await flushPromises()
+      }
+      // Semaine du 30 novembre au 6 décembre : la plage chargée va jusqu'au 6 décembre.
+      expect(wrapper.get('[data-testid="agenda-toolbar-title"]').text()).toBe('Semaine du 30 novembre au 6 décembre')
+      expect(agendaApi.getAgenda).toHaveBeenLastCalledWith('2026-11-01', '2026-12-06')
+    })
+
+    it('navigue avec les flèches et revient avec T', async () => {
+      const wrapper = await mountPage()
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }))
+      await flushPromises()
+      expect(agendaApi.getAgenda).toHaveBeenLastCalledWith('2026-12-01', '2026-12-31')
+      expect(wrapper.get('[data-testid="agenda-toolbar-title"]').text()).toBe('Décembre 2026')
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }))
+      await flushPromises()
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft' }))
+      await flushPromises()
+      expect(wrapper.get('[data-testid="agenda-toolbar-title"]').text()).toBe('Octobre 2026')
+
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 't' }))
+      await flushPromises()
+      expect(agendaApi.getAgenda).toHaveBeenLastCalledWith('2026-11-01', '2026-11-30')
+      expect(wrapper.get('[data-testid="agenda-toolbar-title"]').text()).toBe('Novembre 2026')
+    })
+
+    it('ignore les raccourcis clavier dans un champ de saisie', async () => {
+      await mountPage()
+      const input = document.createElement('input')
+      document.body.appendChild(input)
+      const calls = vi.mocked(agendaApi.getAgenda).mock.calls.length
+
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 't', bubbles: true }))
+      await flushPromises()
+      input.remove()
+
+      expect(vi.mocked(agendaApi.getAgenda).mock.calls).toHaveLength(calls)
+    })
+
+    it('remplit la colonne de droite au clic sur un jour, sans ouvrir le panneau du bas', async () => {
+      const wrapper = await mountPage()
+      // Par défaut : aujourd'hui.
+      expect(wrapper.get('[data-testid="detail-title"]').text()).toBe('Dimanche 8 novembre')
+
+      await wrapper.get(cell('2026-11-19')).trigger('click')
+      expect(wrapper.get('[data-testid="detail-title"]').text()).toBe('Jeudi 19 novembre')
+      const events = wrapper.get('[data-testid="detail-events"]')
+      expect(events.text()).toContain('Clip Afro Vibes')
+      expect(events.text()).toContain('avec Studio Lumière')
+      expect(events.get('[data-testid="detail-event-link"]').text()).toBe('Voir le booking')
+      expect(wrapper.find('[data-testid="agenda-day-sheet"]').exists()).toBe(false)
+      expect(wrapper.find('[data-testid="agenda-detail-block"]').exists()).toBe(false)
+    })
+
+    it('bloque un jour depuis la colonne de droite (PUT add) en gardant le jour affiché', async () => {
+      const wrapper = await mountPage()
+      await wrapper.get(cell('2026-11-15')).trigger('click')
+      await wrapper.get('[data-testid="agenda-detail-block"]').trigger('click')
+      await flushPromises()
+
+      expect(agendaApi.updateUnavailableDays).toHaveBeenCalledWith({ add: ['2026-11-15'] })
+      expect(wrapper.get('[data-testid="detail-title"]').text()).toBe('Dimanche 15 novembre')
+    })
+
+    it('glisser sur le calendrier ouvre la barre « N jours sélectionnés » puis envoie PUT add', async () => {
+      const wrapper = await mountPage()
+      await wrapper.get(cell('2026-11-28')).trigger('mousedown', { button: 0 })
+      await wrapper.get(cell('2026-11-30')).trigger('mouseenter')
+      await wrapper.get(cell('2026-11-30')).trigger('mouseup')
+
+      expect(wrapper.get('[data-testid="agenda-selected-count"]').text()).toBe('3 jours sélectionnés')
+      expect(wrapper.get('[data-testid="agenda-selected-list"]').text()).toBe('Sam 28, dim 29 et lun 30 nov')
+
+      await wrapper.get('[data-testid="agenda-selection-submit"]').trigger('click')
+      await flushPromises()
+      expect(agendaApi.updateUnavailableDays).toHaveBeenCalledWith({ add: ['2026-11-28', '2026-11-29', '2026-11-30'] })
+      expect(wrapper.find('[data-testid="agenda-selection-bar"]').exists()).toBe(false)
+    })
+
+    it('le bouton de la colonne gauche et Maj + clic entrent dans le mode sélection', async () => {
+      const wrapper = await mountPage()
+      await wrapper.get('[data-testid="agenda-block-days-lg"]').trigger('click')
+      expect(wrapper.find('[data-testid="agenda-selection-bar"]').exists()).toBe(true)
+      await wrapper.get('[data-testid="agenda-selection-exit"]').trigger('click')
+
+      await wrapper.get(cell('2026-11-10')).trigger('click', { shiftKey: true })
+      expect(wrapper.get('[data-testid="agenda-selected-count"]').text()).toBe('1 jour sélectionné')
+      // Du 10 au 14 : les 12 et 13 sont bloqués, ils sont sautés.
+      await wrapper.get(cell('2026-11-14')).trigger('click', { shiftKey: true })
+      expect(wrapper.get('[data-testid="agenda-selected-count"]').text()).toBe('3 jours sélectionnés')
+    })
+
+    it('ne montre plus aucune barre d\'accent dans « À venir » du téléphone : une pastille ronde', async () => {
+      const wrapper = await mountPage()
+      const item = wrapper.get('[data-testid="agenda-upcoming-item"]')
+      expect(item.find('span.w-1').exists()).toBe(false)
+      const dot = item.get('span.size-2.rounded-full')
+      expect(dot.classes()).toContain('bg-teal-600')
+    })
   })
 })
