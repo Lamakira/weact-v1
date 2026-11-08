@@ -21,8 +21,8 @@ import {
   Lock,
   Database,
   Camera,
-  ChevronLeft,
-  ChevronRight,
+  ChevronDown,
+  ChevronUp,
   Star,
 } from 'lucide-vue-next'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
@@ -40,6 +40,7 @@ import { useAvailability } from '@/features/face/composables/useAvailability'
 import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
 import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'
 import { useToast } from '@/composables/useToast'
+import { useMediaQuery } from '@/composables/useMediaQuery'
 import { useAuthStore } from '@/stores/auth'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
@@ -631,31 +632,50 @@ const mobileCompletionPct = computed(() =>
   Math.max(0, Math.min(100, completionPercentage.value ?? 0)),
 )
 
-function openMobileRow(row: MobileRow): void {
-  navigateTab(row.familyId, row.sectionId)
-}
+// Téléphone (< md) : dépliant sous chaque ligne. Sans matchMedia, on considère « ordinateur ».
+const isMobile = useMediaQuery('(max-width: 767px)')
+
+// Section dépliée sous la liste (une seule à la fois), dérivée de l'URL ; null = tout replié.
+const mobileOpenId = computed<string | null>(() => {
+  if (!isSectionOpen.value) return null
+  return photoOpen.value ? PHOTO_SECTION_ID : activeSection.value
+})
+
 function closeMobileSection(): void {
   const { tab: _tab, section: _section, ...rest } = route.query
   void router.push({ query: rest })
 }
+function openMobileRow(row: MobileRow): void {
+  if (mobileOpenId.value === row.sectionId) {
+    closeMobileSection()
+    return
+  }
+  navigateTab(row.familyId, row.sectionId)
+}
 
-// Téléphone : chaque passage liste / section remonte en haut de la page. La zone qui défile est
-// le <main> du layout, pas la fenêtre : window.scrollTo n'y fait rien, scrollIntoView si.
-const pageRootRef = ref<HTMLElement | null>(null)
+// Un panneau de section n'est téléporté sous sa ligne que sur téléphone ET quand il est ouvert ;
+// sinon il reste à sa place dans la mise en page ordinateur.
+function mobileSlot(sectionId: string): string {
+  return `#mobile-slot-${sectionId}`
+}
+function teleportOff(sectionId: string): boolean {
+  return !(isMobile.value && mobileOpenId.value === sectionId)
+}
+
+// À l'ouverture d'une section, on cale sa ligne en haut de la zone visible (le <main> du layout
+// défile, pas la fenêtre : scrollIntoView). Pas de défilement à la fermeture. Le watcher se
+// redéclenche à la fin du chargement pour les liens profonds (la liste n'existe pas avant).
 watch(
-  () => route.query.section,
-  async () => {
-    if (typeof window === 'undefined' || window.innerWidth >= 768) return
+  [mobileOpenId, isLoading],
+  async ([openId]) => {
+    if (!openId || isLoading.value || !isMobile.value) return
     await nextTick()
-    pageRootRef.value?.scrollIntoView?.({ block: 'start' })
+    document.getElementById(`mobile-header-${openId}`)?.scrollIntoView?.({ block: 'start' })
   },
+  { immediate: true },
 )
 const nextMobileSection = computed<MobileRow | null>(() => {
-  const idx = photoOpen.value
-    ? 0
-    : FLAT_SECTIONS.findIndex(
-        (r) => r.familyId === activeFamily.value && r.sectionId === activeSection.value,
-      )
+  const idx = FLAT_SECTIONS.findIndex((r) => r.sectionId === mobileOpenId.value)
   if (idx < 0) return null
   return FLAT_SECTIONS[idx + 1] ?? null
 })
@@ -972,7 +992,7 @@ async function handleAvailabilityToggle(): Promise<void> {
 async function handleCompletionItemClick(itemKey: string): Promise<void> {
   if (itemKey === 'profile_photo') {
     // Téléphone : la photo a sa propre section ; bureau : la carte de la colonne gauche clignote.
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+    if (isMobile.value) {
       navigateTab('profil', PHOTO_SECTION_ID)
       return
     }
@@ -984,8 +1004,9 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
   navigateTab(target.family, target.section)
   // On the stacked (mobile) layout the completion card sits far above the tab panel,
   // so switching section doesn't bring it into view — scroll the panel into view.
-  // No-op on desktop (side-by-side, lg ≥ 1024px), where everything is already visible.
-  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+  // No-op on desktop (side-by-side, lg ≥ 1024px), where everything is already visible ;
+  // sur téléphone, le dépliant se cale tout seul sur sa ligne (watcher mobileOpenId).
+  if (!isMobile.value && typeof window !== 'undefined' && window.innerWidth < 1024) {
     await nextTick()
     panelRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
@@ -993,7 +1014,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 </script>
 
 <template>
-  <div ref="pageRootRef" class="scroll-mt-4">
+  <div>
     <!-- Page Header : sur téléphone, la barre du haut affiche déjà « Mon profil » -->
     <div class="mb-8 hidden md:block" data-testid="profile-page-heading">
       <h1 class="text-2xl font-bold text-slate-800">Mon profil</h1>
@@ -1007,7 +1028,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
     <template v-else>
     <!-- Téléphone (< md) : écran liste -->
-    <div v-if="!isSectionOpen" class="md:hidden space-y-5" data-testid="profile-mobile-list">
+    <div class="md:hidden space-y-5" data-testid="profile-mobile-list">
       <!-- En-tête identité -->
       <div class="flex items-center gap-3" data-testid="mobile-identity">
         <img
@@ -1061,73 +1082,81 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
       <div v-for="g in mobileGroups" :key="g.id" :data-testid="`mobile-group-${g.id}`">
         <p class="mb-2 px-1 text-xs text-slate-500">{{ g.label }}</p>
         <div class="overflow-hidden rounded-2xl border border-gray-100 bg-white">
-          <button
+          <div
             v-for="(r, i) in g.rows"
             :key="r.sectionId"
-            type="button"
-            :data-testid="`mobile-row-${r.sectionId}`"
-            class="flex min-h-[56px] w-full items-center gap-3 px-4 py-2 text-left"
             :class="i > 0 ? 'border-t border-gray-100' : ''"
-            @click="openMobileRow(r)"
           >
-            <component :is="r.icon" class="h-5 w-5 flex-shrink-0 text-teal-600" />
-            <span class="min-w-0 flex-1">
-              <span class="block text-sm font-medium text-slate-900">{{ r.label }}</span>
-              <span
-                v-if="r.incomplete"
-                class="flex items-center gap-1.5 text-xs text-amber-700"
-                :data-testid="`mobile-incomplete-${r.sectionId}`"
-              >
-                <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-600" />
-                À compléter
+            <button
+              :id="`mobile-header-${r.sectionId}`"
+              type="button"
+              :data-testid="`mobile-row-${r.sectionId}`"
+              :aria-expanded="mobileOpenId === r.sectionId"
+              :aria-controls="`mobile-slot-${r.sectionId}`"
+              class="flex min-h-[56px] w-full scroll-mt-4 items-center gap-3 px-4 py-2 text-left"
+              :class="mobileOpenId === r.sectionId ? 'bg-teal-50' : ''"
+              @click="openMobileRow(r)"
+            >
+              <component :is="r.icon" class="h-5 w-5 flex-shrink-0 text-teal-600" />
+              <span class="min-w-0 flex-1">
+                <span class="block text-sm font-medium text-slate-900">{{ r.label }}</span>
+                <span
+                  v-if="r.incomplete"
+                  class="flex items-center gap-1.5 text-xs text-amber-700"
+                  :data-testid="`mobile-incomplete-${r.sectionId}`"
+                >
+                  <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-600" />
+                  À compléter
+                </span>
+                <span v-else class="block truncate text-xs text-slate-500">{{ r.preview }}</span>
               </span>
-              <span v-else class="block truncate text-xs text-slate-500">{{ r.preview }}</span>
-            </span>
-            <ChevronRight class="h-4 w-4 flex-shrink-0 text-slate-400" />
-          </button>
+              <ChevronUp
+                v-if="mobileOpenId === r.sectionId"
+                class="h-4 w-4 flex-shrink-0 text-teal-600"
+              />
+              <ChevronDown v-else class="h-4 w-4 flex-shrink-0 text-slate-400" />
+            </button>
+            <!-- Emplacement du panneau déplié (cible des <Teleport> ci-dessous) -->
+            <div :id="`mobile-slot-${r.sectionId}`" :data-testid="`mobile-slot-${r.sectionId}`" />
+            <div v-if="mobileOpenId === r.sectionId && nextMobileSection" class="px-4 pb-4">
+              <button
+                type="button"
+                data-testid="mobile-next"
+                class="py-2 text-sm font-medium text-teal-600"
+                @click="openMobileRow(nextMobileSection)"
+              >
+                Section suivante : {{ nextMobileSection.label }} ›
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- Téléphone (< md) : barre retour du détail -->
-    <div v-if="isSectionOpen" class="md:hidden mb-4">
-      <button
-        type="button"
-        data-testid="mobile-back"
-        class="inline-flex items-center gap-1 py-2 text-sm font-medium text-teal-600"
-        @click="closeMobileSection"
-      >
-        <ChevronLeft class="h-4 w-4" />
-        Toutes les sections
-      </button>
-    </div>
-
     <!-- Profile content - Two column layout on desktop -->
-    <div
-      :class="[
-        'flex-col lg:flex-row gap-6',
-        isSectionOpen ? 'flex' : 'hidden md:flex',
-      ]"
-    >
-      <!-- Left Sidebar (sticky on desktop) ; téléphone : seulement la carte photo, en détail « photo » -->
-      <div :class="['lg:w-80 flex-shrink-0', photoOpen ? '' : 'hidden md:block']">
+    <!-- Sous md, ce conteneur est masqué : les panneaux ouverts en sont téléportés sous leur ligne -->
+    <div class="hidden md:flex flex-col lg:flex-row gap-6">
+      <!-- Left Sidebar (sticky on desktop) ; téléphone : la carte photo est téléportée sous sa ligne -->
+      <div class="lg:w-80 flex-shrink-0">
         <div class="lg:sticky lg:top-6 space-y-6">
           <!-- Profile photo card -->
-          <div
-            id="section-profile-photo"
-            class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 transition-shadow"
-            :class="{ 'ring-2 ring-teal-500 ring-offset-2': highlightPhotoCard }"
-          >
-            <h2 class="text-lg font-medium text-gray-900 mb-6">Photo de mise en avant</h2>
-            <ProfilePhotoUpload
-              :profile="profile"
-              :is-uploading="isUploading"
-              :is-deleting="isDeleting"
-              :error="error"
-              @upload="handleUpload"
-              @delete="handleDelete"
-            />
-          </div>
+          <Teleport :to="mobileSlot(PHOTO_SECTION_ID)" defer :disabled="teleportOff(PHOTO_SECTION_ID)">
+            <div
+              id="section-profile-photo"
+              class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 transition-shadow"
+              :class="{ 'ring-2 ring-teal-500 ring-offset-2': highlightPhotoCard }"
+            >
+              <h2 class="text-lg font-medium text-gray-900 mb-6">Photo de mise en avant</h2>
+              <ProfilePhotoUpload
+                :profile="profile"
+                :is-uploading="isUploading"
+                :is-deleting="isDeleting"
+                :error="error"
+                @upload="handleUpload"
+                @delete="handleDelete"
+              />
+            </div>
+          </Teleport>
 
           <!-- Profile completion card (à conserver intacte) -->
           <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -1227,7 +1256,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
       </div>
 
       <!-- Right Main Content -->
-      <div :class="['flex-1 min-w-0', photoOpen ? 'hidden md:block' : '']">
+      <div class="flex-1 min-w-0">
         <!-- Family tabs (underlined) -->
         <nav
           role="tablist"
@@ -1288,263 +1317,276 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
             <!-- Active section content (all sections kept mounted via v-show) -->
             <div class="min-w-0">
               <!-- PROFIL -->
-              <div v-show="isActiveSection('profil', 'infos')" class="p-6 md:p-7" data-testid="panel-infos">
-                <BasicInfoSection flat />
-              </div>
-
-              <div v-show="isActiveSection('profil', 'identite')" class="p-6 md:p-7" data-testid="panel-identite">
-                <h2 class="text-lg font-semibold text-slate-900">Identité</h2>
-                <p class="mt-1 mb-6 text-sm text-slate-500">
-                  Sexe, date de naissance, nationalité et pays de résidence.
-                </p>
-                <div v-if="isPersonalInfoLoading" class="flex justify-center py-8">
-                  <Loader2 class="h-6 w-6 animate-spin text-teal-600" />
+              <Teleport :to="mobileSlot('infos')" defer :disabled="teleportOff('infos')">
+                <div v-show="isActiveSection('profil', 'infos')" class="p-6 md:p-7" data-testid="panel-infos">
+                  <BasicInfoSection flat />
                 </div>
-                <PersonalInfoForm
-                  v-else
-                  :personal-info="personalInfo"
-                  :is-saving="isPersonalInfoSaving"
-                  :error="personalInfoError"
-                  @save="handlePersonalInfoSave"
-                />
-              </div>
+              </Teleport>
 
-              <div v-show="isActiveSection('profil', 'physique')" class="p-6 md:p-7" data-testid="panel-physique">
-                <h2 class="text-lg font-semibold text-slate-900">Caractéristiques physiques</h2>
-                <p class="mt-1 mb-6 text-sm text-slate-500">
-                  Indiquez votre taille et poids pour aider les producteurs à trouver des talents correspondant à leurs besoins.
-                </p>
-                <PhysicalCharacteristicsForm
-                  :physical-characteristics-info="physicalCharacteristicsInfo"
-                  :is-saving="isPhysicalCharacteristicsSaving"
-                  :error="physicalCharacteristicsError"
-                  @save="handlePhysicalCharacteristicsSave"
-                />
-              </div>
-
-              <div v-show="isActiveSection('profil', 'langues')" class="p-6 md:p-7" data-testid="panel-langues">
-                <div v-if="isLanguesLoading" class="flex justify-center py-8">
-                  <Loader2 class="h-6 w-6 animate-spin text-teal-600" />
-                </div>
-                <LanguesTagInput
-                  v-else
-                  :langues="languesInfo?.langues ?? null"
-                  :is-saving="isLanguesSaving"
-                  :error="languesError"
-                  :max-langues="MAX_LANGUES"
-                  :max-langue-length="MAX_LANGUE_LENGTH"
-                  @save="handleLanguesSave"
-                />
-              </div>
-
-              <div v-show="isActiveSection('profil', 'bio')" class="p-6 md:p-7" data-testid="panel-bio">
-                <h2 class="text-lg font-semibold text-slate-900">Bio &amp; Localisation</h2>
-                <p class="mt-1 mb-6 text-sm text-slate-500">
-                  Partagez votre parcours et indiquez votre localisation aux producteurs.
-                </p>
-                <BioLocationForm
-                  :bio-location-info="bioLocationInfo"
-                  :is-saving="isBioLocationSaving"
-                  :error="bioLocationError"
-                  @save="handleBioLocationSave"
-                />
-              </div>
-
-              <!-- PORTFOLIO -->
-              <div v-show="isActiveSection('portfolio', 'album')" class="p-6 md:p-7" data-testid="panel-album">
-                <h2 class="text-lg font-semibold text-slate-900">Album photos</h2>
-                <MediaQuotaUpsell
-                  media-key="max_album_photos"
-                  description="Montrez votre polyvalence aux producteurs avec votre album photos."
-                  :capabilities="capabilities"
-                  :current-tier="subscriptionTier"
-                  :offers="offers"
-                />
-                <PhotoAlbumGrid
-                  :photos="albumPhotos"
-                  :is-loading="isAlbumLoading"
-                  :is-deleting="isAlbumDeleting"
-                  :can-add-more="canAddMore && !isFullByEntitlement"
-                  :max-album-photos="maxAlbumPhotos"
-                  @delete="handleAlbumDelete"
-                  @add-click="handleAlbumAddClick"
-                />
-                <div class="mt-6">
-                  <AlbumPhotoUpload
-                    :is-full="isFullByEntitlement"
-                    :is-uploading="isAlbumUploading"
-                    :error="albumError"
-                    :upload-limit="maxAlbumPhotos"
-                    :current-count="albumPhotos.length"
-                    :locked-by-quota="isFullByEntitlement"
-                    @upload="handleAlbumUpload"
+              <Teleport :to="mobileSlot('identite')" defer :disabled="teleportOff('identite')">
+                <div v-show="isActiveSection('profil', 'identite')" class="p-6 md:p-7" data-testid="panel-identite">
+                  <h2 class="text-lg font-semibold text-slate-900">Identité</h2>
+                  <p class="mt-1 mb-6 text-sm text-slate-500">
+                    Sexe, date de naissance, nationalité et pays de résidence.
+                  </p>
+                  <div v-if="isPersonalInfoLoading" class="flex justify-center py-8">
+                    <Loader2 class="h-6 w-6 animate-spin text-teal-600" />
+                  </div>
+                  <PersonalInfoForm
+                    v-else
+                    :personal-info="personalInfo"
+                    :is-saving="isPersonalInfoSaving"
+                    :error="personalInfoError"
+                    @save="handlePersonalInfoSave"
                   />
                 </div>
-                <!-- Hidden file input for grid clicks -->
-                <input
-                  ref="albumFileInputRef"
-                  type="file"
-                  accept="image/jpeg,image/png"
-                  class="hidden"
-                  @change="(e) => {
-                    const file = (e.target as HTMLInputElement).files?.[0];
-                    if (isFullByEntitlement) { (e.target as HTMLInputElement).value = ''; return; }
-                    if (file) handleAlbumUpload(file);
-                    (e.target as HTMLInputElement).value = '';
-                  }"
-                />
-              </div>
+              </Teleport>
 
-              <div v-show="isActiveSection('portfolio', 'video-pres')" class="p-6 md:p-7" data-testid="panel-video-pres">
-                <h2 class="text-lg font-semibold text-slate-900">Vidéo de présentation</h2>
-                <MediaQuotaUpsell
-                  media-key="max_presentation_videos"
-                  description="Présentez-vous en vidéo pour faire une première impression aux producteurs."
-                  :capabilities="capabilities"
-                  :current-tier="subscriptionTier"
-                  :offers="offers"
-                />
-                <PresentationVideoUpload
-                  :video-info="videoInfo"
-                  :is-uploading="isVideoUploading"
-                  :is-deleting="isVideoDeleting"
-                  :error="videoError"
-                  :upload-progress="uploadProgress"
-                  :can-upload="subscriptionCanUploadPresentationVideo"
-                  @upload="handleVideoUpload"
-                  @delete="handleVideoDelete"
-                  @navigate-pricing="onNavigatePricing"
-                />
-              </div>
+              <Teleport :to="mobileSlot('physique')" defer :disabled="teleportOff('physique')">
+                <div v-show="isActiveSection('profil', 'physique')" class="p-6 md:p-7" data-testid="panel-physique">
+                  <h2 class="text-lg font-semibold text-slate-900">Caractéristiques physiques</h2>
+                  <p class="mt-1 mb-6 text-sm text-slate-500">
+                    Indiquez votre taille et poids pour aider les producteurs à trouver des talents correspondant à leurs besoins.
+                  </p>
+                  <PhysicalCharacteristicsForm
+                    :physical-characteristics-info="physicalCharacteristicsInfo"
+                    :is-saving="isPhysicalCharacteristicsSaving"
+                    :error="physicalCharacteristicsError"
+                    @save="handlePhysicalCharacteristicsSave"
+                  />
+                </div>
+              </Teleport>
 
-              <div v-show="isActiveSection('portfolio', 'video-acting')" class="p-6 md:p-7" data-testid="panel-video-acting">
-                <h2 class="text-lg font-semibold text-slate-900">Vidéo d'acting</h2>
-                <MediaQuotaUpsell
-                  media-key="max_acting_videos"
-                  description="Démontrez votre talent d'acteur en vidéo aux producteurs."
-                  :capabilities="capabilities"
-                  :current-tier="subscriptionTier"
-                  :offers="offers"
-                />
-                <FaceVideoUpload
-                  type="acting"
-                  :videos="actingVideos"
-                  :max-for-type="capabilities?.max_acting_videos ?? 0"
-                  :is-uploading="isActingFaceVideoUploading"
-                  :is-deleting="isActingFaceVideoDeleting"
-                  :error="actingFaceVideoError"
-                  :upload-progress="actingFaceVideoUploadProgress"
-                  @upload="(file) => handleAddFaceVideo('acting', file)"
-                  @delete="handleDeleteFaceVideo"
-                  @navigate-pricing="onNavigatePricing"
-                />
-              </div>
+              <Teleport :to="mobileSlot('langues')" defer :disabled="teleportOff('langues')">
+                <div v-show="isActiveSection('profil', 'langues')" class="p-6 md:p-7" data-testid="panel-langues">
+                  <div v-if="isLanguesLoading" class="flex justify-center py-8">
+                    <Loader2 class="h-6 w-6 animate-spin text-teal-600" />
+                  </div>
+                  <LanguesTagInput
+                    v-else
+                    :langues="languesInfo?.langues ?? null"
+                    :is-saving="isLanguesSaving"
+                    :error="languesError"
+                    :max-langues="MAX_LANGUES"
+                    :max-langue-length="MAX_LANGUE_LENGTH"
+                    @save="handleLanguesSave"
+                  />
+                </div>
+              </Teleport>
 
-              <div v-show="isActiveSection('portfolio', 'video-ugc')" class="p-6 md:p-7" data-testid="panel-video-ugc">
-                <h2 class="text-lg font-semibold text-slate-900">Vidéo UGC</h2>
-                <MediaQuotaUpsell
-                  media-key="max_ugc_videos"
-                  description="Montrez votre style avec une vidéo modèle UGC (User-Generated Content)."
-                  :capabilities="capabilities"
-                  :current-tier="subscriptionTier"
-                  :offers="offers"
-                />
-                <FaceVideoUpload
-                  type="ugc"
-                  :videos="ugcVideos"
-                  :max-for-type="capabilities?.max_ugc_videos ?? 0"
-                  :is-uploading="isUgcFaceVideoUploading"
-                  :is-deleting="isUgcFaceVideoDeleting"
-                  :error="ugcFaceVideoError"
-                  :upload-progress="ugcFaceVideoUploadProgress"
-                  @upload="(file) => handleAddFaceVideo('ugc', file)"
-                  @delete="handleDeleteFaceVideo"
-                  @navigate-pricing="onNavigatePricing"
-                />
-              </div>
+              <Teleport :to="mobileSlot('bio')" defer :disabled="teleportOff('bio')">
+                <div v-show="isActiveSection('profil', 'bio')" class="p-6 md:p-7" data-testid="panel-bio">
+                  <h2 class="text-lg font-semibold text-slate-900">Bio &amp; Localisation</h2>
+                  <p class="mt-1 mb-6 text-sm text-slate-500">
+                    Partagez votre parcours et indiquez votre localisation aux producteurs.
+                  </p>
+                  <BioLocationForm
+                    :bio-location-info="bioLocationInfo"
+                    :is-saving="isBioLocationSaving"
+                    :error="bioLocationError"
+                    @save="handleBioLocationSave"
+                  />
+                </div>
+              </Teleport>
+
+              <!-- PORTFOLIO -->
+              <Teleport :to="mobileSlot('album')" defer :disabled="teleportOff('album')">
+                <div v-show="isActiveSection('portfolio', 'album')" class="p-6 md:p-7" data-testid="panel-album">
+                  <h2 class="text-lg font-semibold text-slate-900">Album photos</h2>
+                  <MediaQuotaUpsell
+                    media-key="max_album_photos"
+                    description="Montrez votre polyvalence aux producteurs avec votre album photos."
+                    :capabilities="capabilities"
+                    :current-tier="subscriptionTier"
+                    :offers="offers"
+                  />
+                  <PhotoAlbumGrid
+                    :photos="albumPhotos"
+                    :is-loading="isAlbumLoading"
+                    :is-deleting="isAlbumDeleting"
+                    :can-add-more="canAddMore && !isFullByEntitlement"
+                    :max-album-photos="maxAlbumPhotos"
+                    @delete="handleAlbumDelete"
+                    @add-click="handleAlbumAddClick"
+                  />
+                  <div class="mt-6">
+                    <AlbumPhotoUpload
+                      :is-full="isFullByEntitlement"
+                      :is-uploading="isAlbumUploading"
+                      :error="albumError"
+                      :upload-limit="maxAlbumPhotos"
+                      :current-count="albumPhotos.length"
+                      :locked-by-quota="isFullByEntitlement"
+                      @upload="handleAlbumUpload"
+                    />
+                  </div>
+                  <!-- Hidden file input for grid clicks -->
+                  <input
+                    ref="albumFileInputRef"
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    class="hidden"
+                    @change="(e) => {
+                      const file = (e.target as HTMLInputElement).files?.[0];
+                      if (isFullByEntitlement) { (e.target as HTMLInputElement).value = ''; return; }
+                      if (file) handleAlbumUpload(file);
+                      (e.target as HTMLInputElement).value = '';
+                    }"
+                  />
+                </div>
+              </Teleport>
+
+              <Teleport :to="mobileSlot('video-pres')" defer :disabled="teleportOff('video-pres')">
+                <div v-show="isActiveSection('portfolio', 'video-pres')" class="p-6 md:p-7" data-testid="panel-video-pres">
+                  <h2 class="text-lg font-semibold text-slate-900">Vidéo de présentation</h2>
+                  <MediaQuotaUpsell
+                    media-key="max_presentation_videos"
+                    description="Présentez-vous en vidéo pour faire une première impression aux producteurs."
+                    :capabilities="capabilities"
+                    :current-tier="subscriptionTier"
+                    :offers="offers"
+                  />
+                  <PresentationVideoUpload
+                    :video-info="videoInfo"
+                    :is-uploading="isVideoUploading"
+                    :is-deleting="isVideoDeleting"
+                    :error="videoError"
+                    :upload-progress="uploadProgress"
+                    :can-upload="subscriptionCanUploadPresentationVideo"
+                    @upload="handleVideoUpload"
+                    @delete="handleVideoDelete"
+                    @navigate-pricing="onNavigatePricing"
+                  />
+                </div>
+              </Teleport>
+
+              <Teleport :to="mobileSlot('video-acting')" defer :disabled="teleportOff('video-acting')">
+                <div v-show="isActiveSection('portfolio', 'video-acting')" class="p-6 md:p-7" data-testid="panel-video-acting">
+                  <h2 class="text-lg font-semibold text-slate-900">Vidéo d'acting</h2>
+                  <MediaQuotaUpsell
+                    media-key="max_acting_videos"
+                    description="Démontrez votre talent d'acteur en vidéo aux producteurs."
+                    :capabilities="capabilities"
+                    :current-tier="subscriptionTier"
+                    :offers="offers"
+                  />
+                  <FaceVideoUpload
+                    type="acting"
+                    :videos="actingVideos"
+                    :max-for-type="capabilities?.max_acting_videos ?? 0"
+                    :is-uploading="isActingFaceVideoUploading"
+                    :is-deleting="isActingFaceVideoDeleting"
+                    :error="actingFaceVideoError"
+                    :upload-progress="actingFaceVideoUploadProgress"
+                    @upload="(file) => handleAddFaceVideo('acting', file)"
+                    @delete="handleDeleteFaceVideo"
+                    @navigate-pricing="onNavigatePricing"
+                  />
+                </div>
+              </Teleport>
+
+              <Teleport :to="mobileSlot('video-ugc')" defer :disabled="teleportOff('video-ugc')">
+                <div v-show="isActiveSection('portfolio', 'video-ugc')" class="p-6 md:p-7" data-testid="panel-video-ugc">
+                  <h2 class="text-lg font-semibold text-slate-900">Vidéo UGC</h2>
+                  <MediaQuotaUpsell
+                    media-key="max_ugc_videos"
+                    description="Montrez votre style avec une vidéo modèle UGC (User-Generated Content)."
+                    :capabilities="capabilities"
+                    :current-tier="subscriptionTier"
+                    :offers="offers"
+                  />
+                  <FaceVideoUpload
+                    type="ugc"
+                    :videos="ugcVideos"
+                    :max-for-type="capabilities?.max_ugc_videos ?? 0"
+                    :is-uploading="isUgcFaceVideoUploading"
+                    :is-deleting="isUgcFaceVideoDeleting"
+                    :error="ugcFaceVideoError"
+                    :upload-progress="ugcFaceVideoUploadProgress"
+                    @upload="(file) => handleAddFaceVideo('ugc', file)"
+                    @delete="handleDeleteFaceVideo"
+                    @navigate-pricing="onNavigatePricing"
+                  />
+                </div>
+              </Teleport>
 
               <!-- CARRIÈRE -->
-              <div v-show="isActiveSection('carriere', 'categorie')" class="p-6 md:p-7" data-testid="panel-categorie">
-                <h2 class="text-lg font-semibold text-slate-900">Catégorie &amp; Niche</h2>
-                <p class="mt-1 mb-6 text-sm text-slate-500">
-                  Sélectionnez votre catégorie et niche pour aider les producteurs à vous trouver selon votre spécialisation.
-                </p>
-                <div v-if="isCategoryNicheLoading" class="flex justify-center py-8">
-                  <Loader2 class="h-6 w-6 animate-spin text-teal-600" />
+              <Teleport :to="mobileSlot('categorie')" defer :disabled="teleportOff('categorie')">
+                <div v-show="isActiveSection('carriere', 'categorie')" class="p-6 md:p-7" data-testid="panel-categorie">
+                  <h2 class="text-lg font-semibold text-slate-900">Catégorie &amp; Niche</h2>
+                  <p class="mt-1 mb-6 text-sm text-slate-500">
+                    Sélectionnez votre catégorie et niche pour aider les producteurs à vous trouver selon votre spécialisation.
+                  </p>
+                  <div v-if="isCategoryNicheLoading" class="flex justify-center py-8">
+                    <Loader2 class="h-6 w-6 animate-spin text-teal-600" />
+                  </div>
+                  <CategoryNicheForm
+                    v-else
+                    :category-niche-info="categoryNicheInfo"
+                    :category-options="categoryOptions"
+                    :niche-options="nicheOptions"
+                    :is-saving="isCategoryNicheSaving"
+                    :error="categoryNicheError"
+                    @save="handleCategoryNicheSave"
+                  />
                 </div>
-                <CategoryNicheForm
-                  v-else
-                  :category-niche-info="categoryNicheInfo"
-                  :category-options="categoryOptions"
-                  :niche-options="nicheOptions"
-                  :is-saving="isCategoryNicheSaving"
-                  :error="categoryNicheError"
-                  @save="handleCategoryNicheSave"
-                />
-              </div>
+              </Teleport>
 
-              <div v-show="isActiveSection('carriere', 'experiences')" class="p-6 md:p-7" data-testid="panel-experiences">
-                <ExperiencesList
-                  ref="experiencesListRef"
-                  :experiences="experiences"
-                  :is-loading="isExperiencesLoading"
-                  :is-saving="isExperiencesSaving"
-                  :is-deleting="isExperiencesDeleting"
-                  :error="experiencesError"
-                  :validation-errors="experiencesValidationErrors"
-                  @add="handleExperienceAdd"
-                  @edit="handleExperienceEdit"
-                  @delete="handleExperienceDelete"
-                />
-              </div>
+              <Teleport :to="mobileSlot('experiences')" defer :disabled="teleportOff('experiences')">
+                <div v-show="isActiveSection('carriere', 'experiences')" class="p-6 md:p-7" data-testid="panel-experiences">
+                  <ExperiencesList
+                    ref="experiencesListRef"
+                    :experiences="experiences"
+                    :is-loading="isExperiencesLoading"
+                    :is-saving="isExperiencesSaving"
+                    :is-deleting="isExperiencesDeleting"
+                    :error="experiencesError"
+                    :validation-errors="experiencesValidationErrors"
+                    @add="handleExperienceAdd"
+                    @edit="handleExperienceEdit"
+                    @delete="handleExperienceDelete"
+                  />
+                </div>
+              </Teleport>
 
-              <div v-show="isActiveSection('carriere', 'tarif')" class="p-6 md:p-7" data-testid="panel-tarif">
-                <h2 class="text-lg font-semibold text-slate-900">Tarif</h2>
-                <p class="mt-1 mb-6 text-sm text-slate-500">
-                  Définissez votre tarif journalier — il est visible par les producteurs et affiché en lecture seule dans la barre latérale.
-                </p>
-                <TarifsForm
-                  :tarifs-info="tarifsInfo"
-                  :is-saving="isTarifsSaving"
-                  :error="tarifsError"
-                  @save="handleTarifsSave"
-                />
-              </div>
+              <Teleport :to="mobileSlot('tarif')" defer :disabled="teleportOff('tarif')">
+                <div v-show="isActiveSection('carriere', 'tarif')" class="p-6 md:p-7" data-testid="panel-tarif">
+                  <h2 class="text-lg font-semibold text-slate-900">Tarif</h2>
+                  <p class="mt-1 mb-6 text-sm text-slate-500">
+                    Définissez votre tarif journalier — il est visible par les producteurs et affiché en lecture seule dans la barre latérale.
+                  </p>
+                  <TarifsForm
+                    :tarifs-info="tarifsInfo"
+                    :is-saving="isTarifsSaving"
+                    :error="tarifsError"
+                    @save="handleTarifsSave"
+                  />
+                </div>
+              </Teleport>
 
               <!-- COMPTE -->
-              <div v-show="isActiveSection('compte', 'securite')" class="p-6 md:p-7 space-y-4" data-testid="panel-securite">
-                <template v-if="securityVisited">
-                  <EmailChangeForm />
-                  <div class="border-t border-gray-100 pt-4">
-                    <PasswordChangeForm />
-                  </div>
-                </template>
-              </div>
+              <Teleport :to="mobileSlot('securite')" defer :disabled="teleportOff('securite')">
+                <div v-show="isActiveSection('compte', 'securite')" class="p-6 md:p-7 space-y-4" data-testid="panel-securite">
+                  <template v-if="securityVisited">
+                    <EmailChangeForm />
+                    <div class="border-t border-gray-100 pt-4">
+                      <PasswordChangeForm />
+                    </div>
+                  </template>
+                </div>
+              </Teleport>
 
-              <div v-show="isActiveSection('compte', 'donnees')" class="p-6 md:p-7" data-testid="panel-donnees">
-                <DataPrivacySection />
-              </div>
+              <Teleport :to="mobileSlot('donnees')" defer :disabled="teleportOff('donnees')">
+                <div v-show="isActiveSection('compte', 'donnees')" class="p-6 md:p-7" data-testid="panel-donnees">
+                  <DataPrivacySection />
+                </div>
+              </Teleport>
             </div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Téléphone (< md) : section suivante -->
-    <div v-if="isSectionOpen && nextMobileSection" class="md:hidden mt-4">
-      <button
-        type="button"
-        data-testid="mobile-next"
-        class="flex min-h-[48px] w-full items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-white px-4 py-2 text-sm"
-        @click="openMobileRow(nextMobileSection)"
-      >
-        <span class="text-slate-500">Section suivante</span>
-        <span class="flex items-center gap-1 font-medium text-teal-600">
-          {{ nextMobileSection.label }}
-          <ChevronRight class="h-4 w-4" />
-        </span>
-      </button>
-    </div>
     </template>
   </div>
 </template>

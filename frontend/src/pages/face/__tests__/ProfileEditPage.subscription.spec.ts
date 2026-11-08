@@ -241,6 +241,7 @@ function mountPage() {
   return shallowMount(ProfileEditPage, {
     global: {
       stubs: {
+        teleport: false,
         PhotoAlbumGrid: {
           template: '<button data-testid="grid-add" @click="$emit(\'add-click\')">add</button>',
         },
