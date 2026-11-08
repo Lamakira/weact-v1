@@ -1143,10 +1143,10 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
           <Teleport :to="mobileSlot(PHOTO_SECTION_ID)" defer :disabled="teleportOff(PHOTO_SECTION_ID)">
             <div
               id="section-profile-photo"
-              class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 transition-shadow"
+              class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 transition-shadow max-md:rounded-none max-md:border-0 max-md:shadow-none max-md:pt-2"
               :class="{ 'ring-2 ring-teal-500 ring-offset-2': highlightPhotoCard }"
             >
-              <h2 class="text-lg font-medium text-gray-900 mb-6">Photo de mise en avant</h2>
+              <h2 class="hidden text-lg font-medium text-gray-900 mb-6 md:block">Photo de mise en avant</h2>
               <ProfilePhotoUpload
                 :profile="profile"
                 :is-uploading="isUploading"
@@ -1325,7 +1325,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
               <Teleport :to="mobileSlot('identite')" defer :disabled="teleportOff('identite')">
                 <div v-show="isActiveSection('profil', 'identite')" class="p-6 md:p-7" data-testid="panel-identite">
-                  <h2 class="text-lg font-semibold text-slate-900">Identité</h2>
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Identité</h2>
                   <p class="mt-1 mb-6 text-sm text-slate-500">
                     Sexe, date de naissance, nationalité et pays de résidence.
                   </p>
@@ -1344,7 +1344,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
               <Teleport :to="mobileSlot('physique')" defer :disabled="teleportOff('physique')">
                 <div v-show="isActiveSection('profil', 'physique')" class="p-6 md:p-7" data-testid="panel-physique">
-                  <h2 class="text-lg font-semibold text-slate-900">Caractéristiques physiques</h2>
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Caractéristiques physiques</h2>
                   <p class="mt-1 mb-6 text-sm text-slate-500">
                     Indiquez votre taille et poids pour aider les producteurs à trouver des talents correspondant à leurs besoins.
                   </p>
@@ -1376,7 +1376,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
               <Teleport :to="mobileSlot('bio')" defer :disabled="teleportOff('bio')">
                 <div v-show="isActiveSection('profil', 'bio')" class="p-6 md:p-7" data-testid="panel-bio">
-                  <h2 class="text-lg font-semibold text-slate-900">Bio &amp; Localisation</h2>
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Bio &amp; Localisation</h2>
                   <p class="mt-1 mb-6 text-sm text-slate-500">
                     Partagez votre parcours et indiquez votre localisation aux producteurs.
                   </p>
@@ -1392,7 +1392,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
               <!-- PORTFOLIO -->
               <Teleport :to="mobileSlot('album')" defer :disabled="teleportOff('album')">
                 <div v-show="isActiveSection('portfolio', 'album')" class="p-6 md:p-7" data-testid="panel-album">
-                  <h2 class="text-lg font-semibold text-slate-900">Album photos</h2>
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Album photos</h2>
                   <MediaQuotaUpsell
                     media-key="max_album_photos"
                     description="Montrez votre polyvalence aux producteurs avec votre album photos."
@@ -1438,7 +1438,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
               <Teleport :to="mobileSlot('video-pres')" defer :disabled="teleportOff('video-pres')">
                 <div v-show="isActiveSection('portfolio', 'video-pres')" class="p-6 md:p-7" data-testid="panel-video-pres">
-                  <h2 class="text-lg font-semibold text-slate-900">Vidéo de présentation</h2>
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Vidéo de présentation</h2>
                   <MediaQuotaUpsell
                     media-key="max_presentation_videos"
                     description="Présentez-vous en vidéo pour faire une première impression aux producteurs."
@@ -1462,7 +1462,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
               <Teleport :to="mobileSlot('video-acting')" defer :disabled="teleportOff('video-acting')">
                 <div v-show="isActiveSection('portfolio', 'video-acting')" class="p-6 md:p-7" data-testid="panel-video-acting">
-                  <h2 class="text-lg font-semibold text-slate-900">Vidéo d'acting</h2>
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Vidéo d'acting</h2>
                   <MediaQuotaUpsell
                     media-key="max_acting_videos"
                     description="Démontrez votre talent d'acteur en vidéo aux producteurs."
@@ -1487,7 +1487,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
               <Teleport :to="mobileSlot('video-ugc')" defer :disabled="teleportOff('video-ugc')">
                 <div v-show="isActiveSection('portfolio', 'video-ugc')" class="p-6 md:p-7" data-testid="panel-video-ugc">
-                  <h2 class="text-lg font-semibold text-slate-900">Vidéo UGC</h2>
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Vidéo UGC</h2>
                   <MediaQuotaUpsell
                     media-key="max_ugc_videos"
                     description="Montrez votre style avec une vidéo modèle UGC (User-Generated Content)."
@@ -1513,7 +1513,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
               <!-- CARRIÈRE -->
               <Teleport :to="mobileSlot('categorie')" defer :disabled="teleportOff('categorie')">
                 <div v-show="isActiveSection('carriere', 'categorie')" class="p-6 md:p-7" data-testid="panel-categorie">
-                  <h2 class="text-lg font-semibold text-slate-900">Catégorie &amp; Niche</h2>
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Catégorie &amp; Niche</h2>
                   <p class="mt-1 mb-6 text-sm text-slate-500">
                     Sélectionnez votre catégorie et niche pour aider les producteurs à vous trouver selon votre spécialisation.
                   </p>
@@ -1551,7 +1551,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
               <Teleport :to="mobileSlot('tarif')" defer :disabled="teleportOff('tarif')">
                 <div v-show="isActiveSection('carriere', 'tarif')" class="p-6 md:p-7" data-testid="panel-tarif">
-                  <h2 class="text-lg font-semibold text-slate-900">Tarif</h2>
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Tarif</h2>
                   <p class="mt-1 mb-6 text-sm text-slate-500">
                     Définissez votre tarif journalier — il est visible par les producteurs et affiché en lecture seule dans la barre latérale.
                   </p>
