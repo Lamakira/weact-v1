@@ -42,6 +42,12 @@ function mountDialog(props: Record<string, unknown> = {}) {
   return wrapper
 }
 
+// Horloge figée pour tout le fichier : vendredi 6 novembre 2026, 09:00 au Bénin (validDate() =
+// 13 novembre). Calculée sur l'heure réelle, validDate() finissait par tomber sur currentDate
+// (15 novembre) et la fenêtre refusait alors « la même date » : les tests d'envoi échouaient à
+// partir du 7 novembre midi, puis la date actuelle du fixture serait passée.
+const NOW = new Date('2026-11-06T08:00:00Z')
+
 const validDate = () => addDaysIso(minNewDateIso(new Date()), 6)
 
 async function fill(w: VueWrapper, date: string, reason: string) {
@@ -50,6 +56,8 @@ async function fill(w: VueWrapper, date: string, reason: string) {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(NOW)
   vi.mocked(dateChangeApi.proposeMission).mockReset()
   vi.mocked(dateChangeApi.proposeBooking).mockReset()
 })
@@ -57,6 +65,7 @@ beforeEach(() => {
 afterEach(() => {
   wrapper?.unmount()
   wrapper = null
+  vi.useRealTimers()
 })
 
 describe('DateChangeDialog — mission', () => {
@@ -152,16 +161,10 @@ describe('DateChangeDialog — mission', () => {
   })
 
   it('mission : la limite est bornée par le début de la nouvelle date moins 1 h', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date('2026-11-06T08:00:00Z'))
-    try {
-      const w = mountDialog()
-      await w.get('input#date-change-new-date').setValue('2026-11-07')
-      // minuit au Bénin le 7 = 23:00 UTC le 6 ; moins 1 h = 23:00 Bénin le 6
-      expect(w.get('[data-testid="date-change-effect-confirm"]').text()).toContain('jusqu’au vendredi 6 novembre à 23:00')
-    } finally {
-      vi.useRealTimers()
-    }
+    const w = mountDialog()
+    await w.get('input#date-change-new-date').setValue('2026-11-07')
+    // minuit au Bénin le 7 = 23:00 UTC le 6 ; moins 1 h = 23:00 Bénin le 6
+    expect(w.get('[data-testid="date-change-effect-confirm"]').text()).toContain('jusqu’au vendredi 6 novembre à 23:00')
   })
 
   it('Retour émet cancel', async () => {
@@ -186,28 +189,16 @@ describe('DateChangeDialog — booking', () => {
   })
 
   it('la limite affichée est bornée par le début de l’ancienne date', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date('2026-11-06T08:00:00Z'))
-    try {
-      const w = mountDialog({ ...bookingProps, currentDate: '2026-11-08' })
-      await w.get('input#date-change-new-date').setValue('2026-11-20')
-      // maintenant + 48 h serait le 8 novembre à 09:00 ; l'ancienne date commence le 8 novembre à 00:00 (Bénin)
-      expect(w.get('[data-testid="date-change-effect-confirm"]').text()).toContain('jusqu’au dimanche 8 novembre à 00:00')
-    } finally {
-      vi.useRealTimers()
-    }
+    const w = mountDialog({ ...bookingProps, currentDate: '2026-11-08' })
+    await w.get('input#date-change-new-date').setValue('2026-11-20')
+    // maintenant + 48 h serait le 8 novembre à 09:00 ; l'ancienne date commence le 8 novembre à 00:00 (Bénin)
+    expect(w.get('[data-testid="date-change-effect-confirm"]').text()).toContain('jusqu’au dimanche 8 novembre à 00:00')
   })
 
   it('mission : la limite est maintenant + 48 h', async () => {
-    vi.useFakeTimers({ toFake: ['Date'] })
-    vi.setSystemTime(new Date('2026-11-06T08:00:00Z'))
-    try {
-      const w = mountDialog()
-      await w.get('input#date-change-new-date').setValue('2026-11-20')
-      expect(w.get('[data-testid="date-change-effect-confirm"]').text()).toContain('jusqu’au dimanche 8 novembre à 09:00')
-    } finally {
-      vi.useRealTimers()
-    }
+    const w = mountDialog()
+    await w.get('input#date-change-new-date').setValue('2026-11-20')
+    expect(w.get('[data-testid="date-change-effect-confirm"]').text()).toContain('jusqu’au dimanche 8 novembre à 09:00')
   })
 
   it('envoie la proposition au booking et émet le booking mis à jour', async () => {
