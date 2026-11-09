@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\AdminRole;
 use App\Enums\FinancialEventType;
 use App\Exceptions\WithdrawalLockException;
 use App\Mail\WithdrawalRequestSubmittedMail;
+use App\Models\Admin;
 use App\Models\FinancialEvent;
 use App\Models\User;
 use App\Models\WithdrawalRequest;
@@ -85,20 +87,40 @@ class WithdrawalService
 
         // Queued once the lock is released (and after the surrounding commit, if any):
         // the SMTP round-trip must not extend the per-user withdrawal lock.
-        $adminEmail = (string) config('app.admin_email', '');
+        $recipients = $this->withdrawalAdminRecipients();
 
-        if ($adminEmail !== '') {
-            Mail::to($adminEmail)->queue(
-                (new WithdrawalRequestSubmittedMail($withdrawalRequest->loadMissing('user.userable')))->afterCommit()
-            );
-        } else {
-            Log::warning('Withdrawal request created but admin_email is not configured — no notification sent to admin', [
+        if ($recipients === []) {
+            Log::warning('Withdrawal request created but no back-office account can validate it — no notification sent to admin', [
                 'withdrawal_request_id' => $withdrawalRequest->id,
                 'user_id' => $user->id,
             ]);
         }
 
+        // One message per recipient: admins must not see each other's addresses.
+        foreach ($recipients as $email) {
+            Mail::to($email)->queue(
+                (new WithdrawalRequestSubmittedMail($withdrawalRequest->loadMissing('user.userable')))->afterCommit()
+            );
+        }
+
         return $withdrawalRequest;
+    }
+
+    /**
+     * Back-office accounts allowed to validate a withdrawal (finance route group:
+     * admin.role:superadmin,admin). Editors are excluded.
+     *
+     * @return list<string>
+     */
+    private function withdrawalAdminRecipients(): array
+    {
+        return Admin::query()
+            ->whereIn('role', [AdminRole::SuperAdmin->value, AdminRole::Admin->value])
+            ->pluck('email')
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**

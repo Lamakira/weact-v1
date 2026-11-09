@@ -208,7 +208,43 @@ class AdminWithdrawalRequestTest extends TestCase
         $mail = new \App\Mail\WithdrawalRequestSubmittedMail($withdrawalRequest);
 
         $this->assertStringContainsString('Kofi Mensah', $mail->render());
-        $this->assertSame('Nouvelle demande de retrait - Kofi Mensah 15 000 F CFA', $mail->envelope()->subject);
+        $this->assertSame("À traiter : demande de retrait de 15\u{202F}000\u{00A0}F\u{00A0}CFA (Producteur)", $mail->envelope()->subject);
+    }
+
+    public function test_face_manual_request_email_renders_priority_content(): void
+    {
+        $otherFaceUser = User::factory()->create([
+            'userable_type' => Face::class,
+            'userable_id' => Face::factory()->create()->id,
+        ]);
+        $approvedUser = User::factory()->create();
+
+        $request = WithdrawalRequest::factory()->create([
+            'user_id' => $this->faceUser->id,
+            'status' => 'pending',
+            'amount' => 25000,
+            'payment_mode' => 'mtn',
+        ]);
+        WithdrawalRequest::factory()->create([
+            'user_id' => $otherFaceUser->id,
+            'status' => 'pending',
+            'amount' => 10000,
+        ]);
+        WithdrawalRequest::factory()->create([
+            'user_id' => $approvedUser->id,
+            'status' => 'approved',
+            'amount' => 99000,
+        ]);
+
+        $mail = new \App\Mail\WithdrawalRequestSubmittedMail($request->load('user.userable'));
+        $html = $mail->render();
+
+        $this->assertSame("À traiter : demande de retrait de 25\u{202F}000\u{00A0}F\u{00A0}CFA (Face)", $mail->envelope()->subject);
+        $this->assertStringContainsString('MTN MoMo', $html);
+        $this->assertStringContainsString("Demandes en attente : 2, pour 35\u{202F}000\u{00A0}F\u{00A0}CFA", $html);
+        $this->assertStringContainsString('(heure du Bénin)', $html);
+        $this->assertStringNotContainsString('—', $html);
+        $this->assertStringNotContainsString('–', $html);
     }
 
     public function test_producer_approval_email_uses_producer_name(): void
