@@ -40,7 +40,13 @@ import {
   formatMonthName,
   monthStart,
 } from '@/features/agenda/utils/agendaDates'
-import { BOOKING_NEXT_DAY_CUTOFF_HOUR, bookingMinStartDateIso, isBookingNextDayClosed } from '@/lib/dates'
+import {
+  addDaysIso,
+  bookingMinStartDateIso,
+  bookingResponseDeadline,
+  businessTodayIso,
+  formatBusinessDeadline,
+} from '@/lib/dates'
 import {
   X,
   Calendar,
@@ -141,10 +147,10 @@ const { handleSubmit, setFieldError, resetForm } = useForm({
 const { value: date_debut, errorMessage: dateDebutError } = useField<string>('date_debut')
 const { value: date_fin, errorMessage: dateFinError } = useField<string>('date_fin')
 
-// Bornes alignées sur le backend : date_debut `after:today` + plus de demande pour le lendemain
-// à partir de 16 h (heure du Bénin), date_fin `after_or_equal:date_debut`.
+// Bornes alignées sur le backend : date_debut `after_or_equal:today` (heure du Bénin),
+// date_fin `after_or_equal:date_debut`.
 const dateDebutMin = bookingMinStartDateIso()
-const nextDayClosed = isBookingNextDayClosed()
+const formOpenedAt = new Date()
 const dateFinMin = computed(() => date_debut.value || dateDebutMin)
 const { value: duree_heures, errorMessage: dureeError } = useField<number>('duree_heures')
 const { value: type_contenu, errorMessage: typeContenuError } = useField<string>('type_contenu')
@@ -194,6 +200,21 @@ const availabilityError = computed(() =>
     ? `Cette Face est indisponible le ${formatDayMonth(unavailableConflictDay.value)}. Choisissez d'autres dates.`
     : undefined,
 )
+
+/** Demande de dernière minute (tournage aujourd'hui ou demain, heure du Bénin) : échéances annoncées. */
+const shortNoticeMessage = computed<string | null>(() => {
+  if (isUgc.value || !date_debut.value) return null
+  const today = businessTodayIso(formOpenedAt)
+  const isToday = date_debut.value === today
+  if (!isToday && date_debut.value !== addDaysIso(today, 1)) return null
+
+  const deadline = formatBusinessDeadline(bookingResponseDeadline(date_debut.value, formOpenedAt), formOpenedAt)
+  const payment = isToday
+    ? 'Si elle accepte, vous aurez 2 h pour payer.'
+    : 'Si elle accepte, vous aurez jusqu\'à 08 h le jour du tournage pour payer (au moins 2 h après son acceptation).'
+
+  return `Demande de dernière minute : la Face a jusqu'à ${deadline} pour répondre. ${payment}`
+})
 const dateDebutShownError = computed(() => dateDebutError.value || availabilityError.value)
 
 /** « Jours indisponibles en novembre : 12, 13, 18 au 20 » pour le mois du début, puis celui de la fin. */
@@ -628,11 +649,13 @@ function closeSignDialog(): void {
                   required
                 />
               </div>
-              <p class="-mt-2 text-xs text-gray-500" data-testid="date-debut-hint">
-                {{ nextDayClosed
-                  ? `Après ${BOOKING_NEXT_DAY_CUTOFF_HOUR} h (heure du Bénin), les demandes pour le lendemain ne sont plus possibles.`
-                  : `Les demandes pour le lendemain sont possibles jusqu'à ${BOOKING_NEXT_DAY_CUTOFF_HOUR} h (heure du Bénin).` }}
-              </p>
+              <div
+                v-if="shortNoticeMessage"
+                class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800"
+                data-testid="booking-short-notice"
+              >
+                {{ shortNoticeMessage }}
+              </div>
               <ul
                 v-if="unavailableHints.length > 0"
                 class="-mt-2 space-y-0.5 text-xs text-gray-500"
