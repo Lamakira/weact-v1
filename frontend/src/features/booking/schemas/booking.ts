@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { CONTACT_DETAILS_MESSAGE, containsContactDetails } from '@/lib/contactDetails'
+import { businessTodayIso } from '@/lib/dates'
 
 /** True only when the value is a real, finite number (not '', NaN or undefined). */
 const isFilledNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
@@ -56,13 +57,11 @@ export const bookingSchema = z
   .refine(
     (data) => {
       if (!data.date_debut) return true
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      const dateDebut = new Date(data.date_debut + 'T00:00:00')
-      return dateDebut > today
+      // Demande de dernière minute : aujourd'hui (heure du Bénin) est accepté.
+      return data.date_debut >= businessTodayIso()
     },
     {
-      message: 'La date de début doit être dans le futur',
+      message: 'La date de début ne peut pas être dans le passé',
       path: ['date_debut'],
     },
   )

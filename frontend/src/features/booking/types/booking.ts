@@ -154,7 +154,7 @@ export interface Booking {
   face_response_deadline?: string | null
   // Lot B10 : échéance de règlement de la commission (demande UGC en attente) ; null sinon
   ugc_commission_payment_deadline?: string | null
-  // Lot B11 : échéance de paiement (accepted_at + 24 h) d'un booking cash accepté ; null sinon
+  // Lot B11 : échéance de paiement (échéance fournie par le backend) d'un booking cash accepté ; null sinon
   payment_deadline?: string | null
   // Lot C6 : date de clôture automatique (payé relancé / confirmé par la Face seule) ; null sinon
   auto_completion_at?: string | null

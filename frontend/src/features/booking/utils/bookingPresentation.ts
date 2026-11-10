@@ -266,14 +266,14 @@ function nextFor(booking: Booking, role: BookingRole): BookingNext {
       if (producer) {
         return {
           headline: label ? `${cap(other)} a jusqu'au ${label} pour répondre` : `En attente de la réponse de ${other}`,
-          text: "Si la Face accepte, vous aurez 24 h pour payer. La messagerie s'ouvre après le paiement.",
+          text: "Si la Face accepte, vous aurez 24 h pour payer, au plus tard à 08 h le jour du tournage. La messagerie s'ouvre après le paiement.",
           who: FACE_ACTS,
           deadlineAt,
         }
       }
       return {
         headline: label ? `Répondez avant le ${label}` : 'Répondez à cette demande',
-        text: "Après votre acceptation, le Producteur a 24 h pour payer. L'argent est bloqué en séquestre jusqu'au tournage.",
+        text: "Après votre acceptation, le Producteur a 24 h pour payer, au plus tard à 08 h le jour du tournage. L'argent est bloqué en séquestre jusqu'au tournage.",
         who: YOU_ACT,
         deadlineAt,
       }
