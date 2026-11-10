@@ -85,6 +85,25 @@ class FaceBookingResponseDeadlineTest extends TestCase
         $this->assertTrue($booking->faceResponseDeadline()->equalTo(Carbon::parse('2026-10-22 07:00:00', 'UTC')));
     }
 
+    public function test_deadline_has_a_two_hour_floor_for_a_same_day_request(): void
+    {
+        // Demande mardi 20/10 à 15:00 (Bénin) = 14:00 UTC pour le jour même : 08 h est passé, plancher +2 h.
+        Carbon::setTestNow(Carbon::parse('2026-10-20 14:00:00', 'UTC'));
+        $booking = $this->pendingCash(['date_debut' => '2026-10-20 00:00:00', 'date_fin' => '2026-10-20 00:00:00', 'created_at' => now()]);
+
+        // 17:00 Bénin = 16:00 UTC.
+        $this->assertTrue($booking->faceResponseDeadline()->equalTo(Carbon::parse('2026-10-20 16:00:00', 'UTC')));
+    }
+
+    public function test_deadline_for_an_evening_request_for_the_next_day_is_8am_the_next_day(): void
+    {
+        // Demande lundi 19/10 à 20:00 (Bénin) = 19:00 UTC pour mardi : 08 h mardi (07:00 UTC) > création + 2 h.
+        Carbon::setTestNow(Carbon::parse('2026-10-19 19:00:00', 'UTC'));
+        $booking = $this->pendingCash(['date_debut' => '2026-10-20 00:00:00', 'date_fin' => '2026-10-20 00:00:00', 'created_at' => now()]);
+
+        $this->assertTrue($booking->faceResponseDeadline()->equalTo(Carbon::parse('2026-10-20 07:00:00', 'UTC')));
+    }
+
     public function test_ugc_bookings_have_no_face_response_deadline(): void
     {
         $booking = $this->pendingCash(['type_contenu' => 'UGC', 'date_debut' => null, 'date_fin' => null]);

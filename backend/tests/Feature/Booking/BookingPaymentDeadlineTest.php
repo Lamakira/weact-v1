@@ -90,6 +90,61 @@ class BookingPaymentDeadlineTest extends TestCase
             ->assertJsonPath('data.can_pay', false);
     }
 
+    public function test_payment_deadline_is_unchanged_when_the_shooting_day_is_far(): void
+    {
+        $this->booking->update(['date_debut' => '2026-11-20 00:00:00', 'date_fin' => '2026-11-20 00:00:00']);
+
+        $this->assertTrue($this->booking->refresh()->paymentDeadline()->equalTo(Carbon::parse('2026-10-21 12:00:00', 'UTC')));
+    }
+
+    public function test_payment_deadline_is_capped_at_8am_on_the_shooting_day(): void
+    {
+        // Acceptée lundi 19/10 à 21:00 Bénin (20:00 UTC) pour mardi 20/10 : plafond 08:00 Bénin = 07:00 UTC.
+        $this->booking->update([
+            'accepted_at' => Carbon::parse('2026-10-19 20:00:00', 'UTC'),
+            'date_debut' => '2026-10-20 00:00:00',
+            'date_fin' => '2026-10-20 00:00:00',
+        ]);
+
+        $this->assertTrue($this->booking->refresh()->paymentDeadline()->equalTo(Carbon::parse('2026-10-20 07:00:00', 'UTC')));
+    }
+
+    public function test_payment_deadline_is_capped_at_8am_on_the_shooting_day_when_it_is_two_days_away(): void
+    {
+        // Acceptée mercredi 21/10 à 20:00 UTC pour jeudi 22/10 : plafond 07:00 UTC jeudi (et non vendredi 20:00).
+        $this->booking->update([
+            'accepted_at' => Carbon::parse('2026-10-21 20:00:00', 'UTC'),
+            'date_debut' => '2026-10-22 00:00:00',
+            'date_fin' => '2026-10-22 00:00:00',
+        ]);
+
+        $this->assertTrue($this->booking->refresh()->paymentDeadline()->equalTo(Carbon::parse('2026-10-22 07:00:00', 'UTC')));
+    }
+
+    public function test_payment_deadline_has_a_two_hour_floor_for_a_same_day_acceptance(): void
+    {
+        // Acceptée mardi 20/10 à 15:30 Bénin (14:30 UTC) pour le jour même : 08 h est passé, plancher +2 h = 17:30 Bénin.
+        $this->booking->update([
+            'accepted_at' => Carbon::parse('2026-10-20 14:30:00', 'UTC'),
+            'date_debut' => '2026-10-20 00:00:00',
+            'date_fin' => '2026-10-20 00:00:00',
+        ]);
+
+        $this->assertTrue($this->booking->refresh()->paymentDeadline()->equalTo(Carbon::parse('2026-10-20 16:30:00', 'UTC')));
+    }
+
+    public function test_no_payment_reminder_when_the_whole_window_is_12_hours_or_less(): void
+    {
+        // Acceptée à 12:00 UTC pour le jour même : fenêtre de 2 h seulement, pas de relance.
+        $this->booking->update(['date_debut' => '2026-10-20 00:00:00', 'date_fin' => '2026-10-20 00:00:00']);
+        $this->travelTo(Carbon::parse('2026-10-20 13:00:00', 'UTC'));
+
+        $this->artisan('bookings:remind-payment')->expectsOutput('Found 0 booking(s) requiring a payment reminder.');
+
+        Mail::assertNothingQueued();
+        $this->assertNull($this->booking->refresh()->payment_reminder_sent_at);
+    }
+
     public function test_the_producer_can_pay_until_exactly_the_deadline(): void
     {
         $this->travelTo(Carbon::parse('2026-10-21 11:59:59', 'UTC'));

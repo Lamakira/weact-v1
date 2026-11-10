@@ -56,7 +56,7 @@
 
     <p style="margin: 0; padding: 12px 16px; background-color: #fef3c7; border-radius: 6px; color: #92400e; font-size: 13px; line-height: 1.5;">
         @if($paymentDeadline)
-            Vous avez jusqu'au {{ $paymentDeadline }}, soit 24 heures après l'acceptation, pour régler ce booking.
+            Vous avez jusqu'au {{ $paymentDeadline }} pour régler ce booking.
         @else
             Vous disposez de 24 heures après l'acceptation pour régler ce booking.
         @endif

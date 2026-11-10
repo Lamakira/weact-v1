@@ -19,7 +19,7 @@ class ExpireUnpaidBookingsCommand extends Command
     /**
      * The console command description.
      */
-    protected $description = 'Expire bookings in accepted status that have not been paid within 24 hours';
+    protected $description = 'Expire bookings in accepted status that have not been paid before their payment deadline';
 
     public function __construct(
         private readonly BookingService $bookingService,
@@ -32,7 +32,10 @@ class ExpireUnpaidBookingsCommand extends Command
      */
     public function handle(): int
     {
-        $cutoff = now()->subHours(Booking::PAYMENT_WINDOW_HOURS);
+        // Sur-ensemble SQL : l'échéance est plafonnée à 08 h le jour du tournage (donc parfois avant
+        // accepted_at + 24 h) mais jamais avant accepted_at + SHORT_NOTICE_MIN_HOURS. Le filtre PHP
+        // s'appuie sur paymentDeadline() (source unique).
+        $cutoff = now()->subHours(Booking::SHORT_NOTICE_MIN_HOURS);
 
         // Warn about accepted bookings with no accepted_at timestamp (pre-migration data).
         // SQL NULL comparisons are false, so these are excluded from the expiry query.
@@ -52,7 +55,9 @@ class ExpireUnpaidBookingsCommand extends Command
             ->whereRaw("BINARY type_contenu != 'UGC'")
             ->whereNotNull('accepted_at')
             ->where('accepted_at', '<=', $cutoff)
-            ->get();
+            ->get()
+            ->filter(fn (Booking $booking): bool => ! $booking->isPaymentWindowOpen())
+            ->values();
 
         $this->info("Found {$bookings->count()} booking(s) to expire.");
 
