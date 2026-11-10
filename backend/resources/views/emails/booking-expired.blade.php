@@ -13,7 +13,7 @@
             @elseif($kind === 'ugc_commission')
                 La commission de votre demande UGC auprès de <strong>{{ $faceName }}</strong> n'a pas été réglée dans les 48 h : la demande a expiré. Vous pouvez en créer une nouvelle.
             @else
-                Votre booking avec <strong>{{ $faceName }}</strong> n'a pas été payé dans les 24 h suivant son acceptation : il a expiré. Vous pouvez refaire une demande si vous le souhaitez.
+                Votre booking avec <strong>{{ $faceName }}</strong> n'a pas été payé dans le délai prévu après son acceptation : il a expiré. Vous pouvez refaire une demande si vous le souhaitez.
             @endif
         @else
             @if($kind === 'face_no_response')
@@ -21,7 +21,7 @@
             @elseif($kind === 'ugc_commission')
                 La demande UGC de <strong>{{ $producerName }}</strong> a expiré : le Producteur n'a pas réglé la commission dans les 48 h. Vous n'avez rien à faire.
             @else
-                Le booking avec <strong>{{ $producerName }}</strong> a expiré : le Producteur n'a pas payé dans les 24 h suivant votre acceptation. Vous êtes de nouveau disponible pour ces dates.
+                Le booking avec <strong>{{ $producerName }}</strong> a expiré : le Producteur n'a pas payé dans le délai prévu après votre acceptation. Vous êtes de nouveau disponible pour ces dates.
             @endif
         @endif
     </p>

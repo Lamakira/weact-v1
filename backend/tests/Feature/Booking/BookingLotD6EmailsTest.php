@@ -251,7 +251,7 @@ class BookingLotD6EmailsTest extends TestCase
             $forProducer,
         ))->render();
         $this->assertStringContainsString("n'a pas répondu", $html(BookingExpiredMail::KIND_FACE_NO_RESPONSE, true));
-        $this->assertStringContainsString("n'a pas payé dans les 24 h", $html(BookingExpiredMail::KIND_PRODUCER_NO_PAYMENT, false));
+        $this->assertStringContainsString("n'a pas payé dans le délai prévu", $html(BookingExpiredMail::KIND_PRODUCER_NO_PAYMENT, false));
         $this->assertStringContainsString('commission', $html(BookingExpiredMail::KIND_UGC_COMMISSION, true));
     }
 

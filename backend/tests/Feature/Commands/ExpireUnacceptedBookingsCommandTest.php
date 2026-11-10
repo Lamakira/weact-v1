@@ -50,6 +50,8 @@ class ExpireUnacceptedBookingsCommandTest extends TestCase
         $booking = Booking::factory()->pending()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            // Créée il y a assez longtemps pour que le plancher de 2 h soit écoulé.
+            'created_at' => now()->subDays(5),
             'date_debut' => now()->subDay(),
             'date_fin' => now()->subHours(20),
         ]);
@@ -97,6 +99,8 @@ class ExpireUnacceptedBookingsCommandTest extends TestCase
         $booking = Booking::factory()->pending()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            // Créée il y a assez longtemps pour que le plancher de 2 h soit écoulé.
+            'created_at' => now()->subHours(3),
             'date_debut' => now()->subHour(),
             'date_fin' => now()->addHours(3),
         ]);
@@ -147,6 +151,7 @@ class ExpireUnacceptedBookingsCommandTest extends TestCase
             return Booking::factory()->pending()->create([
                 'face_id' => $this->faceUser->id,
                 'producer_id' => $this->producerUser->id,
+                'created_at' => now()->subDays(5),
                 'date_debut' => now()->subDays($offset),
                 'date_fin' => now()->subDays($offset)->addHours(4),
             ]);
@@ -170,18 +175,24 @@ class ExpireUnacceptedBookingsCommandTest extends TestCase
         $expiredBooking = Booking::factory()->pending()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            // Créée il y a assez longtemps pour que le plancher de 2 h soit écoulé.
+            'created_at' => now()->subDays(5),
             'date_debut' => now()->subDay(),
         ]);
 
         $skippedBooking = Booking::factory()->pending()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            // Créée il y a assez longtemps pour que le plancher de 2 h soit écoulé.
+            'created_at' => now()->subDays(5),
             'date_debut' => now()->subDays(2),
         ]);
 
         $failingBooking = Booking::factory()->pending()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            // Créée il y a assez longtemps pour que le plancher de 2 h soit écoulé.
+            'created_at' => now()->subDays(5),
             'date_debut' => now()->subDays(3),
         ]);
 
@@ -223,6 +234,8 @@ class ExpireUnacceptedBookingsCommandTest extends TestCase
         $booking = Booking::factory()->pending()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            // Créée il y a assez longtemps pour que le plancher de 2 h soit écoulé.
+            'created_at' => now()->subDays(5),
             'date_debut' => now()->subDay(),
         ]);
 
