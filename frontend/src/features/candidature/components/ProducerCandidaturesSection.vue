@@ -570,7 +570,7 @@ onMounted(() => {
         Vous avez atteint le nombre maximum de Faces pour cette mission ({{ nombreFacesVoulu }}).
       </div>
 
-      <div class="candidature-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="candidature-grid grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-4">
         <ProducerCandidatureCard
           v-for="candidature in candidatures"
           :key="candidature.id"

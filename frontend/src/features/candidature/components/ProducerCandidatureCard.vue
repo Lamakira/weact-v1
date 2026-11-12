@@ -478,9 +478,9 @@ const categoryLabel = computed(() => {
     </p>
 
     <!-- Actions -->
-    <div class="mt-4 flex items-center justify-between gap-3">
+    <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
       <!-- Accept (UGC product-only, 8-3) + Reject buttons (pending, outside selection mode) -->
-      <div v-if="canTakeAction && !selectionMode" class="flex gap-2">
+      <div v-if="canTakeAction && !selectionMode" class="flex flex-wrap gap-2">
         <button
           v-if="canAcceptUgc"
           type="button"
@@ -508,7 +508,7 @@ const categoryLabel = computed(() => {
 
       <!-- Chat + Confirm-shipment + Release buttons (accepted/confirmed/in_progress/completed) -->
       <!-- Lot B4 : proposer une place libérée à une candidature non retenue -->
-      <div v-else-if="canOfferFreedPlace && candidature.can_replace_freed_place === true && candidature.status === 'rejected' && !selectionMode" class="flex gap-2">
+      <div v-else-if="canOfferFreedPlace && candidature.can_replace_freed_place === true && candidature.status === 'rejected' && !selectionMode" class="flex flex-wrap gap-2">
         <button
           type="button"
           data-testid="offer-freed-place-btn"
