@@ -139,6 +139,32 @@ describe('useMissionDetail', () => {
     expect(detail.notFound.value).toBe(false)
   })
 
+  it('sets ugcPaywall and ugcSuspended on a 403 UGC_SUSPENDED', async () => {
+    vi.mocked(faceMissionApi.getMissionDetail).mockRejectedValue(
+      makeAxiosError(403, { error: { code: 'UGC_SUSPENDED', message: 'Votre accès est suspendu.' } }),
+    )
+
+    const detail = useMissionDetail()
+    await detail.fetchMission('ugc-mission')
+
+    expect(detail.ugcPaywall.value).toBe(true)
+    expect(detail.ugcSuspended.value).toBe(true)
+    expect(detail.ugcPaywallMessage.value).toBe('Votre accès est suspendu.')
+    expect(detail.error.value).toBeNull()
+  })
+
+  it('keeps ugcSuspended false on a 403 UGC_SUBSCRIPTION_REQUIRED', async () => {
+    vi.mocked(faceMissionApi.getMissionDetail).mockRejectedValue(
+      makeAxiosError(403, { error: { code: 'UGC_SUBSCRIPTION_REQUIRED', message: PAYWALL_MESSAGE } }),
+    )
+
+    const detail = useMissionDetail()
+    await detail.fetchMission('ugc-mission')
+
+    expect(detail.ugcPaywall.value).toBe(true)
+    expect(detail.ugcSuspended.value).toBe(false)
+  })
+
   it('treats a 403 with another code as a generic error', async () => {
     vi.mocked(faceMissionApi.getMissionDetail).mockRejectedValue(
       makeAxiosError(403, { error: { code: 'FORBIDDEN', message: 'x' } }),

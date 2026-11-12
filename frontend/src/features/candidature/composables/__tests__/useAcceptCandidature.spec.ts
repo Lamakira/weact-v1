@@ -60,18 +60,21 @@ describe('useAcceptCandidature', () => {
     expect(error.value).toBe('Toutes les places de cette mission sont déjà pourvues.')
   })
 
-  it('exposes errorCode + a subscription message on 403 UGC_SUBSCRIPTION_REQUIRED', async () => {
+  it('exposes errorCode + the unavailable message on 422 FACE_UGC_UNAVAILABLE', async () => {
     vi.mocked(candidatureApi.acceptCandidature).mockRejectedValue(
-      makeAxiosError(403, {
-        error: { code: 'UGC_SUBSCRIPTION_REQUIRED', message: "Cette Face n'est plus abonnée." },
+      makeAxiosError(422, {
+        error: {
+          code: 'FACE_UGC_UNAVAILABLE',
+          message: 'Cette Face ne peut pas recevoir de mission UGC pour le moment.',
+        },
       }),
     )
 
     const { acceptCandidature, error, errorCode } = useAcceptCandidature()
     await acceptCandidature('cand-1')
 
-    expect(errorCode.value).toBe('UGC_SUBSCRIPTION_REQUIRED')
-    expect(error.value).toBe("Cette Face n'est plus abonnée.")
+    expect(errorCode.value).toBe('FACE_UGC_UNAVAILABLE')
+    expect(error.value).toBe('Cette Face ne peut pas recevoir de mission UGC pour le moment.')
   })
 
   it('surfaces the backend message on a plain 403 (ownership)', async () => {

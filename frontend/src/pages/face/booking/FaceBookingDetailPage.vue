@@ -619,6 +619,13 @@ async function doAccept(): Promise<void> {
     return
   }
 
+  // Face abonnée mais suspendue de l'UGC : renvoi vers la page de suspension.
+  if (actionErrorCode.value === 'UGC_SUSPENDED') {
+    toast.error(actionError.value || 'Votre accès aux missions UGC est suspendu.')
+    router.push({ name: 'face-ugc-suspension' })
+    return
+  }
+
   toast.error(actionError.value || 'Erreur lors de l\'acceptation')
 }
 
@@ -737,6 +744,14 @@ async function submitAcceptSignature(signature: ImageSignature): Promise<Signatu
     showSignDialog.value = false
     toast.info(actionError.value || "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.")
     router.push({ name: 'pricing', query: { redirect: route.fullPath } })
+    return { ok: false, code: actionErrorCode.value, message: actionError.value }
+  }
+
+  // Face abonnée mais suspendue de l'UGC : renvoi vers la page de suspension.
+  if (actionErrorCode.value === 'UGC_SUSPENDED') {
+    showSignDialog.value = false
+    toast.error(actionError.value || 'Votre accès aux missions UGC est suspendu.')
+    router.push({ name: 'face-ugc-suspension' })
     return { ok: false, code: actionErrorCode.value, message: actionError.value }
   }
 

@@ -52,7 +52,7 @@ const router = useRouter()
 const authStore = useAuthStore()
 const toast = useToast()
 
-const { mission, candidature, isLoading, error, notFound, ugcPaywall, ugcPaywallMessage, fetchMission, setCandidature } =
+const { mission, candidature, isLoading, error, notFound, ugcPaywall, ugcPaywallMessage, ugcSuspended, fetchMission, setCandidature } =
   useMissionDetail()
 
 const isUgc = computed(() => mission.value !== null && isUgcMission(mission.value))
@@ -63,6 +63,12 @@ watch(
   (blocked) => {
     if (blocked) {
       // `||` (pas `??`) : un message backend vide ne doit pas produire un toast vide
+      if (ugcSuspended.value) {
+        // Face abonnée mais suspendue : la page de suspension, pas les abonnements.
+        toast.error(ugcPaywallMessage.value || 'Votre accès aux missions UGC est suspendu.')
+        router.replace({ name: 'face-ugc-suspension' })
+        return
+      }
       toast.info(
         ugcPaywallMessage.value || "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.",
       )

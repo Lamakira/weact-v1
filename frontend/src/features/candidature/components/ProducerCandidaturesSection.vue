@@ -242,6 +242,12 @@ async function confirmOfferFreedPlace(): Promise<void> {
  * - product-only (8-3, D-8.3.b): free direct accept (unchanged).
  */
 async function handleAccept(candidatureId: string): Promise<void> {
+  // Face sans accès UGC (abonnement ou suspension) : rien à envoyer, la carte est déjà grisée.
+  if (candidatures.value.find((c) => c.id === candidatureId)?.face_ugc_available === false) {
+    cardRefs.value[candidatureId]?.resetAccepting()
+    return
+  }
+
   // Mission pleine : aucun appel, la page ouvre la fenêtre « Ajouter des places ».
   if (props.missionFull) {
     const candidature = candidatures.value.find((c) => c.id === candidatureId)
@@ -273,7 +279,7 @@ async function handleAccept(candidatureId: string): Promise<void> {
   } else {
     toast.error(acceptError.value || "Erreur lors de l'acceptation")
     // Resync capacity / auto-close on capacity errors (AC9)
-    if (['MISSION_FULL', 'ALREADY_ACCEPTED'].includes(acceptErrorCode.value ?? '')) {
+    if (['MISSION_FULL', 'ALREADY_ACCEPTED', 'FACE_UGC_UNAVAILABLE'].includes(acceptErrorCode.value ?? '')) {
       await refresh()
       emit('capacity-changed')
     }
@@ -564,7 +570,7 @@ onMounted(() => {
         Vous avez atteint le nombre maximum de Faces pour cette mission ({{ nombreFacesVoulu }}).
       </div>
 
-      <div class="candidature-grid grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div class="candidature-grid grid grid-cols-[repeat(auto-fill,minmax(min(100%,280px),1fr))] gap-4">
         <ProducerCandidatureCard
           v-for="candidature in candidatures"
           :key="candidature.id"

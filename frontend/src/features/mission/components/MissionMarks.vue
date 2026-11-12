@@ -25,8 +25,11 @@ const subscriptionRequired = computed(
     props.eligibility === 'ugc_subscription_required',
 )
 
+// Face abonnée mais suspendue de l'UGC : ne pas lui dire « Abonnement requis ».
+const ugcSuspended = computed(() => props.eligibility === 'ugc_suspended')
+
 const hasAnyMark = computed(
-  () => applied.value !== null || incompatible.value || subscriptionRequired.value,
+  () => applied.value !== null || incompatible.value || subscriptionRequired.value || ugcSuspended.value,
 )
 </script>
 
@@ -52,6 +55,13 @@ const hasAnyMark = computed(
       data-testid="mark-subscription"
     >
       Abonnement requis
+    </span>
+    <span
+      v-if="ugcSuspended"
+      class="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground"
+      data-testid="mark-ugc-suspended"
+    >
+      Accès UGC suspendu
     </span>
   </div>
 </template>

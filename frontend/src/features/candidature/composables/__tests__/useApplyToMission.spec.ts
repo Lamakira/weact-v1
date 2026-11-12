@@ -78,4 +78,19 @@ describe('useApplyToMission', () => {
       expect(errorCode.value).toBe(backendCode)
     },
   )
+
+  it('exposes the UGC_SUSPENDED code and the backend message on 403', async () => {
+    const backendMessage = 'Votre accès aux missions UGC est suspendu.'
+    vi.mocked(candidatureApi.applyToMission).mockRejectedValue(
+      makeAxiosError(403, { error: { code: 'UGC_SUSPENDED', message: backendMessage } }),
+    )
+
+    const { apply, error, errorCode } = useApplyToMission()
+    const result = await apply('42')
+
+    expect(result.success).toBe(false)
+    expect(result.error).toEqual({ code: 'UGC_SUSPENDED', message: backendMessage })
+    expect(errorCode.value).toBe('UGC_SUSPENDED')
+    expect(error.value).toBe(backendMessage)
+  })
 })

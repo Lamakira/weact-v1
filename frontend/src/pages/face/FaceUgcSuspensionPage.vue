@@ -135,8 +135,8 @@ const supportMailto = `mailto:${import.meta.env.VITE_SUPPORT_EMAIL ?? 'contact@w
           <div class="flex items-start gap-3">
             <XCircle class="w-4 h-4 text-red-600 flex-shrink-0 mt-0.5" aria-hidden="true" />
             <div class="min-w-0">
-              <p class="text-sm font-semibold text-slate-900">Abonnement bloqué</p>
-              <p class="text-xs text-slate-500">Accès UGC suspendu</p>
+              <p class="text-sm font-semibold text-slate-900">Missions UGC bloquées</p>
+              <p class="text-xs text-slate-500">Vos candidatures UGC en attente ont été retirées</p>
             </div>
           </div>
         </div>
@@ -151,10 +151,8 @@ const supportMailto = `mailto:${import.meta.env.VITE_SUPPORT_EMAIL ?? 'contact@w
           <div class="flex items-start gap-3">
             <span class="w-5 h-5 rounded-full bg-[#198496] text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">1</span>
             <p class="text-sm text-slate-700 leading-snug">
-              Terminez la mission en retard (uploadez votre vidéo)
-              <span class="text-xs text-slate-500">
-                — possible jusqu'au {{ formatDateTime(suspension.reactivation_deadline) }} (J+30)
-              </span>
+              Terminez la mission en retard (envoyez votre vidéo), possible jusqu'au
+              {{ formatDateTime(suspension.reactivation_deadline) }}
             </p>
           </div>
           <div class="flex items-start gap-3">
@@ -166,7 +164,8 @@ const supportMailto = `mailto:${import.meta.env.VITE_SUPPORT_EMAIL ?? 'contact@w
           <div class="flex items-start gap-3">
             <span class="w-5 h-5 rounded-full bg-[#198496] text-white flex items-center justify-center text-[10px] font-bold flex-shrink-0">3</span>
             <p class="text-sm text-slate-700 leading-snug">
-              Votre compte est réactivé environ <strong>24 h</strong> après validation
+              Sans action de votre part, la suspension est levée automatiquement le
+              {{ formatDateTime(suspension.reactivation_deadline) }}.
             </p>
           </div>
         </div>
