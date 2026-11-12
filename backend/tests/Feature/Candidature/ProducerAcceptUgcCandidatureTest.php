@@ -8,12 +8,15 @@ use App\Enums\CandidatureStatus;
 use App\Enums\CompensationType;
 use App\Enums\MissionStatus;
 use App\Enums\MissionType;
+use App\Enums\UgcSuspensionAppealStatus;
+use App\Enums\UgcSuspensionReason;
 use App\Mail\CandidatureAcceptedMail;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\Producer;
+use App\Models\UgcSuspension;
 use App\Models\User;
 use App\Services\FedapayService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -265,10 +268,40 @@ class ProducerAcceptUgcCandidatureTest extends TestCase
 
         $this->actingAs($producerUser)
             ->postJson("/api/v1/producer/candidatures/{$candidature->uuid}/accept")
-            ->assertStatus(403)
-            ->assertJsonPath('error.code', 'UGC_SUBSCRIPTION_REQUIRED');
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'FACE_UGC_UNAVAILABLE')
+            ->assertJsonPath('error.message', 'Cette Face ne peut pas recevoir de mission UGC pour le moment.');
 
         // Refus ⇒ la candidature reste pending (aucun engagement, capacité intacte).
+        $this->assertDatabaseHas('candidatures', [
+            'id' => $candidature->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_accepting_a_suspended_subscribed_face_returns_a_neutral_unavailable_error(): void
+    {
+        // Face Élite abonnée mais suspendue de l'UGC : le Producteur reçoit le même message
+        // neutre que pour une Face non abonnée (ni suspension ni abonnement révélés).
+        [$producer, $producerUser] = $this->makeProducerWithUser();
+        [$face] = $this->makeFaceWithUser();
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $face->id]);
+        UgcSuspension::create([
+            'face_id' => $face->id,
+            'shipment_id' => null,
+            'reason' => UgcSuspensionReason::AvisDeadlineMissed,
+            'appeal_status' => UgcSuspensionAppealStatus::None,
+            'suspended_at' => now(),
+        ]);
+        $mission = $this->makePublishedUgcMission($producer);
+        $candidature = $this->makePendingCandidature($mission, $face);
+
+        $this->actingAs($producerUser)
+            ->postJson("/api/v1/producer/candidatures/{$candidature->uuid}/accept")
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'FACE_UGC_UNAVAILABLE')
+            ->assertJsonPath('error.message', 'Cette Face ne peut pas recevoir de mission UGC pour le moment.');
+
         $this->assertDatabaseHas('candidatures', [
             'id' => $candidature->id,
             'status' => 'pending',

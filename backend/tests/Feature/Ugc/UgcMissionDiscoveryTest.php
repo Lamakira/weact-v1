@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Tests\Feature\Ugc;
 
 use App\Enums\MissionStatus;
+use App\Enums\UgcSuspensionAppealStatus;
+use App\Enums\UgcSuspensionReason;
 use App\Models\Face;
 use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\Producer;
+use App\Models\UgcSuspension;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -343,6 +346,27 @@ class UgcMissionDiscoveryTest extends TestCase
             ->assertJsonPath('meta.paywall.code', 'UGC_SUBSCRIPTION_REQUIRED')
             ->assertJsonPath('meta.paywall.message', "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.")
             ->assertJsonPath('meta.paywall.pricing_url', '/pricing');
+    }
+
+    public function test_suspended_elite_face_gets_suspension_paywall_meta(): void
+    {
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $this->face->id]);
+        UgcSuspension::create([
+            'face_id' => $this->face->id,
+            'shipment_id' => null,
+            'reason' => UgcSuspensionReason::AvisDeadlineMissed,
+            'appeal_status' => UgcSuspensionAppealStatus::None,
+            'suspended_at' => now(),
+        ]);
+        $this->makePublishedUgcMission();
+
+        $this->actingAs($this->faceUser)->getJson('/api/v1/face/ugc/missions')
+            ->assertStatus(200)
+            ->assertJsonPath('meta.can_access_ugc', false)
+            ->assertJsonPath('meta.paywall.code', 'UGC_SUSPENDED')
+            ->assertJsonPath('meta.paywall.message', 'Votre accès aux missions UGC est suspendu. Consultez la page Suspension UGC pour régulariser ou faire appel.')
+            ->assertJsonPath('meta.paywall.suspension_url', '/face/ugc/suspension')
+            ->assertJsonMissingPath('meta.paywall.pricing_url');
     }
 
     public function test_expired_subscription_face_gets_teasers(): void

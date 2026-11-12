@@ -60,11 +60,17 @@ class UgcMissionDiscoveryController extends Controller
 
         $response = UgcMissionTeaserResource::collection($missions)->response()->getData(true);
         $response['meta']['can_access_ugc'] = false;
-        $response['meta']['paywall'] = [
-            'code' => ErrorCodes::UgcSubscriptionRequired->value,
-            'message' => "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.",
-            'pricing_url' => '/pricing',
-        ];
+        $response['meta']['paywall'] = $this->entitlement->ugcDenialReason($face) === FaceEntitlementService::UGC_DENIAL_SUSPENDED
+            ? [
+                'code' => ErrorCodes::UgcSuspended->value,
+                'message' => 'Votre accès aux missions UGC est suspendu. Consultez la page Suspension UGC pour régulariser ou faire appel.',
+                'suspension_url' => '/face/ugc/suspension',
+            ]
+            : [
+                'code' => ErrorCodes::UgcSubscriptionRequired->value,
+                'message' => "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.",
+                'pricing_url' => '/pricing',
+            ];
 
         return response()->json($response);
     }
