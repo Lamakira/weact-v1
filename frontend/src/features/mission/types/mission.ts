@@ -172,6 +172,7 @@ export type MissionEligibility =
   | 'gender_mismatch'
   | 'subscription_required'
   | 'ugc_subscription_required'
+  | 'ugc_suspended'
 
 export interface Mission {
   id: string
