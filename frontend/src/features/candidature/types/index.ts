@@ -277,6 +277,8 @@ export interface ProducerCandidature {
   image_contract?: ImageContract | null
   /** Lot B4 : cette candidature non retenue peut reprendre une place libérée (éligibilité calculée côté serveur). */
   can_replace_freed_place?: boolean
+  /** Mission UGC : la Face peut recevoir une mission UGC (abonnement actif ET non suspendue) ; null/absent hors UGC. */
+  face_ugc_available?: boolean | null
   /** Lot C8 : le Producteur peut noter cette Face (candidature terminée, pas encore notée). */
   can_rate?: boolean
   /** Lot C8 : la note donnée par le Producteur à cette Face, sinon null. */

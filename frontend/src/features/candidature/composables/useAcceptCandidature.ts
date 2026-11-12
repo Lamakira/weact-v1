@@ -30,8 +30,8 @@ export function useAcceptCandidature() {
       errorCode.value = getApiErrorCode(err)
       if (isAxiosError(err) && errorCode.value === 'MISSION_FULL') {
         error.value = formatApiError(err, 'Toutes les places de cette mission sont déjà pourvues.')
-      } else if (isAxiosError(err) && errorCode.value === 'UGC_SUBSCRIPTION_REQUIRED') {
-        error.value = formatApiError(err, "Cette Face n'est plus abonnée — son acceptation est impossible.")
+      } else if (isAxiosError(err) && errorCode.value === 'FACE_UGC_UNAVAILABLE') {
+        error.value = formatApiError(err, 'Cette Face ne peut pas recevoir de mission UGC pour le moment.')
       } else if (isAxiosError(err) && err.response?.status === 403) {
         error.value = formatApiError(err, "Vous n'êtes pas autorisé à effectuer cette action.")
       } else {

@@ -459,3 +459,45 @@ describe('ProducerCandidatureCard', () => {
     })
   })
 })
+
+describe('ProducerCandidatureCard — Face indisponible pour l\'UGC', () => {
+  function mountCard(candidature: Record<string, unknown>) {
+    return mount(ProducerCandidatureCard, {
+      props: { candidature, isUgcMission: true, ugcCompensationType: 'product' },
+      global: { stubs: { RouterLink: { template: '<a><slot /></a>', props: ['to'] }, Teleport: true } },
+    })
+  }
+
+  it('grise la carte, affiche la mention et désactive Accepter quand pending et face_ugc_available est false', () => {
+    const wrapper = mountCard({ ...pendingCandidature, face_ugc_available: false })
+
+    const note = wrapper.get('[data-testid="candidature-ugc-unavailable"]')
+    expect(note.text()).toBe("Indisponible pour l'UGC pour le moment")
+    const accept = wrapper.get('[data-testid="accept-candidature-btn"]')
+    expect(accept.attributes('disabled')).toBeDefined()
+    expect(accept.attributes('title')).toBe("Indisponible pour l'UGC pour le moment")
+    expect(wrapper.findAll('.opacity-60').length).toBeGreaterThan(0)
+    const reject = wrapper.findAll('button').find((b) => b.text().includes('Refuser'))
+    expect(reject?.attributes('disabled')).toBeUndefined()
+  })
+
+  it.each([true, null, undefined])('reste normale quand face_ugc_available vaut %s', (value) => {
+    const wrapper = mountCard({ ...pendingCandidature, face_ugc_available: value })
+
+    expect(wrapper.find('[data-testid="candidature-ugc-unavailable"]').exists()).toBe(false)
+    expect(wrapper.get('[data-testid="accept-candidature-btn"]').attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('.opacity-60').exists()).toBe(false)
+  })
+
+  it('ne grise pas une candidature refusée', () => {
+    const wrapper = mountCard({
+      ...pendingCandidature,
+      status: 'rejected',
+      status_label: 'Refusée',
+      face_ugc_available: false,
+    })
+
+    expect(wrapper.find('[data-testid="candidature-ugc-unavailable"]').exists()).toBe(false)
+    expect(wrapper.find('.opacity-60').exists()).toBe(false)
+  })
+})

@@ -56,6 +56,13 @@ const showReleaseConfirmation = ref(false)
  */
 const canTakeAction = computed(() => props.candidature.status === 'pending')
 
+const UGC_UNAVAILABLE_LABEL = "Indisponible pour l'UGC pour le moment"
+
+/** Face sans accès UGC (abonnement ou suspension) sur une candidature en attente : carte grisée, Accepter désactivé. */
+const isUgcUnavailable = computed(
+  () => props.candidature.status === 'pending' && props.candidature.face_ugc_available === false,
+)
+
 /**
  * Computed: Can show the UGC "Accepter" button — product-only OR hybrid, pending,
  * outside selection mode (D-8.3.b/c, D-8.5.g). Product-only accepts for free;
@@ -355,6 +362,7 @@ const categoryLabel = computed(() => {
       <RouterLink
         :to="{ name: 'producer-candidate-profile', params: { id: candidature.face.id } }"
         class="relative h-14 w-14 shrink-0 overflow-hidden rounded-full border border-border bg-muted lg:h-16 lg:w-16"
+        :class="{ 'opacity-60': isUgcUnavailable }"
       >
         <img
           v-if="candidature.face.profile_photo_thumbnail_url || candidature.face.profile_photo_url"
@@ -371,7 +379,7 @@ const categoryLabel = computed(() => {
         </div>
       </RouterLink>
 
-      <div class="min-w-0 flex-1">
+      <div class="min-w-0 flex-1" :class="{ 'opacity-60': isUgcUnavailable }">
         <div class="flex items-center gap-2 flex-wrap">
           <RouterLink
             :to="{ name: 'producer-candidate-profile', params: { id: candidature.face.id } }"
@@ -465,6 +473,10 @@ const categoryLabel = computed(() => {
       :deadline="contractDeadline"
     />
 
+    <p v-if="isUgcUnavailable" class="mt-3 text-xs text-muted-foreground" data-testid="candidature-ugc-unavailable">
+      {{ UGC_UNAVAILABLE_LABEL }}
+    </p>
+
     <!-- Actions -->
     <div class="mt-4 flex items-center justify-between gap-3">
       <!-- Accept (UGC product-only, 8-3) + Reject buttons (pending, outside selection mode) -->
@@ -474,7 +486,8 @@ const categoryLabel = computed(() => {
           type="button"
           data-testid="accept-candidature-btn"
           class="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-          :disabled="isAccepting"
+          :disabled="isAccepting || isUgcUnavailable"
+          :title="isUgcUnavailable ? UGC_UNAVAILABLE_LABEL : undefined"
           @click="handleAccept"
         >
           <Loader2 v-if="isAccepting" class="h-4 w-4 animate-spin" />

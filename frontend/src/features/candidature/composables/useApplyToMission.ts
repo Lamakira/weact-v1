@@ -106,6 +106,19 @@ export function useApplyToMission() {
             }
           }
 
+          // Suspension UGC : pas de parcours d'abonnement ; le message serveur est affiché dans la modale.
+          if (code === 'UGC_SUSPENDED') {
+            error.value = message
+            errorCode.value = code
+            return {
+              success: false,
+              error: {
+                code,
+                message,
+              },
+            }
+          }
+
           error.value = 'Vous devez être connecté en tant que Face pour postuler'
           return {
             success: false,

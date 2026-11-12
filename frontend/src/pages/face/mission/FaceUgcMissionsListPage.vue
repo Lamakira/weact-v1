@@ -51,7 +51,11 @@ useRefreshOnReturn(refreshMissions)
 
 function handleCardClick(id: string): void {
   if (!canAccessUgc.value) {
-    router.push(paywall.value?.pricing_url ?? '/pricing')
+    router.push(
+      paywall.value?.code === 'UGC_SUSPENDED'
+        ? (paywall.value.suspension_url ?? '/face/ugc/suspension')
+        : (paywall.value?.pricing_url ?? '/pricing'),
+    )
     return
   }
   router.push({ name: 'face-mission-detail', params: { id } })
@@ -73,6 +77,8 @@ function handleCardClick(id: string): void {
       v-if="!error && !canAccessUgc && paywall"
       :message="paywall.message"
       :pricing-url="paywall.pricing_url"
+      :suspended="paywall.code === 'UGC_SUSPENDED'"
+      :suspension-url="paywall.suspension_url"
     />
 
     <!-- Loading State -->

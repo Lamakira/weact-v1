@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
+import { RouterLink } from 'vue-router'
 import { X, Loader2, CheckCircle, AlertCircle, Mail, ShieldAlert } from 'lucide-vue-next'
 import { useApplyToMission } from '../composables/useApplyToMission'
 import { authApi } from '@/features/auth/services/authApi'
@@ -252,7 +253,18 @@ function handleBackdropClick(event: MouseEvent): void {
                   class="mb-4 flex items-start gap-3 rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-destructive"
                 >
                   <AlertCircle class="h-5 w-5 flex-shrink-0" />
-                  <p class="text-sm">{{ error }}</p>
+                  <div class="text-sm">
+                    <p>{{ error }}</p>
+                    <RouterLink
+                      v-if="errorCode === 'UGC_SUSPENDED'"
+                      :to="{ name: 'face-ugc-suspension' }"
+                      class="mt-2 inline-block font-medium underline"
+                      data-testid="apply-modal-suspension-link"
+                      @click="handleClose"
+                    >
+                      Voir ma suspension
+                    </RouterLink>
+                  </div>
                 </div>
 
               </div>

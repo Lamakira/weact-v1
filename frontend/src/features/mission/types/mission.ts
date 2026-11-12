@@ -417,9 +417,10 @@ export interface UgcMissionTeaser {
 }
 
 export interface UgcPaywallMeta {
-  code: string
+  code?: string
   message: string
-  pricing_url: string
+  pricing_url?: string
+  suspension_url?: string
 }
 
 // Un item de découverte : MissionResource complet (Face éligible) ou teaser (free).

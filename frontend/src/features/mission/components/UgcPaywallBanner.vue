@@ -6,8 +6,11 @@ withDefaults(
   defineProps<{
     message: string
     pricingUrl?: string
+    /** Face abonnée mais suspendue de l'UGC : titre et bouton renvoient vers la page de suspension. */
+    suspended?: boolean
+    suspensionUrl?: string
   }>(),
-  { pricingUrl: '/pricing' },
+  { pricingUrl: '/pricing', suspended: false, suspensionUrl: '/face/ugc/suspension' },
 )
 </script>
 
@@ -20,15 +23,15 @@ withDefaults(
       <Lock class="h-4 w-4 text-white" />
     </div>
     <div class="min-w-0 flex-1">
-      <p class="text-sm font-semibold text-foreground">Accès UGC réservé aux abonnés</p>
+      <p class="text-sm font-semibold text-foreground">{{ suspended ? 'Accès UGC suspendu' : 'Accès UGC réservé aux abonnés' }}</p>
       <p class="mt-0.5 text-xs text-muted-foreground">{{ message }}</p>
     </div>
     <RouterLink
-      :to="pricingUrl"
+      :to="suspended ? suspensionUrl : pricingUrl"
       class="shrink-0 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary/90"
       data-testid="paywall-cta"
     >
-      Voir les abonnements
+      {{ suspended ? 'Voir ma suspension' : 'Voir les abonnements' }}
     </RouterLink>
   </div>
 </template>

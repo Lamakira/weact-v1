@@ -72,6 +72,7 @@ const mockError = ref<string | null>(null)
 const mockNotFound = ref(false)
 const mockUgcPaywall = ref(false)
 const mockUgcPaywallMessage = ref<string | null>(null)
+const mockUgcSuspended = ref(false)
 const mockFetchMission = vi.fn()
 const mockSetCandidature = vi.fn()
 
@@ -84,6 +85,7 @@ vi.mock('@/features/mission/composables', () => ({
     notFound: mockNotFound,
     ugcPaywall: mockUgcPaywall,
     ugcPaywallMessage: mockUgcPaywallMessage,
+    ugcSuspended: mockUgcSuspended,
     fetchMission: mockFetchMission,
     setCandidature: mockSetCandidature,
   }),
@@ -244,6 +246,7 @@ describe('FaceMissionDetailPage', () => {
     mockNotFound.value = false
     mockUgcPaywall.value = false
     mockUgcPaywallMessage.value = null
+    mockUgcSuspended.value = false
     mockFetchMission.mockClear()
     mockSubscriptionData.value = null
     mockSubscriptionTier.value = 'free'
@@ -1436,6 +1439,24 @@ describe('FaceMissionDetailPage', () => {
         "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.",
       )
       expect(mockRouter.replace).toHaveBeenCalledWith({ name: 'pricing', query: { redirect: '/face/missions/1' } })
+    })
+
+    it('redirects to the suspension page when the Face is suspended', async () => {
+      mockUgcPaywall.value = true
+      mockUgcSuspended.value = true
+      mockUgcPaywallMessage.value = 'Votre accès aux missions UGC est suspendu.'
+
+      mount(FaceMissionDetailPage, {
+        global: {
+          plugins: [createTestingPinia()],
+          stubs: { ApplyToMissionModal: true, RatingDisplay: true, ConfirmModal: true },
+        },
+      })
+      await flushPromises()
+
+      expect(mockToast.error).toHaveBeenCalledWith('Votre accès aux missions UGC est suspendu.')
+      expect(mockRouter.replace).toHaveBeenCalledWith({ name: 'face-ugc-suspension' })
+      expect(mockRouter.replace).not.toHaveBeenCalledWith(expect.objectContaining({ name: 'pricing' }))
     })
   })
 
