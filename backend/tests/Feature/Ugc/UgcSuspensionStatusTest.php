@@ -268,14 +268,14 @@ class UgcSuspensionStatusTest extends TestCase
     }
 
     // ===================================================================
-    // AC2 — reactivation_deadline = suspended_at + config('ugc.late_completion_days')
+    // AC2 — reactivation_deadline = suspended_at + config('ugc.suspension_days')
     // ===================================================================
 
     public function test_reactivation_deadline_is_suspended_at_plus_config(): void
     {
         $this->suspend(null, UgcSuspensionReason::UnboxingDeadlineMissed);
 
-        $expected = now()->addDays((int) config('ugc.late_completion_days'))->toIso8601String();
+        $expected = now()->addDays((int) config('ugc.suspension_days'))->toIso8601String();
 
         $this->actingAs($this->faceUser)
             ->getJson('/api/v1/face/ugc/suspension')

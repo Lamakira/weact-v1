@@ -22,25 +22,25 @@ class RemindBookingPaymentCommand extends Command
     /**
      * The console command description.
      */
-    protected $description = 'Send a payment reminder to producers for accepted bookings approaching the 24h expiry deadline';
+    protected $description = 'Send a payment reminder to producers for accepted bookings approaching their payment deadline';
 
     /**
      * Execute the console command.
-     * Targets bookings accepted between 12h and 20h ago (reminder window), not yet reminded.
+     * Targets bookings not yet reminded whose payment deadline is at most 12h away (and more than 1h),
+     * when the whole payment window is longer than 12h (otherwise the acceptance e-mail is enough).
      */
     public function handle(): int
     {
-        $from = now()->subHours(20);
-        $to = now()->subHours(12);
-
         // UGC (2.4) : pas de paiement Producteur après acceptation — aucune relance à envoyer.
         // BINARY : aligne la comparaison SQL (collation _ci) sur le PHP `=== 'UGC'` (cf. ExpireUnpaidBookings).
         $bookings = Booking::where('status', BookingStatus::Accepted->value)
             ->whereRaw("BINARY type_contenu != 'UGC'")
             ->whereNotNull('accepted_at')
-            ->whereBetween('accepted_at', [$from, $to])
+            ->where('accepted_at', '<=', now()->subHours(Booking::SHORT_NOTICE_MIN_HOURS))
             ->whereNull('payment_reminder_sent_at')
-            ->get();
+            ->get()
+            ->filter(fn (Booking $booking): bool => $this->isDueForReminder($booking))
+            ->values();
 
         $this->info("Found {$bookings->count()} booking(s) requiring a payment reminder.");
 
@@ -71,7 +71,7 @@ class RemindBookingPaymentCommand extends Command
                 $booking->loadMissing(['face.userable', 'producer']);
 
                 $faceName = data_get($booking, 'face.userable.display_name');
-                // Heures restantes jusqu'à l'échéance exacte (accepted_at + 24 h), jamais négatif.
+                // Heures restantes jusqu'à l'échéance exacte (paymentDeadline), jamais négatif.
                 $deadline = $booking->paymentDeadline();
                 $hoursLeft = $deadline === null ? 0 : (int) max(0, round(now()->diffInHours($deadline, false)));
 
@@ -123,5 +123,23 @@ class RemindBookingPaymentCommand extends Command
         $this->info("Done. Sent: {$sent}, Failed: {$failed}.");
 
         return self::SUCCESS;
+    }
+
+    private function isDueForReminder(Booking $booking): bool
+    {
+        $deadline = $booking->paymentDeadline();
+
+        if ($deadline === null || $booking->accepted_at === null) {
+            return false;
+        }
+
+        // Fenêtre entière de 12 h ou moins : l'échéance figure déjà dans l'e-mail d'acceptation.
+        if ($booking->accepted_at->diffInHours($deadline) <= 12) {
+            return false;
+        }
+
+        $hoursLeft = now()->diffInHours($deadline, false);
+
+        return $hoursLeft <= 12 && $hoursLeft > 1;
     }
 }

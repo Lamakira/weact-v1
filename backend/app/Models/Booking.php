@@ -95,6 +95,9 @@ class Booking extends Model
     /** Délai de paiement d'un booking cash accepté, compté depuis l'acceptation (lot B11). */
     public const PAYMENT_WINDOW_HOURS = 24;
 
+    /** Plancher des échéances cash (réponse Face, paiement) : une demande de dernière minute laisse toujours au moins ce délai. */
+    public const SHORT_NOTICE_MIN_HOURS = 2;
+
     /** Délai de règlement de la commission d'une demande UGC, compté depuis sa création (lot B10). */
     public const UGC_COMMISSION_PAYMENT_WINDOW_HOURS = 48;
 
@@ -424,6 +427,8 @@ class Booking extends Model
 
     /**
      * Get the escrow transaction for this booking.
+     *
+     * @return HasOne<EscrowTransaction, $this>
      */
     public function escrowTransaction(): HasOne
     {
@@ -442,8 +447,24 @@ class Booking extends Model
     }
 
     /**
+     * 08 h le jour du tournage (fuseau métier, en UTC), null sans date de début.
+     */
+    private function shootingDayMorning(): ?CarbonInterface
+    {
+        if ($this->date_debut === null) {
+            return null;
+        }
+
+        return Carbon::parse(
+            $this->date_debut->toDateString(),
+            (string) config('app.business_timezone'),
+        )->setTime(self::FACE_RESPONSE_SHOOTING_DAY_HOUR, 0)->utc();
+    }
+
+    /**
      * Échéance de réponse de la Face à une demande cash (lot B10) : création + 72 h, ou 08 h
-     * le jour du tournage (fuseau métier) si cette heure arrive plus tôt. Null pour une dotation UGC
+     * le jour du tournage (fuseau métier) si cette heure arrive plus tôt, mais jamais moins de
+     * SHORT_NOTICE_MIN_HOURS après la création (demande de dernière minute). Null pour une dotation UGC
      * (la Face ne peut répondre qu'après le règlement de la commission, fenêtre UGC dédiée).
      */
     public function faceResponseDeadline(): ?CarbonInterface
@@ -454,15 +475,14 @@ class Booking extends Model
 
         $deadline = $this->created_at->copy()->utc()->addHours(self::FACE_RESPONSE_WINDOW_HOURS);
 
-        if ($this->date_debut !== null) {
-            $shootingStart = Carbon::parse(
-                $this->date_debut->toDateString(),
-                (string) config('app.business_timezone'),
-            )->setTime(self::FACE_RESPONSE_SHOOTING_DAY_HOUR, 0)->utc();
+        $shootingStart = $this->shootingDayMorning();
+        if ($shootingStart !== null && $shootingStart->lessThan($deadline)) {
+            $deadline = $shootingStart;
+        }
 
-            if ($shootingStart->lessThan($deadline)) {
-                $deadline = $shootingStart;
-            }
+        $floor = $this->created_at->copy()->utc()->addHours(self::SHORT_NOTICE_MIN_HOURS);
+        if ($deadline->lessThan($floor)) {
+            $deadline = $floor;
         }
 
         return $deadline;
@@ -494,9 +514,10 @@ class Booking extends Model
     }
 
     /**
-     * Échéance de paiement d'un booking cash accepté (lot B11) : accepted_at + 24 h, exactement.
-     * Source unique (policy, initiation du paiement, cron d'expiration, API). Null pour l'UGC
-     * (pas de paiement cash après acceptation) ou sans accepted_at.
+     * Échéance de paiement d'un booking cash accepté (lot B11) : accepted_at + 24 h, mais au plus
+     * tard 08 h le jour du tournage (fuseau métier), et jamais moins de SHORT_NOTICE_MIN_HOURS après
+     * l'acceptation. Source unique (policy, initiation du paiement, cron d'expiration, API). Null pour
+     * l'UGC (pas de paiement cash après acceptation) ou sans accepted_at.
      */
     public function paymentDeadline(): ?CarbonInterface
     {
@@ -504,7 +525,19 @@ class Booking extends Model
             return null;
         }
 
-        return $this->accepted_at->copy()->utc()->addHours(self::PAYMENT_WINDOW_HOURS);
+        $deadline = $this->accepted_at->copy()->utc()->addHours(self::PAYMENT_WINDOW_HOURS);
+
+        $shootingStart = $this->shootingDayMorning();
+        if ($shootingStart !== null && $shootingStart->lessThan($deadline)) {
+            $deadline = $shootingStart;
+        }
+
+        $floor = $this->accepted_at->copy()->utc()->addHours(self::SHORT_NOTICE_MIN_HOURS);
+        if ($deadline->lessThan($floor)) {
+            $deadline = $floor;
+        }
+
+        return $deadline;
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\FaceResponseController;
 use App\Http\Controllers\Api\V1\Producer\BasicInfoController;
 use App\Http\Controllers\Api\V1\Producer\CandidatureController;
 use App\Http\Controllers\Api\V1\Producer\ConversationController;
+use App\Http\Controllers\Api\V1\Producer\FaceAvailabilityController;
 use App\Http\Controllers\Api\V1\Producer\FaceController;
 use App\Http\Controllers\Api\V1\Producer\MessageController;
 use App\Http\Controllers\Api\V1\Producer\MissionAttendanceController;
@@ -173,6 +174,8 @@ Route::prefix('v1/producer')->middleware(['auth:sanctum', 'api.token'])->group(f
 
     // Candidate profile routes
     Route::get('/candidates/{face}', [FaceController::class, 'show'])
+        ->middleware('throttle:ui-read');
+    Route::get('/candidates/{face}/availability', [FaceAvailabilityController::class, 'show'])
         ->middleware('throttle:ui-read');
 
     // Conversation routes (Producer messaging)

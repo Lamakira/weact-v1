@@ -30,6 +30,10 @@ class FaceEntitlementService
     /** @var WeakMap<Face, TierCapabilities> */
     private WeakMap $capabilitiesMemo;
 
+    public const UGC_DENIAL_SUBSCRIPTION = 'subscription';
+
+    public const UGC_DENIAL_SUSPENDED = 'suspended';
+
     public function __construct()
     {
         $this->capabilitiesMemo = new WeakMap;
@@ -68,6 +72,22 @@ class FaceEntitlementService
     {
         return $this->capabilities($face)->ugcAccess
             && ! $this->isUgcSuspended($face);
+    }
+
+    /**
+     * Raison du refus d'accès UGC : null si la Face y a accès ; « subscription » si
+     * l'abonnement ne donne pas l'accès (suspendue ou non) ; « suspended » si l'abonnement
+     * le permet mais que la Face est suspendue.
+     */
+    public function ugcDenialReason(Face $face): ?string
+    {
+        if ($this->canAccessUgc($face)) {
+            return null;
+        }
+
+        return $this->capabilities($face)->ugcAccess
+            ? self::UGC_DENIAL_SUSPENDED
+            : self::UGC_DENIAL_SUBSCRIPTION;
     }
 
     /**

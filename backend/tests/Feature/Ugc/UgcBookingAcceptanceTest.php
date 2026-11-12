@@ -6,6 +6,8 @@ namespace Tests\Feature\Ugc;
 
 use App\Enums\BookingStatus;
 use App\Enums\UgcRefundReason;
+use App\Enums\UgcSuspensionAppealStatus;
+use App\Enums\UgcSuspensionReason;
 use App\Events\BookingAccepted;
 use App\Events\BookingCommissionPaid;
 use App\Events\BookingRefused;
@@ -13,6 +15,7 @@ use App\Models\Booking;
 use App\Models\Face;
 use App\Models\FaceSubscription;
 use App\Models\Producer;
+use App\Models\UgcSuspension;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
@@ -225,6 +228,27 @@ class UgcBookingAcceptanceTest extends TestCase
             ->assertForbidden()
             ->assertJsonPath('error.code', 'UGC_SUBSCRIPTION_REQUIRED')
             ->assertJsonPath('error.message', "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.");
+
+        $this->assertSame(BookingStatus::CommissionPaid, $booking->fresh()->status);
+    }
+
+    public function test_suspended_elite_face_cannot_accept_ugc_booking_and_gets_suspension_code(): void
+    {
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $this->face->id]);
+        UgcSuspension::create([
+            'face_id' => $this->face->id,
+            'shipment_id' => null,
+            'reason' => UgcSuspensionReason::AvisDeadlineMissed,
+            'appeal_status' => UgcSuspensionAppealStatus::None,
+            'suspended_at' => now(),
+        ]);
+        $booking = $this->makeUgcBooking(BookingStatus::CommissionPaid);
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/accept")
+            ->assertForbidden()
+            ->assertJsonPath('error.code', 'UGC_SUSPENDED')
+            ->assertJsonPath('error.message', 'Votre accès aux missions UGC est suspendu. Consultez la page Suspension UGC pour régulariser ou faire appel.');
 
         $this->assertSame(BookingStatus::CommissionPaid, $booking->fresh()->status);
     }

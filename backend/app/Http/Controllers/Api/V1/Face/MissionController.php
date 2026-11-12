@@ -56,9 +56,15 @@ class MissionController extends Controller
         }
 
         // Gate UGC (FR5) : détail réservé aux Faces abonnées, sauf candidature existante
-        if ($mission->type_mission === MissionType::Ugc
-            && ! $candidature
-            && ! $this->entitlement->canAccessUgc($face)) {
+        $ugcDenial = ($mission->type_mission === MissionType::Ugc && ! $candidature)
+            ? $this->entitlement->ugcDenialReason($face)
+            : null;
+        if ($ugcDenial === FaceEntitlementService::UGC_DENIAL_SUSPENDED) {
+            return response()->json(ErrorCodes::UgcSuspended->envelope(
+                'Votre accès aux missions UGC est suspendu. Consultez la page Suspension UGC pour régulariser ou faire appel.'
+            ), 403);
+        }
+        if ($ugcDenial !== null) {
             return response()->json(
                 ErrorCodes::UgcSubscriptionRequired->envelope(
                     "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite."

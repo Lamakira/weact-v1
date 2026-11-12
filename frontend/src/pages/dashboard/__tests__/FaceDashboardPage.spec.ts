@@ -128,6 +128,11 @@ vi.mock('@/features/face/composables/useSubscriptionStatus', () => ({
   }),
 }))
 
+const { getAgendaMock } = vi.hoisted(() => ({ getAgendaMock: vi.fn() }))
+vi.mock('@/features/agenda/services/agendaApi', () => ({
+  agendaApi: { getAgenda: getAgendaMock, updateUnavailableDays: vi.fn(), getFaceAvailability: vi.fn() },
+}))
+
 vi.mock('@/features/face/services/faceApi', () => ({
   faceApi: {
     getProfile: vi.fn().mockResolvedValue({
@@ -182,6 +187,61 @@ describe('FaceDashboardPage', () => {
     mockWithdrawals.value = []
     mockPercentage.value = 75
     mockSubscriptionCurrent.value = null
+    getAgendaMock.mockReset().mockResolvedValue({
+      data: { from: '2026-11-08', to: '2026-12-08', today: '2026-11-08', unavailable_days: [], events: [] },
+    })
+  })
+
+  describe('panneau Mon agenda', () => {
+    const base = { status: 'accepted', counterpart: 'Studio' }
+
+    it('montre les 3 prochains événements engagés ou en attente, sans les terminés ni les passés', async () => {
+      getAgendaMock.mockResolvedValue({
+        data: {
+          from: '2026-11-08',
+          to: '2026-12-08',
+          today: '2026-11-08',
+          unavailable_days: [],
+          events: [
+            { ...base, kind: 'booking', uuid: 'done', title: 'Terminé', state: 'done', start: '2026-11-08', end: '2026-11-08' },
+            { ...base, kind: 'booking', uuid: 'b1', title: 'Clip Afro Vibes', state: 'engaged', start: '2026-11-18', end: '2026-11-20' },
+            { ...base, kind: 'mission', uuid: 'm1', title: 'Pub boisson', state: 'engaged', start: '2026-11-24', end: '2026-11-24' },
+            { ...base, kind: 'booking', uuid: 'b2', title: 'Demande Awalé', state: 'pending', start: '2026-11-26', end: '2026-11-26' },
+            { ...base, kind: 'booking', uuid: 'b3', title: 'Quatrième', state: 'engaged', start: '2026-12-01', end: '2026-12-01' },
+          ],
+        },
+      })
+      const wrapper = mountPage()
+      await flushPromises()
+
+      const [from, to] = getAgendaMock.mock.calls[0] as [string, string]
+      expect(to > from).toBe(true)
+      const items = wrapper.findAll('[data-testid="face-agenda-panel-item"]')
+      expect(items.map((i) => i.text())).toEqual([
+        expect.stringContaining('Clip Afro Vibes'),
+        expect.stringContaining('Pub boisson'),
+        expect.stringContaining('Demande Awalé'),
+      ])
+      expect(items[0]!.text()).toContain('18 au 20 nov · 3 jours')
+      expect(wrapper.find('[data-testid="face-agenda-panel-link"]').text()).toBe('Ouvrir mon agenda')
+
+      // Plus de barre d'accent : une pastille ronde de 8 px, de la couleur du type.
+      items.forEach((item) => expect(item.find('span.w-1').exists()).toBe(false))
+      const dots = items.map((item) => item.find('span.size-2.rounded-full'))
+      expect(dots.every((dot) => dot.exists())).toBe(true)
+      expect(dots[0]!.classes()).toContain('bg-teal-600')
+      expect(dots[1]!.classes()).toContain('bg-violet-700')
+      expect(dots[2]!.classes()).toContain('bg-amber-500')
+    })
+
+    it('affiche « Aucun engagement dans les 30 prochains jours » quand il n\'y a rien', async () => {
+      const wrapper = mountPage()
+      await flushPromises()
+
+      expect(wrapper.find('[data-testid="face-agenda-panel-empty"]').text()).toBe(
+        'Aucun engagement dans les 30 prochains jours',
+      )
+    })
   })
 
   describe('en-tête', () => {

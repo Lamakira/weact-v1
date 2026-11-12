@@ -168,6 +168,27 @@ describe('FaceUgcMissionsListPage', () => {
     expect(mockRouter.push).toHaveBeenCalledWith('/pricing')
   })
 
+  it('suspended branch: suspended banner, card click goes to the suspension page', async () => {
+    mockItems.value = [createTeaser()]
+    mockCanAccessUgc.value = false
+    mockPaywall.value = {
+      code: 'UGC_SUSPENDED',
+      message: 'Votre accès aux missions UGC est suspendu.',
+      suspension_url: '/face/ugc/suspension',
+    }
+    mockTotalCount.value = 1
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const banner = wrapper.get('[data-testid="ugc-paywall-banner"]')
+    expect(banner.text()).toContain('Accès UGC suspendu')
+    expect(banner.text()).toContain('Voir ma suspension')
+
+    await wrapper.get('[data-testid="ugc-mission-card"]').trigger('click')
+    expect(mockRouter.push).toHaveBeenCalledWith('/face/ugc/suspension')
+  })
+
   it('free branch: a custom pricing_url is respected on card click', async () => {
     mockItems.value = [createTeaser()]
     mockCanAccessUgc.value = false

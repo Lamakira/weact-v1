@@ -6,11 +6,15 @@ namespace Tests\Feature\Candidature;
 
 use App\Enums\CandidatureStatus;
 use App\Enums\MissionStatus;
+use App\Enums\MissionType;
+use App\Enums\UgcSuspensionAppealStatus;
+use App\Enums\UgcSuspensionReason;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\Producer;
+use App\Models\UgcSuspension;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -369,6 +373,54 @@ class ProducerViewCandidaturesTest extends TestCase
     // ===================================================================
     // FP-2.12 face.has_elite_badge in producer candidatures listing
     // ===================================================================
+
+    public function test_ugc_mission_candidatures_expose_face_ugc_available(): void
+    {
+        $this->mission->update(['type_mission' => MissionType::Ugc]);
+
+        $okFace = Face::factory()->create();
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $okFace->id]);
+        $suspendedFace = Face::factory()->create();
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $suspendedFace->id]);
+        UgcSuspension::create([
+            'face_id' => $suspendedFace->id,
+            'shipment_id' => null,
+            'reason' => UgcSuspensionReason::AvisDeadlineMissed,
+            'appeal_status' => UgcSuspensionAppealStatus::None,
+            'suspended_at' => now(),
+        ]);
+        foreach ([$okFace, $suspendedFace] as $face) {
+            Candidature::factory()->create([
+                'mission_id' => $this->mission->id,
+                'face_id' => $face->id,
+                'status' => CandidatureStatus::Pending,
+            ]);
+        }
+
+        $data = collect(
+            $this->actingAs($this->producerUser)
+                ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures")
+                ->assertOk()
+                ->json('data')
+        );
+
+        $this->assertTrue($data->firstWhere('face.id', $okFace->uuid)['face_ugc_available']);
+        $this->assertFalse($data->firstWhere('face.id', $suspendedFace->uuid)['face_ugc_available']);
+    }
+
+    public function test_standard_mission_candidatures_have_null_face_ugc_available(): void
+    {
+        Candidature::factory()->create([
+            'mission_id' => $this->mission->id,
+            'face_id' => $this->face->id,
+            'status' => CandidatureStatus::Pending,
+        ]);
+
+        $this->actingAs($this->producerUser)
+            ->getJson("/api/v1/producer/missions/{$this->mission->uuid}/candidatures")
+            ->assertOk()
+            ->assertJsonPath('data.0.face_ugc_available', null);
+    }
 
     public function test_face_has_elite_badge_true_for_elite_candidate(): void
     {

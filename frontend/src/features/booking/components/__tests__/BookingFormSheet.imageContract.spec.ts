@@ -28,6 +28,16 @@ vi.mock('../../composables/useBookingCreate', () => ({
   }),
 }))
 
+vi.mock('@/features/agenda/services/agendaApi', () => ({
+  agendaApi: {
+    getAgenda: vi.fn(),
+    updateUnavailableDays: vi.fn(),
+    getFaceAvailability: vi.fn().mockResolvedValue({
+      data: { from: '', to: '', today: '2026-11-08', unavailable_days: [] },
+    }),
+  },
+}))
+
 vi.mock('@/composables/useToast', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn() }),
 }))

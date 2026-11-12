@@ -9,6 +9,7 @@ use App\Events\BookingCreated;
 use App\Mail\BookingReceivedMail;
 use App\Models\Booking;
 use App\Models\Face;
+use App\Models\FaceUnavailableDay;
 use App\Models\Producer;
 use App\Models\User;
 use App\ValueObjects\BookingPricing;
@@ -92,12 +93,11 @@ class CreateBookingTest extends TestCase
         Event::assertDispatched(BookingCreated::class);
     }
 
-    public function test_booking_starting_on_the_business_timezone_today_is_refused_even_when_utc_date_is_still_yesterday(): void
+    public function test_booking_starting_on_the_business_timezone_today_is_accepted_even_when_utc_date_is_still_yesterday(): void
     {
         Event::fake([BookingCreated::class]);
 
-        // 20/10 23:30 UTC = 21/10 00:30 à Porto-Novo : le jour de tournage « 21/10 » a déjà
-        // commencé côté métier, la demande naîtrait expirée (échéance Face = 21/10 08:00 locale).
+        // 20/10 23:30 UTC = 21/10 00:30 à Porto-Novo : « aujourd'hui » est le jour calendaire métier.
         $this->travelTo(Carbon::parse('2026-10-20 23:30:00', 'UTC'));
 
         $data = $this->getValidBookingData();
@@ -106,20 +106,29 @@ class CreateBookingTest extends TestCase
 
         $this->actingAs($this->producerUser)
             ->postJson('/api/v1/bookings', $data)
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors('date_debut');
+            ->assertCreated();
 
-        $this->assertDatabaseCount('bookings', 0);
+        // Plancher de 2 h : l'échéance de réponse est dans le futur.
+        $this->assertTrue(Booking::query()->sole()->faceResponseDeadline()->greaterThan(now()));
+    }
 
-        // Le lendemain métier (22/10) reste accepté et a une échéance dans le futur.
-        $data['date_debut'] = '2026-10-22';
-        $data['date_fin'] = '2026-10-22';
+    public function test_booking_starting_yesterday_in_business_timezone_is_refused(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        // 20/10 23:30 UTC = 21/10 00:30 à Porto-Novo : le 20/10 est passé côté métier.
+        $this->travelTo(Carbon::parse('2026-10-20 23:30:00', 'UTC'));
+
+        $data = $this->getValidBookingData();
+        $data['date_debut'] = '2026-10-20';
+        $data['date_fin'] = '2026-10-20';
 
         $this->actingAs($this->producerUser)
             ->postJson('/api/v1/bookings', $data)
-            ->assertCreated();
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['date_debut' => 'La date de début ne peut pas être dans le passé.']);
 
-        $this->assertTrue(Booking::query()->sole()->faceResponseDeadline()->greaterThan(now()));
+        $this->assertDatabaseCount('bookings', 0);
     }
 
     public function test_booking_for_tomorrow_is_accepted_at_1559_business_time(): void
@@ -137,7 +146,7 @@ class CreateBookingTest extends TestCase
             ->assertCreated();
     }
 
-    public function test_booking_for_tomorrow_is_refused_from_1600_business_time(): void
+    public function test_booking_for_tomorrow_is_accepted_after_1600_business_time(): void
     {
         Event::fake([BookingCreated::class]);
 
@@ -149,14 +158,21 @@ class CreateBookingTest extends TestCase
 
         $this->actingAs($this->producerUser)
             ->postJson('/api/v1/bookings', $data)
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['date_debut' => 'Après 16 h, vous ne pouvez plus envoyer de demande pour le lendemain. Choisissez une date ultérieure.']);
+            ->assertCreated();
 
-        $this->assertDatabaseCount('bookings', 0);
+        // Réponse de la Face : 08 h le jour du tournage (07:00 UTC).
+        $this->assertTrue(Booking::query()->sole()->faceResponseDeadline()->equalTo(Carbon::parse('2026-10-21 07:00:00', 'UTC')));
+    }
 
-        // Le surlendemain reste accepté après 16 h.
-        $data['date_debut'] = '2026-10-22';
-        $data['date_fin'] = '2026-10-22';
+    public function test_booking_for_today_is_accepted(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        Carbon::setTestNow(Carbon::parse('2026-10-20 15:00:00', 'Africa/Porto-Novo'));
+
+        $data = $this->getValidBookingData();
+        $data['date_debut'] = '2026-10-20';
+        $data['date_fin'] = '2026-10-20';
 
         $this->actingAs($this->producerUser)
             ->postJson('/api/v1/bookings', $data)
@@ -516,5 +532,55 @@ class CreateBookingTest extends TestCase
                 ],
                 'message',
             ]);
+    }
+
+    public function test_cash_booking_on_a_day_blocked_by_the_face_is_refused_with_the_first_blocked_day(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $data = $this->getValidBookingData();
+        $first = Carbon::parse($data['date_debut'])->addDays(2);
+        $second = Carbon::parse($data['date_debut'])->addDays(4);
+        FaceUnavailableDay::create(['face_id' => $this->face->id, 'day' => $second->toDateString()]);
+        FaceUnavailableDay::create(['face_id' => $this->face->id, 'day' => $first->toDateString()]);
+
+        $response = $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('date_debut');
+
+        $this->assertSame(
+            'Cette Face a indiqué être indisponible le '.$first->copy()->locale('fr')->translatedFormat('j F').'. Choisissez d\'autres dates.',
+            $response->json('errors.date_debut.0'),
+        );
+        $this->assertDatabaseCount('bookings', 0);
+        Event::assertNotDispatched(BookingCreated::class);
+    }
+
+    public function test_cash_booking_on_free_days_is_created_even_when_other_days_are_blocked(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $data = $this->getValidBookingData();
+        // Jour bloqué juste avant et juste après la plage : sans effet.
+        FaceUnavailableDay::create(['face_id' => $this->face->id, 'day' => Carbon::parse($data['date_debut'])->subDay()->toDateString()]);
+        FaceUnavailableDay::create(['face_id' => $this->face->id, 'day' => Carbon::parse($data['date_fin'])->addDay()->toDateString()]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
+            ->assertCreated();
+    }
+
+    public function test_a_day_blocked_by_another_face_does_not_matter(): void
+    {
+        Event::fake([BookingCreated::class]);
+
+        $data = $this->getValidBookingData();
+        $other = Face::factory()->create();
+        FaceUnavailableDay::create(['face_id' => $other->id, 'day' => $data['date_debut']]);
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/bookings', $data)
+            ->assertCreated();
     }
 }

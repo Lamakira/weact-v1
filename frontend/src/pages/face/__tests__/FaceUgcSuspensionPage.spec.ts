@@ -92,6 +92,13 @@ describe('FaceUgcSuspensionPage', () => {
     expect(how.text()).toContain('1')
     expect(how.text()).toContain('2')
     expect(how.text()).toContain('3')
+    expect(how.text()).toContain('possible jusqu\'au')
+    expect(how.text()).toContain('la suspension est levée automatiquement le')
+    expect(how.text()).not.toContain('J+30')
+    expect(how.text()).not.toContain('24 h')
+    expect(why.text()).toContain('Missions UGC bloquées')
+    expect(why.text()).toContain('Vos candidatures UGC en attente ont été retirées')
+    expect(why.text()).not.toContain('Abonnement bloqué')
   })
 
   it('resumes then routes a booking deal to the booking detail page', async () => {

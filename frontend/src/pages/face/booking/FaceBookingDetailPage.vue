@@ -426,7 +426,7 @@ const isBeforeShootingDate = computed<boolean>(() => {
   return new Date(booking.value.date_debut).getTime() > nowTimestamp.value
 })
 
-// Lot B11 : échéance fournie par le backend (accepted_at + 24 h, source unique) ; repli
+// Lot B11 : échéance fournie par le backend (source unique) ; repli
 // sur le calcul local pour une réponse qui ne la porterait pas.
 const paymentDeadline = computed<Date | null>(() => {
   if (booking.value?.payment_deadline) return new Date(booking.value.payment_deadline)
@@ -619,6 +619,13 @@ async function doAccept(): Promise<void> {
     return
   }
 
+  // Face abonnée mais suspendue de l'UGC : renvoi vers la page de suspension.
+  if (actionErrorCode.value === 'UGC_SUSPENDED') {
+    toast.error(actionError.value || 'Votre accès aux missions UGC est suspendu.')
+    router.push({ name: 'face-ugc-suspension' })
+    return
+  }
+
   toast.error(actionError.value || 'Erreur lors de l\'acceptation')
 }
 
@@ -737,6 +744,14 @@ async function submitAcceptSignature(signature: ImageSignature): Promise<Signatu
     showSignDialog.value = false
     toast.info(actionError.value || "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite.")
     router.push({ name: 'pricing', query: { redirect: route.fullPath } })
+    return { ok: false, code: actionErrorCode.value, message: actionError.value }
+  }
+
+  // Face abonnée mais suspendue de l'UGC : renvoi vers la page de suspension.
+  if (actionErrorCode.value === 'UGC_SUSPENDED') {
+    showSignDialog.value = false
+    toast.error(actionError.value || 'Votre accès aux missions UGC est suspendu.')
+    router.push({ name: 'face-ugc-suspension' })
     return { ok: false, code: actionErrorCode.value, message: actionError.value }
   }
 
@@ -1759,7 +1774,7 @@ onUnmounted(() => {
           <div class="rounded-lg bg-gray-50 p-3 mb-5" data-testid="accept-recap-rules">
             <p class="text-xs font-semibold text-gray-700 mb-2">Après votre acceptation</p>
             <ul class="list-disc pl-4 space-y-1 text-xs text-gray-600">
-              <li>Le Producteur dispose de 24 h pour payer ; sans paiement dans ce délai, le booking expire.</li>
+              <li>Le Producteur dispose de 24 h pour payer, au plus tard à 08 h le jour du tournage ; sans paiement dans ce délai, le booking expire.</li>
               <li>Vous pouvez annuler jusqu'à 24 h avant le jour du tournage ; passé ce délai, l'annulation n'est plus possible.</li>
               <li>Une annulation de votre part entraîne une pénalité d'un point sur votre note moyenne, et le remboursement du Producteur s'il a déjà payé.</li>
               <li>Vos autres demandes en attente sur les mêmes dates sont refusées automatiquement.</li>

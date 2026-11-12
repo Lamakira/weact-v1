@@ -21,6 +21,7 @@ use App\Models\Conversation;
 use App\Models\Mission;
 use App\Models\Notification;
 use App\Models\Producer;
+use App\Models\UgcSuspension;
 use App\Services\FaceEntitlementService;
 use App\Services\FreedPlaceService;
 use App\Services\MissionPaymentService;
@@ -87,6 +88,24 @@ class CandidatureController extends Controller
             fn (Candidature $candidature) => $candidature->setAttribute('can_replace_freed_place', in_array($candidature->id, $replaceableIds, true)),
         );
 
+        // Mission UGC : la Face peut-elle recevoir une mission UGC (abonnement ET non suspendue) ? Une requête
+        // de suspensions pour la page ; `face.activeSubscription` est déjà chargée (pas de N+1).
+        if ($mission->type_mission === MissionType::Ugc) {
+            $suspendedFaceIds = UgcSuspension::query()
+                ->whereIn('face_id', $candidatures->getCollection()->pluck('face_id')->filter()->unique())
+                ->whereNull('reactivated_at')
+                ->pluck('face_id')
+                ->all();
+            $candidatures->getCollection()->each(
+                fn (Candidature $candidature) => $candidature->setAttribute(
+                    'face_ugc_available',
+                    $candidature->face !== null
+                        && $this->entitlement->capabilities($candidature->face)->ugcAccess
+                        && ! in_array($candidature->face_id, $suspendedFaceIds, true),
+                ),
+            );
+        }
+
         return ProducerCandidatureResource::collection($candidatures);
     }
 
@@ -141,9 +160,10 @@ class CandidatureController extends Controller
         $face = $candidature->face;
 
         if (! $this->entitlement->canAccessUgc($face)) {
-            return response()->json(ErrorCodes::UgcSubscriptionRequired->envelope(
-                "Cette Face n'a plus d'abonnement actif lui donnant accès aux missions UGC."
-            ), 403);
+            // Message neutre : ne révèle ni la suspension ni l'abonnement de la Face.
+            return response()->json(ErrorCodes::FaceUgcUnavailable->envelope(
+                'Cette Face ne peut pas recevoir de mission UGC pour le moment.'
+            ), 422);
         }
 
         if ($mission->genre_voulu !== MissionGender::Tous) {

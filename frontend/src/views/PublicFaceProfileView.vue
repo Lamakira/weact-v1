@@ -15,6 +15,7 @@ import CandidatePhotoGallery from '@/features/candidature/components/CandidatePh
 import CandidateResumeSummary from '@/features/candidature/components/CandidateResumeSummary.vue'
 import CandidateExperiencesSection from '@/features/candidature/components/CandidateExperiencesSection.vue'
 import ReviewsList from '@/components/ReviewsList.vue'
+import FaceAvailabilityCalendar from '@/features/agenda/components/FaceAvailabilityCalendar.vue'
 import { publicApi } from '@/features/public/services/publicApi'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { Booking } from '@/features/booking/types'
@@ -482,6 +483,9 @@ async function handleRetry(): Promise<void> {
               :tarif-horaire="tarifDemiJourneeFormatted"
               :tarif-journalier="tarifJournalierFormatted"
             />
+
+            <!-- Disponibilités (Producteur connecté avec accès au profil) -->
+            <FaceAvailabilityCalendar v-if="accessLevel === 'producer_with_access'" :face-id="face.id" />
 
             <!-- Booking CTA Button — desktop only (mobile uses fixed bottom bar) -->
             <div v-if="showBookingButton" class="relative group hidden lg:mt-auto lg:block">

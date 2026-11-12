@@ -198,6 +198,7 @@ async function mountPage(
       { path: '/face/bookings', name: 'face-bookings', component: { template: '<div/>' } },
       { path: '/face/bookings/:id', name: 'face-booking-detail', component: FaceBookingDetailPage },
       { path: '/pricing', name: 'pricing', component: { template: '<div/>' } },
+      { path: '/face/ugc/suspension', name: 'face-ugc-suspension', component: { template: '<div/>' } },
     ],
   })
 
@@ -908,6 +909,28 @@ describe('FaceBookingDetailPage — UGC commission CTA (story 1.6)', () => {
 
     expect(wrapper.vm.$router.currentRoute.value.name).toBe('pricing')
     expect(wrapper.vm.$router.currentRoute.value.query.redirect).toBe('/face/bookings/booking-uuid-1')
+  })
+
+  it('routes to the suspension page on a UGC_SUSPENDED accept failure', async () => {
+    mockAccept.mockImplementationOnce(async () => {
+      mockActionError.value = 'Votre accès aux missions UGC est suspendu.'
+      mockActionErrorCode.value = 'UGC_SUSPENDED'
+      return null
+    })
+    const wrapper = await mountPage(
+      makeBooking({
+        status: 'commission_paid',
+        type_contenu: 'UGC',
+        can_accept: true,
+        accepted_at: null,
+      }),
+    )
+
+    const stub = wrapper.findComponent({ name: 'UgcEngagementModal' })
+    stub.vm.$emit('confirm')
+    await flushPromises()
+
+    expect(wrapper.vm.$router.currentRoute.value.name).toBe('face-ugc-suspension')
   })
 
   it('shows the UGC dotation summary and hides the shoot fields + cash finances for a UGC booking', async () => {

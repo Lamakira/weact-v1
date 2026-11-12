@@ -5,6 +5,7 @@ use App\Console\Commands\AutoReleaseMissionFundsCommand;
 use App\Console\Commands\AutoValidateMissionAttendanceCommand;
 use App\Console\Commands\CheckFaceListingRanksFreshnessCommand;
 use App\Console\Commands\CompleteFinishedUgcMissionsCommand;
+use App\Console\Commands\EnforceUgcSuspensionsCommand;
 use App\Console\Commands\ExpireFaceSubscriptionsCommand;
 use App\Console\Commands\ExpireUnacceptedBookingsCommand;
 use App\Console\Commands\ExpireUnacceptedUgcDealsCommand;
@@ -81,6 +82,8 @@ app(Schedule::class)->command(RefundFreedPlacesCommand::class)->hourly()->withou
 // Idempotente par shipments.last_notified_threshold ; withoutOverlapping en
 // défense supplémentaire (D-4.5.d).
 app(Schedule::class)->command(ProcessUgcDeadlinesCommand::class)->everyFifteenMinutes()->withoutOverlapping();
+// Suspension UGC : levée automatique à J+suspension_days et retrait des candidatures en attente.
+app(Schedule::class)->command(EnforceUgcSuspensionsCommand::class)->hourly()->withoutOverlapping()->onOneServer();
 app(Schedule::class)->command(RemindBookingPaymentCommand::class)->hourly()->withoutOverlapping();
 // Changements de date en attente (missions payées, bookings) : relance à mi-parcours puis expiration.
 // Idempotente (reminder_sent_at, statut sous verrou).

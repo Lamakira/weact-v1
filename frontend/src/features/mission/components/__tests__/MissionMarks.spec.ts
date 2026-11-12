@@ -36,6 +36,12 @@ describe('MissionMarks (lot D8)', () => {
       expect(wrapper.find('[data-testid="mark-incompatible"]').exists()).toBe(false)
     },
   )
+
+  it('affiche « Accès UGC suspendu » pour une Face suspendue, jamais « Abonnement requis »', () => {
+    const wrapper = mount(MissionMarks, { props: { eligibility: 'ugc_suspended' } })
+    expect(wrapper.get('[data-testid="mark-ugc-suspended"]').text()).toBe('Accès UGC suspendu')
+    expect(wrapper.find('[data-testid="mark-subscription"]').exists()).toBe(false)
+  })
 })
 
 function baseMission(overrides: Partial<Mission> = {}): Mission {

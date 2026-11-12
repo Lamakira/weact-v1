@@ -220,7 +220,7 @@ describe('ProfileEditPage - completion refresh after a criterion save', () => {
   })
 
   async function mountPage() {
-    const wrapper = shallowMount(ProfileEditPage)
+    const wrapper = shallowMount(ProfileEditPage, { global: { stubs: { teleport: false } } })
     await flushPromises()
     // The mount-time load is not a save: only what happens after counts.
     h.fetchCompletion.mockClear()

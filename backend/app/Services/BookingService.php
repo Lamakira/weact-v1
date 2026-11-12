@@ -32,6 +32,7 @@ use App\Models\Face;
 use App\Models\Notification;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\Agenda\FaceAgendaService;
 use App\Services\ImageContract\ImageContractService;
 use App\Services\Ugc\UgcCommissionService;
 use App\Services\Ugc\UgcRefundService;
@@ -72,6 +73,7 @@ class BookingService
         private readonly UgcRefundService $ugcRefundService,
         private readonly ProductPhotoService $productPhotoService,
         private readonly ImageContractService $imageContractService,
+        private readonly FaceAgendaService $faceAgendaService,
     ) {}
 
     /**
@@ -102,6 +104,18 @@ class BookingService
             throw ValidationException::withMessages([
                 'duree_heures' => ['La duree minimale est de 4 heures.'],
             ]);
+        }
+
+        // Calendrier de la Face : une demande cash ne peut pas tomber sur un jour qu'elle a bloqué
+        // (un booking UGC n'a pas de date de tournage).
+        if (($data['type_contenu'] ?? null) !== 'UGC') {
+            $blockedDay = $this->faceAgendaService->firstBlockedDay($face->id, (string) $data['date_debut'], (string) $data['date_fin']);
+
+            if ($blockedDay !== null) {
+                throw ValidationException::withMessages([
+                    'date_debut' => ["Cette Face a indiqué être indisponible le {$this->faceAgendaService->frenchDay($blockedDay)}. Choisissez d'autres dates."],
+                ]);
+            }
         }
 
         $withContract = $this->imageContractService->enabled();

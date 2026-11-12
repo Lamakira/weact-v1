@@ -20,6 +20,10 @@ import {
   Coins,
   Lock,
   Database,
+  Camera,
+  ChevronDown,
+  ChevronUp,
+  Star,
 } from 'lucide-vue-next'
 import { useProfilePhoto } from '@/features/face/composables/useProfilePhoto'
 import { usePhotoAlbum } from '@/features/face/composables/usePhotoAlbum'
@@ -36,6 +40,7 @@ import { useAvailability } from '@/features/face/composables/useAvailability'
 import { useProfileCompletion } from '@/features/face/composables/useProfileCompletion'
 import { useSubscriptionStatus } from '@/features/face/composables/useSubscriptionStatus'
 import { useToast } from '@/composables/useToast'
+import { useMediaQuery } from '@/composables/useMediaQuery'
 import { useAuthStore } from '@/stores/auth'
 import ProfilePhotoUpload from '@/features/face/components/ProfilePhotoUpload.vue'
 import PhotoAlbumGrid from '@/features/face/components/PhotoAlbumGrid.vue'
@@ -372,7 +377,13 @@ const activeSection = computed(() => activeSectionByFamily.value[activeFamily.va
 // click on the stacked (mobile) layout, where the panel sits far below the sidebar.
 const panelRef = ref<HTMLElement | null>(null)
 
+// Section mobile « photo » : n'existe que dans la famille Profil, sans figurer dans FAMILIES
+// (la nav bureau reste inchangée). Sur md+, ?section=photo affiche le panneau « infos ».
+const PHOTO_SECTION_ID = 'photo'
+const photoOpen = ref(false)
+
 function sectionExists(familyId: FamilyId, sectionId: string): boolean {
+  if (familyId === 'profil' && sectionId === PHOTO_SECTION_ID) return true
   return FAMILIES.find((f) => f.id === familyId)?.sections.some((s) => s.id === sectionId) ?? false
 }
 function isActiveSection(familyId: FamilyId, sectionId: string): boolean {
@@ -401,7 +412,13 @@ function applyRouteToState(): void {
     activeFamily.value = tab as FamilyId
   }
   const section = route.query.section
-  if (typeof section === 'string' && sectionExists(activeFamily.value, section)) {
+  photoOpen.value = section === PHOTO_SECTION_ID && activeFamily.value === 'profil'
+  if (photoOpen.value) activeSectionByFamily.value.profil = 'infos'
+  if (
+    typeof section === 'string' &&
+    section !== PHOTO_SECTION_ID &&
+    sectionExists(activeFamily.value, section)
+  ) {
     activeSectionByFamily.value[activeFamily.value] = section
   }
 }
@@ -413,6 +430,14 @@ function syncUrlFromState(): void {
 }
 function navigateTab(familyId: FamilyId, sectionId?: string): void {
   activeFamily.value = familyId
+  if (sectionId === PHOTO_SECTION_ID && familyId === 'profil') {
+    photoOpen.value = true
+    activeSectionByFamily.value.profil = 'infos'
+    if (route.query.tab === 'profil' && route.query.section === PHOTO_SECTION_ID) return
+    void router.push({ query: { ...route.query, tab: 'profil', section: PHOTO_SECTION_ID } })
+    return
+  }
+  photoOpen.value = false
   if (sectionId) activeSectionByFamily.value[familyId] = sectionId
   syncUrlFromState()
 }
@@ -424,6 +449,13 @@ function selectSection(id: string): void {
 }
 
 watch(() => [route.query.tab, route.query.section], applyRouteToState, { immediate: true })
+
+// Téléphone (< md) : liste de sections OU détail d'une section. Un seul calcul d'état,
+// le reste est piloté en CSS (md:hidden / hidden md:block), sans détection JS de largeur.
+const isSectionOpen = computed(() => {
+  const section = route.query.section
+  return typeof section === 'string' && sectionExists(activeFamily.value, section)
+})
 
 // Completion criteria → (family, section). Drives both the missing-item navigation
 // and the amber "à compléter" dot on the section nav. `profile_photo` lives in the
@@ -483,6 +515,169 @@ const summaryAge = computed<number | null>(() => {
 const tarifDisplay = computed(() => {
   const t = tarifsInfo.value?.tarif_journalier
   return typeof t === 'number' ? formatMoney(t) : '—'
+})
+
+// -------------------------------------------------------------
+// Liste mobile (< md) : aperçus calculés depuis les refs déjà chargées
+// -------------------------------------------------------------
+interface MobileRow {
+  familyId: FamilyId
+  sectionId: string
+  label: string
+  icon: Component
+}
+const PHOTO_ROW: MobileRow = {
+  familyId: 'profil',
+  sectionId: PHOTO_SECTION_ID,
+  label: 'Photo de mise en avant',
+  icon: Camera,
+}
+// Ordre plat de navigation : photo, puis FAMILIES dans l'ordre.
+const FLAT_SECTIONS: MobileRow[] = [
+  PHOTO_ROW,
+  ...FAMILIES.flatMap((f) =>
+    f.sections.map((s) => ({ familyId: f.id, sectionId: s.id, label: s.label, icon: s.icon })),
+  ),
+]
+
+const DASH = '—'
+function countLabel(n: number, one: string, many: string, none?: string): string {
+  if (n === 0 && none) return none
+  return `${n} ${n > 1 ? many : one}`
+}
+function maskEmail(email: string | null | undefined): string {
+  if (!email || !email.includes('@')) return DASH
+  const [local = '', domain = ''] = email.split('@')
+  return `${local.charAt(0)}•••@${domain}`
+}
+function fullName(): string {
+  return [profile.value?.prenom, profile.value?.nom].filter(Boolean).join(' ')
+}
+function sectionPreview(sectionId: string): string {
+  switch (sectionId) {
+    case PHOTO_SECTION_ID:
+      return profile.value?.profile_photo_url ? 'Ajoutée' : 'À ajouter'
+    case 'infos':
+      return fullName() || DASH
+    case 'identite': {
+      const parts = [
+        personalInfo.value?.nationalite,
+        summaryAge.value !== null ? `${summaryAge.value} ans` : null,
+      ].filter(Boolean)
+      return parts.length ? parts.join(' · ') : DASH
+    }
+    case 'physique': {
+      const taille = physicalCharacteristicsInfo.value?.taille
+      return taille ? `${taille} cm` : DASH
+    }
+    case 'langues': {
+      const langues = languesInfo.value?.langues
+      return langues && langues.length ? langues.join(', ') : DASH
+    }
+    case 'bio':
+      return bioLocationInfo.value?.ville || DASH
+    case 'album':
+      return countLabel(albumPhotos.value.length, 'photo', 'photos')
+    case 'video-pres':
+      return videoInfo.value?.presentation_video_url ? 'Ajoutée' : 'Aucune'
+    case 'video-acting':
+      return countLabel(actingVideos.value.length, 'vidéo', 'vidéos', 'Aucune')
+    case 'video-ugc':
+      return countLabel(ugcVideos.value.length, 'vidéo', 'vidéos', 'Aucune')
+    case 'categorie': {
+      const cats = (categoryNicheInfo.value?.categories ?? []).map((c) => c.label).join(', ')
+      const niches = (categoryNicheInfo.value?.niches ?? []).map((n) => n.label).join(', ')
+      if (!cats) return DASH
+      return niches ? `${cats} · ${niches}` : cats
+    }
+    case 'experiences':
+      return countLabel(experiences.value.length, 'expérience', 'expériences', 'Aucune')
+    case 'tarif':
+      return tarifDisplay.value === DASH ? DASH : `${tarifDisplay.value} / jour`
+    case 'securite':
+      return maskEmail(authStore.user?.email)
+    case 'donnees':
+      return 'Export et suppression'
+    default:
+      return DASH
+  }
+}
+function isRowIncomplete(row: MobileRow): boolean {
+  if (row.sectionId === PHOTO_SECTION_ID) {
+    return (completionMissingItems.value ?? []).some((i) => i.key === 'profile_photo')
+  }
+  return isSectionIncomplete(row.familyId, row.sectionId)
+}
+const mobileGroups = computed(() =>
+  FAMILIES.map((f) => ({
+    id: f.id,
+    label: f.label,
+    rows: FLAT_SECTIONS.filter((r) => r.familyId === f.id).map((r) => ({
+      ...r,
+      preview: sectionPreview(r.sectionId),
+      incomplete: isRowIncomplete(r),
+    })),
+  })),
+)
+
+const mobileDisplayName = computed(() => fullName() || profile.value?.username || '')
+const mobileInitials = computed(() => {
+  const initials = [profile.value?.prenom, profile.value?.nom]
+    .map((p) => p?.trim().charAt(0).toUpperCase() ?? '')
+    .join('')
+  return initials || '?'
+})
+const mobileCompletionTodo = computed(() => (completionMissingItems.value ?? []).length)
+const mobileCompletionPct = computed(() =>
+  Math.max(0, Math.min(100, completionPercentage.value ?? 0)),
+)
+
+// Téléphone (< md) : dépliant sous chaque ligne. Sans matchMedia, on considère « ordinateur ».
+const isMobile = useMediaQuery('(max-width: 767px)')
+
+// Section dépliée sous la liste (une seule à la fois), dérivée de l'URL ; null = tout replié.
+const mobileOpenId = computed<string | null>(() => {
+  if (!isSectionOpen.value) return null
+  return photoOpen.value ? PHOTO_SECTION_ID : activeSection.value
+})
+
+function closeMobileSection(): void {
+  const { tab: _tab, section: _section, ...rest } = route.query
+  void router.push({ query: rest })
+}
+function openMobileRow(row: MobileRow): void {
+  if (mobileOpenId.value === row.sectionId) {
+    closeMobileSection()
+    return
+  }
+  navigateTab(row.familyId, row.sectionId)
+}
+
+// Un panneau de section n'est téléporté sous sa ligne que sur téléphone ET quand il est ouvert ;
+// sinon il reste à sa place dans la mise en page ordinateur.
+function mobileSlot(sectionId: string): string {
+  return `#mobile-slot-${sectionId}`
+}
+function teleportOff(sectionId: string): boolean {
+  return !(isMobile.value && mobileOpenId.value === sectionId)
+}
+
+// À l'ouverture d'une section, on cale sa ligne en haut de la zone visible (le <main> du layout
+// défile, pas la fenêtre : scrollIntoView). Pas de défilement à la fermeture. Le watcher se
+// redéclenche à la fin du chargement pour les liens profonds (la liste n'existe pas avant).
+watch(
+  [mobileOpenId, isLoading],
+  async ([openId]) => {
+    if (!openId || isLoading.value || !isMobile.value) return
+    await nextTick()
+    document.getElementById(`mobile-header-${openId}`)?.scrollIntoView?.({ block: 'start' })
+  },
+  { immediate: true },
+)
+const nextMobileSection = computed<MobileRow | null>(() => {
+  const idx = FLAT_SECTIONS.findIndex((r) => r.sectionId === mobileOpenId.value)
+  if (idx < 0) return null
+  return FLAT_SECTIONS[idx + 1] ?? null
 })
 
 // Fetch profile, album, videos, bio/location, physical characteristics, category/niche, experiences, tarifs, availability, and completion on mount
@@ -796,6 +991,11 @@ async function handleAvailabilityToggle(): Promise<void> {
  */
 async function handleCompletionItemClick(itemKey: string): Promise<void> {
   if (itemKey === 'profile_photo') {
+    // Téléphone : la photo a sa propre section ; bureau : la carte de la colonne gauche clignote.
+    if (isMobile.value) {
+      navigateTab('profil', PHOTO_SECTION_ID)
+      return
+    }
     flashPhotoCard()
     return
   }
@@ -804,8 +1004,9 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
   navigateTab(target.family, target.section)
   // On the stacked (mobile) layout the completion card sits far above the tab panel,
   // so switching section doesn't bring it into view — scroll the panel into view.
-  // No-op on desktop (side-by-side, lg ≥ 1024px), where everything is already visible.
-  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+  // No-op on desktop (side-by-side, lg ≥ 1024px), where everything is already visible ;
+  // sur téléphone, le dépliant se cale tout seul sur sa ligne (watcher mobileOpenId).
+  if (!isMobile.value && typeof window !== 'undefined' && window.innerWidth < 1024) {
     await nextTick()
     panelRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
@@ -814,8 +1015,8 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
 
 <template>
   <div>
-    <!-- Page Header -->
-    <div class="mb-8">
+    <!-- Page Header : sur téléphone, la barre du haut affiche déjà « Mon profil » -->
+    <div class="mb-8 hidden md:block" data-testid="profile-page-heading">
       <h1 class="text-2xl font-bold text-slate-800">Mon profil</h1>
       <p class="mt-1 text-slate-500">Gérez vos informations et paramètres</p>
     </div>
@@ -825,30 +1026,140 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
       <Loader2 class="h-8 w-8 animate-spin text-primary" />
     </div>
 
+    <template v-else>
+    <!-- Téléphone (< md) : écran liste -->
+    <div class="md:hidden space-y-5" data-testid="profile-mobile-list">
+      <!-- En-tête identité -->
+      <div class="flex items-center gap-3" data-testid="mobile-identity">
+        <img
+          v-if="profile?.profile_photo_url"
+          :src="profile.profile_photo_url"
+          alt=""
+          class="h-12 w-12 flex-shrink-0 rounded-full object-cover"
+        />
+        <div
+          v-else
+          class="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-teal-100 text-base font-semibold text-teal-800"
+        >
+          {{ mobileInitials }}
+        </div>
+        <div class="min-w-0">
+          <p class="truncate text-base font-semibold text-slate-900">{{ mobileDisplayName }}</p>
+          <p v-if="profile?.username" class="truncate text-sm text-slate-500">@{{ profile.username }}</p>
+          <p
+            v-if="profile?.average_rating && profile.ratings_count > 0"
+            class="mt-0.5 flex items-center gap-1 text-xs text-slate-500"
+          >
+            <Star class="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+            <span class="font-medium text-slate-700">{{ profile.average_rating }}</span>
+            <span>({{ profile.ratings_count }} avis)</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Complétion compacte -->
+      <div data-testid="mobile-completion">
+        <div class="flex items-center justify-between text-sm">
+          <span class="font-medium text-slate-900">Profil complété à {{ mobileCompletionPct }} %</span>
+          <span v-if="mobileCompletionTodo > 0" class="text-xs text-slate-500">
+            {{ mobileCompletionTodo }} à faire
+          </span>
+        </div>
+        <div class="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+          <div class="h-full rounded-full bg-teal-600" :style="{ width: `${mobileCompletionPct}%` }" />
+        </div>
+      </div>
+
+      <AvailabilityToggle
+        :is-available="availabilityInfo?.is_available ?? true"
+        :is-loading="isAvailabilityLoading"
+        :is-saving="isAvailabilitySaving"
+        :error="availabilityError"
+        @toggle="handleAvailabilityToggle"
+      />
+
+      <!-- Un groupe par famille -->
+      <div v-for="g in mobileGroups" :key="g.id" :data-testid="`mobile-group-${g.id}`">
+        <p class="mb-2 px-1 text-xs text-slate-500">{{ g.label }}</p>
+        <div class="overflow-hidden rounded-2xl border border-gray-100 bg-white">
+          <div
+            v-for="(r, i) in g.rows"
+            :key="r.sectionId"
+            :class="i > 0 ? 'border-t border-gray-100' : ''"
+          >
+            <button
+              :id="`mobile-header-${r.sectionId}`"
+              type="button"
+              :data-testid="`mobile-row-${r.sectionId}`"
+              :aria-expanded="mobileOpenId === r.sectionId"
+              :aria-controls="`mobile-slot-${r.sectionId}`"
+              class="flex min-h-[56px] w-full scroll-mt-4 items-center gap-3 px-4 py-2 text-left"
+              :class="mobileOpenId === r.sectionId ? 'bg-teal-50' : ''"
+              @click="openMobileRow(r)"
+            >
+              <component :is="r.icon" class="h-5 w-5 flex-shrink-0 text-teal-600" />
+              <span class="min-w-0 flex-1">
+                <span class="block text-sm font-medium text-slate-900">{{ r.label }}</span>
+                <span
+                  v-if="r.incomplete"
+                  class="flex items-center gap-1.5 text-xs text-amber-700"
+                  :data-testid="`mobile-incomplete-${r.sectionId}`"
+                >
+                  <span class="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-600" />
+                  À compléter
+                </span>
+                <span v-else class="block truncate text-xs text-slate-500">{{ r.preview }}</span>
+              </span>
+              <ChevronUp
+                v-if="mobileOpenId === r.sectionId"
+                class="h-4 w-4 flex-shrink-0 text-teal-600"
+              />
+              <ChevronDown v-else class="h-4 w-4 flex-shrink-0 text-slate-400" />
+            </button>
+            <!-- Emplacement du panneau déplié (cible des <Teleport> ci-dessous) -->
+            <div :id="`mobile-slot-${r.sectionId}`" :data-testid="`mobile-slot-${r.sectionId}`" />
+            <div v-if="mobileOpenId === r.sectionId && nextMobileSection" class="px-4 pb-4">
+              <button
+                type="button"
+                data-testid="mobile-next"
+                class="py-2 text-sm font-medium text-teal-600"
+                @click="openMobileRow(nextMobileSection)"
+              >
+                Section suivante : {{ nextMobileSection.label }} ›
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Profile content - Two column layout on desktop -->
-    <div v-else class="flex flex-col lg:flex-row gap-6">
-      <!-- Left Sidebar (sticky on desktop) -->
+    <!-- Sous md, ce conteneur est masqué : les panneaux ouverts en sont téléportés sous leur ligne -->
+    <div class="hidden md:flex flex-col lg:flex-row gap-6">
+      <!-- Left Sidebar (sticky on desktop) ; téléphone : la carte photo est téléportée sous sa ligne -->
       <div class="lg:w-80 flex-shrink-0">
         <div class="lg:sticky lg:top-6 space-y-6">
           <!-- Profile photo card -->
-          <div
-            id="section-profile-photo"
-            class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 transition-shadow"
-            :class="{ 'ring-2 ring-teal-500 ring-offset-2': highlightPhotoCard }"
-          >
-            <h2 class="text-lg font-medium text-gray-900 mb-6">Photo de mise en avant</h2>
-            <ProfilePhotoUpload
-              :profile="profile"
-              :is-uploading="isUploading"
-              :is-deleting="isDeleting"
-              :error="error"
-              @upload="handleUpload"
-              @delete="handleDelete"
-            />
-          </div>
+          <Teleport :to="mobileSlot(PHOTO_SECTION_ID)" defer :disabled="teleportOff(PHOTO_SECTION_ID)">
+            <div
+              id="section-profile-photo"
+              class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 transition-shadow max-md:rounded-none max-md:border-0 max-md:shadow-none max-md:pt-2"
+              :class="{ 'ring-2 ring-teal-500 ring-offset-2': highlightPhotoCard }"
+            >
+              <h2 class="hidden text-lg font-medium text-gray-900 mb-6 md:block">Photo de mise en avant</h2>
+              <ProfilePhotoUpload
+                :profile="profile"
+                :is-uploading="isUploading"
+                :is-deleting="isDeleting"
+                :error="error"
+                @upload="handleUpload"
+                @delete="handleDelete"
+              />
+            </div>
+          </Teleport>
 
           <!-- Profile completion card (à conserver intacte) -->
-          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <h2 class="text-base font-medium text-gray-900 mb-4 flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 text-teal-600">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6a7.5 7.5 0 107.5 7.5h-7.5V6z" />
@@ -869,7 +1180,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
           </div>
 
           <!-- Statut card — Disponibilité + Tarif (lecture seule) + Note -->
-          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6" data-testid="status-card">
+          <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 p-6" data-testid="status-card">
             <h2 class="text-base font-medium text-gray-900 mb-4">Statut</h2>
             <div class="space-y-5">
               <div>
@@ -910,7 +1221,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
           </div>
 
           <!-- Résumé card (lecture seule) -->
-          <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6" data-testid="resume-card">
+          <div class="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 p-6" data-testid="resume-card">
             <h2 class="text-base font-medium text-gray-900 mb-4">Résumé</h2>
             <dl class="space-y-3 text-sm">
               <div class="flex justify-between gap-3">
@@ -950,7 +1261,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
         <nav
           role="tablist"
           aria-label="Familles du profil"
-          class="mb-6 flex gap-1 overflow-x-auto border-b border-slate-200 px-1"
+          class="mb-6 hidden md:flex gap-1 overflow-x-auto border-b border-slate-200 px-1"
           data-testid="profile-family-tabs"
         >
           <button
@@ -978,7 +1289,7 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
           <div class="grid grid-cols-1 md:grid-cols-[224px_minmax(0,1fr)]">
             <!-- Section nav for the active family -->
             <nav
-              class="flex gap-0.5 overflow-x-auto border-b border-gray-100 p-3.5 md:flex-col md:border-b-0 md:border-r"
+              class="hidden md:flex gap-0.5 overflow-x-auto border-b border-gray-100 p-3.5 md:flex-col md:border-b-0 md:border-r"
               :aria-label="`Sections ${currentFamily.label}`"
             >
               <button
@@ -1006,247 +1317,277 @@ async function handleCompletionItemClick(itemKey: string): Promise<void> {
             <!-- Active section content (all sections kept mounted via v-show) -->
             <div class="min-w-0">
               <!-- PROFIL -->
-              <div v-show="isActiveSection('profil', 'infos')" class="p-6 md:p-7" data-testid="panel-infos">
-                <BasicInfoSection flat />
-              </div>
-
-              <div v-show="isActiveSection('profil', 'identite')" class="p-6 md:p-7" data-testid="panel-identite">
-                <h2 class="text-lg font-semibold text-slate-900">Identité</h2>
-                <p class="mt-1 mb-6 text-sm text-slate-500">
-                  Sexe, date de naissance, nationalité et pays de résidence.
-                </p>
-                <div v-if="isPersonalInfoLoading" class="flex justify-center py-8">
-                  <Loader2 class="h-6 w-6 animate-spin text-teal-600" />
+              <Teleport :to="mobileSlot('infos')" defer :disabled="teleportOff('infos')">
+                <div v-show="isActiveSection('profil', 'infos')" class="p-6 md:p-7" data-testid="panel-infos">
+                  <BasicInfoSection flat />
                 </div>
-                <PersonalInfoForm
-                  v-else
-                  :personal-info="personalInfo"
-                  :is-saving="isPersonalInfoSaving"
-                  :error="personalInfoError"
-                  @save="handlePersonalInfoSave"
-                />
-              </div>
+              </Teleport>
 
-              <div v-show="isActiveSection('profil', 'physique')" class="p-6 md:p-7" data-testid="panel-physique">
-                <h2 class="text-lg font-semibold text-slate-900">Caractéristiques physiques</h2>
-                <p class="mt-1 mb-6 text-sm text-slate-500">
-                  Indiquez votre taille et poids pour aider les producteurs à trouver des talents correspondant à leurs besoins.
-                </p>
-                <PhysicalCharacteristicsForm
-                  :physical-characteristics-info="physicalCharacteristicsInfo"
-                  :is-saving="isPhysicalCharacteristicsSaving"
-                  :error="physicalCharacteristicsError"
-                  @save="handlePhysicalCharacteristicsSave"
-                />
-              </div>
-
-              <div v-show="isActiveSection('profil', 'langues')" class="p-6 md:p-7" data-testid="panel-langues">
-                <div v-if="isLanguesLoading" class="flex justify-center py-8">
-                  <Loader2 class="h-6 w-6 animate-spin text-teal-600" />
-                </div>
-                <LanguesTagInput
-                  v-else
-                  :langues="languesInfo?.langues ?? null"
-                  :is-saving="isLanguesSaving"
-                  :error="languesError"
-                  :max-langues="MAX_LANGUES"
-                  :max-langue-length="MAX_LANGUE_LENGTH"
-                  @save="handleLanguesSave"
-                />
-              </div>
-
-              <div v-show="isActiveSection('profil', 'bio')" class="p-6 md:p-7" data-testid="panel-bio">
-                <h2 class="text-lg font-semibold text-slate-900">Bio &amp; Localisation</h2>
-                <p class="mt-1 mb-6 text-sm text-slate-500">
-                  Partagez votre parcours et indiquez votre localisation aux producteurs.
-                </p>
-                <BioLocationForm
-                  :bio-location-info="bioLocationInfo"
-                  :is-saving="isBioLocationSaving"
-                  :error="bioLocationError"
-                  @save="handleBioLocationSave"
-                />
-              </div>
-
-              <!-- PORTFOLIO -->
-              <div v-show="isActiveSection('portfolio', 'album')" class="p-6 md:p-7" data-testid="panel-album">
-                <h2 class="text-lg font-semibold text-slate-900">Album photos</h2>
-                <MediaQuotaUpsell
-                  media-key="max_album_photos"
-                  description="Montrez votre polyvalence aux producteurs avec votre album photos."
-                  :capabilities="capabilities"
-                  :current-tier="subscriptionTier"
-                  :offers="offers"
-                />
-                <PhotoAlbumGrid
-                  :photos="albumPhotos"
-                  :is-loading="isAlbumLoading"
-                  :is-deleting="isAlbumDeleting"
-                  :can-add-more="canAddMore && !isFullByEntitlement"
-                  :max-album-photos="maxAlbumPhotos"
-                  @delete="handleAlbumDelete"
-                  @add-click="handleAlbumAddClick"
-                />
-                <div class="mt-6">
-                  <AlbumPhotoUpload
-                    :is-full="isFullByEntitlement"
-                    :is-uploading="isAlbumUploading"
-                    :error="albumError"
-                    :upload-limit="maxAlbumPhotos"
-                    :current-count="albumPhotos.length"
-                    :locked-by-quota="isFullByEntitlement"
-                    @upload="handleAlbumUpload"
+              <Teleport :to="mobileSlot('identite')" defer :disabled="teleportOff('identite')">
+                <div v-show="isActiveSection('profil', 'identite')" class="p-6 md:p-7" data-testid="panel-identite">
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Identité</h2>
+                  <p class="mt-1 mb-6 text-sm text-slate-500">
+                    Sexe, date de naissance, nationalité et pays de résidence.
+                  </p>
+                  <div v-if="isPersonalInfoLoading" class="flex justify-center py-8">
+                    <Loader2 class="h-6 w-6 animate-spin text-teal-600" />
+                  </div>
+                  <PersonalInfoForm
+                    v-else
+                    :personal-info="personalInfo"
+                    :is-saving="isPersonalInfoSaving"
+                    :error="personalInfoError"
+                    @save="handlePersonalInfoSave"
                   />
                 </div>
-                <!-- Hidden file input for grid clicks -->
-                <input
-                  ref="albumFileInputRef"
-                  type="file"
-                  accept="image/jpeg,image/png"
-                  class="hidden"
-                  @change="(e) => {
-                    const file = (e.target as HTMLInputElement).files?.[0];
-                    if (isFullByEntitlement) { (e.target as HTMLInputElement).value = ''; return; }
-                    if (file) handleAlbumUpload(file);
-                    (e.target as HTMLInputElement).value = '';
-                  }"
-                />
-              </div>
+              </Teleport>
 
-              <div v-show="isActiveSection('portfolio', 'video-pres')" class="p-6 md:p-7" data-testid="panel-video-pres">
-                <h2 class="text-lg font-semibold text-slate-900">Vidéo de présentation</h2>
-                <MediaQuotaUpsell
-                  media-key="max_presentation_videos"
-                  description="Présentez-vous en vidéo pour faire une première impression aux producteurs."
-                  :capabilities="capabilities"
-                  :current-tier="subscriptionTier"
-                  :offers="offers"
-                />
-                <PresentationVideoUpload
-                  :video-info="videoInfo"
-                  :is-uploading="isVideoUploading"
-                  :is-deleting="isVideoDeleting"
-                  :error="videoError"
-                  :upload-progress="uploadProgress"
-                  :can-upload="subscriptionCanUploadPresentationVideo"
-                  @upload="handleVideoUpload"
-                  @delete="handleVideoDelete"
-                  @navigate-pricing="onNavigatePricing"
-                />
-              </div>
+              <Teleport :to="mobileSlot('physique')" defer :disabled="teleportOff('physique')">
+                <div v-show="isActiveSection('profil', 'physique')" class="p-6 md:p-7" data-testid="panel-physique">
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Caractéristiques physiques</h2>
+                  <p class="mt-1 mb-6 text-sm text-slate-500">
+                    Indiquez votre taille et poids pour aider les producteurs à trouver des talents correspondant à leurs besoins.
+                  </p>
+                  <PhysicalCharacteristicsForm
+                    :physical-characteristics-info="physicalCharacteristicsInfo"
+                    :is-saving="isPhysicalCharacteristicsSaving"
+                    :error="physicalCharacteristicsError"
+                    @save="handlePhysicalCharacteristicsSave"
+                  />
+                </div>
+              </Teleport>
 
-              <div v-show="isActiveSection('portfolio', 'video-acting')" class="p-6 md:p-7" data-testid="panel-video-acting">
-                <h2 class="text-lg font-semibold text-slate-900">Vidéo d'acting</h2>
-                <MediaQuotaUpsell
-                  media-key="max_acting_videos"
-                  description="Démontrez votre talent d'acteur en vidéo aux producteurs."
-                  :capabilities="capabilities"
-                  :current-tier="subscriptionTier"
-                  :offers="offers"
-                />
-                <FaceVideoUpload
-                  type="acting"
-                  :videos="actingVideos"
-                  :max-for-type="capabilities?.max_acting_videos ?? 0"
-                  :is-uploading="isActingFaceVideoUploading"
-                  :is-deleting="isActingFaceVideoDeleting"
-                  :error="actingFaceVideoError"
-                  :upload-progress="actingFaceVideoUploadProgress"
-                  @upload="(file) => handleAddFaceVideo('acting', file)"
-                  @delete="handleDeleteFaceVideo"
-                  @navigate-pricing="onNavigatePricing"
-                />
-              </div>
+              <Teleport :to="mobileSlot('langues')" defer :disabled="teleportOff('langues')">
+                <div v-show="isActiveSection('profil', 'langues')" class="p-6 md:p-7" data-testid="panel-langues">
+                  <div v-if="isLanguesLoading" class="flex justify-center py-8">
+                    <Loader2 class="h-6 w-6 animate-spin text-teal-600" />
+                  </div>
+                  <LanguesTagInput
+                    v-else
+                    :langues="languesInfo?.langues ?? null"
+                    :is-saving="isLanguesSaving"
+                    :error="languesError"
+                    :max-langues="MAX_LANGUES"
+                    :max-langue-length="MAX_LANGUE_LENGTH"
+                    @save="handleLanguesSave"
+                  />
+                </div>
+              </Teleport>
 
-              <div v-show="isActiveSection('portfolio', 'video-ugc')" class="p-6 md:p-7" data-testid="panel-video-ugc">
-                <h2 class="text-lg font-semibold text-slate-900">Vidéo UGC</h2>
-                <MediaQuotaUpsell
-                  media-key="max_ugc_videos"
-                  description="Montrez votre style avec une vidéo modèle UGC (User-Generated Content)."
-                  :capabilities="capabilities"
-                  :current-tier="subscriptionTier"
-                  :offers="offers"
-                />
-                <FaceVideoUpload
-                  type="ugc"
-                  :videos="ugcVideos"
-                  :max-for-type="capabilities?.max_ugc_videos ?? 0"
-                  :is-uploading="isUgcFaceVideoUploading"
-                  :is-deleting="isUgcFaceVideoDeleting"
-                  :error="ugcFaceVideoError"
-                  :upload-progress="ugcFaceVideoUploadProgress"
-                  @upload="(file) => handleAddFaceVideo('ugc', file)"
-                  @delete="handleDeleteFaceVideo"
-                  @navigate-pricing="onNavigatePricing"
-                />
-              </div>
+              <Teleport :to="mobileSlot('bio')" defer :disabled="teleportOff('bio')">
+                <div v-show="isActiveSection('profil', 'bio')" class="p-6 md:p-7" data-testid="panel-bio">
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Bio &amp; Localisation</h2>
+                  <p class="mt-1 mb-6 text-sm text-slate-500">
+                    Partagez votre parcours et indiquez votre localisation aux producteurs.
+                  </p>
+                  <BioLocationForm
+                    :bio-location-info="bioLocationInfo"
+                    :is-saving="isBioLocationSaving"
+                    :error="bioLocationError"
+                    @save="handleBioLocationSave"
+                  />
+                </div>
+              </Teleport>
+
+              <!-- PORTFOLIO -->
+              <Teleport :to="mobileSlot('album')" defer :disabled="teleportOff('album')">
+                <div v-show="isActiveSection('portfolio', 'album')" class="p-6 md:p-7" data-testid="panel-album">
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Album photos</h2>
+                  <MediaQuotaUpsell
+                    media-key="max_album_photos"
+                    description="Montrez votre polyvalence aux producteurs avec votre album photos."
+                    :capabilities="capabilities"
+                    :current-tier="subscriptionTier"
+                    :offers="offers"
+                  />
+                  <PhotoAlbumGrid
+                    :photos="albumPhotos"
+                    :is-loading="isAlbumLoading"
+                    :is-deleting="isAlbumDeleting"
+                    :can-add-more="canAddMore && !isFullByEntitlement"
+                    :max-album-photos="maxAlbumPhotos"
+                    @delete="handleAlbumDelete"
+                    @add-click="handleAlbumAddClick"
+                  />
+                  <div class="mt-6">
+                    <AlbumPhotoUpload
+                      :is-full="isFullByEntitlement"
+                      :is-uploading="isAlbumUploading"
+                      :error="albumError"
+                      :upload-limit="maxAlbumPhotos"
+                      :current-count="albumPhotos.length"
+                      :locked-by-quota="isFullByEntitlement"
+                      @upload="handleAlbumUpload"
+                    />
+                  </div>
+                  <!-- Hidden file input for grid clicks -->
+                  <input
+                    ref="albumFileInputRef"
+                    type="file"
+                    accept="image/jpeg,image/png"
+                    class="hidden"
+                    @change="(e) => {
+                      const file = (e.target as HTMLInputElement).files?.[0];
+                      if (isFullByEntitlement) { (e.target as HTMLInputElement).value = ''; return; }
+                      if (file) handleAlbumUpload(file);
+                      (e.target as HTMLInputElement).value = '';
+                    }"
+                  />
+                </div>
+              </Teleport>
+
+              <Teleport :to="mobileSlot('video-pres')" defer :disabled="teleportOff('video-pres')">
+                <div v-show="isActiveSection('portfolio', 'video-pres')" class="p-6 md:p-7" data-testid="panel-video-pres">
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Vidéo de présentation</h2>
+                  <MediaQuotaUpsell
+                    media-key="max_presentation_videos"
+                    description="Présentez-vous en vidéo pour faire une première impression aux producteurs."
+                    :capabilities="capabilities"
+                    :current-tier="subscriptionTier"
+                    :offers="offers"
+                  />
+                  <PresentationVideoUpload
+                    :video-info="videoInfo"
+                    :is-uploading="isVideoUploading"
+                    :is-deleting="isVideoDeleting"
+                    :error="videoError"
+                    :upload-progress="uploadProgress"
+                    :can-upload="subscriptionCanUploadPresentationVideo"
+                    @upload="handleVideoUpload"
+                    @delete="handleVideoDelete"
+                    @navigate-pricing="onNavigatePricing"
+                  />
+                </div>
+              </Teleport>
+
+              <Teleport :to="mobileSlot('video-acting')" defer :disabled="teleportOff('video-acting')">
+                <div v-show="isActiveSection('portfolio', 'video-acting')" class="p-6 md:p-7" data-testid="panel-video-acting">
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Vidéo d'acting</h2>
+                  <MediaQuotaUpsell
+                    media-key="max_acting_videos"
+                    description="Démontrez votre talent d'acteur en vidéo aux producteurs."
+                    :capabilities="capabilities"
+                    :current-tier="subscriptionTier"
+                    :offers="offers"
+                  />
+                  <FaceVideoUpload
+                    type="acting"
+                    :videos="actingVideos"
+                    :max-for-type="capabilities?.max_acting_videos ?? 0"
+                    :is-uploading="isActingFaceVideoUploading"
+                    :is-deleting="isActingFaceVideoDeleting"
+                    :error="actingFaceVideoError"
+                    :upload-progress="actingFaceVideoUploadProgress"
+                    @upload="(file) => handleAddFaceVideo('acting', file)"
+                    @delete="handleDeleteFaceVideo"
+                    @navigate-pricing="onNavigatePricing"
+                  />
+                </div>
+              </Teleport>
+
+              <Teleport :to="mobileSlot('video-ugc')" defer :disabled="teleportOff('video-ugc')">
+                <div v-show="isActiveSection('portfolio', 'video-ugc')" class="p-6 md:p-7" data-testid="panel-video-ugc">
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Vidéo UGC</h2>
+                  <MediaQuotaUpsell
+                    media-key="max_ugc_videos"
+                    description="Montrez votre style avec une vidéo modèle UGC (User-Generated Content)."
+                    :capabilities="capabilities"
+                    :current-tier="subscriptionTier"
+                    :offers="offers"
+                  />
+                  <FaceVideoUpload
+                    type="ugc"
+                    :videos="ugcVideos"
+                    :max-for-type="capabilities?.max_ugc_videos ?? 0"
+                    :is-uploading="isUgcFaceVideoUploading"
+                    :is-deleting="isUgcFaceVideoDeleting"
+                    :error="ugcFaceVideoError"
+                    :upload-progress="ugcFaceVideoUploadProgress"
+                    @upload="(file) => handleAddFaceVideo('ugc', file)"
+                    @delete="handleDeleteFaceVideo"
+                    @navigate-pricing="onNavigatePricing"
+                  />
+                </div>
+              </Teleport>
 
               <!-- CARRIÈRE -->
-              <div v-show="isActiveSection('carriere', 'categorie')" class="p-6 md:p-7" data-testid="panel-categorie">
-                <h2 class="text-lg font-semibold text-slate-900">Catégorie &amp; Niche</h2>
-                <p class="mt-1 mb-6 text-sm text-slate-500">
-                  Sélectionnez votre catégorie et niche pour aider les producteurs à vous trouver selon votre spécialisation.
-                </p>
-                <div v-if="isCategoryNicheLoading" class="flex justify-center py-8">
-                  <Loader2 class="h-6 w-6 animate-spin text-teal-600" />
+              <Teleport :to="mobileSlot('categorie')" defer :disabled="teleportOff('categorie')">
+                <div v-show="isActiveSection('carriere', 'categorie')" class="p-6 md:p-7" data-testid="panel-categorie">
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Catégorie &amp; Niche</h2>
+                  <p class="mt-1 mb-6 text-sm text-slate-500">
+                    Sélectionnez votre catégorie et niche pour aider les producteurs à vous trouver selon votre spécialisation.
+                  </p>
+                  <div v-if="isCategoryNicheLoading" class="flex justify-center py-8">
+                    <Loader2 class="h-6 w-6 animate-spin text-teal-600" />
+                  </div>
+                  <CategoryNicheForm
+                    v-else
+                    :category-niche-info="categoryNicheInfo"
+                    :category-options="categoryOptions"
+                    :niche-options="nicheOptions"
+                    :is-saving="isCategoryNicheSaving"
+                    :error="categoryNicheError"
+                    @save="handleCategoryNicheSave"
+                  />
                 </div>
-                <CategoryNicheForm
-                  v-else
-                  :category-niche-info="categoryNicheInfo"
-                  :category-options="categoryOptions"
-                  :niche-options="nicheOptions"
-                  :is-saving="isCategoryNicheSaving"
-                  :error="categoryNicheError"
-                  @save="handleCategoryNicheSave"
-                />
-              </div>
+              </Teleport>
 
-              <div v-show="isActiveSection('carriere', 'experiences')" class="p-6 md:p-7" data-testid="panel-experiences">
-                <ExperiencesList
-                  ref="experiencesListRef"
-                  :experiences="experiences"
-                  :is-loading="isExperiencesLoading"
-                  :is-saving="isExperiencesSaving"
-                  :is-deleting="isExperiencesDeleting"
-                  :error="experiencesError"
-                  :validation-errors="experiencesValidationErrors"
-                  @add="handleExperienceAdd"
-                  @edit="handleExperienceEdit"
-                  @delete="handleExperienceDelete"
-                />
-              </div>
+              <Teleport :to="mobileSlot('experiences')" defer :disabled="teleportOff('experiences')">
+                <div v-show="isActiveSection('carriere', 'experiences')" class="p-6 md:p-7" data-testid="panel-experiences">
+                  <ExperiencesList
+                    ref="experiencesListRef"
+                    :experiences="experiences"
+                    :is-loading="isExperiencesLoading"
+                    :is-saving="isExperiencesSaving"
+                    :is-deleting="isExperiencesDeleting"
+                    :error="experiencesError"
+                    :validation-errors="experiencesValidationErrors"
+                    @add="handleExperienceAdd"
+                    @edit="handleExperienceEdit"
+                    @delete="handleExperienceDelete"
+                  />
+                </div>
+              </Teleport>
 
-              <div v-show="isActiveSection('carriere', 'tarif')" class="p-6 md:p-7" data-testid="panel-tarif">
-                <h2 class="text-lg font-semibold text-slate-900">Tarif</h2>
-                <p class="mt-1 mb-6 text-sm text-slate-500">
-                  Définissez votre tarif journalier — il est visible par les producteurs et affiché en lecture seule dans la barre latérale.
-                </p>
-                <TarifsForm
-                  :tarifs-info="tarifsInfo"
-                  :is-saving="isTarifsSaving"
-                  :error="tarifsError"
-                  @save="handleTarifsSave"
-                />
-              </div>
+              <Teleport :to="mobileSlot('tarif')" defer :disabled="teleportOff('tarif')">
+                <div v-show="isActiveSection('carriere', 'tarif')" class="p-6 md:p-7" data-testid="panel-tarif">
+                  <h2 class="hidden text-lg font-semibold text-slate-900 md:block">Tarif</h2>
+                  <p class="mt-1 mb-6 text-sm text-slate-500">
+                    Définissez votre tarif journalier — il est visible par les producteurs et affiché en lecture seule dans la barre latérale.
+                  </p>
+                  <TarifsForm
+                    :tarifs-info="tarifsInfo"
+                    :is-saving="isTarifsSaving"
+                    :error="tarifsError"
+                    @save="handleTarifsSave"
+                  />
+                </div>
+              </Teleport>
 
               <!-- COMPTE -->
-              <div v-show="isActiveSection('compte', 'securite')" class="p-6 md:p-7 space-y-4" data-testid="panel-securite">
-                <template v-if="securityVisited">
-                  <EmailChangeForm />
-                  <div class="border-t border-gray-100 pt-4">
-                    <PasswordChangeForm />
-                  </div>
-                </template>
-              </div>
+              <Teleport :to="mobileSlot('securite')" defer :disabled="teleportOff('securite')">
+                <div v-show="isActiveSection('compte', 'securite')" class="p-6 md:p-7 space-y-4" data-testid="panel-securite">
+                  <template v-if="securityVisited">
+                    <EmailChangeForm />
+                    <div class="border-t border-gray-100 pt-4">
+                      <PasswordChangeForm />
+                    </div>
+                  </template>
+                </div>
+              </Teleport>
 
-              <div v-show="isActiveSection('compte', 'donnees')" class="p-6 md:p-7" data-testid="panel-donnees">
-                <DataPrivacySection />
-              </div>
+              <Teleport :to="mobileSlot('donnees')" defer :disabled="teleportOff('donnees')">
+                <div v-show="isActiveSection('compte', 'donnees')" class="p-6 md:p-7" data-testid="panel-donnees">
+                  <DataPrivacySection />
+                </div>
+              </Teleport>
             </div>
           </div>
         </div>
       </div>
     </div>
+
+    </template>
   </div>
 </template>
 

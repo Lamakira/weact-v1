@@ -134,6 +134,69 @@ class BookingExpiryTest extends TestCase
         Event::assertNotDispatched(BookingExpired::class);
     }
 
+    public function test_command_expires_a_booking_capped_at_8am_on_the_shooting_day(): void
+    {
+        Event::fake([BookingExpired::class]);
+
+        // Acceptée lundi 19/10 à 21:00 Bénin (20:00 UTC) pour mardi : échéance mardi 08:00 Bénin (07:00 UTC).
+        // Mardi 08:30 Bénin (07:30 UTC) : 11 h 30 après l'acceptation, mais l'échéance est dépassée.
+        $this->travelTo(Carbon::parse('2026-10-20 07:30:00', 'UTC'));
+        $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'accepted_at' => Carbon::parse('2026-10-19 20:00:00', 'UTC'),
+            'date_debut' => '2026-10-20 00:00:00',
+            'date_fin' => '2026-10-20 00:00:00',
+        ]);
+
+        $this->artisan('bookings:expire-unpaid')
+            ->expectsOutput('Found 1 booking(s) to expire.')
+            ->expectsOutput('Done. Expired: 1, Failed: 0.')
+            ->assertExitCode(Command::SUCCESS);
+
+        $this->assertEquals(BookingStatus::Expired, $booking->refresh()->status);
+    }
+
+    public function test_command_skips_a_capped_booking_whose_window_is_still_open(): void
+    {
+        Event::fake([BookingExpired::class]);
+
+        // Même booking mais à 07:30 Bénin (06:30 UTC) : encore avant 08:00.
+        $this->travelTo(Carbon::parse('2026-10-20 06:30:00', 'UTC'));
+        $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'accepted_at' => Carbon::parse('2026-10-19 20:00:00', 'UTC'),
+            'date_debut' => '2026-10-20 00:00:00',
+            'date_fin' => '2026-10-20 00:00:00',
+        ]);
+
+        $this->artisan('bookings:expire-unpaid')
+            ->expectsOutput('Found 0 booking(s) to expire.')
+            ->assertExitCode(Command::SUCCESS);
+
+        $this->assertEquals(BookingStatus::Accepted, $booking->refresh()->status);
+    }
+
+    public function test_command_skips_a_same_day_acceptance_within_the_two_hour_floor(): void
+    {
+        Event::fake([BookingExpired::class]);
+
+        // Acceptée à 14:30 UTC le jour même, maintenant 15:30 UTC : plancher +2 h non écoulé.
+        $this->travelTo(Carbon::parse('2026-10-20 15:30:00', 'UTC'));
+        $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'accepted_at' => Carbon::parse('2026-10-20 14:30:00', 'UTC'),
+            'date_debut' => '2026-10-20 00:00:00',
+            'date_fin' => '2026-10-20 00:00:00',
+        ]);
+
+        $this->artisan('bookings:expire-unpaid')->expectsOutput('Found 0 booking(s) to expire.');
+
+        $this->assertEquals(BookingStatus::Accepted, $booking->refresh()->status);
+    }
+
     public function test_command_skips_non_accepted_bookings(): void
     {
         Booking::factory()->pending()->create([
@@ -276,6 +339,8 @@ class BookingExpiryTest extends TestCase
         $booking = Booking::factory()->pending()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            // Créée il y a assez longtemps pour que le plancher de 2 h soit écoulé.
+            'created_at' => now()->subDays(5),
             'date_debut' => now()->subDay(),
             'accepted_at' => now()->subDays(2),
         ]);
@@ -315,6 +380,8 @@ class BookingExpiryTest extends TestCase
         $booking = Booking::factory()->pending()->create([
             'face_id' => $this->faceUser->id,
             'producer_id' => $this->producerUser->id,
+            // Créée il y a assez longtemps pour que le plancher de 2 h soit écoulé.
+            'created_at' => now()->subHours(3),
             'date_debut' => now()->subHour(),
         ]);
 

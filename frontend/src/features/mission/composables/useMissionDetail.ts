@@ -15,6 +15,8 @@ export function useMissionDetail() {
   const notFound = ref(false)
   const ugcPaywall = ref(false)
   const ugcPaywallMessage = ref<string | null>(null)
+  // Face abonnée mais suspendue de l'UGC (403 UGC_SUSPENDED) : même affichage que le paywall, autre destination.
+  const ugcSuspended = ref(false)
 
   /**
    * Fetch mission detail by ID
@@ -28,6 +30,7 @@ export function useMissionDetail() {
     notFound.value = false
     ugcPaywall.value = false
     ugcPaywallMessage.value = null
+    ugcSuspended.value = false
 
     try {
       const response = await faceMissionApi.getMissionDetail(id)
@@ -39,9 +42,12 @@ export function useMissionDetail() {
       } else if (
         isAxiosError(err) &&
         err.response?.status === 403 &&
-        (err.response.data as { error?: { code?: string; message?: string } } | undefined)?.error?.code ===
-          'UGC_SUBSCRIPTION_REQUIRED'
+        ['UGC_SUBSCRIPTION_REQUIRED', 'UGC_SUSPENDED'].includes(
+          (err.response.data as { error?: { code?: string; message?: string } } | undefined)?.error?.code ?? '',
+        )
       ) {
+        ugcSuspended.value =
+          (err.response.data as { error?: { code?: string } }).error?.code === 'UGC_SUSPENDED'
         // Gate UGC 2.1 (FR5) : la redirection /pricing est exécutée par la page.
         ugcPaywall.value = true
         ugcPaywallMessage.value =
@@ -71,6 +77,7 @@ export function useMissionDetail() {
     notFound,
     ugcPaywall,
     ugcPaywallMessage,
+    ugcSuspended,
     fetchMission,
     setCandidature,
   }

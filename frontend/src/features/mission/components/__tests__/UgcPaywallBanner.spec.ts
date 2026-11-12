@@ -38,6 +38,28 @@ describe('UgcPaywallBanner', () => {
     expect(wrapper.findComponent(RouterLink).props('to')).toBe('/pricing')
   })
 
+  it('renders the suspended variant with a link to the suspension page', () => {
+    const wrapper = mount(UgcPaywallBanner, {
+      props: { message: 'Votre accès est suspendu.', suspended: true },
+      ...mountOptions,
+    })
+
+    expect(wrapper.text()).toContain('Accès UGC suspendu')
+    expect(wrapper.text()).not.toContain('réservé aux abonnés')
+    expect(wrapper.text()).toContain('Voir ma suspension')
+    expect(wrapper.text()).not.toContain('Voir les abonnements')
+    expect(wrapper.findComponent(RouterLink).props('to')).toBe('/face/ugc/suspension')
+  })
+
+  it('respects a custom suspensionUrl in the suspended variant', () => {
+    const wrapper = mount(UgcPaywallBanner, {
+      props: { message: MESSAGE, suspended: true, suspensionUrl: '/autre' },
+      ...mountOptions,
+    })
+
+    expect(wrapper.findComponent(RouterLink).props('to')).toBe('/autre')
+  })
+
   it('respects a custom pricingUrl', () => {
     const wrapper = mount(UgcPaywallBanner, {
       props: { message: MESSAGE, pricingUrl: '/custom-pricing' },

@@ -305,6 +305,64 @@ class BookingDateChangeTest extends DateChangeTestCase
         $this->answer($booking, $faceUser, 'accept')->assertOk();
     }
 
+    public function test_proposing_is_refused_for_the_face_when_the_new_range_contains_a_day_she_blocked(): void
+    {
+        [$booking, $faceUser] = $this->cashBooking();
+        // Nouvelle plage proposée : 25 et 26/11 ; le 26 est bloqué.
+        \App\Models\FaceUnavailableDay::create(['face_id' => $faceUser->userable_id, 'day' => '2026-11-26']);
+
+        $this->assertDateError($this->propose($booking, $faceUser), 'Vous avez marqué cette date comme indisponible dans votre agenda. Libérez-la d\'abord.');
+        $this->assertSame(0, DateChangeRequest::query()->count());
+    }
+
+    public function test_proposing_is_refused_for_the_producer_when_the_new_range_contains_a_blocked_day(): void
+    {
+        [$booking, $faceUser] = $this->cashBooking();
+        \App\Models\FaceUnavailableDay::create(['face_id' => $faceUser->userable_id, 'day' => '2026-11-25']);
+
+        $this->assertDateError($this->propose($booking, $this->producerUser), 'La Face a indiqué être indisponible à cette date.');
+        $this->assertSame(0, DateChangeRequest::query()->count());
+    }
+
+    public function test_a_day_blocked_outside_the_new_range_does_not_prevent_proposing(): void
+    {
+        [$booking, $faceUser] = $this->cashBooking();
+        \App\Models\FaceUnavailableDay::create(['face_id' => $faceUser->userable_id, 'day' => '2026-11-27']);
+
+        $this->propose($booking, $this->producerUser)->assertOk();
+    }
+
+    public function test_accepting_is_refused_when_the_new_range_contains_a_blocked_day(): void
+    {
+        [$booking, $faceUser] = $this->cashBooking();
+        $this->propose($booking, $this->producerUser)->assertOk();
+        \App\Models\FaceUnavailableDay::create(['face_id' => $faceUser->userable_id, 'day' => '2026-11-26']);
+
+        // Actrice Face : message à la première personne.
+        $this->assertDateError($this->answer($booking, $faceUser, 'accept'), 'Vous avez marqué cette date comme indisponible dans votre agenda. Libérez-la d\'abord.');
+        $this->assertSame('2026-11-20', $booking->fresh()->date_debut->toDateString());
+        $this->assertSame(DateChangeStatus::Pending, DateChangeRequest::query()->sole()->status);
+    }
+
+    public function test_the_producer_accepting_is_refused_when_the_face_blocked_a_day_after_her_proposal(): void
+    {
+        [$booking, $faceUser] = $this->cashBooking();
+        $this->propose($booking, $faceUser)->assertOk();
+        \App\Models\FaceUnavailableDay::create(['face_id' => $faceUser->userable_id, 'day' => '2026-11-25']);
+
+        $this->assertDateError($this->answer($booking, $this->producerUser, 'accept'), 'La Face a indiqué être indisponible à cette date.');
+        $this->assertSame('2026-11-20', $booking->fresh()->date_debut->toDateString());
+    }
+
+    public function test_refusing_stays_possible_when_a_blocked_day_makes_acceptance_impossible(): void
+    {
+        [$booking, $faceUser] = $this->cashBooking();
+        $this->propose($booking, $this->producerUser)->assertOk();
+        \App\Models\FaceUnavailableDay::create(['face_id' => $faceUser->userable_id, 'day' => '2026-11-26']);
+
+        $this->answer($booking, $faceUser, 'refuse')->assertOk();
+    }
+
     public function test_a_booking_cancelled_during_the_wait_expires_the_request_without_notification(): void
     {
         [$booking, $faceUser] = $this->cashBooking();
@@ -413,26 +471,5 @@ class BookingDateChangeTest extends DateChangeTestCase
             && $mail->subjectText === 'Proposition de nouvelle date retirée : le tournage reste le vendredi 20 novembre');
         Mail::assertQueuedCount(1);
         $this->assertSame(0, Notification::where('user_id', $this->producerUser->id)->count());
-    }
-
-    /** Engage une Face existante sur une mission (candidature + séquestre). */
-    private function selectedFaceFor(User $faceUser, \App\Models\Mission $mission, \App\Models\MissionPayment $payment, CandidatureStatus $status): array
-    {
-        $candidature = \App\Models\Candidature::factory()->create([
-            'mission_id' => $mission->id,
-            'face_id' => $faceUser->userable_id,
-            'status' => $status,
-            'accepted_at' => now()->subDay(),
-        ]);
-        $entry = \App\Models\MissionPaymentCandidature::create([
-            'mission_payment_id' => $payment->id,
-            'candidature_id' => $candidature->id,
-            'face_id' => $faceUser->userable_id,
-            'montant_face_recoit' => 90000,
-            'escrow_status' => \App\Enums\EscrowStatus::Locked,
-            'locked_at' => now()->subDays(3),
-        ]);
-
-        return ['candidature' => $candidature, 'entry' => $entry];
     }
 }

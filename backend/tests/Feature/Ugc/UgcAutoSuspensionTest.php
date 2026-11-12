@@ -302,6 +302,45 @@ class UgcAutoSuspensionTest extends TestCase
         ]);
     }
 
+    public function test_new_suspension_withdraws_pending_ugc_candidatures_of_the_face(): void
+    {
+        [, , $shipment] = $this->makeOverdueUnboxingCandidature();
+        $otherMission = $this->producer->missions()->create([
+            'titre' => 'Autre appel UGC',
+            'description' => 'Brief',
+            'date_tournage' => now()->addMonth(),
+            'profil_recherche' => 'Créatrices',
+            'budget' => 0,
+            'date_limite_candidature' => now()->addWeeks(2),
+            'nombre_faces_voulu' => 2,
+            'type_mission' => 'ugc',
+            'genre_voulu' => 'tous',
+            'lieu' => 'Cotonou',
+            'duree' => 'Livrables vidéo',
+            'status' => MissionStatus::Published,
+            'commission_paid_at' => now(),
+            'type_compensation' => 'product',
+            'nom_produit' => 'Sac',
+            'valeur_produit' => 20000,
+            'nombre_videos' => 2,
+            'commission_ugc' => 2500,
+        ]);
+        $pending = Candidature::create([
+            'face_id' => $this->face->id,
+            'mission_id' => $otherMission->id,
+            'status' => CandidatureStatus::Pending,
+        ]);
+
+        $this->artisan('ugc:process-deadlines')->assertSuccessful();
+
+        $this->assertSame(UgcTunnelStatus::Suspended, $shipment->fresh()->tunnel_status);
+        $this->assertSame(CandidatureStatus::Cancelled, $pending->fresh()->status);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $this->producerUser->id,
+            'type' => 'candidature_withdrawn_unavailable',
+        ]);
+    }
+
     // ===================================================================
     // AC6 — gel premium (D-5.0.d)
     // ===================================================================

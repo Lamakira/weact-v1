@@ -29,7 +29,7 @@ class UgcSuspensionStatusResource extends JsonResource
             'suspended_at' => $this->suspended_at->toIso8601String(),
             'reactivation_deadline' => $this->suspended_at
                 ->copy()
-                ->addDays((int) config('ugc.late_completion_days', 30))
+                ->addDays((int) config('ugc.suspension_days', 7))
                 ->toIso8601String(),
             'appeal_status' => $this->appeal_status->value,
             'deal' => $this->buildDeal(),

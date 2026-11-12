@@ -8,6 +8,8 @@ use App\Enums\CandidatureStatus;
 use App\Enums\EscrowStatus;
 use App\Enums\MissionPaymentStatus;
 use App\Enums\MissionStatus;
+use App\Enums\UgcSuspensionAppealStatus;
+use App\Enums\UgcSuspensionReason;
 use App\Models\Candidature;
 use App\Models\Conversation;
 use App\Models\Face;
@@ -16,6 +18,7 @@ use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
+use App\Models\UgcSuspension;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -413,6 +416,25 @@ class FaceViewMissionDetailTest extends TestCase
         $response->assertStatus(403)
             ->assertJsonPath('error.code', 'UGC_SUBSCRIPTION_REQUIRED');
         $this->assertNull($response->json('data'));
+    }
+
+    public function test_suspended_elite_face_gets_suspension_code_on_ugc_mission_detail(): void
+    {
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $this->face->id]);
+        UgcSuspension::create([
+            'face_id' => $this->face->id,
+            'shipment_id' => null,
+            'reason' => UgcSuspensionReason::AvisDeadlineMissed,
+            'appeal_status' => UgcSuspensionAppealStatus::None,
+            'suspended_at' => now(),
+        ]);
+        $mission = $this->makePublishedUgcMission();
+
+        $this->actingAs($this->faceUser)
+            ->getJson("/api/v1/face/missions/{$mission->uuid}")
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'UGC_SUSPENDED')
+            ->assertJsonPath('error.message', 'Votre accès aux missions UGC est suspendu. Consultez la page Suspension UGC pour régulariser ou faire appel.');
     }
 
     public function test_subscribed_face_can_view_ugc_mission_detail(): void

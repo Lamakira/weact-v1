@@ -62,4 +62,24 @@ describe('FaceLayout - libellés en français', () => {
     expect(labels).toContain('Tableau de bord')
     expect(labels).not.toContain('Dashboard')
   })
+
+  it('met « Mon agenda » dans la liste latérale, juste après « Mes bookings », et pas dans les onglets du bas', async () => {
+    const wrapper = mount(FaceLayout, {
+      global: {
+        stubs: {
+          AccountAlertBar: stub,
+        },
+      },
+    })
+    await flushPromises()
+
+    const layout = wrapper.findComponent({ name: 'DashboardLayout' })
+    const sidebar = layout.props('sidebarItems') as Array<{ label: string; to: string }>
+    const tabs = layout.props('mobileTabs') as Array<{ label: string; to: string }>
+
+    const bookingsIndex = sidebar.findIndex((i) => i.label === 'Mes bookings')
+    expect(sidebar[bookingsIndex + 1]).toMatchObject({ label: 'Mon agenda', to: '/face/agenda' })
+    expect(tabs.map((i) => i.to)).not.toContain('/face/agenda')
+    expect(tabs).toHaveLength(5)
+  })
 })

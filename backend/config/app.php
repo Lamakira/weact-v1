@@ -70,8 +70,6 @@ return [
 
     'withdrawal_mode' => env('WITHDRAWAL_MODE', 'manual'),
 
-    'admin_email' => env('ADMIN_EMAIL', env('MAIL_FROM_ADDRESS')),
-
     /*
     |--------------------------------------------------------------------------
     | Application Timezone
