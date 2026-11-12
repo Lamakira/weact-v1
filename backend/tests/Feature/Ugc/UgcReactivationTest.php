@@ -32,11 +32,11 @@ use Tests\TestCase;
 
 /**
  * UGC 5.3 — réactivation « terminer en retard » + correctif fausse notif crédit.
- * Couvre la réouverture du tunnel (resume, sans dégeler — Q1), la garde J+30 + état,
+ * Couvre la réouverture du tunnel (resume, sans dégeler — Q1), la garde J+7 + état,
  * l'idempotence anti-re-suspension (Option Z) du cron, le dégel à la complétion
  * (Avis validé, booking ET candidature) via le listener ReactivateFaceOnLateUgcCompletion,
  * et la suppression de la notif « X XOF crédités » quand l'escrow est déjà Refunded
- * (D-5.0.a). Temps figé → fenêtre J+30 déterministe. La Face a une souscription active
+ * (D-5.0.a). Temps figé → fenêtre J+7 déterministe. La Face a une souscription active
  * (Pro) → canAccessUgc reflète UNIQUEMENT l'état de suspension.
  */
 class UgcReactivationTest extends TestCase
@@ -321,17 +321,18 @@ class UgcReactivationTest extends TestCase
     }
 
     // ===================================================================
-    // AC2 — garde fenêtre J+30 + état
+    // AC2 — garde fenêtre J+7 + état
     // ===================================================================
 
-    public function test_resume_refused_past_j30_window(): void
+    public function test_resume_refused_past_j7_window(): void
     {
         [, $shipment, $s] = $this->makeSuspendedBooking(UgcSuspensionReason::UnboxingDeadlineMissed);
-        $s->update(['suspended_at' => now()->subDays(31)]); // J+30 dépassé
+        $s->update(['suspended_at' => now()->subDays(8)]); // J+7 dépassé
 
         $this->actingAs($this->faceUser)
             ->postJson('/api/v1/face/ugc/suspension/resume')
-            ->assertStatus(422);
+            ->assertStatus(422)
+            ->assertJsonPath('error.message', 'La fenêtre de régularisation (7 jours) est dépassée. Vous pouvez faire appel auprès de WeAct.');
 
         $this->assertSame(UgcTunnelStatus::Suspended, $shipment->fresh()->tunnel_status);
     }

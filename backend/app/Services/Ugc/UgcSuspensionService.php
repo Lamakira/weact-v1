@@ -6,6 +6,7 @@ namespace App\Services\Ugc;
 
 use App\Enums\BookingStatus;
 use App\Enums\CandidatureStatus;
+use App\Enums\EscrowStatus;
 use App\Enums\MissionType;
 use App\Enums\UgcSuspensionAppealStatus;
 use App\Enums\UgcSuspensionReason;
@@ -15,6 +16,8 @@ use App\Events\FaceUgcSuspended;
 use App\Models\Booking;
 use App\Models\Candidature;
 use App\Models\Face;
+use App\Models\Notification;
+use App\Models\Producer;
 use App\Models\Shipment;
 use App\Models\UgcSuspension;
 use App\Models\User;
@@ -60,6 +63,13 @@ class UgcSuspensionService
                     $dispatch['reason'],
                     $dispatch['faceNewlySuspended'],
                 );
+
+                // Après commit, hors transaction : le retrait des candidatures en attente n'est pas
+                // critique pour l'argent et son échec ne doit pas annuler la suspension ; le sweep
+                // ugc:enforce-suspensions rattrape ce qui aurait échoué.
+                if ($dispatch['faceNewlySuspended']) {
+                    $this->withdrawPendingCandidatures($dispatch['faceId']);
+                }
             }
         } catch (\Throwable $e) {
             Log::critical('UGC suspension: échec — réconciliation requise', [
@@ -70,13 +80,95 @@ class UgcSuspensionService
     }
 
     /**
+     * Retire les candidatures UGC `pending` d'une Face suspendue (pending → Cancelled, comme le
+     * retrait volontaire Face\CandidatureController::cancel : aucun motif ni horodatage dédié, un
+     * `pending` ne retient aucune place) et prévient le Producteur de chaque mission par une
+     * notification in-app NEUTRE (la suspension n'est jamais révélée). Pas d'e-mail.
+     *
+     * Une candidature portant une entrée de paiement hybride en cours (escrow Pending/Locked) est
+     * laissée telle quelle (warning loggé) : la dénouer est un flux argent distinct. Idempotent,
+     * no-throw par candidature. Retourne le nombre de candidatures retirées.
+     */
+    public function withdrawPendingCandidatures(int $faceId): int
+    {
+        $candidatures = Candidature::query()
+            ->where('face_id', $faceId)
+            ->where('status', CandidatureStatus::Pending->value)
+            ->whereHas('mission', fn ($q) => $q->where('type_mission', MissionType::Ugc->value))
+            ->with(['mission', 'paymentEntry'])
+            ->get();
+
+        $withdrawn = 0;
+        $skipped = [];
+
+        foreach ($candidatures as $candidature) {
+            try {
+                $entry = $candidature->paymentEntry;
+                if ($entry !== null && in_array($entry->escrow_status, [EscrowStatus::Pending, EscrowStatus::Locked], true)) {
+                    $skipped[] = $candidature->id;
+
+                    continue;
+                }
+
+                $cancelled = DB::transaction(function () use ($candidature): bool {
+                    /** @var Candidature $locked */
+                    $locked = Candidature::query()->lockForUpdate()->findOrFail($candidature->id);
+                    if ($locked->status !== CandidatureStatus::Pending) {
+                        return false;
+                    }
+
+                    $locked->update(['status' => CandidatureStatus::Cancelled]);
+
+                    return true;
+                });
+
+                if (! $cancelled) {
+                    continue;
+                }
+                $withdrawn++;
+
+                $mission = $candidature->mission;
+                $producerUserId = User::where('userable_type', Producer::class)
+                    ->where('userable_id', $mission->producer_id)
+                    ->value('id');
+                if ($producerUserId) {
+                    Notification::create([
+                        'user_id' => $producerUserId,
+                        'type' => 'candidature_withdrawn_unavailable',
+                        'data' => [
+                            'message' => "Une candidature à votre mission « {$mission->titre} » n'est plus disponible.",
+                            'mission_id' => $mission->id,
+                            'url' => "/producer/missions/{$mission->uuid}?tab=candidatures",
+                        ],
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                Log::warning('UGC suspension: retrait de candidature en attente échoué', [
+                    'candidature_id' => $candidature->id,
+                    'face_id' => $faceId,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($skipped !== []) {
+            Log::warning('UGC suspension: candidatures en attente conservées (paiement hybride en cours)', [
+                'face_id' => $faceId,
+                'candidature_ids' => $skipped,
+            ]);
+        }
+
+        return $withdrawn;
+    }
+
+    /**
      * Suspension SOUS LOCK, DANS la transaction de l'appelant. Retourne le payload
      * de dispatch (à émettre APRÈS commit) ou null sur garde déterministe (owner
      * inconnu, Face introuvable, shipment sorti des états actifs entre le SELECT du
      * cron et le lock). NE catch PAS : une erreur transitoire (crédit wallet) remonte
      * pour que la transaction de l'appelant rollback — le tick suivant réessaiera.
      *
-     * @return array{shipment: Shipment, reason: UgcSuspensionReason, faceNewlySuspended: bool}|null
+     * @return array{shipment: Shipment, reason: UgcSuspensionReason, faceNewlySuspended: bool, faceId: int}|null
      */
     private function suspendLocked(Shipment $shipment): ?array
     {
@@ -156,6 +248,7 @@ class UgcSuspensionService
             'shipment' => $locked,
             'reason' => $reason,
             'faceNewlySuspended' => $faceNewlySuspended,
+            'faceId' => $faceId,
         ];
     }
 
@@ -163,7 +256,7 @@ class UgcSuspensionService
      * « Terminer en retard » (PO Q1) : rouvre le tunnel du deal suspendu
      * (Suspended → Received|AvisPending selon reason) pour ré-autoriser l'upload,
      * SANS dégeler (le dégel vient de la complétion — ReactivateFaceOnLateUgcCompletion).
-     * Refuse si la fenêtre J+30 est dépassée (config source unique 5.2) ou si le deal
+     * Refuse si la fenêtre J+7 est dépassée (config source unique 5.2) ou si le deal
      * n'est plus en état Suspended / introuvable.
      *
      * @return 'resumed'|'window_closed'|'deal_unavailable'|'already_resumed'|'no_active_suspension'
@@ -179,7 +272,7 @@ class UgcSuspensionService
 
             $deadline = $locked->suspended_at
                 ->copy()
-                ->addDays((int) config('ugc.late_completion_days', 30));
+                ->addDays((int) config('ugc.suspension_days', 7));
             if (now()->greaterThan($deadline)) {
                 return 'window_closed';
             }
