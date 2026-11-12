@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Tests\Feature\Candidature;
 
 use App\Enums\CandidatureStatus;
+use App\Enums\UgcSuspensionAppealStatus;
+use App\Enums\UgcSuspensionReason;
 use App\Models\Candidature;
 use App\Models\Face;
 use App\Models\FaceSubscription;
 use App\Models\Mission;
 use App\Models\Producer;
+use App\Models\UgcSuspension;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -529,6 +532,28 @@ class FaceApplyToMissionTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonPath('error.code', 'ALREADY_APPLIED');
+    }
+
+    public function test_suspended_elite_face_cannot_apply_to_ugc_mission_and_gets_suspension_code(): void
+    {
+        FaceSubscription::query()->where('face_id', $this->face->id)->delete();
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $this->face->id]);
+        UgcSuspension::create([
+            'face_id' => $this->face->id,
+            'shipment_id' => null,
+            'reason' => UgcSuspensionReason::AvisDeadlineMissed,
+            'appeal_status' => UgcSuspensionAppealStatus::None,
+            'suspended_at' => now(),
+        ]);
+        $ugcMission = $this->makePublishedUgcMission();
+
+        $this->actingAs($this->faceUser)
+            ->postJson("/api/v1/face/missions/{$ugcMission->uuid}/apply", [
+                'message_motivation' => 'Très motivé',
+            ])
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'UGC_SUSPENDED')
+            ->assertJsonPath('error.message', 'Votre accès aux missions UGC est suspendu. Consultez la page Suspension UGC pour régulariser ou faire appel.');
     }
 
     public function test_starter_face_cannot_apply_to_ugc_mission(): void

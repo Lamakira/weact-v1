@@ -127,6 +127,7 @@ final class PushAllowlist
      */
     public const EXCLUDED = [
         'booking_rating_received' => 'Purement informatif, aucune action ni argent en jeu.',
+        'candidature_withdrawn_unavailable' => 'Information neutre, aucune action ni argent en jeu : in-app seulement.',
         'candidature_reset_from_rejected' => 'La Face n\'avait pas été retenue : le retour en attente n\'appelle aucune action.',
         'face_subscription_renewal_reminder_30d' => 'Rappel trop anticipé, déjà couvert par l\'e-mail et la notification in-app.',
     ];

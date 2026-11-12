@@ -104,6 +104,7 @@ final class WhatsappAllowlist
         'ugc_deliverable_retouche_requested' => self::NOT_IN_SCOPE,
         'ugc_account_suspended' => self::NOT_IN_SCOPE,
         'ugc_account_reactivated' => self::NOT_IN_SCOPE,
+        'candidature_withdrawn_unavailable' => self::NOT_IN_SCOPE,
         'ugc_face_suspended' => self::NOT_IN_SCOPE,
         'face_subscription_activated' => self::NOT_IN_SCOPE,
         'face_subscription_expired' => self::NOT_IN_SCOPE,

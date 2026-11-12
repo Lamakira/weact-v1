@@ -146,6 +146,12 @@ class CandidatureController extends Controller
         // (cohérent avec l'exception candidature de show()). Le booking direct reste ouvert à toutes les Faces.
         $eligibility = $this->eligibility->evaluate($face, $mission);
 
+        if ($eligibility === MissionEligibility::UGC_SUSPENDED) {
+            return response()->json(ErrorCodes::UgcSuspended->envelope(
+                'Votre accès aux missions UGC est suspendu. Consultez la page Suspension UGC pour régulariser ou faire appel.'
+            ), 403);
+        }
+
         if ($eligibility === MissionEligibility::UGC_SUBSCRIPTION_REQUIRED) {
             return response()->json(
                 ErrorCodes::UgcSubscriptionRequired->envelope(

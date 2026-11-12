@@ -251,8 +251,15 @@ class BookingController extends Controller
         Gate::authorize('accept', $booking);
 
         // Gate FR5 (2.4) : une Face non éligible/suspendue ne peut pas s'engager sur un deal UGC.
-        if ($booking->type_contenu === 'UGC'
-            && ! $this->entitlement->canAccessUgc($request->user()->userable)) {
+        $ugcDenial = $booking->type_contenu === 'UGC'
+            ? $this->entitlement->ugcDenialReason($request->user()->userable)
+            : null;
+        if ($ugcDenial === FaceEntitlementService::UGC_DENIAL_SUSPENDED) {
+            return response()->json(ErrorCodes::UgcSuspended->envelope(
+                'Votre accès aux missions UGC est suspendu. Consultez la page Suspension UGC pour régulariser ou faire appel.'
+            ), 403);
+        }
+        if ($ugcDenial !== null) {
             return response()->json(
                 ErrorCodes::UgcSubscriptionRequired->envelope(
                     "L'accès aux missions UGC est réservé aux Faces abonnées Pro ou Élite."

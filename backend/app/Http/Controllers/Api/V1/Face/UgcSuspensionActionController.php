@@ -47,7 +47,7 @@ class UgcSuspensionActionController extends Controller
             ]),
             'window_closed' => response()->json(
                 ErrorCodes::InvalidStatus->envelope(
-                    'La fenêtre de régularisation (30 jours) est dépassée. Vous pouvez faire appel auprès de WeAct.'
+                    'La fenêtre de régularisation ('.(int) config('ugc.suspension_days', 7).' jours) est dépassée. Vous pouvez faire appel auprès de WeAct.'
                 ),
                 422
             ),

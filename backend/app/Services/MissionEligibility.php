@@ -30,6 +30,8 @@ class MissionEligibility
 
     public const UGC_SUBSCRIPTION_REQUIRED = 'ugc_subscription_required';
 
+    public const UGC_SUSPENDED = 'ugc_suspended';
+
     public function __construct(
         private readonly FaceEntitlementService $entitlement,
     ) {}
@@ -41,7 +43,11 @@ class MissionEligibility
     public function evaluate(Face $face, Mission $mission): string
     {
         if ($mission->type_mission === MissionType::Ugc) {
-            if (! $this->entitlement->canAccessUgc($face)) {
+            $denial = $this->entitlement->ugcDenialReason($face);
+            if ($denial === FaceEntitlementService::UGC_DENIAL_SUSPENDED) {
+                return self::UGC_SUSPENDED;
+            }
+            if ($denial !== null) {
                 return self::UGC_SUBSCRIPTION_REQUIRED;
             }
         } elseif ($this->entitlement->capabilities($face)->tier === FaceSubscriptionTier::Free) {

@@ -47,6 +47,8 @@ class ProducerCandidatureResource extends JsonResource
                 : null,
             // Lot B4 : la candidature peut reprendre une place libérée (même prédicat que le serveur au remplacement).
             'can_replace_freed_place' => (bool) $this->resource->getAttribute('can_replace_freed_place'),
+            // Mission UGC : la Face peut recevoir une mission UGC (abonnement et non suspendue) ; null hors UGC.
+            'face_ugc_available' => $this->resource->getAttribute('face_ugc_available'),
             'created_at' => $this->created_at?->toIso8601String(),
             // Lot C8 : notation facultative de la Face par le Producteur authentifié. `ratings` est chargée
             // (filtrée sur son auteur) par la liste ; sans elle on n'expose rien plutôt que de lazy-loader.
