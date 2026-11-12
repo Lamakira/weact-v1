@@ -203,6 +203,11 @@
   button, [role="button"], a, summary, [type="submit"], [type="button"], [type="reset"], label[for], select {
     cursor: pointer;
   }
+  /* Deux tapes rapides sur un contrôle (bouton +, envoyer…) ne zooment pas la page
+     sur iPhone. Le pincement et le double-tap sur le texte restent possibles. */
+  a, button, input, select, textarea, label, summary, [role="button"] {
+    touch-action: manipulation;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-family-sans);
@@ -216,6 +221,33 @@
 
 #app {
   min-height: 100vh;
+}
+
+/* ── Champs de saisie : pas de zoom automatique sur iPhone ──
+ * Safari iOS zoome la page dès qu'un champ de moins de 16 px reçoit le focus, et
+ * ne dézoome jamais. La plupart des champs sont en text-sm (14 px) ou plus petit :
+ * sur téléphone et écran tactile, tout champ de saisie de texte passe à 16 px.
+ *
+ * HORS @layer volontairement : une règle non layerée bat toutes les utilities
+ * Tailwind quelle que soit leur spécificité, donc text-sm / text-xs / text-[14px]
+ * sur un champ ne peuvent pas la contredire. Aucun champ n'est plus grand que
+ * 16 px aujourd'hui ; un futur champ en text-lg serait ramené à 16 px sur mobile.
+ *
+ * - max-width 767.98px : téléphone en portrait (sous le breakpoint md de Tailwind).
+ * - hover: none et pointer: coarse : téléphone en paysage (844 px sur iPhone 14)
+ *   et tablettes. Un ordinateur avec souris n'est pas concerné.
+ *
+ * Ne pas « corriger » via maximum-scale=1 ou user-scalable=no dans le viewport :
+ * cela bloque aussi le zoom volontaire (accessibilité). Test :
+ * assets/__tests__/mobileFieldZoom.spec.ts
+ */
+@media (max-width: 767.98px), (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"], [type="hidden"], [type="submit"], [type="button"], [type="reset"], [type="image"]),
+  textarea,
+  select,
+  [contenteditable]:not([contenteditable="false"]) {
+    font-size: 16px;
+  }
 }
 
 /* ── Page Transitions ── */
