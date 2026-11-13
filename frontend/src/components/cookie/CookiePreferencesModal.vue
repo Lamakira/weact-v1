@@ -78,8 +78,7 @@ const analytics = ref(props.initialAnalytics)
               </label>
             </div>
             <p class="text-[11px] text-gray-500 mt-1.5 ml-5">
-              Nous aident à comprendre comment le site est utilisé pour améliorer l'expérience.
-              Ces cookies sont soumis à votre consentement.
+              Mesure d'audience et enregistrement anonymisé de certaines sessions avec PostHog, hébergé dans l'Union européenne. Vos saisies et vos messages ne sont jamais enregistrés. Si vous refusez, seul un comptage anonyme des visites est fait, sans cookie.
             </p>
           </div>
         </div>

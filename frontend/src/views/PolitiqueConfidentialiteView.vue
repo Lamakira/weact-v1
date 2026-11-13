@@ -6,6 +6,9 @@
  */
 import { RouterLink } from 'vue-router'
 import { Mail, FileText, ShieldCheck } from 'lucide-vue-next'
+import { useCookieConsent } from '@/composables/useCookieConsent'
+
+const { openPreferences } = useCookieConsent()
 
 const lastUpdate = '4 avril 2026'
 </script>
@@ -244,11 +247,22 @@ const lastUpdate = '4 avril 2026'
         <p>WEACT utilise les catégories de cookies suivantes :</p>
         <ul class="list-disc pl-5 mt-2 space-y-1">
           <li><span class="font-medium">Cookies strictement nécessaires :</span> indispensables au fonctionnement du site (session, authentification). Ils ne nécessitent pas votre consentement.</li>
-          <li><span class="font-medium">Cookies analytiques :</span> permettent de mesurer l'audience et d'améliorer le service. Soumis à votre consentement.</li>
+          <li><span class="font-medium">Cookies analytiques :</span> fournis par PostHog, avec un hébergement dans l'Union européenne. Ils couvrent la mesure d'audience et l'enregistrement anonymisé de certaines sessions. Vos saisies et vos messages ne sont jamais enregistrés, et l'espace administrateur est exclu de toute mesure. Soumis à votre consentement.</li>
         </ul>
         <p class="mt-2">
-          Vous pouvez gérer vos préférences en matière de cookies à tout moment via le bandeau de consentement ou les paramètres de votre navigateur. La durée de validité du consentement aux cookies est de 13 mois.
+          Si vous refusez les cookies analytiques, seul un comptage anonyme des visites est effectué, sans cookie.
         </p>
+        <p class="mt-2">
+          Vous pouvez gérer vos préférences en matière de cookies à tout moment via le bouton ci-dessous, le lien « Cookies » en bas de page ou les paramètres de votre navigateur. La durée de validité du consentement aux cookies est de 13 mois.
+        </p>
+        <button
+          type="button"
+          class="mt-3 px-3 py-1.5 text-xs font-medium text-[#198496] border border-[#198496]/20 rounded hover:bg-[#198496]/5 transition-colors cursor-pointer"
+          data-testid="privacy-manage-cookies"
+          @click="openPreferences"
+        >
+          Gérer mes cookies
+        </button>
       </div>
 
       <!-- 12. Profilage et décisions automatisées (Art. 415 point 13) -->
@@ -266,7 +280,10 @@ const lastUpdate = '4 avril 2026'
           Conformément aux articles 391 et 392 du Code du Numérique, vos données peuvent être transférées vers des pays situés en dehors de la CEDEAO uniquement si ces pays assurent un niveau de protection adéquat, ou avec votre consentement explicite, ou sous autorisation de l'APDP.
         </p>
         <p class="mt-2">
-          Les prestataires techniques utilisés par WEACT (hébergement, services email) peuvent impliquer des transferts vers des pays tiers. Dans ce cas, WEACT s'assure que des garanties appropriées sont mises en place (clauses contractuelles, certifications de sécurité).
+          Les prestataires techniques utilisés par WEACT (hébergement, services email, mesure d'audience) peuvent impliquer des transferts vers des pays tiers. Dans ce cas, WEACT s'assure que des garanties appropriées sont mises en place (clauses contractuelles, certifications de sécurité).
+        </p>
+        <p class="mt-2">
+          Pour la mesure d'audience, WEACT recourt à PostHog, dont les données sont hébergées dans l'Union européenne.
         </p>
       </div>
 

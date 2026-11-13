@@ -33,7 +33,7 @@ const lastWithdrawalLabel = computed<string | null>(() => {
 </script>
 
 <template>
-  <RPanel title="Portefeuille" data-testid="wallet-card">
+  <RPanel title="Portefeuille" class="ph-no-capture" data-testid="wallet-card">
     <div class="p-4 sm:p-5">
       <Skeleton v-if="isLoading && balance === 0" class="h-8 w-40" data-testid="wallet-skeleton" />
       <p v-else class="text-[26px] font-semibold leading-none tracking-[-0.02em] text-ink" data-testid="wallet-balance">
