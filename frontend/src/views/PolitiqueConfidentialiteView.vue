@@ -10,7 +10,7 @@ import { useCookieConsent } from '@/composables/useCookieConsent'
 
 const { openPreferences } = useCookieConsent()
 
-const lastUpdate = '4 avril 2026'
+const lastUpdate = '14 novembre 2026'
 </script>
 
 <template>
