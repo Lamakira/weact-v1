@@ -1,4 +1,5 @@
 import adminApiClient from './adminApiClient'
+import type { FaceVideoView } from '@/features/face/types'
 
 /**
  * Face data from admin API
@@ -47,8 +48,7 @@ export interface AdminFaceData {
   thumbnail_url: string | null
   presentation_video_url: string | null
   presentation_video_thumbnail_url: string | null
-  acting_video_url: string | null
-  acting_video_thumbnail_url: string | null
+  videos?: FaceVideoView[]
   taille: number | null
   poids: number | null
   tarif_horaire: number | null

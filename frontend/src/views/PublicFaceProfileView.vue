@@ -164,8 +164,7 @@ const displayProfile = computed((): CandidateFullProfile | null => {
       thumbnail_url: null,
       presentation_video_url: fa.presentation_video_url ?? null,
       presentation_video_thumbnail_url: fa.presentation_video_thumbnail_url ?? null,
-      acting_video_url: fa.acting_video_url ?? null,
-      acting_video_thumbnail_url: fa.acting_video_thumbnail_url ?? null,
+      videos: fa.videos ?? [],
       tarif_horaire: null,
       tarif_journalier: null,
       formatted_tarif_horaire: null,
@@ -188,7 +187,7 @@ const displayProfile = computed((): CandidateFullProfile | null => {
 const showVideos = computed((): boolean =>
   isOwner.value ||
   !!displayProfile.value?.presentation_video_url ||
-  !!displayProfile.value?.acting_video_url
+  (displayProfile.value?.videos?.length ?? 0) > 0
 )
 
 const showExperiences = computed((): boolean =>

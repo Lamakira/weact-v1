@@ -2,6 +2,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { Play, Video, X } from 'lucide-vue-next'
 import type { CandidateFullProfile } from '../types'
+import { labelledPortfolioVideos } from '@/features/face/lib/portfolioVideos'
 
 /**
  * Props
@@ -10,36 +11,56 @@ const props = defineProps<{
   candidate: CandidateFullProfile
 }>()
 
+interface VideoTile {
+  key: string
+  url: string
+  thumbnailUrl: string | null
+  label: string
+  locked: boolean
+}
+
 /**
  * State for video modal/expanded view
  */
-const activeVideo = ref<'presentation' | 'acting' | null>(null)
+const activeVideo = ref<{ url: string; title: string } | null>(null)
 const closeButtonRef = ref<HTMLButtonElement | null>(null)
 
 /**
- * Computed: Has presentation video
+ * Tuiles : présentation d'abord, puis vidéos de portfolio ordonnées
  */
-const hasPresentationVideo = computed(
-  (): boolean => !!props.candidate.presentation_video_url,
-)
-
-/**
- * Computed: Has acting video
- */
-const hasActingVideo = computed((): boolean => !!props.candidate.acting_video_url)
+const tiles = computed((): VideoTile[] => {
+  const list: VideoTile[] = []
+  if (props.candidate.presentation_video_url) {
+    list.push({
+      key: 'presentation',
+      url: props.candidate.presentation_video_url,
+      thumbnailUrl: props.candidate.presentation_video_thumbnail_url,
+      label: 'Vidéo de présentation',
+      locked: false,
+    })
+  }
+  for (const { video, label, rank } of labelledPortfolioVideos(props.candidate.videos)) {
+    list.push({
+      key: `${video.type}-${rank}`,
+      url: video.video_url as string,
+      thumbnailUrl: video.thumbnail_url,
+      label,
+      locked: video.is_locked === true,
+    })
+  }
+  return list
+})
 
 /**
  * Computed: Has any videos
  */
-const hasAnyVideos = computed(
-  (): boolean => hasPresentationVideo.value || hasActingVideo.value,
-)
+const hasAnyVideos = computed((): boolean => tiles.value.length > 0)
 
 /**
  * Open video player
  */
-function openVideo(type: 'presentation' | 'acting'): void {
-  activeVideo.value = type
+function openVideo(tile: VideoTile): void {
+  activeVideo.value = { url: tile.url, title: tile.label }
 }
 
 /**
@@ -74,28 +95,12 @@ watch(activeVideo, async (newValue) => {
 /**
  * Get current video URL
  */
-const currentVideoUrl = computed((): string | null => {
-  if (activeVideo.value === 'presentation') {
-    return props.candidate.presentation_video_url
-  }
-  if (activeVideo.value === 'acting') {
-    return props.candidate.acting_video_url
-  }
-  return null
-})
+const currentVideoUrl = computed((): string | null => activeVideo.value?.url ?? null)
 
 /**
  * Get current video title
  */
-const currentVideoTitle = computed((): string => {
-  if (activeVideo.value === 'presentation') {
-    return 'Vidéo de présentation'
-  }
-  if (activeVideo.value === 'acting') {
-    return "Vidéo d'acting"
-  }
-  return ''
-})
+const currentVideoTitle = computed((): string => activeVideo.value?.title ?? '')
 </script>
 
 <template>
@@ -103,26 +108,37 @@ const currentVideoTitle = computed((): string => {
     <h2 class="mb-4 text-lg font-semibold text-foreground">Vidéos</h2>
 
     <div class="grid gap-4 sm:grid-cols-2">
-      <!-- Presentation Video -->
       <div
-        v-if="hasPresentationVideo"
+        v-for="tile in tiles"
+        :key="tile.key"
+        :data-testid="`video-tile-${tile.key}`"
         class="group relative cursor-pointer overflow-hidden rounded-xl bg-muted"
-        @click="openVideo('presentation')"
+        @click="openVideo(tile)"
       >
         <div class="aspect-video">
           <img
-            v-if="candidate.presentation_video_thumbnail_url"
-            :src="candidate.presentation_video_thumbnail_url"
-            alt="Vidéo de présentation"
+            v-if="tile.thumbnailUrl"
+            :src="tile.thumbnailUrl"
+            :alt="tile.label"
             class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            :class="tile.locked ? 'grayscale brightness-50' : ''"
           />
           <div
             v-else
             class="flex h-full w-full items-center justify-center bg-muted"
+            :class="tile.locked ? 'grayscale brightness-50' : ''"
           >
             <Video class="h-12 w-12 text-muted-foreground" />
           </div>
         </div>
+
+        <!-- Locked badge -->
+        <span
+          v-if="tile.locked"
+          class="absolute left-2 top-2 rounded-full bg-black/70 px-2.5 py-1 text-xs font-medium text-white"
+        >
+          Non visible : palier actuel
+        </span>
 
         <!-- Play overlay -->
         <div
@@ -139,47 +155,7 @@ const currentVideoTitle = computed((): string => {
         <div
           class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3"
         >
-          <span class="text-sm font-medium text-white">Vidéo de présentation</span>
-        </div>
-      </div>
-
-      <!-- Acting Video -->
-      <div
-        v-if="hasActingVideo"
-        class="group relative cursor-pointer overflow-hidden rounded-xl bg-muted"
-        @click="openVideo('acting')"
-      >
-        <div class="aspect-video">
-          <img
-            v-if="candidate.acting_video_thumbnail_url"
-            :src="candidate.acting_video_thumbnail_url"
-            alt="Vidéo d'acting"
-            class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
-          <div
-            v-else
-            class="flex h-full w-full items-center justify-center bg-muted"
-          >
-            <Video class="h-12 w-12 text-muted-foreground" />
-          </div>
-        </div>
-
-        <!-- Play overlay -->
-        <div
-          class="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100"
-        >
-          <div
-            class="flex h-14 w-14 items-center justify-center rounded-full bg-white/90 shadow-lg"
-          >
-            <Play class="h-6 w-6 text-primary" />
-          </div>
-        </div>
-
-        <!-- Label -->
-        <div
-          class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3"
-        >
-          <span class="text-sm font-medium text-white">Vidéo d'acting</span>
+          <span class="text-sm font-medium text-white">{{ tile.label }}</span>
         </div>
       </div>
     </div>

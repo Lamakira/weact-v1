@@ -25,6 +25,7 @@ import {
 import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import type { UpdateAdminFaceForm, AdminFacePhoto } from '@/features/admin/services/adminFacesApi'
 import { getCategoryLabels, getNicheLabels } from '@/features/admin/utils/faceLabels'
+import { labelledPortfolioVideos } from '@/features/face/lib/portfolioVideos'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import AdminFaceSubscriptionSection from '@/features/admin/components/AdminFaceSubscriptionSection.vue'
 import { useToast } from '@/composables/useToast'
@@ -37,6 +38,7 @@ const { face, isLoading, error, fetchFace, updateFace, toggleActive, deleteFace 
 const toast = useToast()
 
 const faceId = computed(() => route.params.id as string)
+const portfolioVideos = computed(() => labelledPortfolioVideos(face.value?.videos))
 const isEditing = ref(false)
 const editForm = ref<UpdateAdminFaceForm>({})
 const editErrors = ref<Record<string, string[]>>({})
@@ -681,28 +683,42 @@ function closeVideoModal(): void {
             </div>
           </div>
 
-          <!-- Acting Video -->
-          <div class="rounded-lg border border-gray-200 p-4" data-testid="acting-video">
-            <h3 class="text-sm font-medium text-gray-700 mb-3">Vidéo de casting</h3>
-            <template v-if="face.acting_video_url">
-              <button
-                type="button"
-                class="relative w-full aspect-video rounded-lg bg-gray-100 overflow-hidden group"
-                @click="openVideoModal(face.acting_video_url!, 'Vidéo de casting')"
+          <!-- Portfolio Videos -->
+          <div class="rounded-lg border border-gray-200 p-4" data-testid="portfolio-videos">
+            <h3 class="text-sm font-medium text-gray-700 mb-3">Vidéos du portfolio</h3>
+            <div v-if="portfolioVideos.length > 0" class="space-y-4">
+              <div
+                v-for="(item, index) in portfolioVideos"
+                :key="item.video.id"
+                :data-testid="`portfolio-video-${index}`"
               >
-                <img
-                  v-if="face.acting_video_thumbnail_url"
-                  :src="face.acting_video_thumbnail_url"
-                  alt="Miniature vidéo de casting"
-                  class="h-full w-full object-cover"
-                />
-                <div class="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
-                  <div class="h-12 w-12 rounded-full bg-white/90 flex items-center justify-center">
-                    <Play class="h-6 w-6 text-gray-900 ml-0.5" />
+                <p class="text-xs font-medium text-gray-600 mb-1.5">{{ item.label }}</p>
+                <button
+                  type="button"
+                  class="relative w-full aspect-video rounded-lg bg-gray-100 overflow-hidden group"
+                  @click="openVideoModal(item.video.video_url!, item.label)"
+                >
+                  <img
+                    v-if="item.video.thumbnail_url"
+                    :src="item.video.thumbnail_url"
+                    :alt="`Miniature ${item.label}`"
+                    class="h-full w-full object-cover"
+                    :class="item.video.is_locked ? 'grayscale brightness-50' : ''"
+                  />
+                  <span
+                    v-if="item.video.is_locked"
+                    class="absolute left-2 top-2 rounded-full bg-black/70 px-2.5 py-1 text-xs font-medium text-white"
+                  >
+                    Non visible : palier actuel
+                  </span>
+                  <div class="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
+                    <div class="h-12 w-12 rounded-full bg-white/90 flex items-center justify-center">
+                      <Play class="h-6 w-6 text-gray-900 ml-0.5" />
+                    </div>
                   </div>
-                </div>
-              </button>
-            </template>
+                </button>
+              </div>
+            </div>
             <div v-else class="text-center py-6 text-gray-400">
               <Video class="mx-auto h-8 w-8 mb-1" />
               <p class="text-xs">Pas de vidéo</p>

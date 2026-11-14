@@ -103,6 +103,12 @@ export interface FaceVideo {
   position: number
 }
 
+/** Vidéo de portfolio telle que renvoyée par les profils (is_locked : vues privilégiées seulement). */
+export interface FaceVideoView extends FaceVideo {
+  is_locked?: boolean
+  lock_reason?: string | null
+}
+
 export interface FaceVideosListResponse {
   data: FaceVideo[]
 }

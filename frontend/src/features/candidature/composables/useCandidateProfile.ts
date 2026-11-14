@@ -28,15 +28,17 @@ export function useCandidateProfile(faceId: Ref<string>) {
   )
 
   /**
-   * Computed: Check if candidate has acting video
+   * Computed: Check if candidate has at least one portfolio video with a URL
    */
-  const hasActingVideo = computed((): boolean => !!candidate.value?.acting_video_url)
+  const hasPortfolioVideos = computed(
+    (): boolean => (candidate.value?.videos ?? []).some((v) => !!v.video_url),
+  )
 
   /**
    * Computed: Check if candidate has any videos
    */
   const hasAnyVideos = computed(
-    (): boolean => hasPresentationVideo.value || hasActingVideo.value,
+    (): boolean => hasPresentationVideo.value || hasPortfolioVideos.value,
   )
 
   /**
@@ -127,7 +129,7 @@ export function useCandidateProfile(faceId: Ref<string>) {
     // Computed
     displayName,
     hasPresentationVideo,
-    hasActingVideo,
+    hasPortfolioVideos,
     hasAnyVideos,
     hasPhotos,
     hasExperiences,

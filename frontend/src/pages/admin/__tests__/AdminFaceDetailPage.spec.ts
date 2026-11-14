@@ -62,8 +62,6 @@ function makeFace(overrides: Partial<AdminFaceData> = {}): AdminFaceData {
     thumbnail_url: null,
     presentation_video_url: null,
     presentation_video_thumbnail_url: null,
-    acting_video_url: null,
-    acting_video_thumbnail_url: null,
     taille: null,
     poids: null,
     tarif_horaire: null,
@@ -253,5 +251,32 @@ describe('AdminFaceDetailPage', () => {
     await flushPromises()
 
     expect(mockUpdateFace).toHaveBeenCalledWith('1', { is_featured: true })
+  })
+
+  it('liste les vidéos du portfolio et marque la vidéo verrouillée', async () => {
+    const { wrapper } = await mountPage(
+      makeFace({
+        videos: [
+          { id: 'u1', type: 'ugc', video_url: 'https://x/u1.mp4', thumbnail_url: null, position: 1 },
+          { id: 'a1', type: 'acting', video_url: 'https://x/a1.mp4', thumbnail_url: 'https://x/a1.jpg', position: 1 },
+          { id: 'a2', type: 'acting', video_url: 'https://x/a2.mp4', thumbnail_url: null, position: 2, is_locked: true, lock_reason: 'tier' },
+        ],
+      }),
+    )
+
+    const box = wrapper.get('[data-testid="portfolio-videos"]')
+    expect(box.text()).toContain('Vidéos du portfolio')
+    expect(box.get('[data-testid="portfolio-video-0"]').text()).toContain("Vidéo d'acting")
+    expect(box.get('[data-testid="portfolio-video-1"]').text()).toContain("Vidéo d'acting 2")
+    expect(box.get('[data-testid="portfolio-video-1"]').text()).toContain('Non visible : palier actuel')
+    expect(box.get('[data-testid="portfolio-video-2"]').text()).toContain('Vidéo UGC')
+    expect(box.get('[data-testid="portfolio-video-0"]').text()).not.toContain('Non visible')
+    expect(wrapper.find('[data-testid="acting-video"]').exists()).toBe(false)
+  })
+
+  it("affiche l'état vide quand il n'y a aucune vidéo de portfolio", async () => {
+    const { wrapper } = await mountPage(makeFace({ videos: [] }))
+
+    expect(wrapper.get('[data-testid="portfolio-videos"]').text()).toContain('Pas de vidéo')
   })
 })
