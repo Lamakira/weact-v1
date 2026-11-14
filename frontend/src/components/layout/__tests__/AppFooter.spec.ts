@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AppFooter from '../AppFooter.vue'
+import { useCookieConsent } from '@/composables/useCookieConsent'
+
+vi.mock('@/lib/analytics', () => ({ syncAnalyticsConsent: vi.fn() }))
 
 vi.mock('@/assets/images/logoblanc.png', () => ({
   default: '/mock-logo.png',
@@ -65,5 +68,20 @@ describe('AppFooter', () => {
     expect(wrapper.find('[data-testid="footer-link-support"]').attributes('href')).toBe('/support')
     expect(wrapper.find('[data-testid="footer-bottom-bar"]').classes()).toContain('justify-center')
     expect(wrapper.find('[data-testid="footer-copyright"]').text()).toBe('© 2026 WeAct. Tous droits réservés.')
+  })
+
+  it('le bouton Cookies ouvre la modale de préférences', async () => {
+    const { showPreferences, closePreferences } = useCookieConsent()
+    closePreferences()
+    const wrapper = mountFooter()
+
+    const button = wrapper.find('[data-testid="footer-link-cookies"]')
+    expect(button.element.tagName).toBe('BUTTON')
+    expect(button.text()).toBe('Cookies')
+    expect(showPreferences.value).toBe(false)
+
+    await button.trigger('click')
+    expect(showPreferences.value).toBe(true)
+    closePreferences()
   })
 })

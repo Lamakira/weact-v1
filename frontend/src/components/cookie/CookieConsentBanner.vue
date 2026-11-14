@@ -2,11 +2,13 @@
 /**
  * Cookie Consent Banner
  * Conformité Art. 389-390 du Code du Numérique du Bénin (Loi 2017-20)
- * Le consentement doit être libre, spécifique, éclairé et univoque.
+ * Le consentement doit être libre, spécifique, éclairé et univoque :
+ * deux boutons de même poids visuel et de même taille (Refuser / Accepter).
+ * La modale de préférences reste montée ici (ouverte aussi depuis le pied de
+ * page et la politique de confidentialité).
  */
 import { useCookieConsent } from '@/composables/useCookieConsent'
 import CookiePreferencesModal from './CookiePreferencesModal.vue'
-import { Cookie } from 'lucide-vue-next'
 
 const {
   showBanner,
@@ -15,7 +17,6 @@ const {
   acceptAll,
   rejectAll,
   savePreferences,
-  openPreferences,
   closePreferences,
 } = useCookieConsent()
 </script>
@@ -33,49 +34,38 @@ const {
     >
       <div
         v-if="showBanner"
-        class="fixed bottom-0 left-0 right-0 z-[9998] p-4 sm:p-6"
+        data-testid="cookie-banner"
+        role="dialog"
+        aria-label="Mesure d'audience"
+        class="fixed inset-x-0 bottom-0 z-[9998] rounded-t-2xl border-t border-border bg-background px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-lg sm:inset-x-auto sm:bottom-4 sm:left-4 sm:w-[380px] sm:rounded-xl sm:border sm:p-5"
       >
-        <div class="max-w-3xl mx-auto bg-white border border-gray-200 rounded-lg shadow-lg p-4 sm:p-5">
-          <div class="flex flex-col sm:flex-row items-start gap-4">
-            <!-- Icon + Text -->
-            <div class="flex items-start gap-3 flex-1">
-              <div class="p-1.5 bg-[#198496]/10 rounded-md text-[#198496] shrink-0 mt-0.5">
-                <Cookie :size="16" />
-              </div>
-              <div>
-                <p class="text-sm font-medium text-gray-900 mb-1">Nous respectons votre vie privée</p>
-                <p class="text-xs text-gray-600 leading-relaxed">
-                  WEACT utilise des cookies pour assurer le fonctionnement du site et, avec votre accord,
-                  des cookies analytiques pour améliorer votre expérience. Vous pouvez accepter, refuser
-                  ou personnaliser vos choix. En savoir plus dans notre
-                  <router-link to="/politique-confidentialite" class="text-[#198496] hover:underline">
-                    Politique de Confidentialité</router-link>.
-                </p>
-              </div>
-            </div>
+        <p class="mb-1 text-sm font-semibold text-foreground">Nous aider à améliorer WeAct</p>
+        <p class="text-xs leading-relaxed text-muted-foreground">
+          Avec votre accord, nous mesurons les pages consultées et les clics, et enregistrons certaines sessions de façon anonymisée. Vos saisies et vos messages ne sont jamais enregistrés.
+          <router-link
+            to="/politique-confidentialite"
+            class="text-primary underline-offset-2 hover:underline"
+            data-testid="cookie-banner-learn-more"
+          >En savoir plus</router-link>
+        </p>
 
-            <!-- Buttons -->
-            <div class="flex flex-wrap items-center gap-2 shrink-0 w-full sm:w-auto">
-              <button
-                @click="rejectAll"
-                class="flex-1 sm:flex-none px-3 py-2 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors cursor-pointer"
-              >
-                Refuser
-              </button>
-              <button
-                @click="openPreferences"
-                class="flex-1 sm:flex-none px-3 py-2 text-xs font-medium text-[#198496] border border-[#198496]/20 rounded-md hover:bg-[#198496]/5 transition-colors cursor-pointer"
-              >
-                Personnaliser
-              </button>
-              <button
-                @click="acceptAll"
-                class="flex-1 sm:flex-none px-3 py-2 text-xs font-medium text-white bg-[#198496] rounded-md hover:bg-[#146c7a] transition-colors cursor-pointer"
-              >
-                Accepter tout
-              </button>
-            </div>
-          </div>
+        <div class="mt-4 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            data-testid="cookie-banner-reject"
+            class="cursor-pointer rounded-md border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+            @click="rejectAll"
+          >
+            Refuser
+          </button>
+          <button
+            type="button"
+            data-testid="cookie-banner-accept"
+            class="cursor-pointer rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            @click="acceptAll"
+          >
+            Accepter
+          </button>
         </div>
       </div>
     </Transition>

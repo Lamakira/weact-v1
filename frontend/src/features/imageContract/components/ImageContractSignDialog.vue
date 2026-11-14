@@ -422,7 +422,7 @@ const protectedItems = computed(() => [
   <Teleport to="body">
     <div
       v-if="isOpen"
-      class="fixed inset-0 z-[60] bg-black/60 sm:flex sm:items-center sm:justify-center sm:p-4"
+      class="ph-no-capture fixed inset-0 z-[60] bg-black/60 sm:flex sm:items-center sm:justify-center sm:p-4"
       data-testid="image-contract-dialog"
     >
       <div

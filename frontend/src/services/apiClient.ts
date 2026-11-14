@@ -3,6 +3,7 @@ import type { ApiError } from '@/features/auth/types'
 import type { Router } from 'vue-router'
 import type { Pinia } from 'pinia'
 import { getXsrfTokenFromCookie } from '@/utils/csrf'
+import { captureApiError } from '@/lib/analytics'
 
 /**
  * Lazy-loaded router instance to avoid circular dependency issues
@@ -108,6 +109,8 @@ function isOnAuthPage(): boolean {
 apiClient.interceptors.response.use(
   (response) => response,
   (error: AxiosError<ApiError>) => {
+    captureApiError(error)
+
     // Handle 401 Unauthorized - clear ALL auth data and redirect to login
     if (error.response?.status === 401) {
       // Clear localStorage
@@ -146,9 +149,14 @@ apiClient.interceptors.response.use(
  * @throws {Error} If the CSRF cookie request fails
  */
 export async function getCsrfCookie(): Promise<void> {
-  await axios.get(`${BACKEND_URL}/sanctum/csrf-cookie`, {
-    withCredentials: true,
-  })
+  try {
+    await axios.get(`${BACKEND_URL}/sanctum/csrf-cookie`, {
+      withCredentials: true,
+    })
+  } catch (error) {
+    captureApiError(error)
+    throw error
+  }
 }
 
 /**

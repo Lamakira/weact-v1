@@ -8,8 +8,23 @@ import { RouterLink } from 'vue-router'
 import { Instagram } from 'lucide-vue-next'
 import IconTiktok from '@/components/icons/IconTiktok.vue'
 import logoBlanc from '@/assets/images/logoblanc.png'
+import { useCookieConsent } from '@/composables/useCookieConsent'
 
-const footerLinks = {
+const { openPreferences } = useCookieConsent()
+
+interface FooterLink {
+  label: string
+  testId: string
+  to?: string
+  action?: () => void
+}
+
+interface FooterGroup {
+  title: string
+  links: FooterLink[]
+}
+
+const footerLinks: Record<string, FooterGroup> = {
   faces: {
     title: 'TROUVER DES FACES',
     links: [
@@ -23,6 +38,7 @@ const footerLinks = {
       { label: 'Mentions légales', to: '/mentions-legales', testId: 'footer-link-mentions-legales' },
       { label: 'CGU', to: '/cgu', testId: 'footer-link-cgu' },
       { label: 'Confidentialité', to: '/politique-confidentialite', testId: 'footer-link-confidentialite' },
+      { label: 'Cookies', action: openPreferences, testId: 'footer-link-cookies' },
       { label: 'À propos', to: '/about', testId: 'footer-link-about' },
       { label: 'Contact', to: '/contact', testId: 'footer-link-contact' },
     ],
@@ -93,8 +109,18 @@ const socialLinks = [
             {{ group.title }}
           </h3>
           <ul class="flex flex-col space-y-3">
-            <li v-for="link in group.links" :key="link.to">
+            <li v-for="link in group.links" :key="link.testId">
+              <button
+                v-if="link.action"
+                type="button"
+                :data-testid="link.testId"
+                class="cursor-pointer text-sm text-[#99A1AF] hover:text-white transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101828] rounded"
+                @click="link.action"
+              >
+                {{ link.label }}
+              </button>
               <RouterLink
+                v-else-if="link.to"
                 :to="link.to"
                 :data-testid="link.testId"
                 class="text-sm text-[#99A1AF] hover:text-white transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#198496] focus-visible:ring-offset-2 focus-visible:ring-offset-[#101828] rounded"

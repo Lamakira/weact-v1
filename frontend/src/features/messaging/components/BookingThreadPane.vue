@@ -37,7 +37,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex min-h-0 min-w-0 flex-1 flex-col bg-white" data-testid="booking-thread-pane">
+  <div class="ph-no-capture flex min-h-0 min-w-0 flex-1 flex-col bg-white" data-testid="booking-thread-pane">
     <header class="flex h-14 shrink-0 items-center gap-2 border-b border-line px-2 lg:gap-3 lg:px-5">
       <button
         v-if="compact"

@@ -11,6 +11,7 @@ import 'vue-sonner/style.css'
 import App from './App.vue'
 import router from './router'
 import { setRouter, setPinia } from './services/apiClient'
+import { initAnalytics } from './lib/analytics'
 import { setAdminRouter, setAdminPinia } from './features/admin/services/adminApiClient'
 
 const app = createApp(App)
@@ -28,5 +29,8 @@ setRouter(router)
 setPinia(pinia)
 setAdminRouter(router)
 setAdminPinia(pinia)
+
+// Mesure d'usage : non bloquante, sans effet sans clé PostHog.
+void initAnalytics(router, pinia).catch(() => {})
 
 app.mount('#app')
