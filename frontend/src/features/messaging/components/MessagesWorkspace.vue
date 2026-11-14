@@ -350,7 +350,7 @@ watch(refreshError, (newError) => {
 </script>
 
 <template>
-  <div data-testid="messages-workspace" :data-role="role">
+  <div class="ph-no-capture" data-testid="messages-workspace" :data-role="role">
     <EmailVerificationRequired
       v-if="!authStore.isEmailVerified"
       title="Messagerie non disponible"

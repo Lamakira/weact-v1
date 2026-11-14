@@ -42,7 +42,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div data-testid="face-wallet-page">
+  <div class="ph-no-capture" data-testid="face-wallet-page">
     <div class="mb-6">
       <h1 class="text-xl font-bold text-gray-900">Portefeuille</h1>
       <p class="text-sm text-gray-500 mt-1">Consultez votre solde et l'historique de vos transactions.</p>

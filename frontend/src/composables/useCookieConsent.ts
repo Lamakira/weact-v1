@@ -1,4 +1,5 @@
 import { ref, computed, onMounted } from 'vue'
+import { syncAnalyticsConsent, type AnalyticsChoice } from '@/lib/analytics'
 
 interface CookiePreferences {
   necessary: true // Always true, cannot be disabled
@@ -12,7 +13,7 @@ interface CookieConsentState {
 }
 
 const STORAGE_KEY = 'weact_cookie_consent'
-const CONSENT_VERSION = '1.0'
+const CONSENT_VERSION = '2.0'
 const CONSENT_MAX_AGE_MS = 13 * 30 * 24 * 60 * 60 * 1000 // ~13 months
 
 const state = ref<CookieConsentState>({
@@ -20,6 +21,8 @@ const state = ref<CookieConsentState>({
   preferences: { necessary: true, analytics: false },
   consentedAt: null,
 })
+
+let initialized = false
 
 const showBanner = ref(false)
 const showPreferences = ref(false)
@@ -49,11 +52,23 @@ function saveToStorage() {
   )
 }
 
+function toChoice(saved: CookieConsentState | null): AnalyticsChoice {
+  if (!saved || !saved.consented) return 'pending'
+  return saved.preferences.analytics ? 'granted' : 'denied'
+}
+
+/** Choix analytique enregistré (lecture du stockage, sans composant monté). */
+export function getStoredAnalyticsChoice(): AnalyticsChoice {
+  return toChoice(loadFromStorage())
+}
+
 export function useCookieConsent() {
   const hasConsented = computed(() => state.value.consented)
   const analyticsEnabled = computed(() => state.value.preferences.analytics)
 
   function init() {
+    if (initialized) return
+    initialized = true
     const saved = loadFromStorage()
     if (saved && saved.consented) {
       state.value = saved
@@ -61,6 +76,7 @@ export function useCookieConsent() {
     } else {
       showBanner.value = true
     }
+    syncAnalyticsConsent(toChoice(saved))
   }
 
   function acceptAll() {
@@ -72,6 +88,7 @@ export function useCookieConsent() {
     saveToStorage()
     showBanner.value = false
     showPreferences.value = false
+    syncAnalyticsConsent(toChoice(state.value))
   }
 
   function rejectAll() {
@@ -83,6 +100,7 @@ export function useCookieConsent() {
     saveToStorage()
     showBanner.value = false
     showPreferences.value = false
+    syncAnalyticsConsent(toChoice(state.value))
   }
 
   function savePreferences(prefs: Omit<CookiePreferences, 'necessary'>) {
@@ -94,6 +112,7 @@ export function useCookieConsent() {
     saveToStorage()
     showBanner.value = false
     showPreferences.value = false
+    syncAnalyticsConsent(toChoice(state.value))
   }
 
   function openPreferences() {
