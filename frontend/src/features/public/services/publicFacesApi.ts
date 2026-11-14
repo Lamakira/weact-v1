@@ -3,6 +3,7 @@ import { publicApiClient } from './apiClient'
 import { getAuthToken } from '@/services/apiClient'
 import { useAuthStore } from '@/stores/auth'
 import type { FacePhoto, FaceExperience } from '@/features/candidature/types'
+import type { FaceVideoView } from '@/features/face/types'
 
 /**
  * Public Face data exposed by the API
@@ -75,12 +76,10 @@ export interface PublicFaceProfile extends PublicFace {
   formatted_location: string | null
   presentation_video_url: string | null
   presentation_video_thumbnail_url: string | null
-  acting_video_url: string | null
-  acting_video_thumbnail_url: string | null
+  videos?: FaceVideoView[]
   has_album_photos: boolean
   album_photos_count: number
   has_presentation_video: boolean
-  has_acting_video: boolean
   has_elite_badge: boolean
   photos: FacePhoto[]
   experiences: FaceExperience[]

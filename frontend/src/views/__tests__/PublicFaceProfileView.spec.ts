@@ -198,7 +198,6 @@ const mockProfile: PublicFaceProfile = {
   has_album_photos: true,
   album_photos_count: 5,
   has_presentation_video: true,
-  has_acting_video: false,
 }
 
 function mountView() {
@@ -511,6 +510,18 @@ describe('PublicFaceProfileView — blocs vides et signalement', () => {
     expect(wrapper.find('[data-testid="videos-section"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="experiences-section"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('Avis et évaluations')
+  })
+
+  it('visiteur : le bloc vidéos apparaît avec seulement des vidéos de portfolio', async () => {
+    loadProfile({
+      videos: [
+        { id: 'v1', type: 'acting', video_url: 'https://x/a.mp4', thumbnail_url: null, position: 1 },
+      ],
+    })
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="videos-section"]').exists()).toBe(true)
   })
 
   it('la Face propriétaire garde les blocs vides', async () => {

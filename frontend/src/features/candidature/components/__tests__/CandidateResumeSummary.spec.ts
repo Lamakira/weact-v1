@@ -18,8 +18,6 @@ function createCandidate(overrides: Partial<CandidateFullProfile> = {}): Candida
     thumbnail_url: null,
     presentation_video_url: null,
     presentation_video_thumbnail_url: null,
-    acting_video_url: null,
-    acting_video_thumbnail_url: null,
     bio: 'Acteur passionné avec 5 ans d\'expérience.',
     ville: 'Cotonou',
     pays: 'Bénin',

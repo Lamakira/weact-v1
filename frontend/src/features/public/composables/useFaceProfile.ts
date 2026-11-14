@@ -24,20 +24,22 @@ export function useFaceProfile() {
   // Computed: Album photos count
   const albumPhotosCount = computed(() => face.value?.album_photos_count ?? 0)
 
+  // Computed: Count of portfolio videos with a URL
+  const portfolioVideosCount = computed(
+    () => (face.value?.videos ?? []).filter((v) => !!v.video_url).length
+  )
+
   // Computed: Check if face has any videos
   const hasVideos = computed(
     () =>
       (face.value?.has_presentation_video ?? false) ||
-      (face.value?.has_acting_video ?? false)
+      portfolioVideosCount.value > 0
   )
 
   // Computed: Count of available videos
-  const videosCount = computed(() => {
-    let count = 0
-    if (face.value?.has_presentation_video) count++
-    if (face.value?.has_acting_video) count++
-    return count
-  })
+  const videosCount = computed(
+    () => (face.value?.has_presentation_video ? 1 : 0) + portfolioVideosCount.value
+  )
 
   /**
    * Fetch a Face's public profile by username
