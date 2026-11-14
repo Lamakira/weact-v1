@@ -50,8 +50,6 @@ function makeFace(overrides: Partial<AdminFaceData> = {}): AdminFaceData {
     thumbnail_url: null,
     presentation_video_url: null,
     presentation_video_thumbnail_url: null,
-    acting_video_url: null,
-    acting_video_thumbnail_url: null,
     taille: null,
     poids: null,
     tarif_horaire: null,

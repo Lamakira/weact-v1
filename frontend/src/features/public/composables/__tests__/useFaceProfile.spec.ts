@@ -29,7 +29,6 @@ const mockFaceProfile: PublicFaceProfile = {
   has_album_photos: true,
   album_photos_count: 5,
   has_presentation_video: true,
-  has_acting_video: false,
 }
 
 const mockFaceWithoutMedia: PublicFaceProfile = {
@@ -48,7 +47,6 @@ const mockFaceWithoutMedia: PublicFaceProfile = {
   has_album_photos: false,
   album_photos_count: 0,
   has_presentation_video: false,
-  has_acting_video: false,
 }
 
 describe('useFaceProfile', () => {
@@ -254,7 +252,10 @@ describe('useFaceProfile', () => {
     it('should compute hasVideos correctly when face has both videos', async () => {
       const faceWithBothVideos = {
         ...mockFaceProfile,
-        has_acting_video: true,
+        videos: [
+          { id: 'v1', type: 'acting' as const, video_url: 'https://x/a.mp4', thumbnail_url: null, position: 1 },
+          { id: 'v2', type: 'ugc' as const, video_url: null, thumbnail_url: null, position: 1 },
+        ],
       }
 
       vi.mocked(publicFacesApi.fetchPublicFaceProfile).mockResolvedValue({

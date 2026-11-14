@@ -4,6 +4,7 @@
 
 import type { Shipment } from '@/components/ugc'
 import type { ImageContract } from '@/features/imageContract/types'
+import type { FaceVideoView } from '@/features/face/types'
 
 // Candidature status enum
 export const CandidatureStatus = {
@@ -345,8 +346,7 @@ export interface CandidateFullProfile {
   thumbnail_url: string | null
   presentation_video_url: string | null
   presentation_video_thumbnail_url: string | null
-  acting_video_url: string | null
-  acting_video_thumbnail_url: string | null
+  videos?: FaceVideoView[]
   bio: string | null
   ville: string | null
   pays: string | null
