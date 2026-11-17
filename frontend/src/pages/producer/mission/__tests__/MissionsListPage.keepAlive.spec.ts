@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { defineComponent, h, KeepAlive, ref } from 'vue'
 import MissionsListPage from '../MissionsListPage.vue'
@@ -185,10 +185,6 @@ function resetState(): void {
 describe('MissionsListPage — keep-alive return with ?pay when the mission is not on the loaded page (bug F3)', () => {
   beforeEach(resetState)
 
-  afterEach(() => {
-    document.body.innerHTML = ''
-  })
-
   it('opens the commission tunnel on return with ?pay by fetching the mission by id', async () => {
     const { wrapper, current } = mountKeepAliveHost()
     await flushPromises()
@@ -237,10 +233,6 @@ describe('MissionsListPage — keep-alive return with ?pay when the mission is n
 
 describe('MissionsListPage — stale ?pay in history / already-paid mission (bug F11)', () => {
   beforeEach(resetState)
-
-  afterEach(() => {
-    document.body.innerHTML = ''
-  })
 
   // Fix volet (a) CONSOMMATION : once ?pay has been processed, the page rewrites the
   // history entry via router.replace with a query WITHOUT `pay` (other keys preserved).

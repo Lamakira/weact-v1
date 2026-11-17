@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, ref } from 'vue'
 import type { Mission } from '@/features/mission/types'
@@ -128,10 +128,6 @@ describe('MissionsListPage — viewAttendance route handoff (FIX-26.7)', () => {
     routeQuery.value = {}
   })
 
-  afterEach(() => {
-    document.body.innerHTML = ''
-  })
-
   it('routes to producer-mission-detail ?tab=presences with mission id when MissionCard emits view-attendance', async () => {
     const wrapper = mount(MissionsListPage, { attachTo: document.body })
     await flushPromises()
@@ -165,10 +161,6 @@ describe('MissionsListPage — UGC commission tunnel (story 1.6)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     routeQuery.value = {}
-  })
-
-  afterEach(() => {
-    document.body.innerHTML = ''
   })
 
   it('opens the commission overlay when a card emits pay-commission', async () => {

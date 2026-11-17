@@ -1,10 +1,9 @@
-import { afterEach, describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { watch } from 'vue'
 import PublicMissionFiltersBar from '../PublicMissionFiltersBar.vue'
 import {
   chooseOption,
-  cleanupPortals,
   getOptionLabels,
   openSelect,
 } from '@/components/ui/__tests__/selectTestUtils'
@@ -34,10 +33,6 @@ function mountFiltersBar(currentFilters = {}) {
 }
 
 describe('PublicMissionFiltersBar', () => {
-  afterEach(() => {
-    cleanupPortals()
-  })
-
   it('liste les types de mission et émet la valeur choisie', async () => {
     const wrapper = mountFiltersBar()
     const trigger = wrapper.get('[data-testid="mission-filter-type"]')

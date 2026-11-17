@@ -80,7 +80,6 @@ describe('AdminAttendanceDisputesPage', () => {
 
   afterEach(() => {
     wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
-    document.body.innerHTML = ''
   })
 
   it('mount_calls_fetchDisputes_on_mount', async () => {

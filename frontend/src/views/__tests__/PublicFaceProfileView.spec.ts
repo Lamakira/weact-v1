@@ -1,11 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 
-// The view schedules work at mount (useScrollReveal's 50ms init timer):
-// unmount every wrapper after each test so component-lifecycle cleanups run
-// and nothing fires after the file's environment is torn down (flaky
-// "Unhandled Error" otherwise).
-enableAutoUnmount(afterEach)
+// The view schedules work at mount (useScrollReveal's 50ms init timer): every
+// wrapper is unmounted after each test (enableAutoUnmount in test-setup.ts).
 import type { Ref } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'

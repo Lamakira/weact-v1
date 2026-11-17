@@ -179,7 +179,6 @@ beforeEach(() => {
 afterEach(() => {
   wrapper?.unmount()
   wrapper = null
-  document.body.innerHTML = ''
   vi.clearAllMocks()
   vi.restoreAllMocks()
 })

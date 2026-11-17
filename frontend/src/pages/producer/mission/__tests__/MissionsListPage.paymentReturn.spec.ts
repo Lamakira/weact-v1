@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { defineComponent, h, ref } from 'vue'
 import MissionsListPage from '../MissionsListPage.vue'
@@ -83,10 +83,6 @@ describe('MissionsListPage — return from the same-tab FedaPay checkout', () =>
     vi.clearAllMocks()
     mockRoute.query = {}
     mockMissions.value = [ugcPendingMission]
-  })
-
-  afterEach(() => {
-    document.body.innerHTML = ''
   })
 
   it('without payment_return nothing is verified', async () => {

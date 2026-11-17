@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { SearchableSelect } from '@/components/ui/combobox'
-import { cleanupPortals, clickOption, getOptionLabels, openSelect } from './selectTestUtils'
+import { clickOption, getOptionLabels, openSelect } from './selectTestUtils'
 
 const CITIES = [
   { value: 'Cotonou', label: 'Cotonou' },
@@ -38,10 +38,6 @@ async function typeSearch(value: string): Promise<void> {
 }
 
 describe('SearchableSelect (Combobox de ville)', () => {
-  afterEach(() => {
-    cleanupPortals()
-  })
-
   it('affiche le placeholder puis liste toutes les options à l’ouverture', async () => {
     const wrapper = mountCombobox()
     const trigger = wrapper.get('[data-testid="filter-city"]')

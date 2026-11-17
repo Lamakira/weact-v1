@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
@@ -165,10 +165,6 @@ describe('MissionsListPage — table (md and up)', () => {
     getMissionsPage.mockResolvedValue(listResponse([published, closedPaid, ugcPending], { total: 40, last_page: 3 }))
     emailVerified.value = true
     mockMatchMedia(true)
-  })
-
-  afterEach(() => {
-    document.body.innerHTML = ''
   })
 
   it('renders a table with the expected columns and row data', async () => {
@@ -441,10 +437,6 @@ describe('MissionsListPage — compact cards (below md)', () => {
     getMissionsPage.mockResolvedValue(listResponse([published, closedPaid, ugcPending]))
     emailVerified.value = true
     mockMatchMedia(false)
-  })
-
-  afterEach(() => {
-    document.body.innerHTML = ''
   })
 
   it('renders one compact card per mission instead of a table, with labelled actions', async () => {

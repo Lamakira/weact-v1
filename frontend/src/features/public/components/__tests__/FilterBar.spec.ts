@@ -1,10 +1,9 @@
-import { afterEach, describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { watch } from 'vue'
 import FilterBar from '../FilterBar.vue'
 import {
   chooseOption,
-  cleanupPortals,
   getOptionLabels,
   openSelect,
 } from '@/components/ui/__tests__/selectTestUtils'
@@ -43,10 +42,6 @@ function mountFilterBar(props = defaultProps) {
 }
 
 describe('FilterBar', () => {
-  afterEach(() => {
-    cleanupPortals()
-  })
-
   describe('Rendering', () => {
     it('renders the filter bar container', () => {
       const wrapper = mountFilterBar()
