@@ -3,6 +3,9 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createTestingPinia } from '@pinia/testing'
 import { createRouter, createMemoryHistory } from 'vue-router'
 import VerifyEmailPage from '../VerifyEmailPage.vue'
+import { captureAnalyticsEvent } from '@/lib/analytics'
+
+vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
 
 // Mock the authApi
 vi.mock('@/features/auth/services/authApi', () => ({
@@ -253,6 +256,36 @@ describe('VerifyEmailPage', () => {
       await flushPromises()
 
       expect(router.currentRoute.value.name).toBe('producer-dashboard')
+    })
+  })
+
+  describe('Analytics', () => {
+    it('sends email_verifie when the verification just succeeded', async () => {
+      vi.mocked(authApi.verifyEmail).mockResolvedValueOnce({ verified: true })
+
+      await mountComponent()
+      await flushPromises()
+
+      expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+      expect(captureAnalyticsEvent).toHaveBeenCalledWith('email_verifie', {})
+    })
+
+    it('sends nothing when the email was already verified', async () => {
+      vi.mocked(authApi.verifyEmail).mockResolvedValueOnce({ already_verified: true })
+
+      await mountComponent()
+      await flushPromises()
+
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
+    })
+
+    it('sends nothing on a verification error', async () => {
+      vi.mocked(authApi.verifyEmail).mockRejectedValueOnce(new Error('invalid'))
+
+      await mountComponent()
+      await flushPromises()
+
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
     })
   })
 })

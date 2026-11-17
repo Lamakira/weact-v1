@@ -22,6 +22,7 @@ import StatusFilter from './StatusFilter.vue'
 import MissionImageTermsBand from '@/features/imageContract/components/MissionImageTermsBand.vue'
 import type { MissionImageTerms } from '@/features/imageContract/types'
 import { useToast } from '@/composables/useToast'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 import { useUgcShipment } from '@/composables/useUgcShipment'
 import { UgcShipmentForm, type ConfirmShipmentPayload } from '@/components/ugc'
 import { CandidatureStatusLabel } from '../types'
@@ -273,6 +274,7 @@ async function handleAccept(candidatureId: string): Promise<void> {
   cardRefs.value[candidatureId]?.resetAccepting()
 
   if (result) {
+    captureAnalyticsEvent('candidature_acceptee', { type: 'produit_seul' })
     toast.success(acceptSuccessMessage.value || 'Candidature acceptée')
     await refresh()
     emit('capacity-changed')

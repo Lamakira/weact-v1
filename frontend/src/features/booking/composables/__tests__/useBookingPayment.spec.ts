@@ -33,7 +33,7 @@ describe('useBookingPayment', () => {
     const booking = await initiatePayment('b1')
 
     expect(bookingApi.payBooking).toHaveBeenCalledWith('b1')
-    expect(redirectToCheckout).toHaveBeenCalledWith('https://checkout.fedapay.test/b1')
+    expect(redirectToCheckout).toHaveBeenCalledWith('https://checkout.fedapay.test/b1', { type: 'booking' })
     expect(window.open).not.toHaveBeenCalled()
     expect(booking).toEqual({ id: 'b1' })
     expect(paymentStatus.value).toBe('waiting')

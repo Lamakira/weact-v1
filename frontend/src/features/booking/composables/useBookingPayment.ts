@@ -30,7 +30,7 @@ export function useBookingPayment(): UseBookingPaymentReturn {
       // The user comes back on the booking page with ?payment_return=booking,
       // where usePaymentReturn verifies the payment.
       paymentStatus.value = 'waiting'
-      redirectToCheckout(response.checkout_url)
+      redirectToCheckout(response.checkout_url, { type: 'booking' })
 
       return response.data
     } catch (err) {

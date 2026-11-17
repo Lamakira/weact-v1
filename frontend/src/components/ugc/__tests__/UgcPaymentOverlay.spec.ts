@@ -77,7 +77,7 @@ describe('UgcPaymentOverlay', () => {
     await flushPromises()
 
     expect(bookingApi.payCommission).toHaveBeenCalledWith('b1')
-    expect(redirectToCheckout).toHaveBeenCalledWith('https://fedapay.test/x')
+    expect(redirectToCheckout).toHaveBeenCalledWith('https://fedapay.test/x', { type: 'commission_booking' })
     expect(window.open).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('Redirection vers FedaPay')
     expect(wrapper.text()).not.toContain('onglet')
@@ -91,7 +91,7 @@ describe('UgcPaymentOverlay', () => {
     await flushPromises()
 
     expect(missionApi.payCommission).toHaveBeenCalledWith('m1')
-    expect(redirectToCheckout).toHaveBeenCalledWith('https://fedapay.test/y')
+    expect(redirectToCheckout).toHaveBeenCalledWith('https://fedapay.test/y', { type: 'commission_mission' })
   })
 
   it('shows the failed step with a retry button when initiation throws', async () => {

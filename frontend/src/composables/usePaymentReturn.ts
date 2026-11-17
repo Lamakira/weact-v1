@@ -12,6 +12,11 @@ import {
   readSubscriptionPaymentSnapshot,
 } from '@/features/face/services/subscriptionPaymentSnapshot'
 import { useToast } from '@/composables/useToast'
+import {
+  captureAnalyticsEvent,
+  type AnalyticsPaymentProps,
+  type AnalyticsPaymentType,
+} from '@/lib/analytics'
 
 const POLL_INTERVAL_MS = 5000
 const POLL_TIMEOUT_MS = 120000
@@ -81,6 +86,15 @@ const SUCCESS_MESSAGES: Record<PaymentReturnKind, string> = {
   candidature_escrow: 'Paiement confirmé. La candidature est acceptée.',
   mission_selection: 'Paiement confirmé. Votre sélection est validée.',
   subscription: 'Votre abonnement est activé.',
+}
+
+const ANALYTICS_PAYMENT_TYPES: Record<PaymentReturnKind, AnalyticsPaymentType> = {
+  booking: 'booking',
+  booking_commission: 'commission_booking',
+  mission_commission: 'commission_mission',
+  candidature_escrow: 'sequestre_candidature',
+  mission_selection: 'selection_mission',
+  subscription: 'abonnement',
 }
 
 const LATE_CREDIT_MESSAGE =
@@ -241,6 +255,12 @@ export function usePaymentReturn(options: UsePaymentReturnOptions): UsePaymentRe
     state.value = outcome
     if (k === 'subscription') clearSubscriptionPaymentSnapshot()
     if (outcome === 'confirmed') {
+      const analytics: AnalyticsPaymentProps = { type: ANALYTICS_PAYMENT_TYPES[k] }
+      if (k === 'subscription') {
+        const tier = subscriptionStatus?.current.value?.tier
+        if (tier === 'starter' || tier === 'pro' || tier === 'elite') analytics.palier = tier
+      }
+      captureAnalyticsEvent('paiement_confirme', analytics)
       try {
         await options.onConfirmed?.(k)
       } catch {

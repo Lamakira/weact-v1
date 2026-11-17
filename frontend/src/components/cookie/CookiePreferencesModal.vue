@@ -78,7 +78,7 @@ const analytics = ref(props.initialAnalytics)
               </label>
             </div>
             <p class="text-[11px] text-gray-500 mt-1.5 ml-5">
-              Mesure d'audience et enregistrement anonymisé de certaines sessions avec PostHog, hébergé dans l'Union européenne. Vos saisies et vos messages ne sont jamais enregistrés. Sans choix de votre part, ou si vous refusez, seul un comptage anonyme des visites est fait, sans cookie.
+              Mesure d'audience et enregistrement anonymisé de certaines sessions avec PostHog, hébergé dans l'Union européenne. Vos saisies et vos messages ne sont jamais enregistrés. Sans choix de votre part, ou si vous refusez, seul un comptage anonyme des visites, des étapes clés et des erreurs techniques est fait, sans cookie.
             </p>
           </div>
         </div>

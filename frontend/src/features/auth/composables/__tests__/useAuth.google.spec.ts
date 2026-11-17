@@ -3,6 +3,9 @@ import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notification'
 import type { User } from '../../types'
+import { captureAnalyticsEvent } from '@/lib/analytics'
+
+vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
@@ -165,6 +168,50 @@ describe('useAuth - Google session adoption', () => {
       expect(result.success).toBe(false)
       expect(useAuthStore().token).toBeNull()
       expect(storageSnapshot()).toEqual({})
+    })
+  })
+
+  describe('completeGoogleRegistration analytics', () => {
+    it('sends inscription_reussie with the account deduced from the created user (face)', async () => {
+      h.completeGoogleRegistration.mockResolvedValue({
+        data: { token: 'tok-1', user: makeUser(1) },
+      })
+
+      await useAuth().completeGoogleRegistration({} as never)
+
+      expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+      expect(captureAnalyticsEvent).toHaveBeenCalledWith('inscription_reussie', {
+        compte: 'face',
+        methode: 'google',
+      })
+    })
+
+    it('sends inscription_reussie for a producteur', async () => {
+      h.completeGoogleRegistration.mockResolvedValue({
+        data: { token: 'tok-1', user: { ...makeUser(1), userable_type: 'Producer' } },
+      })
+
+      await useAuth().completeGoogleRegistration({} as never)
+
+      expect(captureAnalyticsEvent).toHaveBeenCalledWith('inscription_reussie', {
+        compte: 'producteur',
+        methode: 'google',
+      })
+    })
+
+    it('sends nothing when the completion fails, nor on exchangeGoogleCode', async () => {
+      h.completeGoogleRegistration.mockRejectedValue(new Error('422'))
+      h.exchangeGoogleCode.mockResolvedValue({
+        needs_completion: false,
+        redirect: null,
+        token: 'tok-1',
+        user: makeUser(1),
+      })
+
+      await useAuth().completeGoogleRegistration({} as never)
+      await useAuth().exchangeGoogleCode('code', 'nonce')
+
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
     })
   })
 

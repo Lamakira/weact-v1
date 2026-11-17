@@ -5,6 +5,7 @@ import type { Booking, CancellationReasonValue } from '../types'
 import type { ImageSignature } from '@/features/imageContract/types'
 import { getApiErrorMessage, getApiErrorDetails } from '@/features/auth/services/authApi'
 import { signatureFieldError } from '@/features/imageContract/utils/signatureErrors'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 
 interface UseBookingActionsReturn {
   isAccepting: Ref<boolean>
@@ -60,6 +61,7 @@ export function useBookingActions(): UseBookingActionsReturn {
       const response = signature
         ? await bookingApi.acceptBooking(bookingId, signature)
         : await bookingApi.acceptBooking(bookingId)
+      captureAnalyticsEvent('booking_acceptee', { type: response.data.type_contenu === 'UGC' ? 'ugc' : 'cash' })
       return response.data
     } catch (err) {
       const signatureError = signature ? signatureFieldError(getApiErrorDetails(err)) : null

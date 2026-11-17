@@ -32,6 +32,7 @@ import { FloatingField, FloatingDateField, FloatingSelect, FloatingTextarea } fr
 import { Button } from '@/components/ui/button'
 import { BENIN_CITY_OPTIONS } from '@/shared/constants/beninCities'
 import { useToast } from '@/composables/useToast'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 import { useFaceAvailability } from '@/features/agenda/composables/useFaceAvailability'
 import {
   firstUnavailableIn,
@@ -85,6 +86,14 @@ watch(
   () => props.isOpen,
   (isOpen) => {
     if (isOpen) void authStore.refreshUser?.()
+  },
+  { immediate: true },
+)
+
+watch(
+  () => props.isOpen,
+  (isOpen) => {
+    if (isOpen) captureAnalyticsEvent('booking_formulaire_ouvert', {})
   },
   { immediate: true },
 )
@@ -201,12 +210,18 @@ const availabilityError = computed(() =>
     : undefined,
 )
 
-/** Demande de dernière minute (tournage aujourd'hui ou demain, heure du Bénin) : échéances annoncées. */
+/** Demande de dernière minute : tournage aujourd'hui ou demain (heure du Bénin), hors UGC. Règle unique (encart + mesure). */
+const isShortNotice = computed<boolean>(() => {
+  if (isUgc.value || !date_debut.value) return false
+  const today = businessTodayIso(formOpenedAt)
+  return date_debut.value === today || date_debut.value === addDaysIso(today, 1)
+})
+
+/** Encart de dernière minute : échéances annoncées. */
 const shortNoticeMessage = computed<string | null>(() => {
-  if (isUgc.value || !date_debut.value) return null
+  if (!isShortNotice.value) return null
   const today = businessTodayIso(formOpenedAt)
   const isToday = date_debut.value === today
-  if (!isToday && date_debut.value !== addDaysIso(today, 1)) return null
 
   const deadline = formatBusinessDeadline(bookingResponseDeadline(date_debut.value, formOpenedAt), formOpenedAt)
   const payment = isToday
@@ -422,6 +437,12 @@ function validateImageTerms(): boolean {
 }
 
 function onSuccess(booking: Booking): void {
+  // Le formulaire reste inchangé jusqu'à sa réouverture : sa date de début est fiable sur les deux
+  // chemins (le booking renvoyé porte un datetime ISO, et null en UGC). Même règle que l'encart.
+  captureAnalyticsEvent('booking_demande_envoyee', {
+    type: isUgc.value ? 'ugc' : 'cash',
+    derniere_minute: isShortNotice.value,
+  })
   toast.success(isUgc.value ? 'Booking UGC créé.' : 'Demande de booking envoyée !')
   emit('success', booking)
   emit('close')

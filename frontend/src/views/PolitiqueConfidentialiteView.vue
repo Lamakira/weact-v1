@@ -250,7 +250,7 @@ const lastUpdate = '17 novembre 2026'
           <li><span class="font-medium">Cookies analytiques :</span> fournis par PostHog, avec un hébergement dans l'Union européenne. Ils couvrent la mesure d'audience et l'enregistrement anonymisé de certaines sessions. Vos saisies et vos messages ne sont jamais enregistrés, et l'espace administrateur est exclu de toute mesure. Soumis à votre consentement.</li>
         </ul>
         <p class="mt-2">
-          Tant que vous n'avez pas fait de choix, ou si vous refusez les cookies analytiques, seul un comptage anonyme des visites est effectué, sans cookie.
+          Tant que vous n'avez pas fait de choix, ou si vous refusez les cookies analytiques, seul un comptage anonyme des visites, des étapes clés (inscription, demande de booking, publication de mission, paiement) et des erreurs techniques est effectué, sans cookie ni lien avec votre compte.
         </p>
         <p class="mt-2">
           Vous pouvez gérer vos préférences en matière de cookies à tout moment via le bouton ci-dessous, le lien « Cookies » en bas de page ou les paramètres de votre navigateur. La durée de validité du consentement aux cookies est de 13 mois.

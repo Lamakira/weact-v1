@@ -40,7 +40,9 @@ export function useUgcCommissionPayment(): UseUgcCommissionPaymentReturn {
 
       // Same-tab redirect (provider is chosen on the FedaPay page); 'waiting' = redirecting.
       paymentStatus.value = 'waiting'
-      redirectToCheckout(checkoutUrl)
+      redirectToCheckout(checkoutUrl, {
+        type: kind === 'booking' ? 'commission_booking' : 'commission_mission',
+      })
 
       return true
     } catch (err) {
