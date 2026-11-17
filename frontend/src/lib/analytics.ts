@@ -39,6 +39,71 @@ function isAdminPath(path: string): boolean {
   return path === '/admin' || path.startsWith('/admin/')
 }
 
+/**
+ * Liens reçus par e-mail : leurs URL portent un identifiant de compte, un jeton ou l'e-mail
+ * (`/reset-password/<jeton>?email=…`). Leurs segments sont remplacés avant tout envoi, et
+ * l'enregistrement de session y est coupé.
+ */
+const SENSITIVE_PATHS: Array<[RegExp, string]> = [
+  [/^\/verify-email\/[^/]+\/[^/]+/, '/verify-email/:id/:hash'],
+  [/^\/email-change\/confirm\/[^/]+\/[^/]+/, '/email-change/confirm/:id/:hash'],
+  [/^\/reset-password\/[^/]+/, '/reset-password/:token'],
+  [/^\/admin\/reset-password\/[^/]+/, '/admin/reset-password/:token'],
+]
+const SENSITIVE_PREFIXES = ['/verify-email/', '/email-change/', '/reset-password/', '/auth/google/callback']
+
+/** Paramètres d'URL conservés : provenance (campagnes, réseaux) et état d'affichage. Tout le reste est retiré. */
+const KEPT_QUERY_PARAMS = new Set([
+  'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+  'gclid', 'fbclid', 'msclkid',
+  'tab', 'page', 'section', 'plan', 'status', 'sort', 'per_page',
+])
+
+function isSensitivePath(path: string): boolean {
+  return SENSITIVE_PREFIXES.some((prefix) => path.startsWith(prefix))
+}
+
+export function sanitizePath(path: string): string {
+  for (const [pattern, replacement] of SENSITIVE_PATHS) {
+    if (pattern.test(path)) return path.replace(pattern, replacement)
+  }
+  return path
+}
+
+/** URL ou chemin débarrassé des jetons, identifiants de compte, e-mails et paramètres non listés. */
+export function sanitizeUrl(value: string): string {
+  let url: URL
+  const isPath = value.startsWith('/')
+  try {
+    url = new URL(value, 'https://weact.invalid')
+  } catch {
+    return value
+  }
+  url.pathname = sanitizePath(url.pathname)
+  for (const key of [...url.searchParams.keys()]) {
+    if (!KEPT_QUERY_PARAMS.has(key)) url.searchParams.delete(key)
+  }
+  url.hash = ''
+  return isPath ? `${url.pathname}${url.search}` : url.toString()
+}
+
+const URL_PROPERTIES = [
+  '$current_url', '$pathname', '$referrer', '$initial_current_url', '$initial_pathname', '$initial_referrer',
+  '$prev_pageview_pathname', '$prev_pageview_url',
+]
+
+function sanitizeProperties(properties: Record<string, unknown> | undefined): void {
+  if (!properties) return
+  for (const key of URL_PROPERTIES) {
+    const value = properties[key]
+    if (typeof value === 'string' && value !== '$direct') properties[key] = sanitizeUrl(value)
+  }
+  for (const nested of ['$set', '$set_once']) {
+    const bag = properties[nested]
+    if (bag && typeof bag === 'object') sanitizeProperties(bag as Record<string, unknown>)
+  }
+}
+
 function identifyUser(user: AnalyticsUser | null | undefined): void {
   if (!posthog || !user || currentChoice !== 'granted') return
   const props: Record<string, string> = {
@@ -53,7 +118,8 @@ function identifyUser(user: AnalyticsUser | null | undefined): void {
 
 function syncSessionRecording(): void {
   if (!posthog || !routerRef) return
-  if (isAdminPath(routerRef.currentRoute.value.path)) {
+  const path = routerRef.currentRoute.value.path
+  if (isAdminPath(path) || isSensitivePath(path)) {
     posthog.stopSessionRecording()
   } else if (currentChoice === 'granted') {
     posthog.startSessionRecording()
@@ -92,7 +158,13 @@ export async function initAnalytics(router: Router, pinia: Pinia): Promise<void>
       capture_pageleave: true,
       person_profiles: 'identified_only',
       session_recording: { maskAllInputs: true },
-      before_send: (event) => (event && shouldSend(event.event) ? event : null),
+      before_send: (event) => {
+        if (!event || !shouldSend(event.event)) return null
+        sanitizeProperties(event.properties)
+        sanitizeProperties(event.$set as Record<string, unknown> | undefined)
+        sanitizeProperties(event.$set_once as Record<string, unknown> | undefined)
+        return event
+      },
     })
     posthog = ph
     routerRef = router
@@ -183,6 +255,18 @@ export interface AnalyticsEvents {
 }
 
 export type AnalyticsEventName = keyof AnalyticsEvents
+
+/**
+ * Vrai si le focus arrive sur un champ de saisie (texte, date, liste…), pas sur un bouton, une case
+ * à cocher ou un lien : « commencer un formulaire » veut dire toucher un champ.
+ */
+export function isFormFieldTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false
+  if (target.matches('textarea, select, [contenteditable="true"], [role="combobox"]')) return true
+  if (!target.matches('input')) return false
+  const type = (target.getAttribute('type') ?? 'text').toLowerCase()
+  return !['checkbox', 'radio', 'button', 'submit', 'reset', 'hidden', 'file', 'image'].includes(type)
+}
 
 // Liste exhaustive (le compilateur exige chaque événement du catalogue).
 const FUNNEL_EVENTS: Record<AnalyticsEventName, true> = {

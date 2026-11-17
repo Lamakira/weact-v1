@@ -6,7 +6,7 @@ import {
   faceRegistrationValidationSchema,
 } from '../schemas/faceRegistration'
 import { useAuth } from '../composables/useAuth'
-import { captureAnalyticsEvent } from '@/lib/analytics'
+import { captureAnalyticsEvent, isFormFieldTarget } from '@/lib/analytics'
 import type { FaceRegistrationForm as FormData } from '../types'
 import { FloatingField } from '@/components/ui/form'
 import GoogleSignInButton from './GoogleSignInButton.vue'
@@ -48,8 +48,8 @@ const { value: accept_cgu, errorMessage: acceptCguError } = useField<boolean>('a
 
 // Premier focus dans le formulaire = début d'inscription (une seule fois par montage)
 let signupStarted = false
-function handleFocusIn(): void {
-  if (signupStarted) return
+function handleFocusIn(event: FocusEvent): void {
+  if (!isFormFieldTarget(event.target) || signupStarted) return
   signupStarted = true
   captureAnalyticsEvent('inscription_commencee', { compte: 'face', methode: 'email' })
 }

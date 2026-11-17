@@ -369,3 +369,85 @@ describe('captureAnalyticsEvent', () => {
     expect(() => a.captureAnalyticsEvent('candidature_envoyee', {})).not.toThrow()
   })
 })
+
+describe('nettoyage des URL envoyées', () => {
+  it('remplace jetons, identifiants et e-mails des liens reçus par e-mail', async () => {
+    const a = await load()
+    expect(a.sanitizeUrl('https://weact.bj/verify-email/42/abcdef?expires=1&signature=xyz')).toBe(
+      'https://weact.bj/verify-email/:id/:hash',
+    )
+    expect(a.sanitizeUrl('https://weact.bj/reset-password/tok123?email=jane%40mail.com')).toBe(
+      'https://weact.bj/reset-password/:token',
+    )
+    expect(a.sanitizeUrl('/admin/reset-password/tok?email=a%40b.c')).toBe('/admin/reset-password/:token')
+    expect(a.sanitizeUrl('/email-change/confirm/7/hash?signature=s')).toBe('/email-change/confirm/:id/:hash')
+    expect(a.sanitizeUrl('https://weact.bj/auth/google/callback?code=c&state=s')).toBe(
+      'https://weact.bj/auth/google/callback',
+    )
+  })
+
+  it('garde la provenance et l\'état d\'affichage, retire le reste', async () => {
+    const a = await load()
+    expect(
+      a.sanitizeUrl('https://weact.bj/pricing?utm_source=whatsapp&fbclid=f&plan=pro&redirect=/face/x&payment_return=subscription'),
+    ).toBe('https://weact.bj/pricing?utm_source=whatsapp&fbclid=f&plan=pro')
+    expect(a.sanitizeUrl('https://weact.bj/producer/missions/abc?tab=candidatures&mission=m1&candidature=c1#x')).toBe(
+      'https://weact.bj/producer/missions/abc?tab=candidatures',
+    )
+  })
+
+  it('before_send nettoie les URL de chaque événement, avec ou sans consentement', async () => {
+    const a = await load()
+    await a.initAnalytics(fakeRouter(), pinia)
+    const { before_send } = phMock.init.mock.calls[0][1]
+    window.history.pushState({}, '', '/verify-email/42/abc')
+    const event = {
+      event: '$pageview',
+      properties: {
+        $current_url: 'https://weact.bj/verify-email/42/abc?signature=s',
+        $pathname: '/verify-email/42/abc',
+        $referrer: '$direct',
+        $set_once: { $initial_current_url: 'https://weact.bj/reset-password/t?email=a%40b.c' },
+      },
+    }
+    const sent = before_send(event)
+    expect(sent.properties).toMatchObject({
+      $current_url: 'https://weact.bj/verify-email/:id/:hash',
+      $pathname: '/verify-email/:id/:hash',
+      $referrer: '$direct',
+      $set_once: { $initial_current_url: 'https://weact.bj/reset-password/:token' },
+    })
+    window.history.pushState({}, '', '/')
+  })
+
+  it('coupe l\'enregistrement de session sur les pages de liens reçus par e-mail', async () => {
+    storedChoice.mockReturnValue('granted')
+    phMock.get_explicit_consent_status.mockReturnValue('granted')
+    const router = fakeRouter('/faces')
+    const a = await load()
+    await a.initAnalytics(router, pinia)
+    phMock.stopSessionRecording.mockClear()
+    router.currentRoute.value = { path: '/reset-password/tok' }
+    await nextTick()
+    expect(phMock.stopSessionRecording).toHaveBeenCalled()
+  })
+})
+
+describe('isFormFieldTarget', () => {
+  it('vrai pour un champ de saisie, faux pour bouton, case à cocher et lien', async () => {
+    const a = await load()
+    const el = (html: string) => {
+      const host = document.createElement('div')
+      host.innerHTML = html
+      return host.firstElementChild
+    }
+    expect(a.isFormFieldTarget(el('<input type="email">'))).toBe(true)
+    expect(a.isFormFieldTarget(el('<input>'))).toBe(true)
+    expect(a.isFormFieldTarget(el('<textarea></textarea>'))).toBe(true)
+    expect(a.isFormFieldTarget(el('<button role="combobox"></button>'))).toBe(true)
+    expect(a.isFormFieldTarget(el('<input type="checkbox">'))).toBe(false)
+    expect(a.isFormFieldTarget(el('<button>Google</button>'))).toBe(false)
+    expect(a.isFormFieldTarget(el('<a href="/cgu">CGU</a>'))).toBe(false)
+    expect(a.isFormFieldTarget(null)).toBe(false)
+  })
+})

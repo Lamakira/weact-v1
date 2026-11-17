@@ -6,7 +6,10 @@ import { ref } from 'vue'
 import ProducerRegistrationForm from '../ProducerRegistrationForm.vue'
 import { captureAnalyticsEvent } from '@/lib/analytics'
 
-vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
+vi.mock('@/lib/analytics', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/analytics')>()),
+  captureAnalyticsEvent: vi.fn(),
+}))
 
 // Mock the useAuth composable
 const mockRegisterProducer = vi.fn()

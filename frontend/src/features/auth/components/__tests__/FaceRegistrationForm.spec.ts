@@ -6,7 +6,10 @@ import FaceRegistrationForm from '../FaceRegistrationForm.vue'
 import { captureAnalyticsEvent } from '@/lib/analytics'
 import { authApi } from '../../services/authApi'
 
-vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
+vi.mock('@/lib/analytics', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/analytics')>()),
+  captureAnalyticsEvent: vi.fn(),
+}))
 
 // Mock the authApi module
 vi.mock('../../services/authApi', () => ({
@@ -239,6 +242,16 @@ describe('FaceRegistrationForm', () => {
       await wrapper.find('[data-testid="password-input"]').setValue('Password123')
       await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
     }
+
+    it('ignores focus on the CGU checkbox: only a text field starts the signup', async () => {
+      const wrapper = mountComponent()
+
+      await wrapper.find('[data-testid="accept-cgu-checkbox"]').trigger('focusin')
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
+
+      await wrapper.find('[data-testid="email-input"]').trigger('focusin')
+      expect(captureAnalyticsEvent).toHaveBeenCalledWith('inscription_commencee', { compte: 'face', methode: 'email' })
+    })
 
     it('sends inscription_commencee once on the first focus, however many follow', async () => {
       const wrapper = mountComponent()

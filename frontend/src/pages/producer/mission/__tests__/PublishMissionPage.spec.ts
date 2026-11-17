@@ -27,7 +27,10 @@ vi.mock('@/features/mission/services/missionApi', () => ({
   missionApi: { getMission: getMissionSpy },
 }))
 
-vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
+vi.mock('@/lib/analytics', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/analytics')>()),
+  captureAnalyticsEvent: vi.fn(),
+}))
 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({

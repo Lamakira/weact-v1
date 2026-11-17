@@ -6,7 +6,7 @@ import {
   producerRegistrationValidationSchema,
 } from '../schemas/producerRegistration'
 import { useAuth } from '../composables/useAuth'
-import { captureAnalyticsEvent } from '@/lib/analytics'
+import { captureAnalyticsEvent, isFormFieldTarget } from '@/lib/analytics'
 import type { ProducerRegistrationForm as FormData, ProducerType } from '../types'
 import { FloatingField } from '@/components/ui/form'
 import GoogleSignInButton from './GoogleSignInButton.vue'
@@ -62,8 +62,8 @@ const nameFieldKey = computed(() => (selectedType.value === 'agency' ? 'agency_n
 
 // Premier focus dans le formulaire = début d'inscription (une seule fois par montage)
 let signupStarted = false
-function handleFocusIn(): void {
-  if (signupStarted) return
+function handleFocusIn(event: FocusEvent): void {
+  if (!isFormFieldTarget(event.target) || signupStarted) return
   signupStarted = true
   captureAnalyticsEvent('inscription_commencee', { compte: 'producteur', methode: 'email' })
 }

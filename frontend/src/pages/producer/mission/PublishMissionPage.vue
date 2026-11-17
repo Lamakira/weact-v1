@@ -17,7 +17,7 @@ import { missionApi } from '@/features/mission/services/missionApi'
 import { buildRepublishValues } from '@/features/mission/utils/republishPrefill'
 import EmailVerificationRequired from '@/components/EmailVerificationRequired.vue'
 import { MissionStatus, isUgcMission, type Mission } from '@/features/mission/types'
-import { captureAnalyticsEvent } from '@/lib/analytics'
+import { captureAnalyticsEvent, isFormFieldTarget } from '@/lib/analytics'
 
 const route = useRoute()
 const router = useRouter()
@@ -48,8 +48,8 @@ onMounted(async () => {
 
 // Premier champ touché du formulaire de la page (une seule fois par montage).
 let publicationStarted = false
-function handleFocusIn(): void {
-  if (publicationStarted) return
+function handleFocusIn(event: FocusEvent): void {
+  if (!isFormFieldTarget(event.target) || publicationStarted) return
   publicationStarted = true
   captureAnalyticsEvent('mission_publication_commencee', {})
 }
