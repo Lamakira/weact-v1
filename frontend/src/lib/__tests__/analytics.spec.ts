@@ -84,6 +84,7 @@ describe('initAnalytics : options', () => {
     expect(config).toMatchObject({
       api_host: 'https://eu.i.posthog.com',
       cookieless_mode: 'on_reject',
+      opt_out_capturing_by_default: true,
       capture_pageview: 'history_change',
       capture_pageleave: true,
       person_profiles: 'identified_only',

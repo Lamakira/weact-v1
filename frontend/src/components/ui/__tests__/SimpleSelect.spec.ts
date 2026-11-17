@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { SimpleSelect } from '@/components/ui/select'
-import { chooseOption, cleanupPortals, getOptionLabels, openSelect } from './selectTestUtils'
+import { chooseOption, getOptionLabels, openSelect } from './selectTestUtils'
 
 const OPTIONS = [
   { value: 'a', label: 'Option A' },
@@ -23,10 +23,6 @@ function mountSelect(modelValue: string | number = '', extra: Record<string, unk
 }
 
 describe('SimpleSelect', () => {
-  afterEach(() => {
-    cleanupPortals()
-  })
-
   it('affiche le placeholder et porte les attributs sur le déclencheur', () => {
     const wrapper = mountSelect()
     const trigger = wrapper.get('[data-testid="simple"]')

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { useNotificationStore } from '@/stores/notification'
 import { createRouter, createMemoryHistory } from 'vue-router'
@@ -32,7 +32,6 @@ vi.mock('../services/messagingApi', () => ({
   },
 }))
 
-enableAutoUnmount(afterEach)
 
 const api = vi.mocked(messagingApi)
 

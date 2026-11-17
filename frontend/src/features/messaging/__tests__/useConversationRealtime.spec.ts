@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { defineComponent, h, nextTick, ref, type Ref } from 'vue'
-import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { channels, fakeConnection, fakeEcho, resetFakeEcho } from './fakeEcho'
 import { useNotificationStore } from '@/stores/notification'
@@ -43,7 +43,6 @@ function mountThread(uuid: Ref<string | null>, handlers = {}) {
   return { wrapper, calls }
 }
 
-enableAutoUnmount(afterEach)
 
 beforeEach(() => {
   setActivePinia(createPinia())

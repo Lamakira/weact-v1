@@ -1,9 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import DataTable from '../DataTable.vue'
 import type { DataTableColumn } from '../dataTableFeatures'
-import { chooseOption, cleanupPortals } from '@/components/ui/__tests__/selectTestUtils'
+import { chooseOption } from '@/components/ui/__tests__/selectTestUtils'
 
 interface Row {
   id: string
@@ -49,10 +49,6 @@ function mountTable(props: Record<string, unknown> = {}, slots: Record<string, u
 }
 
 describe('DataTable', () => {
-  afterEach(() => {
-    cleanupPortals()
-  })
-
   it('applies the column meta (sticky right + class) to header and cells', () => {
     const metaColumns: DataTableColumn<Row>[] = [
       { id: 'name', accessorFn: (r) => r.name, header: 'Nom', enableSorting: false },

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { enableAutoUnmount, flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { flushPromises, mount, RouterLinkStub } from '@vue/test-utils'
 import type { Ref } from 'vue'
 import ProfileEditPage from '../ProfileEditPage.vue'
 
@@ -154,7 +154,6 @@ function setParticulier(): void {
   h.refs.bio.value = 'Productrice indépendante.'
 }
 
-enableAutoUnmount(afterEach)
 
 describe('Producer ProfileEditPage — Régie settings page', () => {
   beforeEach(() => {

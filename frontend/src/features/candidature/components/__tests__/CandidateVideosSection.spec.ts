@@ -21,7 +21,6 @@ describe('CandidateVideosSection', () => {
   afterEach(() => {
     wrapper?.unmount()
     wrapper = null
-    document.body.innerHTML = ''
   })
 
   it("affiche une tuile Vidéo d'acting pour une vidéo de portfolio (reproduction)", () => {

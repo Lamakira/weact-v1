@@ -64,7 +64,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers()
-  document.body.innerHTML = ''
 })
 
 describe('ApplyToMissionModal — carte d’activation des notifications', () => {

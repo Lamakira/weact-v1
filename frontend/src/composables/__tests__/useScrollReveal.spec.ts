@@ -75,7 +75,6 @@ describe('useScrollReveal', () => {
   afterEach(() => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
-    document.body.innerHTML = ''
   })
 
   it('does not run the delayed init after unmount (no leaked timer)', () => {

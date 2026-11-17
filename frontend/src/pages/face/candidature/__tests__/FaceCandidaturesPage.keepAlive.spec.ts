@@ -189,11 +189,8 @@ describe('FaceCandidaturesPage — teleported ConfirmModal vs keep-alive deactiv
   })
 
   afterEach(() => {
-    // happy-dom keeps document.body across tests; teleported residues would
-    // leak into the next test without an explicit unmount + body reset.
     activeWrapper?.unmount()
     activeWrapper = null
-    document.body.innerHTML = ''
   })
 
   it('removes the teleported cancel-modal overlay from document.body on deactivation, and it does not reappear on reactivation', async () => {
