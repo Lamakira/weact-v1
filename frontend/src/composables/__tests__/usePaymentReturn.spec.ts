@@ -6,19 +6,21 @@ import { bookingApi } from '@/features/booking/services/bookingApi'
 import { missionApi } from '@/features/mission/services/missionApi'
 import { candidatureApi } from '@/features/candidature/services/candidatureApi'
 import { faceApi } from '@/features/face/services/faceApi'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 
 const ctx = vi.hoisted(() => ({
   route: { query: {} as Record<string, unknown> },
   replace: vi.fn().mockResolvedValue(undefined),
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
   refreshStatus: vi.fn().mockResolvedValue(undefined),
-  current: { value: null as { status: string } | null },
+  current: { value: null as { status: string; tier?: string } | null },
 }))
 
 vi.mock('vue-router', () => ({
   useRoute: () => ctx.route,
   useRouter: () => ({ replace: ctx.replace }),
 }))
+vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
 vi.mock('@/composables/useToast', () => ({ useToast: () => ctx.toast }))
 vi.mock('@/features/booking/services/bookingApi', () => ({
   bookingApi: { checkPaymentStatus: vi.fn(), checkCommissionStatus: vi.fn() },
@@ -274,6 +276,109 @@ describe('usePaymentReturn', () => {
       await api.start()
 
       expect(sessionStorage.getItem(snapshotKey)).toBeNull()
+    })
+  })
+
+  describe('analytics paiement_confirme', () => {
+    const confirmByKind: Array<[string, string, () => void]> = [
+      ['booking', 'booking', () => vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('paid'))],
+      [
+        'booking_commission',
+        'commission_booking',
+        () => vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue(bookingRes('commission_paid')),
+      ],
+      [
+        'mission_commission',
+        'commission_mission',
+        () =>
+          vi.mocked(missionApi.getCommissionStatus).mockResolvedValue({
+            data: { status: 'published' },
+          } as never),
+      ],
+      [
+        'candidature_escrow',
+        'sequestre_candidature',
+        () =>
+          vi.mocked(candidatureApi.getCandidaturePaymentStatus).mockResolvedValue({
+            data: { candidature_status: 'accepted', payment_status: 'paid', is_trackable: false },
+          }),
+      ],
+      [
+        'mission_selection',
+        'selection_mission',
+        () =>
+          vi.mocked(missionApi.getPaymentStatus).mockResolvedValue({
+            data: { has_payment: true, is_trackable: true, status: 'paid', mission_status: 'closed' },
+          }),
+      ],
+    ]
+
+    it.each(confirmByKind)('%s: a confirmation sends type %s once', async (kind, type, arrange) => {
+      ctx.route.query = { payment_return: kind }
+      arrange()
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('confirmed')
+      expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+      expect(captureAnalyticsEvent).toHaveBeenCalledWith('paiement_confirme', { type })
+    })
+
+    it('subscription: sends type abonnement with the confirmed tier', async () => {
+      ctx.route.query = { payment_return: 'subscription' }
+      vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue({
+        data: { subscription_id: 's', status: 'active' },
+      } as never)
+      ctx.refreshStatus.mockImplementationOnce(async () => {
+        ctx.current.value = { status: 'active', tier: 'elite' }
+      })
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(captureAnalyticsEvent).toHaveBeenCalledWith('paiement_confirme', {
+        type: 'abonnement',
+        palier: 'elite',
+      })
+    })
+
+    it('subscription: omits palier when the tier is unknown', async () => {
+      ctx.route.query = { payment_return: 'subscription' }
+      vi.mocked(faceApi.verifySubscriptionPayment).mockResolvedValue({
+        data: { subscription_id: 's', status: 'active' },
+      } as never)
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(captureAnalyticsEvent).toHaveBeenCalledWith('paiement_confirme', { type: 'abonnement' })
+    })
+
+    it('a failed payment sends nothing', async () => {
+      ctx.route.query = { payment_return: 'booking_commission' }
+      vi.mocked(bookingApi.checkCommissionStatus).mockResolvedValue(
+        bookingRes('pending', { commission_payment_status: 'failed' }),
+      )
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('failed')
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
+    })
+
+    it('a timeout sends nothing', async () => {
+      ctx.route.query = { payment_return: 'booking' }
+      vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('accepted'))
+      const { api } = mountReturn()
+
+      await api.start()
+      await vi.advanceTimersByTimeAsync(120000)
+      await flushPromises()
+
+      expect(api.state.value).toBe('timeout')
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
     })
   })
 

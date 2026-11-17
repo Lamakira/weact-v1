@@ -96,12 +96,32 @@ describe('initAnalytics : options', () => {
     const a = await load()
     await a.initAnalytics(fakeRouter(), pinia)
     const { before_send } = phMock.init.mock.calls[0][1]
-    const event = { event: 'x', properties: {} }
+    const event = { event: '$pageview', properties: {} }
 
     window.history.pushState({}, '', '/admin/users')
     expect(before_send(event)).toBeNull()
     window.history.pushState({}, '', '/faces')
     expect(before_send(event)).toBe(event)
+  })
+
+  it('sans consentement : seuls les visites, les étapes clés et erreur_api partent', async () => {
+    const a = await load()
+    await a.initAnalytics(fakeRouter(), pinia)
+    const { before_send } = phMock.init.mock.calls[0][1]
+    window.history.pushState({}, '', '/faces')
+    const ev = (name: string) => ({ event: name, properties: {} })
+
+    for (const name of ['$pageview', '$pageleave', 'erreur_api', 'booking_demande_envoyee', 'paiement_confirme']) {
+      expect(before_send(ev(name))).not.toBeNull()
+    }
+    for (const name of ['$autocapture', '$rageclick', '$dead_click', '$$heatmap', '$web_vitals', '$exception']) {
+      expect(before_send(ev(name))).toBeNull()
+    }
+
+    a.syncAnalyticsConsent('granted')
+    expect(before_send(ev('$autocapture'))).not.toBeNull()
+    a.syncAnalyticsConsent('denied')
+    expect(before_send(ev('$autocapture'))).toBeNull()
   })
 })
 
@@ -274,5 +294,160 @@ describe('captureApiError', () => {
     vi.advanceTimersByTime(61_000)
     a.captureApiError(err)
     expect(phMock.capture).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('captureAnalyticsEvent', () => {
+  it('avant l\'initialisation : gardé en mémoire puis envoyé à l\'init, avec le rôle connu à ce moment', async () => {
+    const a = await load()
+    a.captureAnalyticsEvent('email_verifie', {})
+    a.captureAnalyticsEvent('paiement_confirme', { type: 'booking' })
+    expect(phMock.capture).not.toHaveBeenCalled()
+
+    authStore.user = { id: 3, userable_type: 'Face' }
+    await a.initAnalytics(fakeRouter(), pinia)
+
+    expect(phMock.capture).toHaveBeenNthCalledWith(1, 'email_verifie', { role: 'face' }, undefined)
+    expect(phMock.capture).toHaveBeenNthCalledWith(2, 'paiement_confirme', { type: 'booking', role: 'face' }, undefined)
+  })
+
+  it('sans clé ou en mode test : rien n\'est gardé ni envoyé', async () => {
+    const a = await load({ key: '' })
+    a.captureAnalyticsEvent('email_verifie', {})
+    await a.initAnalytics(fakeRouter(), pinia)
+    expect(phMock.capture).not.toHaveBeenCalled()
+  })
+
+  it('au plus 20 événements gardés avant l\'init', async () => {
+    const a = await load()
+    for (let i = 0; i < 25; i++) a.captureAnalyticsEvent('candidature_envoyee', {})
+    await a.initAnalytics(fakeRouter(), pinia)
+    expect(phMock.capture).toHaveBeenCalledTimes(20)
+  })
+
+  it('ajoute le rôle : visiteur sans compte, face ou producteur une fois connecté', async () => {
+    const a = await load()
+    await a.initAnalytics(fakeRouter(), pinia)
+
+    a.captureAnalyticsEvent('inscription_soumise', { compte: 'face', methode: 'email' })
+    expect(phMock.capture).toHaveBeenLastCalledWith(
+      'inscription_soumise',
+      { compte: 'face', methode: 'email', role: 'visiteur' },
+      undefined,
+    )
+
+    authStore.user = { id: 7, userable_type: 'Producer' }
+    a.captureAnalyticsEvent('mission_publiee', { type: 'ugc', paiement_requis: true })
+    expect(phMock.capture).toHaveBeenLastCalledWith(
+      'mission_publiee',
+      { type: 'ugc', paiement_requis: true, role: 'producteur' },
+      undefined,
+    )
+
+    authStore.user = { id: 8, userable_type: 'Face' }
+    a.captureAnalyticsEvent('booking_acceptee', { type: 'cash' })
+    expect(phMock.capture).toHaveBeenLastCalledWith('booking_acceptee', { type: 'cash', role: 'face' }, undefined)
+  })
+
+  it('sendInstantly : envoi immédiat (départ vers FedaPay)', async () => {
+    const a = await load()
+    await a.initAnalytics(fakeRouter(), pinia)
+    a.captureAnalyticsEvent('paiement_lance', { type: 'abonnement', palier: 'pro' }, { sendInstantly: true })
+    expect(phMock.capture).toHaveBeenLastCalledWith(
+      'paiement_lance',
+      { type: 'abonnement', palier: 'pro', role: 'visiteur' },
+      { send_instantly: true },
+    )
+  })
+
+  it('une erreur de PostHog ne remonte jamais', async () => {
+    const a = await load()
+    await a.initAnalytics(fakeRouter(), pinia)
+    phMock.capture.mockImplementationOnce(() => {
+      throw new Error('boom')
+    })
+    expect(() => a.captureAnalyticsEvent('candidature_envoyee', {})).not.toThrow()
+  })
+})
+
+describe('nettoyage des URL envoyées', () => {
+  it('remplace jetons, identifiants et e-mails des liens reçus par e-mail', async () => {
+    const a = await load()
+    expect(a.sanitizeUrl('https://weact.bj/verify-email/42/abcdef?expires=1&signature=xyz')).toBe(
+      'https://weact.bj/verify-email/:id/:hash',
+    )
+    expect(a.sanitizeUrl('https://weact.bj/reset-password/tok123?email=jane%40mail.com')).toBe(
+      'https://weact.bj/reset-password/:token',
+    )
+    expect(a.sanitizeUrl('/admin/reset-password/tok?email=a%40b.c')).toBe('/admin/reset-password/:token')
+    expect(a.sanitizeUrl('/email-change/confirm/7/hash?signature=s')).toBe('/email-change/confirm/:id/:hash')
+    expect(a.sanitizeUrl('https://weact.bj/auth/google/callback?code=c&state=s')).toBe(
+      'https://weact.bj/auth/google/callback',
+    )
+  })
+
+  it('garde la provenance et l\'état d\'affichage, retire le reste', async () => {
+    const a = await load()
+    expect(
+      a.sanitizeUrl('https://weact.bj/pricing?utm_source=whatsapp&fbclid=f&plan=pro&redirect=/face/x&payment_return=subscription'),
+    ).toBe('https://weact.bj/pricing?utm_source=whatsapp&fbclid=f&plan=pro')
+    expect(a.sanitizeUrl('https://weact.bj/producer/missions/abc?tab=candidatures&mission=m1&candidature=c1#x')).toBe(
+      'https://weact.bj/producer/missions/abc?tab=candidatures',
+    )
+  })
+
+  it('before_send nettoie les URL de chaque événement, avec ou sans consentement', async () => {
+    const a = await load()
+    await a.initAnalytics(fakeRouter(), pinia)
+    const { before_send } = phMock.init.mock.calls[0][1]
+    window.history.pushState({}, '', '/verify-email/42/abc')
+    const event = {
+      event: '$pageview',
+      properties: {
+        $current_url: 'https://weact.bj/verify-email/42/abc?signature=s',
+        $pathname: '/verify-email/42/abc',
+        $referrer: '$direct',
+        $set_once: { $initial_current_url: 'https://weact.bj/reset-password/t?email=a%40b.c' },
+      },
+    }
+    const sent = before_send(event)
+    expect(sent.properties).toMatchObject({
+      $current_url: 'https://weact.bj/verify-email/:id/:hash',
+      $pathname: '/verify-email/:id/:hash',
+      $referrer: '$direct',
+      $set_once: { $initial_current_url: 'https://weact.bj/reset-password/:token' },
+    })
+    window.history.pushState({}, '', '/')
+  })
+
+  it('coupe l\'enregistrement de session sur les pages de liens reçus par e-mail', async () => {
+    storedChoice.mockReturnValue('granted')
+    phMock.get_explicit_consent_status.mockReturnValue('granted')
+    const router = fakeRouter('/faces')
+    const a = await load()
+    await a.initAnalytics(router, pinia)
+    phMock.stopSessionRecording.mockClear()
+    router.currentRoute.value = { path: '/reset-password/tok' }
+    await nextTick()
+    expect(phMock.stopSessionRecording).toHaveBeenCalled()
+  })
+})
+
+describe('isFormFieldTarget', () => {
+  it('vrai pour un champ de saisie, faux pour bouton, case à cocher et lien', async () => {
+    const a = await load()
+    const el = (html: string) => {
+      const host = document.createElement('div')
+      host.innerHTML = html
+      return host.firstElementChild
+    }
+    expect(a.isFormFieldTarget(el('<input type="email">'))).toBe(true)
+    expect(a.isFormFieldTarget(el('<input>'))).toBe(true)
+    expect(a.isFormFieldTarget(el('<textarea></textarea>'))).toBe(true)
+    expect(a.isFormFieldTarget(el('<button role="combobox"></button>'))).toBe(true)
+    expect(a.isFormFieldTarget(el('<input type="checkbox">'))).toBe(false)
+    expect(a.isFormFieldTarget(el('<button>Google</button>'))).toBe(false)
+    expect(a.isFormFieldTarget(el('<a href="/cgu">CGU</a>'))).toBe(false)
+    expect(a.isFormFieldTarget(null)).toBe(false)
   })
 })

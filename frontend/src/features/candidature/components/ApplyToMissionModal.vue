@@ -5,6 +5,7 @@ import { X, Loader2, CheckCircle, AlertCircle, Mail, ShieldAlert } from 'lucide-
 import { useApplyToMission } from '../composables/useApplyToMission'
 import { authApi } from '@/features/auth/services/authApi'
 import { useToast } from '@/composables/useToast'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 import PushMomentCard from '@/features/notification/components/PushMomentCard.vue'
 
 /**
@@ -82,6 +83,7 @@ async function handleSubmit(): Promise<void> {
   }
 
   if (result.success && result.data) {
+    captureAnalyticsEvent('candidature_envoyee', {})
     emit('success', {
       id: result.data.id,
       status: result.data.status,

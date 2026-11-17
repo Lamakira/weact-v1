@@ -5,6 +5,7 @@ import { authApi, getApiErrorMessage } from '../services/authApi'
 import { createGoogleOAuthNonce } from '../googleOAuthNonce'
 import { setPendingReauthPurpose, type GoogleReauthPurpose } from '../googleReauth'
 import type { GoogleIntent } from '../types'
+import { captureAnalyticsEvent, type AnalyticsAccount } from '@/lib/analytics'
 
 const props = withDefaults(
   defineProps<{
@@ -14,6 +15,8 @@ const props = withDefaults(
     label?: string
     /** What a `reauth` ticket is for: only the screen of that purpose will consume it. */
     reauthPurpose?: GoogleReauthPurpose
+    /** Inscription seulement : type de compte pour la mesure d'usage (absent sur la connexion). */
+    signupAccount?: AnalyticsAccount
   }>(),
   { disabled: false, label: 'Continuer avec Google' }
 )
@@ -52,6 +55,14 @@ async function handleClick(): Promise<void> {
 
     if (props.intent === 'reauth' && props.reauthPurpose) {
       setPendingReauthPurpose(props.reauthPurpose)
+    }
+
+    if (props.signupAccount) {
+      captureAnalyticsEvent(
+        'inscription_commencee',
+        { compte: props.signupAccount, methode: 'google' },
+        { sendInstantly: true },
+      )
     }
 
     window.location.href = url

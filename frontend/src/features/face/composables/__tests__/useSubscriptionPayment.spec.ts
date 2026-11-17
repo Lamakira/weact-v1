@@ -126,7 +126,10 @@ describe('useSubscriptionPayment (FP-2.7 tier-aware contract)', () => {
 
     expect(result).toBe(true)
     expect(faceApi.initiateSubscriptionPayment).toHaveBeenCalledWith('pro')
-    expect(redirectToCheckout).toHaveBeenCalledWith('https://checkout.fedapay.test/sess_abc')
+    expect(redirectToCheckout).toHaveBeenCalledWith('https://checkout.fedapay.test/sess_abc', {
+      type: 'abonnement',
+      palier: 'pro',
+    })
     expect(openSpy).not.toHaveBeenCalled()
     expect(api.paymentState.value).toBe('waiting')
     expect(api.error.value).toBeNull()
@@ -729,7 +732,7 @@ describe('resumePayment via backend (FP-2.15.2)', () => {
 
     expect(result).toBe(true)
     expect(faceApi.resumePendingSubscription).toHaveBeenCalledOnce()
-    expect(redirectToCheckout).toHaveBeenCalledWith('https://checkout.fedapay.test/sess_resumed')
+    expect(redirectToCheckout).toHaveBeenCalledWith('https://checkout.fedapay.test/sess_resumed', { type: 'abonnement' })
     expect(openSpy).not.toHaveBeenCalled()
     expect(api.paymentState.value).toBe('waiting')
 

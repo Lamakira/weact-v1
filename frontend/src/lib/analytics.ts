@@ -39,6 +39,71 @@ function isAdminPath(path: string): boolean {
   return path === '/admin' || path.startsWith('/admin/')
 }
 
+/**
+ * Liens reçus par e-mail : leurs URL portent un identifiant de compte, un jeton ou l'e-mail
+ * (`/reset-password/<jeton>?email=…`). Leurs segments sont remplacés avant tout envoi, et
+ * l'enregistrement de session y est coupé.
+ */
+const SENSITIVE_PATHS: Array<[RegExp, string]> = [
+  [/^\/verify-email\/[^/]+\/[^/]+/, '/verify-email/:id/:hash'],
+  [/^\/email-change\/confirm\/[^/]+\/[^/]+/, '/email-change/confirm/:id/:hash'],
+  [/^\/reset-password\/[^/]+/, '/reset-password/:token'],
+  [/^\/admin\/reset-password\/[^/]+/, '/admin/reset-password/:token'],
+]
+const SENSITIVE_PREFIXES = ['/verify-email/', '/email-change/', '/reset-password/', '/auth/google/callback']
+
+/** Paramètres d'URL conservés : provenance (campagnes, réseaux) et état d'affichage. Tout le reste est retiré. */
+const KEPT_QUERY_PARAMS = new Set([
+  'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
+  'gclid', 'fbclid', 'msclkid',
+  'tab', 'page', 'section', 'plan', 'status', 'sort', 'per_page',
+])
+
+function isSensitivePath(path: string): boolean {
+  return SENSITIVE_PREFIXES.some((prefix) => path.startsWith(prefix))
+}
+
+export function sanitizePath(path: string): string {
+  for (const [pattern, replacement] of SENSITIVE_PATHS) {
+    if (pattern.test(path)) return path.replace(pattern, replacement)
+  }
+  return path
+}
+
+/** URL ou chemin débarrassé des jetons, identifiants de compte, e-mails et paramètres non listés. */
+export function sanitizeUrl(value: string): string {
+  let url: URL
+  const isPath = value.startsWith('/')
+  try {
+    url = new URL(value, 'https://weact.invalid')
+  } catch {
+    return value
+  }
+  url.pathname = sanitizePath(url.pathname)
+  for (const key of [...url.searchParams.keys()]) {
+    if (!KEPT_QUERY_PARAMS.has(key)) url.searchParams.delete(key)
+  }
+  url.hash = ''
+  return isPath ? `${url.pathname}${url.search}` : url.toString()
+}
+
+const URL_PROPERTIES = [
+  '$current_url', '$pathname', '$referrer', '$initial_current_url', '$initial_pathname', '$initial_referrer',
+  '$prev_pageview_pathname', '$prev_pageview_url',
+]
+
+function sanitizeProperties(properties: Record<string, unknown> | undefined): void {
+  if (!properties) return
+  for (const key of URL_PROPERTIES) {
+    const value = properties[key]
+    if (typeof value === 'string' && value !== '$direct') properties[key] = sanitizeUrl(value)
+  }
+  for (const nested of ['$set', '$set_once']) {
+    const bag = properties[nested]
+    if (bag && typeof bag === 'object') sanitizeProperties(bag as Record<string, unknown>)
+  }
+}
+
 function identifyUser(user: AnalyticsUser | null | undefined): void {
   if (!posthog || !user || currentChoice !== 'granted') return
   const props: Record<string, string> = {
@@ -53,7 +118,8 @@ function identifyUser(user: AnalyticsUser | null | undefined): void {
 
 function syncSessionRecording(): void {
   if (!posthog || !routerRef) return
-  if (isAdminPath(routerRef.currentRoute.value.path)) {
+  const path = routerRef.currentRoute.value.path
+  if (isAdminPath(path) || isSensitivePath(path)) {
     posthog.stopSessionRecording()
   } else if (currentChoice === 'granted') {
     posthog.startSessionRecording()
@@ -92,7 +158,13 @@ export async function initAnalytics(router: Router, pinia: Pinia): Promise<void>
       capture_pageleave: true,
       person_profiles: 'identified_only',
       session_recording: { maskAllInputs: true },
-      before_send: (event) => (isAdminPath(window.location.pathname) ? null : event),
+      before_send: (event) => {
+        if (!event || !shouldSend(event.event)) return null
+        sanitizeProperties(event.properties)
+        sanitizeProperties(event.$set as Record<string, unknown> | undefined)
+        sanitizeProperties(event.$set_once as Record<string, unknown> | undefined)
+        return event
+      },
     })
     posthog = ph
     routerRef = router
@@ -120,17 +192,146 @@ export async function initAnalytics(router: Router, pinia: Pinia): Promise<void>
         else identifyUser(store.user)
       },
     )
+
+    flushPendingEvents()
   } catch {
     // La mesure ne doit jamais perturber l'application.
+    initFailed = true
+    pendingEvents.length = 0
   }
 }
 
-export function captureAnalyticsEvent(name: string, props?: Record<string, unknown>): void {
+/**
+ * Événements émis avant le chargement de posthog-js (import dynamique) : une page ouverte depuis un
+ * lien (vérification d'e-mail, retour de FedaPay) déclenche son événement avant la fin du chargement.
+ * Ils sont gardés en mémoire puis envoyés à l'initialisation, après le consentement.
+ */
+const MAX_PENDING_EVENTS = 20
+let initFailed = false
+const pendingEvents: Array<{ name: AnalyticsEventName; props: object; sendInstantly: boolean }> = []
+
+function flushPendingEvents(): void {
+  const queued = pendingEvents.splice(0)
+  for (const event of queued) sendEvent(event.name, event.props, event.sendInstantly)
+}
+
+/**
+ * Événements des cinq parcours (cadrage du 14 novembre 2026). Noms en français, objet puis action.
+ * Jamais de montant, de nom, d'e-mail ni de téléphone. Envoyés aussi sans consentement, en mode
+ * anonyme sans cookie (décision PO du 17 novembre 2026, politique de confidentialité section 11).
+ */
+export type AnalyticsAccount = 'face' | 'producteur'
+export type AnalyticsSignupMethod = 'email' | 'google'
+export type AnalyticsPaymentType =
+  | 'abonnement'
+  | 'booking'
+  | 'commission_booking'
+  | 'commission_mission'
+  | 'sequestre_candidature'
+  | 'selection_mission'
+export type AnalyticsTier = 'starter' | 'pro' | 'elite'
+
+export interface AnalyticsPaymentProps {
+  type: AnalyticsPaymentType
+  /** Abonnement seulement : palier payé. */
+  palier?: AnalyticsTier
+}
+
+export interface AnalyticsEvents {
+  inscription_commencee: { compte: AnalyticsAccount; methode: AnalyticsSignupMethod }
+  inscription_soumise: { compte: AnalyticsAccount; methode: 'email' }
+  inscription_reussie: { compte: AnalyticsAccount; methode: AnalyticsSignupMethod }
+  email_verifie: Record<string, never>
+  booking_formulaire_ouvert: Record<string, never>
+  booking_demande_envoyee: { type: 'cash' | 'ugc'; derniere_minute: boolean }
+  booking_acceptee: { type: 'cash' | 'ugc' }
+  mission_publication_commencee: Record<string, never>
+  mission_publiee: { type: 'classique' | 'ugc'; paiement_requis: boolean }
+  candidature_envoyee: Record<string, never>
+  candidature_acceptee: { type: 'produit_seul' }
+  palier_choisi: { palier: AnalyticsTier }
+  paiement_lance: AnalyticsPaymentProps
+  paiement_confirme: AnalyticsPaymentProps
+}
+
+export type AnalyticsEventName = keyof AnalyticsEvents
+
+/**
+ * Vrai si le focus arrive sur un champ de saisie (texte, date, liste…), pas sur un bouton, une case
+ * à cocher ou un lien : « commencer un formulaire » veut dire toucher un champ.
+ */
+export function isFormFieldTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof Element)) return false
+  if (target.matches('textarea, select, [contenteditable="true"], [role="combobox"]')) return true
+  if (!target.matches('input')) return false
+  const type = (target.getAttribute('type') ?? 'text').toLowerCase()
+  return !['checkbox', 'radio', 'button', 'submit', 'reset', 'hidden', 'file', 'image'].includes(type)
+}
+
+// Liste exhaustive (le compilateur exige chaque événement du catalogue).
+const FUNNEL_EVENTS: Record<AnalyticsEventName, true> = {
+  inscription_commencee: true,
+  inscription_soumise: true,
+  inscription_reussie: true,
+  email_verifie: true,
+  booking_formulaire_ouvert: true,
+  booking_demande_envoyee: true,
+  booking_acceptee: true,
+  mission_publication_commencee: true,
+  mission_publiee: true,
+  candidature_envoyee: true,
+  candidature_acceptee: true,
+  palier_choisi: true,
+  paiement_lance: true,
+  paiement_confirme: true,
+}
+
+/**
+ * Sans consentement (choix en attente ou refus), seuls partent les visites, les étapes clés et les
+ * erreurs techniques, comme l'annonce la politique de confidentialité. Clics automatiques, cartes de
+ * chaleur, mesures de performance, etc. sont jetés. L'espace administrateur n'envoie rien.
+ */
+const ANONYMOUS_ALLOWED = new Set<string>(['$pageview', '$pageleave', 'erreur_api', ...Object.keys(FUNNEL_EVENTS)])
+
+function shouldSend(eventName: string): boolean {
+  if (isAdminPath(window.location.pathname)) return false
+  return currentChoice === 'granted' || ANONYMOUS_ALLOWED.has(eventName)
+}
+
+function currentRole(): 'face' | 'producteur' | 'visiteur' {
+  const type = authStore?.user?.userable_type
+  if (type === 'Face') return 'face'
+  if (type === 'Producer') return 'producteur'
+  return 'visiteur'
+}
+
+/**
+ * Envoie un événement de parcours, avec le rôle de la personne connectée (`role`).
+ * `sendInstantly` : à utiliser juste avant de quitter la page (départ vers FedaPay), pour ne pas
+ * perdre l'événement resté en file d'attente.
+ */
+export function captureAnalyticsEvent<K extends AnalyticsEventName>(
+  name: K,
+  props: AnalyticsEvents[K],
+  options: { sendInstantly?: boolean } = {},
+): void {
+  const sendInstantly = options.sendInstantly === true
+  if (!posthog) {
+    if (isEnabled() && !initFailed && pendingEvents.length < MAX_PENDING_EVENTS) {
+      pendingEvents.push({ name, props: { ...props }, sendInstantly })
+    }
+    return
+  }
+  sendEvent(name, props, sendInstantly)
+}
+
+function sendEvent(name: AnalyticsEventName, props: object, sendInstantly: boolean): void {
   if (!posthog) return
   try {
-    posthog.capture(name, props)
+    // Le rôle est lu à l'envoi : avant l'initialisation, le store n'est pas encore relié.
+    posthog.capture(name, { ...props, role: currentRole() }, sendInstantly ? { send_instantly: true } : undefined)
   } catch {
-    // ignoré
+    // La mesure ne doit jamais perturber l'application.
   }
 }
 

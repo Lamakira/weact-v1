@@ -10,6 +10,7 @@ import { CheckCircle, XCircle, Loader2, Mail } from 'lucide-vue-next'
 import { authApi } from '@/features/auth/services/authApi'
 import { useAuthStore } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 
 type VerificationState = 'loading' | 'success' | 'error' | 'already_verified'
 
@@ -48,6 +49,7 @@ onMounted(async () => {
       }
     } else if (result.verified) {
       state.value = 'success'
+      captureAnalyticsEvent('email_verifie', {})
       // Refresh user data from API to ensure consistency
       if (authStore.isAuthenticated) {
         await authStore.refreshUser()

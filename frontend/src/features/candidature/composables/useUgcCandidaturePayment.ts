@@ -44,7 +44,7 @@ export function useUgcCandidaturePayment(): UseUgcCandidaturePaymentReturn {
 
       // Same-tab redirect; 'waiting' = redirecting.
       paymentStatus.value = 'waiting'
-      redirectToCheckout(res.checkout_url)
+      redirectToCheckout(res.checkout_url, { type: 'sequestre_candidature' })
     } catch (err) {
       error.value = getApiErrorMessage(err)
       paymentStatus.value = 'failed'

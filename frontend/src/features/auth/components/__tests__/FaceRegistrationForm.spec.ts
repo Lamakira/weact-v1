@@ -3,6 +3,13 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createTestingPinia } from '@pinia/testing'
 import { createRouter, createWebHistory } from 'vue-router'
 import FaceRegistrationForm from '../FaceRegistrationForm.vue'
+import { captureAnalyticsEvent } from '@/lib/analytics'
+import { authApi } from '../../services/authApi'
+
+vi.mock('@/lib/analytics', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/analytics')>()),
+  captureAnalyticsEvent: vi.fn(),
+}))
 
 // Mock the authApi module
 vi.mock('../../services/authApi', () => ({
@@ -50,9 +57,9 @@ describe('FaceRegistrationForm', () => {
         stubs: {
           RouterLink: true,
           GoogleSignInButton: {
-            props: ['intent', 'disabled', 'label'],
+            props: ['intent', 'disabled', 'label', 'signupAccount'],
             template:
-              '<button data-testid="google-sign-in-button" :data-intent="intent" :disabled="disabled" />',
+              '<button data-testid="google-sign-in-button" :data-intent="intent" :data-signup-account="signupAccount" :disabled="disabled" />',
           },
         },
       },
@@ -223,6 +230,79 @@ describe('FaceRegistrationForm', () => {
         wrapper.find('[data-testid="google-sign-in-button"]').attributes('disabled')
       ).toBeUndefined()
       expect(wrapper.find('[data-testid="google-cgu-hint"]').exists()).toBe(false)
+    })
+  })
+
+  describe('Analytics', () => {
+    const fillValid = async (wrapper: ReturnType<typeof mountComponent>) => {
+      await wrapper.find('[data-testid="nom-input"]').setValue('Doe')
+      await wrapper.find('[data-testid="prenom-input"]').setValue('John')
+      await wrapper.find('[data-testid="email-input"]').setValue('john@example.com')
+      await wrapper.find('[data-testid="date-naissance-input"]').setValue('1995-06-15')
+      await wrapper.find('[data-testid="password-input"]').setValue('Password123')
+      await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
+    }
+
+    it('ignores focus on the CGU checkbox: only a text field starts the signup', async () => {
+      const wrapper = mountComponent()
+
+      await wrapper.find('[data-testid="accept-cgu-checkbox"]').trigger('focusin')
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
+
+      await wrapper.find('[data-testid="email-input"]').trigger('focusin')
+      expect(captureAnalyticsEvent).toHaveBeenCalledWith('inscription_commencee', { compte: 'face', methode: 'email' })
+    })
+
+    it('sends inscription_commencee once on the first focus, however many follow', async () => {
+      const wrapper = mountComponent()
+
+      await wrapper.find('[data-testid="nom-input"]').trigger('focusin')
+      await wrapper.find('[data-testid="email-input"]').trigger('focusin')
+      await wrapper.find('[data-testid="nom-input"]').trigger('focusin')
+
+      expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+      expect(captureAnalyticsEvent).toHaveBeenCalledWith('inscription_commencee', {
+        compte: 'face',
+        methode: 'email',
+      })
+    })
+
+    it('sends nothing before any focus', () => {
+      mountComponent()
+
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
+    })
+
+    it('sends inscription_soumise on a valid submit', async () => {
+      vi.mocked(authApi.registerFace).mockRejectedValue(new Error('422'))
+      const wrapper = mountComponent()
+      await fillValid(wrapper)
+
+      await wrapper.find('form').trigger('submit')
+      await waitForValidation()
+
+      expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+      expect(captureAnalyticsEvent).toHaveBeenCalledWith('inscription_soumise', {
+        compte: 'face',
+        methode: 'email',
+      })
+    })
+
+    it('sends nothing on an invalid submit', async () => {
+      const wrapper = mountComponent()
+
+      await wrapper.find('form').trigger('submit')
+      await waitForValidation()
+
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
+    })
+
+    it('passes the face account to the Google button', () => {
+      const wrapper = mountComponent({ googleEnabled: true })
+
+      expect(
+        wrapper.find('[data-testid="google-sign-in-button"]').attributes('data-signup-account')
+      ).toBe('face')
     })
   })
 })

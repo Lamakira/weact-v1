@@ -10,6 +10,7 @@ import { storeSubscriptionReturn } from '@/features/face/subscriptionReturn'
 import TierChangeModal from '@/features/face/components/TierChangeModal.vue'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import { useToast } from '@/composables/useToast'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 import type { FaceSubscriptionPlan, FaceSubscriptionTier, SubscriptionOffer } from '@/features/face/types'
 
 // =============================================================
@@ -411,6 +412,7 @@ function onTierClick(handoffKey: HandoffTierKey): void {
   if (!offer) return
   modalTarget.value = offer
   modalOpen.value = true
+  captureAnalyticsEvent('palier_choisi', { palier: apiKey })
 }
 
 async function onConfirm(): Promise<void> {

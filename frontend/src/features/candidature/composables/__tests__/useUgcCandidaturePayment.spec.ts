@@ -55,7 +55,7 @@ describe('useUgcCandidaturePayment (8-5 hybrid per-Face payment)', () => {
     await api.initiate('cand-1')
 
     expect(candidatureApi.acceptCandidature).toHaveBeenCalledWith('cand-1')
-    expect(redirectToCheckout).toHaveBeenCalledWith(CHECKOUT_URL)
+    expect(redirectToCheckout).toHaveBeenCalledWith(CHECKOUT_URL, { type: 'sequestre_candidature' })
     expect(openSpy).not.toHaveBeenCalled()
     expect(api.paymentStatus.value).toBe('waiting')
     expect(api.isInitiating.value).toBe(false)

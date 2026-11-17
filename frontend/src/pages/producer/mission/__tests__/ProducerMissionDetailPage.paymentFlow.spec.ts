@@ -749,7 +749,7 @@ describe('ProducerMissionDetailPage — FIX-19.3 false-pending guard', () => {
       await flushPromises()
 
       expect(missionApi.confirmSelection).toHaveBeenCalledWith('mission-uuid-under-test', [])
-      expect(redirectSpy).toHaveBeenCalledWith('https://checkout.fedapay.test/fresh')
+      expect(redirectSpy).toHaveBeenCalledWith('https://checkout.fedapay.test/fresh', { type: 'selection_mission' })
       wrapper.unmount()
     })
 
@@ -838,7 +838,7 @@ describe('ProducerMissionDetailPage — FIX-19.3 false-pending guard', () => {
       await flushPromises()
 
       expect(missionApi.confirmSelection).toHaveBeenCalledWith('mission-uuid-under-test', [])
-      expect(redirectSpy).toHaveBeenCalledWith('https://checkout.fedapay.test/regenerated')
+      expect(redirectSpy).toHaveBeenCalledWith('https://checkout.fedapay.test/regenerated', { type: 'selection_mission' })
       wrapper.unmount()
     })
   })

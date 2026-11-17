@@ -3,6 +3,10 @@ import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth'
 import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
 import { useMessagesUnreadStore } from '@/stores/messagesUnread'
+import { captureAnalyticsEvent } from '@/lib/analytics'
+import { authApi } from '../../services/authApi'
+
+vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
 
 // Mock vue-router
 const mockPush = vi.fn()
@@ -155,4 +159,63 @@ describe('useAuth - logout', () => {
     expect(authStore.user).toBeNull()
     expect(mockPush).toHaveBeenCalledWith('/login')
   })
+
+describe('useAuth - analytics on email signup', () => {
+  const user = (type: 'Face' | 'Producer') => ({
+    id: 1,
+    email: 'test@example.com',
+    userable_type: type,
+    userable: null,
+    email_verified_at: null,
+    created_at: '2026-01-01',
+    updated_at: '2026-01-01',
+  })
+
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('registerFace success sends inscription_reussie for a face', async () => {
+    vi.mocked(authApi.registerFace).mockResolvedValue({
+      data: { token: 't', user: user('Face') },
+    } as never)
+
+    const result = await useAuth().registerFace({} as never)
+
+    expect(result.success).toBe(true)
+    expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+    expect(captureAnalyticsEvent).toHaveBeenCalledWith('inscription_reussie', {
+      compte: 'face',
+      methode: 'email',
+    })
+  })
+
+  it('registerProducer success sends inscription_reussie for a producteur', async () => {
+    vi.mocked(authApi.registerProducer).mockResolvedValue({
+      data: { token: 't', user: user('Producer') },
+    } as never)
+
+    const result = await useAuth().registerProducer({} as never)
+
+    expect(result.success).toBe(true)
+    expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+    expect(captureAnalyticsEvent).toHaveBeenCalledWith('inscription_reussie', {
+      compte: 'producteur',
+      methode: 'email',
+    })
+  })
+
+  it('sends nothing when the registration fails', async () => {
+    vi.mocked(authApi.registerFace).mockRejectedValue(new Error('422'))
+    vi.mocked(authApi.registerProducer).mockRejectedValue(new Error('422'))
+
+    const face = await useAuth().registerFace({} as never)
+    const producer = await useAuth().registerProducer({} as never)
+
+    expect(face.success).toBe(false)
+    expect(producer.success).toBe(false)
+    expect(captureAnalyticsEvent).not.toHaveBeenCalled()
+  })
+})
 })
