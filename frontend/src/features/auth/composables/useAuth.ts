@@ -5,6 +5,7 @@ import { useNotificationStore } from '@/stores/notification'
 import { useUgcValidationCountStore } from '@/stores/ugcValidationCount'
 import { useMessagesUnreadStore } from '@/stores/messagesUnread'
 import { useRouter } from 'vue-router'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 import { authApi, getApiErrorDetails, getApiErrorMessage, getApiErrorCode } from '../services/authApi'
 import type {
   FaceRegistrationForm,
@@ -108,6 +109,7 @@ export function useAuth(): UseAuthReturn {
       // Store token and user data
       authStore.setToken(response.data.token)
       authStore.setUser(response.data.user)
+      captureAnalyticsEvent('inscription_reussie', { compte: 'face', methode: 'email' })
 
       // Initialize notification store
       void notificationStore.subscribe()
@@ -136,6 +138,7 @@ export function useAuth(): UseAuthReturn {
       // Store token and user data
       authStore.setToken(response.data.token)
       authStore.setUser(response.data.user)
+      captureAnalyticsEvent('inscription_reussie', { compte: 'producteur', methode: 'email' })
 
       // Initialize notification store
       void notificationStore.subscribe()
@@ -215,6 +218,10 @@ export function useAuth(): UseAuthReturn {
       const response = await authApi.completeGoogleRegistration(data)
 
       adoptSession(response.data.token, response.data.user)
+      captureAnalyticsEvent('inscription_reussie', {
+        compte: response.data.user.userable_type === 'Producer' ? 'producteur' : 'face',
+        methode: 'google',
+      })
 
       return { success: true }
     } catch (error) {

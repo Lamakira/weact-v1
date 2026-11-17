@@ -155,7 +155,7 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
       // /face/billing?payment_return=subscription (usePaymentReturn).
       paymentState.value = 'waiting'
       saveSubscriptionPaymentSnapshot({ tier: snapshot.tier, expires_at: snapshot.expiresAt })
-      redirectToCheckout(response.data.checkout_url)
+      redirectToCheckout(response.data.checkout_url, { type: 'abonnement', palier: plan })
       return true
     } catch (err) {
       error.value = getApiErrorMessage(err)
@@ -206,7 +206,7 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
       hasArmedPayment.value = true
       paymentState.value = 'waiting'
       saveSubscriptionPaymentSnapshot({ tier: snapshot.tier, expires_at: snapshot.expiresAt })
-      redirectToCheckout(checkoutUrl)
+      redirectToCheckout(checkoutUrl, { type: 'abonnement' })
       return true
     } catch (err) {
       error.value = getApiErrorMessage(err)

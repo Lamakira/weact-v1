@@ -1,5 +1,7 @@
+import { captureAnalyticsEvent, type AnalyticsPaymentProps } from '@/lib/analytics'
+
 /**
- * Same-tab redirect to a FedaPay hosted checkout.
+ * Same-tab redirect to a FedaPay hosted checkout (sends `paiement_lance` first, instantly).
  *
  * A pop-up (`window.open`) fired after an awaited API call loses the user
  * activation and is blocked on iOS (Safari, WhatsApp/Facebook in-app browsers).
@@ -8,6 +10,7 @@
  *
  * Isolated in its own module so tests can mock it.
  */
-export function redirectToCheckout(url: string): void {
+export function redirectToCheckout(url: string, analytics: AnalyticsPaymentProps): void {
+  captureAnalyticsEvent('paiement_lance', analytics, { sendInstantly: true })
   window.location.assign(url)
 }

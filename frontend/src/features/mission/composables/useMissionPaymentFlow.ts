@@ -260,7 +260,7 @@ export function useMissionPaymentFlow(
    * Redirects to FedaPay checkout — FedaPay webhook handles the rest.
    */
   function handleSelectionConfirmed(checkoutUrl: string): void {
-    redirectToCheckout(checkoutUrl)
+    redirectToCheckout(checkoutUrl, { type: 'selection_mission' })
   }
 
   /**
@@ -274,7 +274,7 @@ export function useMissionPaymentFlow(
     isResumingPayment.value = true
     try {
       const response = await missionApi.confirmSelection(missionId.value, [])
-      redirectToCheckout(response.data.checkout_url)
+      redirectToCheckout(response.data.checkout_url, { type: 'selection_mission' })
     } catch (err: unknown) {
       console.error('Failed to resume mission payment:', err)
       toast.error('Le paiement n\'a pas pu être relancé. Veuillez réessayer.')

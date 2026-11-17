@@ -45,7 +45,7 @@ describe('useUgcCommissionPayment', () => {
 
     expect(ok).toBe(true)
     expect(bookingApi.payCommission).toHaveBeenCalledWith('b1')
-    expect(redirectToCheckout).toHaveBeenCalledWith('https://fedapay.test/x')
+    expect(redirectToCheckout).toHaveBeenCalledWith('https://fedapay.test/x', { type: 'commission_booking' })
     expect(window.open).not.toHaveBeenCalled()
     expect(paymentStatus.value).toBe('waiting')
   })
@@ -57,7 +57,7 @@ describe('useUgcCommissionPayment', () => {
     await initiate('mission', 'm1')
 
     expect(missionApi.payCommission).toHaveBeenCalledWith('m1')
-    expect(redirectToCheckout).toHaveBeenCalledWith('https://fedapay.test/y')
+    expect(redirectToCheckout).toHaveBeenCalledWith('https://fedapay.test/y', { type: 'commission_mission' })
     expect(window.open).not.toHaveBeenCalled()
   })
 

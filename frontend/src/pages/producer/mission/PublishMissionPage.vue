@@ -16,7 +16,8 @@ import { MissionForm } from '@/features/mission/components'
 import { missionApi } from '@/features/mission/services/missionApi'
 import { buildRepublishValues } from '@/features/mission/utils/republishPrefill'
 import EmailVerificationRequired from '@/components/EmailVerificationRequired.vue'
-import { MissionStatus, type Mission } from '@/features/mission/types'
+import { MissionStatus, isUgcMission, type Mission } from '@/features/mission/types'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 
 const route = useRoute()
 const router = useRouter()
@@ -45,7 +46,19 @@ onMounted(async () => {
   }
 })
 
+// Premier champ touché du formulaire de la page (une seule fois par montage).
+let publicationStarted = false
+function handleFocusIn(): void {
+  if (publicationStarted) return
+  publicationStarted = true
+  captureAnalyticsEvent('mission_publication_commencee', {})
+}
+
 function handleSuccess(mission: Mission): void {
+  captureAnalyticsEvent('mission_publiee', {
+    type: isUgcMission(mission) ? 'ugc' : 'classique',
+    paiement_requis: mission.status === MissionStatus.PENDING_PAYMENT,
+  })
   // Une mission UGC reste `pending_payment` (non publiée) tant que la commission n'est pas réglée (D-1.4.e).
   // On redirige vers la page détail avec ?pay={id} pour ouvrir automatiquement le tunnel de paiement.
   if (mission.status === MissionStatus.PENDING_PAYMENT) {
@@ -63,7 +76,7 @@ function handleCancel(): void {
 </script>
 
 <template>
-  <div>
+  <div @focusin="handleFocusIn">
     <!-- Email verification required -->
     <EmailVerificationRequired
       v-if="!authStore.isEmailVerified"

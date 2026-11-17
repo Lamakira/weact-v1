@@ -92,7 +92,7 @@ export async function initAnalytics(router: Router, pinia: Pinia): Promise<void>
       capture_pageleave: true,
       person_profiles: 'identified_only',
       session_recording: { maskAllInputs: true },
-      before_send: (event) => (isAdminPath(window.location.pathname) ? null : event),
+      before_send: (event) => (event && shouldSend(event.event) ? event : null),
     })
     posthog = ph
     routerRef = router
@@ -120,17 +120,134 @@ export async function initAnalytics(router: Router, pinia: Pinia): Promise<void>
         else identifyUser(store.user)
       },
     )
+
+    flushPendingEvents()
   } catch {
     // La mesure ne doit jamais perturber l'application.
+    initFailed = true
+    pendingEvents.length = 0
   }
 }
 
-export function captureAnalyticsEvent(name: string, props?: Record<string, unknown>): void {
+/**
+ * Événements émis avant le chargement de posthog-js (import dynamique) : une page ouverte depuis un
+ * lien (vérification d'e-mail, retour de FedaPay) déclenche son événement avant la fin du chargement.
+ * Ils sont gardés en mémoire puis envoyés à l'initialisation, après le consentement.
+ */
+const MAX_PENDING_EVENTS = 20
+let initFailed = false
+const pendingEvents: Array<{ name: AnalyticsEventName; props: object; sendInstantly: boolean }> = []
+
+function flushPendingEvents(): void {
+  const queued = pendingEvents.splice(0)
+  for (const event of queued) sendEvent(event.name, event.props, event.sendInstantly)
+}
+
+/**
+ * Événements des cinq parcours (cadrage du 14 novembre 2026). Noms en français, objet puis action.
+ * Jamais de montant, de nom, d'e-mail ni de téléphone. Envoyés aussi sans consentement, en mode
+ * anonyme sans cookie (décision PO du 17 novembre 2026, politique de confidentialité section 11).
+ */
+export type AnalyticsAccount = 'face' | 'producteur'
+export type AnalyticsSignupMethod = 'email' | 'google'
+export type AnalyticsPaymentType =
+  | 'abonnement'
+  | 'booking'
+  | 'commission_booking'
+  | 'commission_mission'
+  | 'sequestre_candidature'
+  | 'selection_mission'
+export type AnalyticsTier = 'starter' | 'pro' | 'elite'
+
+export interface AnalyticsPaymentProps {
+  type: AnalyticsPaymentType
+  /** Abonnement seulement : palier payé. */
+  palier?: AnalyticsTier
+}
+
+export interface AnalyticsEvents {
+  inscription_commencee: { compte: AnalyticsAccount; methode: AnalyticsSignupMethod }
+  inscription_soumise: { compte: AnalyticsAccount; methode: 'email' }
+  inscription_reussie: { compte: AnalyticsAccount; methode: AnalyticsSignupMethod }
+  email_verifie: Record<string, never>
+  booking_formulaire_ouvert: Record<string, never>
+  booking_demande_envoyee: { type: 'cash' | 'ugc'; derniere_minute: boolean }
+  booking_acceptee: { type: 'cash' | 'ugc' }
+  mission_publication_commencee: Record<string, never>
+  mission_publiee: { type: 'classique' | 'ugc'; paiement_requis: boolean }
+  candidature_envoyee: Record<string, never>
+  candidature_acceptee: { type: 'produit_seul' }
+  palier_choisi: { palier: AnalyticsTier }
+  paiement_lance: AnalyticsPaymentProps
+  paiement_confirme: AnalyticsPaymentProps
+}
+
+export type AnalyticsEventName = keyof AnalyticsEvents
+
+// Liste exhaustive (le compilateur exige chaque événement du catalogue).
+const FUNNEL_EVENTS: Record<AnalyticsEventName, true> = {
+  inscription_commencee: true,
+  inscription_soumise: true,
+  inscription_reussie: true,
+  email_verifie: true,
+  booking_formulaire_ouvert: true,
+  booking_demande_envoyee: true,
+  booking_acceptee: true,
+  mission_publication_commencee: true,
+  mission_publiee: true,
+  candidature_envoyee: true,
+  candidature_acceptee: true,
+  palier_choisi: true,
+  paiement_lance: true,
+  paiement_confirme: true,
+}
+
+/**
+ * Sans consentement (choix en attente ou refus), seuls partent les visites, les étapes clés et les
+ * erreurs techniques, comme l'annonce la politique de confidentialité. Clics automatiques, cartes de
+ * chaleur, mesures de performance, etc. sont jetés. L'espace administrateur n'envoie rien.
+ */
+const ANONYMOUS_ALLOWED = new Set<string>(['$pageview', '$pageleave', 'erreur_api', ...Object.keys(FUNNEL_EVENTS)])
+
+function shouldSend(eventName: string): boolean {
+  if (isAdminPath(window.location.pathname)) return false
+  return currentChoice === 'granted' || ANONYMOUS_ALLOWED.has(eventName)
+}
+
+function currentRole(): 'face' | 'producteur' | 'visiteur' {
+  const type = authStore?.user?.userable_type
+  if (type === 'Face') return 'face'
+  if (type === 'Producer') return 'producteur'
+  return 'visiteur'
+}
+
+/**
+ * Envoie un événement de parcours, avec le rôle de la personne connectée (`role`).
+ * `sendInstantly` : à utiliser juste avant de quitter la page (départ vers FedaPay), pour ne pas
+ * perdre l'événement resté en file d'attente.
+ */
+export function captureAnalyticsEvent<K extends AnalyticsEventName>(
+  name: K,
+  props: AnalyticsEvents[K],
+  options: { sendInstantly?: boolean } = {},
+): void {
+  const sendInstantly = options.sendInstantly === true
+  if (!posthog) {
+    if (isEnabled() && !initFailed && pendingEvents.length < MAX_PENDING_EVENTS) {
+      pendingEvents.push({ name, props: { ...props }, sendInstantly })
+    }
+    return
+  }
+  sendEvent(name, props, sendInstantly)
+}
+
+function sendEvent(name: AnalyticsEventName, props: object, sendInstantly: boolean): void {
   if (!posthog) return
   try {
-    posthog.capture(name, props)
+    // Le rôle est lu à l'envoi : avant l'initialisation, le store n'est pas encore relié.
+    posthog.capture(name, { ...props, role: currentRole() }, sendInstantly ? { send_instantly: true } : undefined)
   } catch {
-    // ignoré
+    // La mesure ne doit jamais perturber l'application.
   }
 }
 

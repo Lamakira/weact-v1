@@ -6,6 +6,7 @@ import {
   producerRegistrationValidationSchema,
 } from '../schemas/producerRegistration'
 import { useAuth } from '../composables/useAuth'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 import type { ProducerRegistrationForm as FormData, ProducerType } from '../types'
 import { FloatingField } from '@/components/ui/form'
 import GoogleSignInButton from './GoogleSignInButton.vue'
@@ -59,9 +60,19 @@ watch(selectedType, (newType) => {
 // The shared name input maps to a different backend key per type.
 const nameFieldKey = computed(() => (selectedType.value === 'agency' ? 'agency_name' : 'nom_complet'))
 
+// Premier focus dans le formulaire = début d'inscription (une seule fois par montage)
+let signupStarted = false
+function handleFocusIn(): void {
+  if (signupStarted) return
+  signupStarted = true
+  captureAnalyticsEvent('inscription_commencee', { compte: 'producteur', methode: 'email' })
+}
+
 // Submit handler
 const onSubmit = handleSubmit(async () => {
   apiError.value = null
+
+  captureAnalyticsEvent('inscription_soumise', { compte: 'producteur', methode: 'email' })
 
   const submitData: FormData =
     selectedType.value === 'agency'
@@ -114,7 +125,7 @@ const onSubmit = handleSubmit(async () => {
 </script>
 
 <template>
-  <form @submit="onSubmit" class="space-y-6" data-testid="producer-registration-form">
+  <form @submit="onSubmit" @focusin="handleFocusIn" class="space-y-6" data-testid="producer-registration-form">
     <!-- General API error -->
     <div
       v-if="apiError"
@@ -275,6 +286,7 @@ const onSubmit = handleSubmit(async () => {
       </div>
       <GoogleSignInButton
         intent="producer"
+        signup-account="producteur"
         :disabled="!accept_cgu"
         label="S'inscrire avec Google"
       />

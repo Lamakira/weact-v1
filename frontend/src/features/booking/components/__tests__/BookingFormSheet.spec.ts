@@ -5,6 +5,7 @@ import BookingFormSheet from '../BookingFormSheet.vue'
 import { calculatePricingPreview } from '@/features/booking/types'
 import { addDaysIso, bookingMinStartDateIso } from '@/lib/dates'
 import { formatMoney } from '@/utils/money'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 import { getSelectOptions, setSelectValue } from '@/components/ui/__tests__/selectTestUtils'
 
 // Hoisted so the UGC submission tests can drive the resolved value.
@@ -25,6 +26,8 @@ const { getFaceAvailabilityMock } = vi.hoisted(() => ({ getFaceAvailabilityMock:
 vi.mock('@/features/agenda/services/agendaApi', () => ({
   agendaApi: { getAgenda: vi.fn(), updateUnavailableDays: vi.fn(), getFaceAvailability: getFaceAvailabilityMock },
 }))
+
+vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
 
 vi.mock('@/composables/useToast', () => ({
   useToast: () => ({
@@ -693,5 +696,114 @@ describe('BookingFormSheet — brief facultatif (lot B12)', () => {
     await waitForValidation()
 
     expect(wrapper.find('[data-testid="message-error"]').text()).toContain('Refus serveur du brief')
+  })
+})
+
+describe('BookingFormSheet — mesure d\'usage', () => {
+  const FACE_UUID = '3f2b8c1e-9d4a-4e6b-8a1c-2d5f7e9b0a13'
+
+  beforeEach(() => {
+    createBookingMock.mockReset()
+    vi.mocked(captureAnalyticsEvent).mockClear()
+    // 20/10 10:00 UTC = 11:00 à Porto-Novo : jour métier = 2026-10-20.
+    vi.useFakeTimers({ now: new Date('2026-10-20T10:00:00Z'), toFake: ['Date'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  async function submitCash(wrapper: ReturnType<typeof mountForm>, start: string): Promise<void> {
+    await wrapper.find('input#date_debut').setValue(start)
+    await wrapper.find('input#date_fin').setValue(start)
+    await setSelectValue(wrapper, '#lieu', 'Cotonou')
+    await flushPromises()
+    await wrapper.find('form').trigger('submit')
+    await vi.waitFor(() => expect(createBookingMock).toHaveBeenCalledTimes(1), { timeout: 3000 })
+    await flushPromises()
+  }
+
+  it('booking_formulaire_ouvert à l\'ouverture : au montage ouvert, puis à chaque passage de false à true', async () => {
+    const wrapper = mountForm()
+    const opened = () =>
+      vi.mocked(captureAnalyticsEvent).mock.calls.filter(([name]) => name === 'booking_formulaire_ouvert')
+    expect(opened()).toHaveLength(1)
+    expect(captureAnalyticsEvent).toHaveBeenCalledWith('booking_formulaire_ouvert', {})
+
+    await wrapper.setProps({ isOpen: false })
+    expect(opened()).toHaveLength(1)
+
+    await wrapper.setProps({ isOpen: true })
+    expect(opened()).toHaveLength(2)
+  })
+
+  it('booking_formulaire_ouvert absent quand le formulaire est monté fermé', () => {
+    mountForm({ isOpen: false })
+    expect(captureAnalyticsEvent).not.toHaveBeenCalledWith('booking_formulaire_ouvert', expect.anything())
+  })
+
+  it('booking_demande_envoyee cash, dernière minute quand le tournage est aujourd\'hui', async () => {
+    createBookingMock.mockResolvedValue({ success: true, data: { id: 'b1', date_debut: '2026-10-20T00:00:00+00:00' } })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await submitCash(wrapper, '2026-10-20')
+
+    expect(captureAnalyticsEvent).toHaveBeenCalledWith('booking_demande_envoyee', {
+      type: 'cash',
+      derniere_minute: true,
+    })
+  })
+
+  it('booking_demande_envoyee cash, dernière minute aussi quand le tournage est demain', async () => {
+    createBookingMock.mockResolvedValue({ success: true, data: { id: 'b1', date_debut: '2026-10-21T00:00:00+00:00' } })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await submitCash(wrapper, '2026-10-21')
+
+    expect(captureAnalyticsEvent).toHaveBeenCalledWith('booking_demande_envoyee', {
+      type: 'cash',
+      derniere_minute: true,
+    })
+  })
+
+  it('booking_demande_envoyee cash, pas dernière minute pour un tournage après-demain', async () => {
+    createBookingMock.mockResolvedValue({ success: true, data: { id: 'b1', date_debut: '2026-10-22T00:00:00+00:00' } })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await submitCash(wrapper, '2026-10-22')
+
+    expect(captureAnalyticsEvent).toHaveBeenCalledWith('booking_demande_envoyee', {
+      type: 'cash',
+      derniere_minute: false,
+    })
+  })
+
+  it('booking_demande_envoyee ugc : jamais dernière minute', async () => {
+    createBookingMock.mockResolvedValue({ success: true, data: { id: 'b2', date_debut: null } })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+    // Une date du jour saisie avant de basculer en UGC ne doit pas compter.
+    await wrapper.find('input#date_debut').setValue('2026-10-20')
+    await setSelectValue(wrapper, '#type_contenu', 'UGC')
+    await flushPromises()
+    await wrapper.find('#nom_produit').setValue('Tenue Shade Fit M')
+    await wrapper.find('#valeur_produit').setValue('45000')
+    await attachProductPhoto(wrapper)
+    await wrapper.find('form').trigger('submit')
+    await vi.waitFor(() => expect(createBookingMock).toHaveBeenCalledTimes(1), { timeout: 3000 })
+    await flushPromises()
+
+    expect(captureAnalyticsEvent).toHaveBeenCalledWith('booking_demande_envoyee', {
+      type: 'ugc',
+      derniere_minute: false,
+    })
+  })
+
+  it('n\'envoie pas booking_demande_envoyee quand la création échoue', async () => {
+    createBookingMock.mockResolvedValue({ success: false, errors: { lieu: ['Refus'] } })
+    const wrapper = mountForm({ faceId: FACE_UUID })
+
+    await submitCash(wrapper, '2026-10-20')
+
+    expect(captureAnalyticsEvent).not.toHaveBeenCalledWith('booking_demande_envoyee', expect.anything())
   })
 })

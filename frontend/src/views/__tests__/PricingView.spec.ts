@@ -3,6 +3,7 @@ import { mount, RouterLinkStub, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import { Check, Crown, Minus } from 'lucide-vue-next'
 import PricingView from '../PricingView.vue'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 import { SUBSCRIPTION_RETURN_KEY } from '@/features/face/subscriptionReturn'
 import type {
   FaceSubscriptionTier,
@@ -66,6 +67,7 @@ vi.mock('@/features/face/composables/useSubscriptionStatus', () => ({
 vi.mock('@/features/face/composables/useSubscriptionPayment', () => ({
   useSubscriptionPayment: () => ctx.payment,
 }))
+vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ctx.authStore,
 }))
@@ -718,6 +720,17 @@ describe('auth-aware behavior (FP-2.13.1)', () => {
     const modal = wrapper.get('[data-testid="tier-change-modal"]')
     expect(modal.attributes('data-mode')).toBe('upgrade')
     expect(modal.attributes('data-target-tier')).toBe('elite')
+  })
+
+  it('sends palier_choisi with the tier when a paid tier CTA opens the modal', async () => {
+    const wrapper = mountAuth()
+    await flushPromises()
+    vi.mocked(captureAnalyticsEvent).mockClear()
+    await wrapper.get('[data-testid="cta-tier-elite"]').trigger('click')
+    await flushPromises()
+
+    expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+    expect(captureAnalyticsEvent).toHaveBeenCalledWith('palier_choisi', { palier: 'elite' })
   })
 
   it('calls initiatePayment with the targeted plan when the modal confirms', async () => {

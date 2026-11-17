@@ -96,12 +96,32 @@ describe('initAnalytics : options', () => {
     const a = await load()
     await a.initAnalytics(fakeRouter(), pinia)
     const { before_send } = phMock.init.mock.calls[0][1]
-    const event = { event: 'x', properties: {} }
+    const event = { event: '$pageview', properties: {} }
 
     window.history.pushState({}, '', '/admin/users')
     expect(before_send(event)).toBeNull()
     window.history.pushState({}, '', '/faces')
     expect(before_send(event)).toBe(event)
+  })
+
+  it('sans consentement : seuls les visites, les étapes clés et erreur_api partent', async () => {
+    const a = await load()
+    await a.initAnalytics(fakeRouter(), pinia)
+    const { before_send } = phMock.init.mock.calls[0][1]
+    window.history.pushState({}, '', '/faces')
+    const ev = (name: string) => ({ event: name, properties: {} })
+
+    for (const name of ['$pageview', '$pageleave', 'erreur_api', 'booking_demande_envoyee', 'paiement_confirme']) {
+      expect(before_send(ev(name))).not.toBeNull()
+    }
+    for (const name of ['$autocapture', '$rageclick', '$dead_click', '$$heatmap', '$web_vitals', '$exception']) {
+      expect(before_send(ev(name))).toBeNull()
+    }
+
+    a.syncAnalyticsConsent('granted')
+    expect(before_send(ev('$autocapture'))).not.toBeNull()
+    a.syncAnalyticsConsent('denied')
+    expect(before_send(ev('$autocapture'))).toBeNull()
   })
 })
 
@@ -274,5 +294,78 @@ describe('captureApiError', () => {
     vi.advanceTimersByTime(61_000)
     a.captureApiError(err)
     expect(phMock.capture).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('captureAnalyticsEvent', () => {
+  it('avant l\'initialisation : gardé en mémoire puis envoyé à l\'init, avec le rôle connu à ce moment', async () => {
+    const a = await load()
+    a.captureAnalyticsEvent('email_verifie', {})
+    a.captureAnalyticsEvent('paiement_confirme', { type: 'booking' })
+    expect(phMock.capture).not.toHaveBeenCalled()
+
+    authStore.user = { id: 3, userable_type: 'Face' }
+    await a.initAnalytics(fakeRouter(), pinia)
+
+    expect(phMock.capture).toHaveBeenNthCalledWith(1, 'email_verifie', { role: 'face' }, undefined)
+    expect(phMock.capture).toHaveBeenNthCalledWith(2, 'paiement_confirme', { type: 'booking', role: 'face' }, undefined)
+  })
+
+  it('sans clé ou en mode test : rien n\'est gardé ni envoyé', async () => {
+    const a = await load({ key: '' })
+    a.captureAnalyticsEvent('email_verifie', {})
+    await a.initAnalytics(fakeRouter(), pinia)
+    expect(phMock.capture).not.toHaveBeenCalled()
+  })
+
+  it('au plus 20 événements gardés avant l\'init', async () => {
+    const a = await load()
+    for (let i = 0; i < 25; i++) a.captureAnalyticsEvent('candidature_envoyee', {})
+    await a.initAnalytics(fakeRouter(), pinia)
+    expect(phMock.capture).toHaveBeenCalledTimes(20)
+  })
+
+  it('ajoute le rôle : visiteur sans compte, face ou producteur une fois connecté', async () => {
+    const a = await load()
+    await a.initAnalytics(fakeRouter(), pinia)
+
+    a.captureAnalyticsEvent('inscription_soumise', { compte: 'face', methode: 'email' })
+    expect(phMock.capture).toHaveBeenLastCalledWith(
+      'inscription_soumise',
+      { compte: 'face', methode: 'email', role: 'visiteur' },
+      undefined,
+    )
+
+    authStore.user = { id: 7, userable_type: 'Producer' }
+    a.captureAnalyticsEvent('mission_publiee', { type: 'ugc', paiement_requis: true })
+    expect(phMock.capture).toHaveBeenLastCalledWith(
+      'mission_publiee',
+      { type: 'ugc', paiement_requis: true, role: 'producteur' },
+      undefined,
+    )
+
+    authStore.user = { id: 8, userable_type: 'Face' }
+    a.captureAnalyticsEvent('booking_acceptee', { type: 'cash' })
+    expect(phMock.capture).toHaveBeenLastCalledWith('booking_acceptee', { type: 'cash', role: 'face' }, undefined)
+  })
+
+  it('sendInstantly : envoi immédiat (départ vers FedaPay)', async () => {
+    const a = await load()
+    await a.initAnalytics(fakeRouter(), pinia)
+    a.captureAnalyticsEvent('paiement_lance', { type: 'abonnement', palier: 'pro' }, { sendInstantly: true })
+    expect(phMock.capture).toHaveBeenLastCalledWith(
+      'paiement_lance',
+      { type: 'abonnement', palier: 'pro', role: 'visiteur' },
+      { send_instantly: true },
+    )
+  })
+
+  it('une erreur de PostHog ne remonte jamais', async () => {
+    const a = await load()
+    await a.initAnalytics(fakeRouter(), pinia)
+    phMock.capture.mockImplementationOnce(() => {
+      throw new Error('boom')
+    })
+    expect(() => a.captureAnalyticsEvent('candidature_envoyee', {})).not.toThrow()
   })
 })

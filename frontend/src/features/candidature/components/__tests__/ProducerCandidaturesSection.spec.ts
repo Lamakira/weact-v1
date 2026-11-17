@@ -7,6 +7,9 @@ import UgcCandidaturePaymentOverlay from '../UgcCandidaturePaymentOverlay.vue'
 import RateFaceDialog from '../RateFaceDialog.vue'
 import MissionImageTermsBand from '@/features/imageContract/components/MissionImageTermsBand.vue'
 import { UgcShipmentForm } from '@/components/ugc'
+import { captureAnalyticsEvent } from '@/lib/analytics'
+
+vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
 
 const mockToastSuccess = vi.fn()
 const mockToastError = vi.fn()
@@ -321,6 +324,27 @@ describe('ProducerCandidaturesSection', () => {
       expect(mockRefresh).toHaveBeenCalledTimes(1)
     })
 
+    it('envoie candidature_acceptee (produit_seul) au succès de l\'acceptation', async () => {
+      mockAcceptCandidature.mockResolvedValue({ data: { id: 'cand-1' }, message: 'Candidature acceptée' })
+      const wrapper = mountUgcProductSection()
+
+      wrapper.findComponent(ProducerCandidatureCardStub).vm.$emit('accept', 'cand-1')
+      await flushPromises()
+
+      expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+      expect(captureAnalyticsEvent).toHaveBeenCalledWith('candidature_acceptee', { type: 'produit_seul' })
+    })
+
+    it('n\'envoie rien quand l\'acceptation échoue', async () => {
+      mockAcceptCandidature.mockResolvedValue(null)
+      const wrapper = mountUgcProductSection()
+
+      wrapper.findComponent(ProducerCandidatureCardStub).vm.$emit('accept', 'cand-1')
+      await flushPromises()
+
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
+    })
+
     it('refreshes the list when an accept fails with MISSION_FULL (capacity resync, AC9)', async () => {
       mockAcceptCandidature.mockImplementation(async () => {
         mockAcceptError.value = 'Toutes les places de cette mission sont déjà pourvues.'
@@ -482,6 +506,8 @@ describe('ProducerCandidaturesSection', () => {
       expect(overlay.props('montantRemuneration')).toBe(15000)
       // Hybride : l'accept gratuit produit-seul n'est JAMAIS appelé.
       expect(mockAcceptCandidature).not.toHaveBeenCalled()
+      // Compté par l'événement de paiement, pas ici.
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
     })
 
     it('exposes openCandidaturePayment so the page can reopen the règlement overlay after a failed return (« Réessayer le paiement »)', async () => {

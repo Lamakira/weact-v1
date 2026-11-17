@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, ref } from 'vue'
 import ApplyToMissionModal from '../ApplyToMissionModal.vue'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 
 const applyMock = vi.fn()
 const isSuccess = ref(false)
@@ -18,6 +19,7 @@ vi.mock('../../composables/useApplyToMission', () => ({
     reset: vi.fn(),
   }),
 }))
+vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
 vi.mock('@/features/auth/services/authApi', () => ({ authApi: { resendVerificationEmail: vi.fn() } }))
 vi.mock('@/composables/useToast', () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() }),
@@ -60,6 +62,7 @@ beforeEach(() => {
   errorCodeRef.value = null
   cardVisible = false
   applyMock.mockReset()
+  vi.mocked(captureAnalyticsEvent).mockClear()
 })
 
 afterEach(() => {
@@ -115,6 +118,56 @@ describe('ApplyToMissionModal — suspension UGC', () => {
     expect(link).not.toBeNull()
     expect(link?.textContent).toContain('Voir ma suspension')
     expect(document.body.textContent).toContain(message)
+    wrapper.unmount()
+  })
+})
+
+describe('ApplyToMissionModal — mesure d\'usage', () => {
+  it('envoie candidature_envoyee au succès de l\'envoi', async () => {
+    const wrapper = await submit()
+
+    expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+    expect(captureAnalyticsEvent).toHaveBeenCalledWith('candidature_envoyee', {})
+    wrapper.unmount()
+  })
+
+  it('n\'envoie rien sur le paywall d\'abonnement', async () => {
+    applyMock.mockImplementation(async () => ({
+      success: false,
+      error: { code: 'SUBSCRIPTION_REQUIRED', message: 'Abonnement requis' },
+    }))
+    const wrapper = mount(ApplyToMissionModal, {
+      props: { isOpen: true, missionId: 'mission-1', missionTitle: 'Lookbook', producerName: null },
+      attachTo: document.body,
+    })
+    const send = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Envoyer ma candidature'),
+    )
+    send!.click()
+    await flushPromises()
+
+    expect(wrapper.emitted('subscription-required')).toHaveLength(1)
+    expect(captureAnalyticsEvent).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('n\'envoie rien en cas d\'erreur', async () => {
+    applyMock.mockImplementation(async () => ({
+      success: false,
+      error: { code: 'UGC_SUSPENDED', message: 'Suspendu' },
+    }))
+    const wrapper = mount(ApplyToMissionModal, {
+      props: { isOpen: true, missionId: 'mission-1', missionTitle: 'Lookbook', producerName: null },
+      attachTo: document.body,
+      global: { stubs: { RouterLink: { template: '<a><slot /></a>', props: ['to'] } } },
+    })
+    const send = Array.from(document.body.querySelectorAll('button')).find((b) =>
+      b.textContent?.includes('Envoyer ma candidature'),
+    )
+    send!.click()
+    await flushPromises()
+
+    expect(captureAnalyticsEvent).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })

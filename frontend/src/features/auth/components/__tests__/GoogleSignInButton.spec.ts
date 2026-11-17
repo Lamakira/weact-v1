@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import GoogleSignInButton from '../GoogleSignInButton.vue'
+import { captureAnalyticsEvent } from '@/lib/analytics'
+
+vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
 
 const mockGetGoogleRedirectUrl = vi.fn()
 
@@ -169,5 +172,40 @@ describe('GoogleSignInButton', () => {
     const wrapper = mountButton({ label: "S'inscrire avec Google" })
 
     expect(wrapper.text()).toContain("S'inscrire avec Google")
+  })
+
+  describe('analytics', () => {
+    it('sends inscription_commencee with the Google method when signupAccount is set', async () => {
+      const wrapper = mountButton({ intent: 'face', signupAccount: 'face' })
+
+      await wrapper.find('[data-testid="google-sign-in-button"]').trigger('click')
+      await flushPromises()
+
+      expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+      expect(captureAnalyticsEvent).toHaveBeenCalledWith(
+        'inscription_commencee',
+        { compte: 'face', methode: 'google' },
+        { sendInstantly: true }
+      )
+    })
+
+    it('sends nothing without signupAccount (login page)', async () => {
+      const wrapper = mountButton()
+
+      await wrapper.find('[data-testid="google-sign-in-button"]').trigger('click')
+      await flushPromises()
+
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
+    })
+
+    it('sends nothing when the backend refuses the redirect', async () => {
+      mockGetGoogleRedirectUrl.mockRejectedValue(new Error('403'))
+      const wrapper = mountButton({ intent: 'producer', signupAccount: 'producteur' })
+
+      await wrapper.find('[data-testid="google-sign-in-button"]').trigger('click')
+      await flushPromises()
+
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
+    })
   })
 })

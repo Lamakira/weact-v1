@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, nextTick } from 'vue'
 import PublishMissionPage from '../PublishMissionPage.vue'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 
 /**
  * Toast honnête sur le statut (story 1.4 AC8 / D-1.4.e) :
@@ -26,6 +27,8 @@ vi.mock('@/features/mission/services/missionApi', () => ({
   missionApi: { getMission: getMissionSpy },
 }))
 
+vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
+
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
     user: { email_verified: true },
@@ -41,7 +44,7 @@ const MissionFormStub = defineComponent({
   name: 'MissionForm',
   props: { initialValues: { type: Object, default: undefined } },
   emits: ['success', 'cancel'],
-  template: '<div data-testid="mission-form-stub" />',
+  template: '<div data-testid="mission-form-stub"><input data-testid="stub-input" /><input data-testid="stub-input-2" /></div>',
 })
 
 const mountPage = () =>
@@ -166,5 +169,57 @@ describe('PublishMissionPage — republication (lot C9)', () => {
 
     expect(errorSpy).toHaveBeenCalled()
     expect(wrapper.findComponent(MissionFormStub).props('initialValues')).toBeUndefined()
+  })
+})
+
+describe('PublishMissionPage — mesure d\'usage', () => {
+  beforeEach(() => {
+    vi.mocked(captureAnalyticsEvent).mockClear()
+    routeState.query = {}
+  })
+
+  it('mission_publication_commencee au premier focus du formulaire, une seule fois', async () => {
+    const wrapper = mountPage()
+    expect(captureAnalyticsEvent).not.toHaveBeenCalled()
+
+    await wrapper.get('[data-testid="stub-input"]').trigger('focusin')
+    await wrapper.get('[data-testid="stub-input-2"]').trigger('focusin')
+    await wrapper.get('[data-testid="stub-input"]').trigger('focusin')
+
+    expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+    expect(captureAnalyticsEvent).toHaveBeenCalledWith('mission_publication_commencee', {})
+  })
+
+  it('mission_publiee classique : publiée, sans paiement requis', async () => {
+    const wrapper = mountPage()
+
+    wrapper.findComponent(MissionFormStub).vm.$emit('success', {
+      status: 'published',
+      id: 'm-3',
+      type_compensation: null,
+    })
+    await nextTick()
+
+    expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+    expect(captureAnalyticsEvent).toHaveBeenCalledWith('mission_publiee', {
+      type: 'classique',
+      paiement_requis: false,
+    })
+  })
+
+  it('mission_publiee UGC : en attente de paiement', async () => {
+    const wrapper = mountPage()
+
+    wrapper.findComponent(MissionFormStub).vm.$emit('success', {
+      status: 'pending_payment',
+      id: 'm-4',
+      type_compensation: 'product',
+    })
+    await nextTick()
+
+    expect(captureAnalyticsEvent).toHaveBeenCalledWith('mission_publiee', {
+      type: 'ugc',
+      paiement_requis: true,
+    })
   })
 })

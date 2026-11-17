@@ -4,6 +4,9 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import { ref } from 'vue'
 import ProducerRegistrationForm from '../ProducerRegistrationForm.vue'
+import { captureAnalyticsEvent } from '@/lib/analytics'
+
+vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
 
 // Mock the useAuth composable
 const mockRegisterProducer = vi.fn()
@@ -25,6 +28,7 @@ describe('ProducerRegistrationForm', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     mockRegisterProducer.mockReset()
+    vi.mocked(captureAnalyticsEvent).mockClear()
     mockIsLoading.value = false
   })
 
@@ -35,9 +39,9 @@ describe('ProducerRegistrationForm', () => {
         plugins: [router],
         stubs: {
           GoogleSignInButton: {
-            props: ['intent', 'disabled', 'label'],
+            props: ['intent', 'disabled', 'label', 'signupAccount'],
             template:
-              '<button data-testid="google-sign-in-button" :data-intent="intent" :disabled="disabled" />',
+              '<button data-testid="google-sign-in-button" :data-intent="intent" :data-signup-account="signupAccount" :disabled="disabled" />',
           },
         },
       },
@@ -271,5 +275,66 @@ describe('ProducerRegistrationForm', () => {
         "Le nom de l'agence est obligatoire"
       )
     )
+  })
+
+  describe('Analytics', () => {
+    it('sends inscription_commencee once on the first focus, however many follow', async () => {
+      const wrapper = mountComponent()
+
+      await wrapper.find('[data-testid="nom-input"]').trigger('focusin')
+      await wrapper.find('[data-testid="email-input"]').trigger('focusin')
+      await wrapper.find('[data-testid="nom-input"]').trigger('focusin')
+
+      expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+      expect(captureAnalyticsEvent).toHaveBeenCalledWith('inscription_commencee', {
+        compte: 'producteur',
+        methode: 'email',
+      })
+    })
+
+    it('sends nothing before any focus', () => {
+      mountComponent()
+
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
+    })
+
+    it('sends inscription_soumise on a valid submit', async () => {
+      mockRegisterProducer.mockResolvedValue({ success: true })
+      const wrapper = mountComponent()
+
+      await wrapper.find('[data-testid="nom-input"]').setValue('Studio Pro')
+      await wrapper.find('[data-testid="email-input"]').setValue('agency@example.com')
+      await wrapper.find('[data-testid="password-input"]').setValue('Password123')
+      await wrapper.find('[data-testid="accept-cgu-checkbox"]').setValue(true)
+      await wrapper.find('[data-testid="producer-registration-form"]').trigger('submit')
+      await flushPromises()
+
+      await vi.waitFor(() => expect(mockRegisterProducer).toHaveBeenCalledTimes(1))
+      expect(captureAnalyticsEvent).toHaveBeenCalledTimes(1)
+      expect(captureAnalyticsEvent).toHaveBeenCalledWith('inscription_soumise', {
+        compte: 'producteur',
+        methode: 'email',
+      })
+    })
+
+    it('sends nothing on an invalid submit', async () => {
+      const wrapper = mountComponent()
+
+      await wrapper.find('[data-testid="producer-registration-form"]').trigger('submit')
+      await flushPromises()
+      await new Promise((resolve) => setTimeout(resolve, 20))
+      await flushPromises()
+
+      expect(mockRegisterProducer).not.toHaveBeenCalled()
+      expect(captureAnalyticsEvent).not.toHaveBeenCalled()
+    })
+
+    it('passes the producteur account to the Google button', () => {
+      const wrapper = mountComponent({ googleEnabled: true })
+
+      expect(
+        wrapper.find('[data-testid="google-sign-in-button"]').attributes('data-signup-account')
+      ).toBe('producteur')
+    })
   })
 })

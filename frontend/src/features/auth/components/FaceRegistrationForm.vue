@@ -6,6 +6,7 @@ import {
   faceRegistrationValidationSchema,
 } from '../schemas/faceRegistration'
 import { useAuth } from '../composables/useAuth'
+import { captureAnalyticsEvent } from '@/lib/analytics'
 import type { FaceRegistrationForm as FormData } from '../types'
 import { FloatingField } from '@/components/ui/form'
 import GoogleSignInButton from './GoogleSignInButton.vue'
@@ -45,10 +46,19 @@ const { value: date_naissance, errorMessage: dateNaissanceError } = useField<str
 const { value: password, errorMessage: passwordError } = useField<string>('password')
 const { value: accept_cgu, errorMessage: acceptCguError } = useField<boolean>('accept_cgu')
 
+// Premier focus dans le formulaire = début d'inscription (une seule fois par montage)
+let signupStarted = false
+function handleFocusIn(): void {
+  if (signupStarted) return
+  signupStarted = true
+  captureAnalyticsEvent('inscription_commencee', { compte: 'face', methode: 'email' })
+}
+
 // Submit handler
 const onSubmit = handleSubmit(async (values) => {
   apiError.value = null
 
+  captureAnalyticsEvent('inscription_soumise', { compte: 'face', methode: 'email' })
   const result = await registerFace(values)
 
   if (result.success) {
@@ -72,7 +82,7 @@ const onSubmit = handleSubmit(async (values) => {
 </script>
 
 <template>
-  <form @submit="onSubmit" class="space-y-6" data-testid="face-registration-form">
+  <form @submit="onSubmit" @focusin="handleFocusIn" class="space-y-6" data-testid="face-registration-form">
     <!-- General API error -->
     <div
       v-if="apiError"
@@ -218,6 +228,7 @@ const onSubmit = handleSubmit(async (values) => {
       </div>
       <GoogleSignInButton
         intent="face"
+        signup-account="face"
         :disabled="!accept_cgu"
         label="S'inscrire avec Google"
       />
