@@ -85,6 +85,9 @@ export async function initAnalytics(router: Router, pinia: Pinia): Promise<void>
       api_host: POSTHOG_HOST,
       defaults: '2026-08-30',
       cookieless_mode: 'on_reject',
+      // Sans choix dans le bandeau, le visiteur est traité comme un refus : comptage anonyme
+      // sans cookie ni stockage, au lieu de ne rien mesurer. « Accepter » bascule en mesure complète.
+      opt_out_capturing_by_default: true,
       capture_pageview: 'history_change',
       capture_pageleave: true,
       person_profiles: 'identified_only',
