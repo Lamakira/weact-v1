@@ -1,8 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { MapPin } from 'lucide-vue-next'
 import { FloatingSelect } from '@/components/ui/form'
-import { chooseOption, cleanupPortals, getOptionLabels, openSelect } from './selectTestUtils'
+import { chooseOption, getOptionLabels, openSelect } from './selectTestUtils'
 
 const OPTIONS = [
   { value: 'Cotonou', label: 'Cotonou' },
@@ -25,10 +25,6 @@ function mountSelect(props: Record<string, unknown> = {}) {
 }
 
 describe('FloatingSelect (API inchangée, Select shadcn à l’intérieur)', () => {
-  afterEach(() => {
-    cleanupPortals()
-  })
-
   it('affiche l’étiquette, l’astérisque requis, et porte id et data-testid sur le déclencheur', () => {
     const wrapper = mountSelect({ required: true, icon: MapPin })
 

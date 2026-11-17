@@ -4,6 +4,29 @@ import BioLocationForm from '../BioLocationForm.vue'
 import type { BioLocationInfo } from '../../types'
 import { getSelectLabels, getSelectValue, setSelectValue } from '@/components/ui/__tests__/selectTestUtils'
 
+// Listes réduites pour la vitesse (un composant Reka par option) : le contenu réel
+// est testé dans territoryOptions.spec.ts.
+vi.mock('@/shared/constants/territoryOptions', () => {
+  const toOptions = (values: string[]) => values.map((value) => ({ value, label: value }))
+  const COUNTRY_OPTIONS = toOptions(['Bénin', 'Togo', 'France'])
+  const NATIONALITY_OPTIONS = toOptions(['Béninoise', 'Togolaise', 'Française'])
+  return {
+    COUNTRY_OPTIONS,
+    COUNTRY_OPTION_VALUES: new Set(COUNTRY_OPTIONS.map((option) => option.value)),
+    NATIONALITY_OPTIONS,
+    NATIONALITY_OPTION_VALUES: new Set(NATIONALITY_OPTIONS.map((option) => option.value)),
+  }
+})
+
+// Liste réduite pour la vitesse (un composant Reka par option).
+vi.mock('@/shared/constants/beninCities', () => {
+  const BENIN_CITY_OPTIONS = ['Cotonou', 'Parakou', 'Porto-Novo'].map((value) => ({ value, label: value }))
+  return {
+    BENIN_CITY_OPTIONS,
+    BENIN_CITY_VALUES: new Set(BENIN_CITY_OPTIONS.map((option) => option.value)),
+  }
+})
+
 const VILLE = '[data-testid="ville-input"]'
 const PAYS = '[data-testid="pays-input"]'
 

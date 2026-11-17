@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter, type Router } from 'vue-router'
 import type { Booking } from '../../types'
-import { chooseOption, cleanupPortals } from '@/components/ui/__tests__/selectTestUtils'
+import { chooseOption } from '@/components/ui/__tests__/selectTestUtils'
 
 const userRef = vi.hoisted(() => ({ value: { id: 7, userable_type: 'Producer' } as { id: number; userable_type: string } }))
 
@@ -120,7 +120,6 @@ describe('BookingsListContent', () => {
   })
 
   afterEach(() => {
-    cleanupPortals()
     vi.restoreAllMocks()
   })
 

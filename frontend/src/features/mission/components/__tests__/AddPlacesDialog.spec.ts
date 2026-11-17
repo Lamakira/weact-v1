@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import AddPlacesDialog from '../AddPlacesDialog.vue'
 
@@ -29,10 +29,6 @@ const byId = (id: string): HTMLElement | null => document.body.querySelector(`[d
 describe('AddPlacesDialog', () => {
   beforeEach(() => {
     mockAddPlaces.mockReset()
-  })
-
-  afterEach(() => {
-    document.body.innerHTML = ''
   })
 
   it('mode menu : titre, sous-titre et total futur', () => {

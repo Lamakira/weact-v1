@@ -19,6 +19,15 @@ const { createBookingMock, requestCodeMock, refreshUserMock, authState } = await
   }),
 }))
 
+// Liste réduite pour la vitesse (un composant Reka par option).
+vi.mock('@/shared/constants/beninCities', () => {
+  const BENIN_CITY_OPTIONS = ['Cotonou', 'Parakou', 'Porto-Novo'].map((value) => ({ value, label: value }))
+  return {
+    BENIN_CITY_OPTIONS,
+    BENIN_CITY_VALUES: new Set(BENIN_CITY_OPTIONS.map((option) => option.value)),
+  }
+})
+
 vi.mock('../../composables/useBookingCreate', () => ({
   useBookingCreate: () => ({
     createBooking: createBookingMock,

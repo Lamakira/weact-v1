@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import { defineComponent, h, ref } from 'vue'
 import type { Mission } from '@/features/mission/types'
@@ -71,10 +71,6 @@ describe('EditMissionPage — UGC edit dead-end (ugc-3-5)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     missionRef.value = null
-  })
-
-  afterEach(() => {
-    document.body.innerHTML = ''
   })
 
   it('redirects a UGC mission to the detail page with a toast, never showing the form', async () => {

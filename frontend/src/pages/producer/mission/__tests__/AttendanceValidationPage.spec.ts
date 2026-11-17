@@ -232,7 +232,6 @@ describe('AttendanceValidationPage', () => {
     for (const wrapper of mountedWrappers.splice(0)) {
       wrapper.unmount()
     }
-    document.body.innerHTML = ''
   })
 
   it('shows the skeleton while fetching the form and removes it after resolve', async () => {

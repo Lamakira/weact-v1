@@ -1,6 +1,6 @@
-import { afterEach, describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
-import { cleanupPortals, clickOption, getOptionLabels, openSelect } from '@/components/ui/__tests__/selectTestUtils'
+import { clickOption, getOptionLabels, openSelect } from '@/components/ui/__tests__/selectTestUtils'
 import PersonalInfoForm from '../PersonalInfoForm.vue'
 
 // Le bloc d'alertes WhatsApp a ses propres tests (WhatsappAlertsToggle.spec.ts) et dépend de Pinia.
@@ -11,6 +11,20 @@ vi.mock('@/features/notification/components/WhatsappAlertsToggle.vue', () => ({
     template: '<div data-testid="whatsapp-alerts-toggle-stub" />',
   },
 }))
+
+// Listes réduites pour la vitesse (un composant Reka par option) : le contenu réel
+// est testé dans territoryOptions.spec.ts.
+vi.mock('@/shared/constants/territoryOptions', () => {
+  const toOptions = (values: string[]) => values.map((value) => ({ value, label: value }))
+  const COUNTRY_OPTIONS = toOptions(['Bénin', 'Togo', 'France'])
+  const NATIONALITY_OPTIONS = toOptions(['Béninoise', 'Togolaise', 'Française'])
+  return {
+    COUNTRY_OPTIONS,
+    COUNTRY_OPTION_VALUES: new Set(COUNTRY_OPTIONS.map((option) => option.value)),
+    NATIONALITY_OPTIONS,
+    NATIONALITY_OPTION_VALUES: new Set(NATIONALITY_OPTIONS.map((option) => option.value)),
+  }
+})
 
 describe('PersonalInfoForm — Show Age Toggle', () => {
   function mountForm(personalInfo = {
@@ -144,10 +158,6 @@ describe('PersonalInfoForm — nationalité et pays (listes avec recherche)', ()
     input.dispatchEvent(new Event('input', { bubbles: true }))
     await flushPromises()
   }
-
-  afterEach(() => {
-    cleanupPortals()
-  })
 
   it('affiche le libellé « Nationalité » accentué', () => {
     const wrapper = mountForm()

@@ -72,7 +72,6 @@ describe('AdminUgcSuspensionsPage', () => {
 
   afterEach(() => {
     wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
-    document.body.innerHTML = ''
   })
 
   it('mount_calls_fetchSuspensions_on_mount', async () => {

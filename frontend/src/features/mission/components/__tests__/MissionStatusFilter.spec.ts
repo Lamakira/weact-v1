@@ -24,7 +24,6 @@ function moreLabels(): string[] {
 afterEach(() => {
   wrapper?.unmount()
   wrapper = null
-  document.body.innerHTML = ''
 })
 
 describe('MissionStatusFilter (lot D7)', () => {

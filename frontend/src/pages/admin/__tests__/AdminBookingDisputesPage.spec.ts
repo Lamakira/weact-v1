@@ -106,7 +106,6 @@ describe('AdminBookingDisputesPage', () => {
 
   afterEach(() => {
     wrappers.splice(0).forEach((wrapper) => wrapper.unmount())
-    document.body.innerHTML = ''
   })
 
   it('fetches the disputes on mount', async () => {

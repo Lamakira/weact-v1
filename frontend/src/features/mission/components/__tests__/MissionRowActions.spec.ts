@@ -44,7 +44,6 @@ function menuLabels(): string[] {
 afterEach(() => {
   wrapper?.unmount()
   wrapper = null
-  document.body.innerHTML = ''
 })
 
 const ugcPendingPayment = { status: 'pending_payment', type_mission: 'ugc', commission_ugc: 2500 } as const

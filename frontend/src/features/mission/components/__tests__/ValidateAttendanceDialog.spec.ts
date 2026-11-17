@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import ValidateAttendanceDialog from '../ValidateAttendanceDialog.vue'
@@ -20,10 +20,6 @@ function renderDialog(props: Partial<InstanceType<typeof ValidateAttendanceDialo
 }
 
 describe('ValidateAttendanceDialog', () => {
-  afterEach(() => {
-    document.body.innerHTML = ''
-  })
-
   it('renders the title, counts and amounts (truncates long mission title)', () => {
     const longTitle = 'x'.repeat(60)
     renderDialog({ missionTitle: longTitle, presentCount: 2, absentCount: 1, totalReleased: 180000, totalRefunded: 90000 })
