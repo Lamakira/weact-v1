@@ -1,9 +1,14 @@
 <script setup lang="ts">
 import { AlertCircle, Info, Loader2 } from 'lucide-vue-next'
-import { PAYMENT_RETURN_MESSAGES, type PaymentReturnState } from '@/composables/usePaymentReturn'
+import {
+  PAYMENT_RETURN_MESSAGES,
+  type PaymentReturnFailureReason,
+  type PaymentReturnState,
+} from '@/composables/usePaymentReturn'
 
 defineProps<{
   state: PaymentReturnState
+  failureReason?: PaymentReturnFailureReason | null
 }>()
 
 const emit = defineEmits<{
@@ -31,7 +36,11 @@ const emit = defineEmits<{
   >
     <div class="flex items-start gap-2">
       <AlertCircle class="mt-0.5 h-4 w-4 flex-shrink-0" />
-      <span>{{ PAYMENT_RETURN_MESSAGES.failed }}</span>
+      <span>{{
+        failureReason === 'insufficient_funds'
+          ? PAYMENT_RETURN_MESSAGES.failedInsufficientFunds
+          : PAYMENT_RETURN_MESSAGES.failed
+      }}</span>
     </div>
     <div class="mt-3 flex gap-3">
       <button

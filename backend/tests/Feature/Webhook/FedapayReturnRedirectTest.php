@@ -17,7 +17,10 @@ use App\Models\Mission;
 use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
+use App\Services\FedapayService;
+use FedaPay\Transaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery;
 use Tests\TestCase;
 
 /**
@@ -146,6 +149,12 @@ class FedapayReturnRedirectTest extends TestCase
             'fedapay_transaction_id' => 900010,
         ]);
 
+        // canceled/declined interrogent FedaPay pour la raison : sans code d'erreur, aucun indice.
+        $this->mock(FedapayService::class, function ($mock) {
+            $mock->shouldReceive('retrieveTransaction')->with(900010)
+                ->andReturn($this->transaction('canceled', null));
+        });
+
         foreach (['approved', 'canceled', 'declined'] as $status) {
             $this->get("/api/v1/webhooks/fedapay?id=900010&status={$status}")->assertRedirect(
                 $this->frontend()."/producer/bookings/{$booking->uuid}?payment_return=booking&fedapay_status={$status}"
@@ -212,6 +221,116 @@ class FedapayReturnRedirectTest extends TestCase
 
         $this->get('/api/v1/webhooks/fedapay?id=900020&status=declined')
             ->assertRedirect($this->frontend().'/paiement/retour?fedapay_status=declined');
+    }
+
+    private function transaction(string $status, ?string $lastErrorCode): Transaction
+    {
+        /** @var Transaction $transaction */
+        $transaction = Mockery::mock(Transaction::class);
+        $transaction->status = $status;
+        $transaction->last_error_code = $lastErrorCode;
+
+        return $transaction;
+    }
+
+    public function test_insufficient_funds_reason_is_forwarded_for_a_canceled_own_transaction(): void
+    {
+        FaceSubscription::factory()->pendingPayment()->create(['provider_reference' => '900030']);
+        $booking = Booking::factory()->accepted()->create([
+            'type_contenu' => 'Publicité',
+            'fedapay_transaction_id' => 900031,
+        ]);
+
+        $this->mock(FedapayService::class, function ($mock) {
+            $mock->shouldReceive('retrieveTransaction')->twice()
+                ->andReturn($this->transaction('canceled', 'INSUFFICIENT_FUND_ERROR'));
+        });
+
+        $this->get('/api/v1/webhooks/fedapay?id=900030&status=canceled')->assertRedirect(
+            $this->frontend().'/face/billing?payment_return=subscription&fedapay_status=canceled&fedapay_reason=insufficient_funds'
+        );
+        $this->get('/api/v1/webhooks/fedapay?id=900031&status=declined')->assertRedirect(
+            $this->frontend()."/producer/bookings/{$booking->uuid}?payment_return=booking&fedapay_status=declined&fedapay_reason=insufficient_funds"
+        );
+    }
+
+    public function test_other_error_codes_add_no_reason(): void
+    {
+        $booking = Booking::factory()->accepted()->create([
+            'type_contenu' => 'Publicité',
+            'fedapay_transaction_id' => 900032,
+        ]);
+
+        $this->mock(FedapayService::class, function ($mock) {
+            $mock->shouldReceive('retrieveTransaction')->once()
+                ->andReturn($this->transaction('declined', 'API_ERROR'));
+        });
+
+        $this->get('/api/v1/webhooks/fedapay?id=900032&status=declined')->assertRedirect(
+            $this->frontend()."/producer/bookings/{$booking->uuid}?payment_return=booking&fedapay_status=declined"
+        );
+    }
+
+    public function test_a_fedapay_error_still_redirects_without_reason(): void
+    {
+        $booking = Booking::factory()->accepted()->create([
+            'type_contenu' => 'Publicité',
+            'fedapay_transaction_id' => 900033,
+        ]);
+
+        $this->mock(FedapayService::class, function ($mock) {
+            $mock->shouldReceive('retrieveTransaction')->once()->andThrow(new \RuntimeException('timeout'));
+        });
+
+        $this->get('/api/v1/webhooks/fedapay?id=900033&status=canceled')->assertRedirect(
+            $this->frontend()."/producer/bookings/{$booking->uuid}?payment_return=booking&fedapay_status=canceled"
+        );
+    }
+
+    public function test_fedapay_is_not_called_for_approved_or_missing_hint(): void
+    {
+        $booking = Booking::factory()->accepted()->create([
+            'type_contenu' => 'Publicité',
+            'fedapay_transaction_id' => 900034,
+        ]);
+
+        $this->mock(FedapayService::class, function ($mock) {
+            $mock->shouldNotReceive('retrieveTransaction');
+        });
+
+        $this->get('/api/v1/webhooks/fedapay?id=900034&status=approved')->assertRedirect(
+            $this->frontend()."/producer/bookings/{$booking->uuid}?payment_return=booking&fedapay_status=approved"
+        );
+        $this->get('/api/v1/webhooks/fedapay?id=900034')->assertRedirect(
+            $this->frontend()."/producer/bookings/{$booking->uuid}?payment_return=booking"
+        );
+    }
+
+    public function test_fedapay_is_not_called_for_an_unknown_transaction(): void
+    {
+        $this->mock(FedapayService::class, function ($mock) {
+            $mock->shouldNotReceive('retrieveTransaction');
+        });
+
+        $this->get('/api/v1/webhooks/fedapay?id=999999998&status=canceled')
+            ->assertRedirect($this->frontend().'/paiement/retour?fedapay_status=canceled');
+    }
+
+    public function test_stale_error_code_on_an_approved_transaction_adds_no_reason(): void
+    {
+        $booking = Booking::factory()->accepted()->create([
+            'type_contenu' => 'Publicité',
+            'fedapay_transaction_id' => 900035,
+        ]);
+
+        $this->mock(FedapayService::class, function ($mock) {
+            $mock->shouldReceive('retrieveTransaction')->once()
+                ->andReturn($this->transaction('approved', 'INSUFFICIENT_FUND_ERROR'));
+        });
+
+        $this->get('/api/v1/webhooks/fedapay?id=900035&status=canceled')->assertRedirect(
+            $this->frontend()."/producer/bookings/{$booking->uuid}?payment_return=booking&fedapay_status=canceled"
+        );
     }
 
     public function test_the_return_route_is_throttled(): void

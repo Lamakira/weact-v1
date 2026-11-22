@@ -24,7 +24,13 @@ const POLL_TIMEOUT_MS = 120000
 const MAX_CHECKS = POLL_TIMEOUT_MS / POLL_INTERVAL_MS + 1
 
 /** Query keys owned by the return flow — removed from the URL once it is over. */
-const RETURN_QUERY_KEYS = ['payment_return', 'mission', 'candidature', 'fedapay_status'] as const
+const RETURN_QUERY_KEYS = [
+  'payment_return',
+  'mission',
+  'candidature',
+  'fedapay_status',
+  'fedapay_reason',
+] as const
 
 export const PAYMENT_RETURN_KINDS = [
   'booking',
@@ -36,6 +42,8 @@ export const PAYMENT_RETURN_KINDS = [
 ] as const
 
 export type PaymentReturnKind = (typeof PAYMENT_RETURN_KINDS)[number]
+/** Failure reasons FedaPay can report (whitelisted by the backend). Display only. */
+export type PaymentReturnFailureReason = 'insufficient_funds'
 export type PaymentReturnState = 'idle' | 'verifying' | 'confirmed' | 'failed' | 'timeout'
 type CheckOutcome = 'settled' | 'failed' | 'pending'
 
@@ -64,6 +72,8 @@ export interface UsePaymentReturnOptions {
 interface UsePaymentReturnReturn {
   state: Ref<PaymentReturnState>
   kind: Ref<PaymentReturnKind | null>
+  /** Why the payment failed, when FedaPay said so (display only, never changes the outcome). */
+  failureReason: Ref<PaymentReturnFailureReason | null>
   isVerifying: ComputedRef<boolean>
   /** True when the current URL carries a `payment_return` this page handles. */
   hasPendingReturn: ComputedRef<boolean>
@@ -77,6 +87,8 @@ export const PAYMENT_RETURN_MESSAGES = {
   timeout:
     'Votre paiement est en cours de confirmation. Vous serez notifié dès qu\'il est validé.',
   failed: 'Paiement annulé ou refusé. Vous pouvez réessayer.',
+  failedInsufficientFunds:
+    'Paiement refusé : solde insuffisant sur votre compte Mobile Money. Rechargez-le, puis réessayez.',
 } as const
 
 const SUCCESS_MESSAGES: Record<PaymentReturnKind, string> = {
@@ -121,8 +133,9 @@ function firstString(value: LocationQuery[string] | undefined): string | null {
  * self-heal against FedaPay, so a late webhook does not matter), then toasts /
  * surfaces the failure / reports a non-error timeout, and finally strips the
  * return keys from the URL so a reload does not re-run the verification.
- * The only FedaPay-originated value read is `fedapay_status` (whitelisted by the
- * backend), used purely as a display hint to fail fast on canceled/declined; the
+ * The only FedaPay-originated values read are `fedapay_status` and `fedapay_reason`
+ * (whitelisted by the backend), used purely as display hints (fail fast on
+ * canceled/declined, say why when it was an insufficient balance); the
  * payment state itself is only ever decided by the server endpoints.
  */
 export function usePaymentReturn(options: UsePaymentReturnOptions): UsePaymentReturnReturn {
@@ -135,6 +148,7 @@ export function usePaymentReturn(options: UsePaymentReturnOptions): UsePaymentRe
 
   const state = ref<PaymentReturnState>('idle')
   const kind = ref<PaymentReturnKind | null>(null)
+  const failureReason = ref<PaymentReturnFailureReason | null>(null)
 
   let timer: ReturnType<typeof setTimeout> | null = null
   let cancelled = false
@@ -303,6 +317,8 @@ export function usePaymentReturn(options: UsePaymentReturnOptions): UsePaymentRe
 
     cancelled = false
     kind.value = k
+    failureReason.value =
+      firstString(route.query.fedapay_reason) === 'insufficient_funds' ? 'insufficient_funds' : null
     lateCredit = false
     lastIds = resolveIds()
     startPath = route.path
@@ -331,11 +347,13 @@ export function usePaymentReturn(options: UsePaymentReturnOptions): UsePaymentRe
   function dismiss(): void {
     clearTimer()
     state.value = 'idle'
+    failureReason.value = null
   }
 
   function retry(): void {
     const k = kind.value
     state.value = 'idle'
+    failureReason.value = null
     if (k) options.onRetry?.(k, lastIds)
   }
 
@@ -352,5 +370,5 @@ export function usePaymentReturn(options: UsePaymentReturnOptions): UsePaymentRe
     if (state.value === 'verifying') state.value = 'idle'
   })
 
-  return { state, kind, isVerifying, hasPendingReturn, start, retry, dismiss }
+  return { state, kind, failureReason, isVerifying, hasPendingReturn, start, retry, dismiss }
 }

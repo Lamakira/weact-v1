@@ -367,6 +367,7 @@ async function confirmComplete(): Promise<void> {
 
     <PaymentReturnBanner
       :state="paymentReturn.state.value"
+      :failure-reason="paymentReturn.failureReason.value"
       @retry="paymentReturn.retry"
       @dismiss="paymentReturn.dismiss"
     />

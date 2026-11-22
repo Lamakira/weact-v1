@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { AlertCircle, CheckCircle, Loader2 } from 'lucide-vue-next'
 import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
-import type { PaymentReturnState } from '@/composables/usePaymentReturn'
+import type { PaymentReturnFailureReason, PaymentReturnState } from '@/composables/usePaymentReturn'
 import type { Mission } from '../types'
 
 /**
@@ -14,6 +14,7 @@ import type { Mission } from '../types'
 const props = defineProps<{
   mission: Mission
   returnState: PaymentReturnState
+  returnFailureReason?: PaymentReturnFailureReason | null
   paymentSuccess: boolean
   initializationFailed: boolean
   resumable: boolean
@@ -31,7 +32,12 @@ const emit = defineEmits<{
 
 <template>
   <div class="grid gap-3">
-    <PaymentReturnBanner :state="props.returnState" @retry="emit('retry')" @dismiss="emit('dismiss')" />
+    <PaymentReturnBanner
+      :state="props.returnState"
+      :failure-reason="props.returnFailureReason"
+      @retry="emit('retry')"
+      @dismiss="emit('dismiss')"
+    />
     <!-- Payment success banner -->
     <div
       v-if="paymentSuccess"
