@@ -441,6 +441,7 @@ function toggleHistory(id: string): void {
       <!-- ===================================================== -->
       <PaymentReturnBanner
         :state="paymentReturn.state.value"
+        :failure-reason="paymentReturn.failureReason.value"
         @retry="paymentReturn.retry"
         @dismiss="paymentReturn.dismiss"
       />

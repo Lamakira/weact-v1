@@ -1123,6 +1123,7 @@ onUnmounted(() => {
       <div class="@container/info min-w-0">
         <PaymentReturnBanner
           :state="paymentReturn.state.value"
+          :failure-reason="paymentReturn.failureReason.value"
           @retry="paymentReturn.retry"
           @dismiss="paymentReturn.dismiss"
         />

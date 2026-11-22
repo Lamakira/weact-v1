@@ -665,6 +665,7 @@ function goToEdit(): void {
         v-if="hasPaymentBanner"
         :mission="mission"
         :return-state="paymentReturn.state.value"
+        :return-failure-reason="paymentReturn.failureReason.value"
         :payment-success="paymentSuccessBanner"
         :initialization-failed="paymentInitializationFailed"
         :resumable="paymentResumable"
