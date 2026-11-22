@@ -1,6 +1,23 @@
 import { afterEach, beforeEach } from 'vitest'
+import axios from 'axios'
 import { enableAutoUnmount } from '@vue/test-utils'
 import { resetAllSharedCachedResources } from '@/lib/createSharedCachedResource'
+
+// Aucun test ne doit envoyer de vraie requête HTTP : une requête oubliée part vers
+// 127.0.0.1:8000, échoue après la fin du test, et son message d'erreur arrive pendant la
+// fermeture du worker (EnvironmentTeardownError, CI rouge au hasard). Les clients axios
+// créés après ce fichier héritent de cet adaptateur : la requête est refusée tout de suite
+// et le test qui l'a lancée échoue avec son adresse.
+const realHttpCalls: string[] = []
+axios.defaults.adapter = (config) => {
+  realHttpCalls.push(`${(config.method ?? 'get').toUpperCase()} ${config.url ?? ''}`)
+  return Promise.reject(new Error(`Requête HTTP réelle dans un test : ${config.url ?? ''}`))
+}
+afterEach(() => {
+  if (realHttpCalls.length === 0) return
+  const calls = realHttpCalls.splice(0).join(', ')
+  throw new Error(`Requête HTTP réelle dans ce test (mockez le service) : ${calls}`)
+})
 
 // Démonte chaque composant monté à la fin de son test. Sans cela, les composants des tests
 // précédents restent actifs : ils réagissent aux mêmes refs mockées et se redessinent à chaque

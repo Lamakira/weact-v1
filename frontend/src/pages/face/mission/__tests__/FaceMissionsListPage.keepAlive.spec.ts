@@ -6,6 +6,11 @@ import type { Mission, MissionFilters } from '@/features/mission/types'
 
 // Mock vue-router (self-contained — not imported from any sibling spec)
 const mockRouter = { push: vi.fn(), replace: vi.fn() }
+// Statut d'abonnement inconnu (pas de bandeau) : aucune vraie requête.
+vi.mock('@/features/face/composables/useSubscriptionStatus', () => ({
+  useSubscriptionStatus: () => ({ data: ref(null), tier: ref('free'), fetchStatus: vi.fn() }),
+}))
+
 vi.mock('vue-router', () => ({
   useRouter: () => mockRouter,
   useRoute: () => ({ query: {}, name: 'face-missions' }),
