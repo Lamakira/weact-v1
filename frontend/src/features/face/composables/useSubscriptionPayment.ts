@@ -133,7 +133,14 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
   }
 
   async function initiatePayment(plan: FaceSubscriptionPlan): Promise<boolean> {
-    if (isInitiating.value || isVerifying.value || isCancelling.value) {
+    // 'waiting' = the browser is leaving for the checkout: the pending row exists
+    // server-side but the local status is stale, a second call would 409.
+    if (
+      isInitiating.value ||
+      isVerifying.value ||
+      isCancelling.value ||
+      paymentState.value === 'waiting'
+    ) {
       return false
     }
 
@@ -176,7 +183,14 @@ export function useSubscriptionPayment(): UseSubscriptionPaymentReturn {
   }
 
   async function resumePayment(): Promise<boolean> {
-    if (isInitiating.value || isVerifying.value || isCancelling.value) {
+    // 'waiting' = the browser is leaving for the checkout: the pending row exists
+    // server-side but the local status is stale, a second call would 409.
+    if (
+      isInitiating.value ||
+      isVerifying.value ||
+      isCancelling.value ||
+      paymentState.value === 'waiting'
+    ) {
       return false
     }
     isInitiating.value = true
