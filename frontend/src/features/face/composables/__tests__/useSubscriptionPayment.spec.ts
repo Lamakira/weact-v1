@@ -296,6 +296,46 @@ describe('useSubscriptionPayment (FP-2.7 tier-aware contract)', () => {
   })
 
 
+  it('does not initiate nor resume a payment while the redirect to the checkout is in progress (waiting)', async () => {
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('starter'))
+
+    const { api, unmount } = mountWithComposable()
+    expect(await api.initiatePayment('starter')).toBe(true)
+    expect(api.paymentState.value).toBe('waiting')
+    expect(api.isInitiating.value).toBe(false)
+
+    expect(await api.initiatePayment('pro')).toBe(false)
+    expect(await api.resumePayment()).toBe(false)
+
+    expect(faceApi.initiateSubscriptionPayment).toHaveBeenCalledTimes(1)
+    expect(faceApi.resumePendingSubscription).not.toHaveBeenCalled()
+    expect(api.paymentState.value).toBe('waiting')
+    unmount()
+  })
+
+  it('allows a new initiatePayment again after a bfcache restore of the redirecting state', async () => {
+    vi.mocked(faceApi.initiateSubscriptionPayment).mockResolvedValue(initiateResponse('starter'))
+    vi.mocked(faceApi.getSubscriptionStatus).mockResolvedValue({
+      data: statusData('free', 'active', null),
+    })
+
+    const { api, unmount } = mountWithComposable()
+    await api.initiatePayment('starter')
+    expect(await api.initiatePayment('pro')).toBe(false)
+
+    const persisted = new Event('pageshow')
+    Object.defineProperty(persisted, 'persisted', { value: true })
+    window.dispatchEvent(persisted)
+    await flushPromises()
+    expect(api.paymentState.value).toBe('idle')
+
+    expect(await api.initiatePayment('pro')).toBe(true)
+    expect(faceApi.initiateSubscriptionPayment).toHaveBeenCalledTimes(2)
+    expect(faceApi.initiateSubscriptionPayment).toHaveBeenLastCalledWith('pro')
+    unmount()
+  })
+
+
   it('surfaces the formatted backend error when initiatePayment rejects', async () => {
     vi.mocked(faceApi.initiateSubscriptionPayment).mockRejectedValue(new Error('409 conflict'))
 

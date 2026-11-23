@@ -358,6 +358,8 @@ function isCurrentTier(handoffKey: HandoffTierKey): boolean {
 function ctaEnabledFor(handoffKey: HandoffTierKey): boolean {
   if (!isEmailVerified.value) return false
   if (isLoading.value || isInitiating.value || isVerifying.value) return false
+  // Redirection vers FedaPay en cours : le statut local est périmé, ne pas relancer.
+  if (paymentState.value === 'waiting') return false
   if (hasPendingPayment.value) return false
   const relation = relationFor(handoffKey)
   if (relation === 'current') return cta.value.renew_available
@@ -498,7 +500,7 @@ watchEffect(() => {
     deepLinkConsumed.value = true
     return
   }
-  if (isInitiating.value || isVerifying.value) {
+  if (isInitiating.value || isVerifying.value || paymentState.value === 'waiting') {
     deepLinkConsumed.value = true
     return
   }

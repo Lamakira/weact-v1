@@ -813,6 +813,34 @@ describe('auth-aware behavior (FP-2.13.1)', () => {
     expect(wrapper.find('[data-testid="pricing-banner-pending"]').exists()).toBe(false)
   })
 
+  it('disables every tier CTA while the redirect to FedaPay is in progress (waiting banner)', async () => {
+    setupStatus({ tier: 'starter', status: 'active', expiresAt: '2027-05-23T00:00:00Z' })
+    setupPayment()
+    // initiatePayment succeeds: the composable flips to « waiting » and isInitiating
+    // goes back to false (its finally) while the browser is still leaving the page.
+    ctx.payment.initiatePayment = vi.fn().mockImplementation(async () => {
+      ;(ctx.payment.paymentState as { value: string }).value = 'waiting'
+      return true
+    })
+    const wrapper = mountAuth()
+    await flushPromises()
+    expect(wrapper.get('[data-testid="cta-tier-elite"]').attributes('disabled')).toBeUndefined()
+
+
+    await wrapper.get('[data-testid="cta-tier-elite"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-testid="modal-confirm"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="pricing-banner-waiting"]').exists()).toBe(true)
+    for (const k of ['starter', 'pro', 'elite'] as const) {
+      const btn = wrapper.find(`[data-testid="cta-tier-${k}"]`)
+      if (btn.exists()) expect(btn.attributes('disabled')).toBeDefined()
+    }
+    await wrapper.get('[data-testid="cta-tier-elite"]').trigger('click')
+    expect(ctx.payment.initiatePayment).toHaveBeenCalledTimes(1)
+  })
+
   it('auto-opens the modal for ?plan=pro when a Face on Starter lands on /pricing', async () => {
     setupStatus({ tier: 'starter', status: 'active', expiresAt: '2027-05-23T00:00:00Z' })
     ctx.route.query = { plan: 'pro' }
