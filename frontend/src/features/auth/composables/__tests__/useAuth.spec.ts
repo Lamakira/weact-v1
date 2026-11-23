@@ -8,6 +8,16 @@ import { authApi } from '../../services/authApi'
 
 vi.mock('@/lib/analytics', () => ({ captureAnalyticsEvent: vi.fn() }))
 
+// Le store de notifications appelle l'API (compteur non lu, canal temps réel) après une
+// inscription : simulé ici pour qu'aucune vraie requête ne parte.
+vi.mock('@/stores/notification', () => ({
+  useNotificationStore: () => ({
+    subscribe: vi.fn(),
+    unsubscribe: vi.fn(),
+    fetchUnreadCount: vi.fn(),
+  }),
+}))
+
 // Mock vue-router
 const mockPush = vi.fn()
 vi.mock('vue-router', () => ({

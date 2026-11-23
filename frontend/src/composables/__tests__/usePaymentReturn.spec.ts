@@ -438,6 +438,80 @@ describe('usePaymentReturn', () => {
     expect(ctx.toast.success).toHaveBeenCalledOnce()
   })
 
+  describe('fedapay_reason (display hint)', () => {
+    it('reads the whitelisted insufficient_funds reason, strips it from the URL and keeps it after the cleanup', async () => {
+      ctx.route.query = {
+        payment_return: 'booking',
+        fedapay_status: 'canceled',
+        fedapay_reason: 'insufficient_funds',
+        other: 'keep',
+      }
+      vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('accepted'))
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('failed')
+      expect(api.failureReason.value).toBe('insufficient_funds')
+      expect(ctx.replace).toHaveBeenCalledWith({ query: { other: 'keep' } })
+    })
+
+    it('ignores an unknown reason value', async () => {
+      ctx.route.query = { payment_return: 'booking', fedapay_status: 'canceled', fedapay_reason: '<script>' }
+      vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('accepted'))
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('failed')
+      expect(api.failureReason.value).toBeNull()
+    })
+
+    it('is null without the param', async () => {
+      ctx.route.query = { payment_return: 'booking', fedapay_status: 'canceled' }
+      vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('accepted'))
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.failureReason.value).toBeNull()
+    })
+
+    it('is reset by retry()', async () => {
+      ctx.route.query = { payment_return: 'booking', fedapay_status: 'canceled', fedapay_reason: 'insufficient_funds' }
+      vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('accepted'))
+      const { api } = mountReturn()
+      await api.start()
+      expect(api.failureReason.value).toBe('insufficient_funds')
+
+      api.retry()
+
+      expect(api.failureReason.value).toBeNull()
+    })
+
+    it('is reset by dismiss()', async () => {
+      ctx.route.query = { payment_return: 'booking', fedapay_status: 'canceled', fedapay_reason: 'insufficient_funds' }
+      vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('accepted'))
+      const { api } = mountReturn()
+      await api.start()
+
+      api.dismiss()
+
+      expect(api.failureReason.value).toBeNull()
+    })
+
+    it('never changes the outcome: a settled server answer still confirms', async () => {
+      ctx.route.query = { payment_return: 'booking', fedapay_status: 'canceled', fedapay_reason: 'insufficient_funds' }
+      vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('paid'))
+      const { api } = mountReturn()
+
+      await api.start()
+
+      expect(api.state.value).toBe('confirmed')
+      expect(ctx.toast.success).toHaveBeenCalledOnce()
+    })
+  })
+
   it('fedapay_status=approved keeps the normal polling', async () => {
     ctx.route.query = { payment_return: 'booking', fedapay_status: 'approved' }
     vi.mocked(bookingApi.checkPaymentStatus).mockResolvedValue(bookingRes('accepted'))

@@ -34,6 +34,11 @@ const mockRouter = {
   push: vi.fn(() => Promise.resolve()),
   replace: vi.fn(() => Promise.resolve()), // syncToUrl chains .finally()
 }
+// Statut d'abonnement inconnu (pas de bandeau) : aucune vraie requête.
+vi.mock('@/features/face/composables/useSubscriptionStatus', () => ({
+  useSubscriptionStatus: () => ({ data: ref(null), tier: ref('free'), fetchStatus: vi.fn() }),
+}))
+
 vi.mock('vue-router', () => ({
   useRouter: () => mockRouter,
   useRoute: () => mockRoute,
