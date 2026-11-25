@@ -82,8 +82,10 @@ import { useUgcShipment } from '@/composables/useUgcShipment'
 import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
 import { formatBookingDeadline } from '@/features/booking/utils/formatBookingDeadline'
 import {
+  bookingAmountLabels,
   buildBookingView,
   formatRemaining,
+  isBookingClosed,
   formatShortDate,
   type BookingRole,
 } from '@/features/booking/utils/bookingPresentation'
@@ -266,6 +268,12 @@ const showAddressHint = computed(
 // Lot C6 : la page parle au rôle de celui qui regarde (titre, pastille, « Et ensuite ? », étapes).
 const role = computed<BookingRole>(() => (isFace.value ? 'face' : 'producer'))
 const view = computed(() => (booking.value ? buildBookingView(booking.value, role.value) : null))
+// Libellés du bloc d'argent (cash) : « À payer » / « Vous recevrez » seulement tant que l'argent est à venir.
+const amountLabels = computed(() =>
+  booking.value
+    ? bookingAmountLabels(booking.value, role.value)
+    : { title: '', total: '', tone: 'due' as const },
+)
 const nextCountdown = computed<string | null>(() => {
   const deadline = view.value?.next.deadlineAt
   return deadline ? formatRemaining(deadline, nowTimestamp.value) : null
@@ -1365,6 +1373,7 @@ onUnmounted(() => {
                 :pay-amount="booking.montant_remuneration ?? 0"
                 :on-platform="true"
                 :paid="ugcCommissionPaid"
+                :closed="isBookingClosed(booking)"
               />
             </div>
 
@@ -1599,10 +1608,12 @@ onUnmounted(() => {
 
             <!-- Financial section (cash bookings only) -->
             <div v-if="booking.type_contenu !== 'UGC'" class="bg-white rounded-[10px] border border-gray-200 p-4">
-              <h2 class="text-sm font-semibold text-gray-700 mb-3">{{ isFace ? 'Votre rémunération' : 'À payer' }}</h2>
+              <h2 class="text-sm font-semibold text-gray-700 mb-3" data-testid="booking-amount-title">{{ amountLabels.title }}</h2>
               <BookingPricingBreakdown
                 :tarif-base="booking.tarif_base"
                 :role="isFace ? 'face' : 'producer'"
+                :total-label="amountLabels.total"
+                :muted="amountLabels.tone === 'planned'"
                 :montant-face-recoit="booking.montant_face_recoit"
                 :montant-total-producteur="booking.montant_total_producteur"
               />

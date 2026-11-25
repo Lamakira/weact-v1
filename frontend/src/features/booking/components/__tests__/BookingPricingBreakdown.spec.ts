@@ -84,4 +84,44 @@ describe('BookingPricingBreakdown', () => {
 
     expect(wrapper.text()).not.toContain('Revenu plateforme')
   })
+
+  describe('totalLabel et muted', () => {
+    it.each(['face', 'producer'] as const)('%s : totalLabel remplace le libellé du total', (role) => {
+      const wrapper = mount(BookingPricingBreakdown, {
+        props: { tarifBase, role, totalLabel: 'Total payé' },
+      })
+
+      expect(wrapper.find('[data-testid="booking-amount-total-label"]').text()).toBe('Total payé')
+      expect(wrapper.text()).not.toContain('Total à payer')
+      expect(wrapper.text()).not.toContain('Vous recevrez')
+    })
+
+    it('repli sur les libellés actuels sans totalLabel', () => {
+      const face = mount(BookingPricingBreakdown, { props: { tarifBase, role: 'face' } })
+      const producer = mount(BookingPricingBreakdown, { props: { tarifBase, role: 'producer' } })
+
+      expect(face.find('[data-testid="booking-amount-total-label"]').text()).toBe('Vous recevrez')
+      expect(producer.find('[data-testid="booking-amount-total-label"]').text()).toBe('Total à payer')
+    })
+
+    it.each([
+      ['face', 'text-emerald-600'],
+      ['producer', 'text-blue-600'],
+    ] as const)('%s : sans muted, le total garde sa couleur (%s)', (role, color) => {
+      const wrapper = mount(BookingPricingBreakdown, { props: { tarifBase, role } })
+      const total = wrapper.find('[data-testid="booking-amount-total"]')
+
+      expect(total.classes()).toContain(color)
+      expect(total.classes()).not.toContain('text-gray-700')
+    })
+
+    it.each(['face', 'producer'] as const)('%s : muted passe le total en gris, sans bleu ni vert', (role) => {
+      const wrapper = mount(BookingPricingBreakdown, { props: { tarifBase, role, muted: true } })
+      const total = wrapper.find('[data-testid="booking-amount-total"]')
+
+      expect(total.classes()).toContain('text-gray-700')
+      expect(total.classes()).not.toContain('text-emerald-600')
+      expect(total.classes()).not.toContain('text-blue-600')
+    })
+  })
 })

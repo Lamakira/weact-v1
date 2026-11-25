@@ -12,6 +12,10 @@ const props = defineProps<{
   montantTotalProducteur?: number
   /** When true, shows a "Revenu plateforme" row with both commissions combined. Default: false. */
   showPlatformRevenue?: boolean
+  /** Libellé du total ; repli sur « Vous recevrez » (Face) ou « Total à payer » (Producteur). */
+  totalLabel?: string
+  /** Montant jamais réglé (booking clos) : total en gris au lieu du bleu ou du vert. */
+  muted?: boolean
 }>()
 
 const preview = computed(() => calculatePricingPreview(props.tarifBase))
@@ -51,8 +55,12 @@ const platformRevenue = computed(() => producerCommission.value + faceCommission
       </div>
       <div class="border-t border-gray-100 pt-2 mt-2">
         <div class="flex justify-between items-center">
-          <span class="text-sm font-semibold text-gray-700">Vous recevrez</span>
-          <span class="text-lg font-bold text-emerald-600">{{ formatMoney(faceReceives) }}</span>
+          <span class="text-sm font-semibold text-gray-700" data-testid="booking-amount-total-label">{{ totalLabel ?? 'Vous recevrez' }}</span>
+          <span
+            class="text-lg font-bold"
+            :class="muted ? 'text-gray-700' : 'text-emerald-600'"
+            data-testid="booking-amount-total"
+          >{{ formatMoney(faceReceives) }}</span>
         </div>
       </div>
     </template>
@@ -65,8 +73,12 @@ const platformRevenue = computed(() => producerCommission.value + faceCommission
       </div>
       <div class="border-t border-gray-100 pt-2 mt-2">
         <div class="flex justify-between items-center">
-          <span class="text-sm font-semibold text-gray-700">Total à payer</span>
-          <span class="text-lg font-bold text-blue-600">{{ formatMoney(totalProducerPays) }}</span>
+          <span class="text-sm font-semibold text-gray-700" data-testid="booking-amount-total-label">{{ totalLabel ?? 'Total à payer' }}</span>
+          <span
+            class="text-lg font-bold"
+            :class="muted ? 'text-gray-700' : 'text-blue-600'"
+            data-testid="booking-amount-total"
+          >{{ formatMoney(totalProducerPays) }}</span>
         </div>
       </div>
     </template>

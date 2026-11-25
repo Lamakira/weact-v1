@@ -30,6 +30,12 @@ const props = withDefaults(
      * (hybride on-platform). Sans effet en mode mission.
      */
     paid?: boolean
+    /**
+     * Booking clos sans règlement (refus, expiration, annulation) : « À payer maintenant » devient
+     * « Montant prévu » (hybride on-platform) ou « Commission prévue » (produit seul), sans coche.
+     * `paid` reste prioritaire ; sans effet en mode mission.
+     */
+    closed?: boolean
   }>(),
   {
     payAmount: 0,
@@ -37,6 +43,7 @@ const props = withDefaults(
     mode: 'booking',
     nombreFaces: 1,
     paid: false,
+    closed: false,
   },
 )
 
@@ -128,6 +135,7 @@ const missionHybridTotal = computed(() => onPlatformTotal.value * missionFacesCo
               <Check :size="14" class="text-weact" />
               Réglé
             </span>
+            <span v-else-if="closed" class="font-semibold text-gray-900">Montant prévu</span>
             <span v-else class="font-semibold text-gray-900">À payer maintenant</span>
             <span class="text-base font-bold text-gray-900">{{ formatMoney(onPlatformTotal) }}</span>
           </div>
@@ -163,6 +171,7 @@ const missionHybridTotal = computed(() => onPlatformTotal.value * missionFacesCo
               <Check :size="14" class="text-weact" />
               Commission réglée
             </span>
+            <span v-else-if="closed && mode !== 'mission'" class="font-semibold text-gray-900">Commission prévue</span>
             <span v-else class="font-semibold text-gray-900">À payer maintenant</span>
             <span class="text-base font-bold text-gray-900">{{ formatMoney(commission) }}</span>
           </div>
