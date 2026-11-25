@@ -4,6 +4,10 @@
 
 @section('footer_brand', 'WEACT · Bénin')
 
+@section('footer_reason')
+    Vous recevez cet email parce qu'un contrat signé sur WEACT vous concerne.
+@endsection
+
 @section('content')
     <h2 style="margin: 0 0 16px; color: #111827; font-size: 20px; font-weight: 700; line-height: 1.3;">
         Votre contrat est signé

@@ -10,7 +10,7 @@ import { useCookieConsent } from '@/composables/useCookieConsent'
 
 const { openPreferences } = useCookieConsent()
 
-const lastUpdate = '17 novembre 2026'
+const lastUpdate = '25 novembre 2026'
 </script>
 
 <template>
@@ -57,6 +57,7 @@ const lastUpdate = '17 novembre 2026'
           <li>Traitement des candidatures et gestion des missions</li>
           <li>Traitement des paiements et gestion du portefeuille</li>
           <li>Messagerie entre utilisateurs</li>
+          <li>Signature et archivage des autorisations d'utilisation de l'image</li>
           <li>Amélioration de la plateforme et de l'expérience utilisateur</li>
           <li>Communication transactionnelle (vérification email, notifications de booking, etc.)</li>
           <li>Respect des obligations légales et réglementaires</li>
@@ -102,6 +103,13 @@ const lastUpdate = '17 novembre 2026'
               <li>Cookies techniques</li>
             </ul>
           </div>
+          <div class="p-3 bg-gray-50 rounded border border-gray-100">
+            <p class="font-medium text-gray-900 text-xs mb-2">Données de signature</p>
+            <ul class="text-xs text-gray-600 space-y-0.5">
+              <li>Nom du signataire, date, e-mail ayant reçu le code, navigateur utilisé</li>
+              <li>Pour une Face mineure : nom, lien et e-mail du parent ou tuteur</li>
+            </ul>
+          </div>
         </div>
       </div>
 
@@ -123,6 +131,7 @@ const lastUpdate = '17 novembre 2026'
         <p>Vos données personnelles peuvent être communiquées aux catégories de destinataires suivantes :</p>
         <ul class="list-disc pl-5 mt-2 space-y-1">
           <li><span class="font-medium">Les autres utilisateurs :</span> les Producteurs ont accès aux profils publics des Faces dans le cadre des missions de casting</li>
+          <li><span class="font-medium">Les signataires d'un contrat :</span> le Producteur, la Face et, pour une Face mineure, son parent ou tuteur reçoivent une copie du contrat signé</li>
           <li><span class="font-medium">Les prestataires techniques :</span> hébergement, services de paiement, services email (sous contrat de sous-traitance conforme à l'article 386)</li>
           <li><span class="font-medium">Meta Platforms Ireland Ltd (WhatsApp) :</span> envoi des alertes WhatsApp aux utilisateurs qui les ont activées (numéro WhatsApp, prénom, contenu de l'alerte)</li>
           <li><span class="font-medium">Les autorités compétentes :</span> sur demande judiciaire ou administrative conforme à la loi</li>
@@ -161,6 +170,10 @@ const lastUpdate = '17 novembre 2026'
               <tr>
                 <td class="p-2">Données de transaction</td>
                 <td class="p-2">10 ans (obligation légale, Art. 346)</td>
+              </tr>
+              <tr>
+                <td class="p-2">Autorisations d'image et preuves de signature</td>
+                <td class="p-2">Durée de l'autorisation + 5 ans</td>
               </tr>
               <tr>
                 <td class="p-2">Données de connexion (logs)</td>
@@ -310,6 +323,9 @@ const lastUpdate = '17 novembre 2026'
         <h2 class="font-semibold text-gray-900 mb-2 uppercase tracking-wider text-[11px]">15. Protection des mineurs</h2>
         <p>
           Conformément à l'article 446 du Code du Numérique, le traitement des données d'un mineur de moins de seize (16) ans n'est licite que si le consentement est donné ou autorisé par le titulaire de la responsabilité parentale. WEACT s'efforce raisonnablement de vérifier cette condition.
+        </p>
+        <p class="mt-2">
+          Pour une Face de moins de 18 ans, l'autorisation d'utilisation de l'image est signée par un parent ou tuteur.
         </p>
       </div>
 

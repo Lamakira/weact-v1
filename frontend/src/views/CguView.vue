@@ -7,7 +7,7 @@
 import { RouterLink } from 'vue-router'
 import { FileText } from 'lucide-vue-next'
 
-const lastUpdate = '4 avril 2026'
+const lastUpdate = '25 novembre 2026'
 </script>
 
 <template>
@@ -87,6 +87,7 @@ const lastUpdate = '4 avril 2026'
             <li>Respecter l'image de marque de WEACT et des Producteurs</li>
             <li>Ne pas utiliser la plateforme à des fins illégales ou contraires aux bonnes mœurs</li>
             <li>Ne pas contourner la plateforme pour des transactions directes avec les Producteurs</li>
+            <li>Signer l'autorisation d'utilisation de l'image lorsqu'elle est demandée, et faire signer un parent ou tuteur si la Face a moins de 18 ans</li>
           </ul>
         </div>
       </div>
@@ -101,6 +102,7 @@ const lastUpdate = '4 avril 2026'
             <li>Effectuer les paiements via la plateforme WEACT exclusivement</li>
             <li>Ne pas solliciter directement les Faces en dehors de la plateforme</li>
             <li>Garantir la sécurité et le bien-être des Faces lors des missions</li>
+            <li>N'utiliser l'image de la Face que dans les limites de l'autorisation signée, et pas avant sa prise d'effet</li>
           </ul>
         </div>
       </div>
@@ -143,6 +145,9 @@ const lastUpdate = '4 avril 2026'
         </p>
         <p class="mt-2">
           Les Faces concèdent à WEACT un droit d'utilisation non exclusif de leur image (photos, vidéos) dans le cadre strict de la mise en relation sur la plateforme et de la promotion du service WEACT.
+        </p>
+        <p class="mt-2">
+          Pour les bookings et missions concernés, le Producteur et la Face signent en ligne une autorisation d'utilisation de l'image, au moyen d'un code reçu par e-mail. Elle fixe la finalité, les supports, le territoire et la durée. Elle prend effet après le paiement de la Face ou, pour un produit seul, à sa réception. WEACT fournit le modèle et archive le contrat signé, sans y être partie.
         </p>
       </div>
 

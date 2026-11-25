@@ -13,11 +13,13 @@ use Illuminate\Support\Facades\Hash;
 class ProducerRegistrationService
 {
     /**
-     * Version of the consent text shown to Producers (email and Google paths).
-     * Unchanged since 2026-04-04: « J'accepte les CGU et la Politique de
-     * Confidentialité » was not reworded when the Face label was.
+     * Version of the consent shown to Producers (email and Google paths).
+     * It follows the checkbox label OR the accepted texts (CGU / privacy policy).
+     * History: 2026-04-04 = « J'accepte les CGU et la Politique de
+     * Confidentialité » (not reworded when the Face label was);
+     * 2026-11-25 = CGU and privacy policy updated for the image authorization.
      */
-    public const CONSENT_VERSION = '2026-04-04';
+    public const CONSENT_VERSION = '2026-11-25';
 
     /**
      * Register a new Producer user.

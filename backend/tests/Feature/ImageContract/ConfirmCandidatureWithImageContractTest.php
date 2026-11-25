@@ -14,6 +14,7 @@ use App\Models\ImageContract;
 use App\Models\Notification;
 use App\Models\SignatureChallenge;
 use App\Models\User;
+use App\Support\ImageContractTemplate;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
@@ -482,7 +483,31 @@ class ConfirmCandidatureWithImageContractTest extends TestCase
                 && str_contains($html, '3 ans')
                 && str_contains($html, 'Produit remis : Tenue Shade Fit')
                 && str_contains($html, 'Rémunération reçue par la Face')
+                && str_contains($html, e(ImageContractTemplate::articles()[12]['body']))
+                && str_contains($html, 'Appel UGC Unboxing')
                 && ! str_contains($html, '—');
+        });
+    }
+
+    public function test_a_minor_guardian_email_for_a_product_only_ugc_mission_says_the_effect_is_the_product_reception(): void
+    {
+        $this->face->update(['date_naissance' => now()->subYears(16)->toDateString()]);
+        [, $candidature] = $this->ugcMissionWithAcceptedFace(CompensationType::Product);
+
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/image-contract/code', $this->codeBody($candidature, [
+                'guardian_name' => 'Fatou Bello',
+                'guardian_relation' => 'mere',
+                'guardian_email' => 'fatou@example.com',
+            ]))
+            ->assertOk();
+
+        Mail::assertSent(SignatureCodeMail::class, function (SignatureCodeMail $mail): bool {
+            $html = $mail->render();
+
+            return $mail->hasTo('fatou@example.com')
+                && str_contains($html, 'à la réception du produit par la Face')
+                && str_contains($html, 'Tenue Shade Fit');
         });
     }
 

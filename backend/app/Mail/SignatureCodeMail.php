@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Mail;
 
+use App\Support\ImageContractTemplate;
 use Illuminate\Mail\Mailables\Content;
 
 /**
@@ -38,6 +39,7 @@ final class SignatureCodeMail extends BaseMail
                 'forGuardian' => $this->forGuardian,
                 'guardianName' => $this->guardianName,
                 'summary' => $this->summary,
+                'articles' => $this->forGuardian ? ImageContractTemplate::articles() : [],
             ],
         );
     }
