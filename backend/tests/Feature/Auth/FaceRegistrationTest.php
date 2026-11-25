@@ -85,7 +85,7 @@ class FaceRegistrationTest extends TestCase
     {
         $this->postJson('/api/v1/auth/register/face', $this->validData)->assertStatus(201);
 
-        $this->assertSame('2026-08-03', User::query()->firstOrFail()->consent_version);
+        $this->assertSame('2026-11-25', User::query()->firstOrFail()->consent_version);
     }
 
     public function test_username_is_generated_from_prenom_and_nom(): void
