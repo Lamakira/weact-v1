@@ -104,7 +104,6 @@ class GenerateImageContractPdf implements ShouldQueue
     {
         $snapshot = $contract->snapshot;
         $contrepartie = $snapshot['contrepartie'] ?? [];
-        $kind = (string) ($contrepartie['kind'] ?? 'cash');
 
         $lines = ImageContractService::contrepartieLines($contrepartie);
 
@@ -121,9 +120,7 @@ class GenerateImageContractPdf implements ShouldQueue
                 ->map(fn (string $value): string => ImageContractSupport::from($value)->label())
                 ->implode(', '),
             'territoireLabel' => ImageContractTerritoire::from($contract->territoire)->label(),
-            'effectiveMoment' => $kind === 'ugc_product'
-                ? 'à la réception du produit par la Face'
-                : 'après le paiement de la Face',
+            'effectiveMoment' => ImageContractService::effectiveMoment($contrepartie),
         ];
     }
 

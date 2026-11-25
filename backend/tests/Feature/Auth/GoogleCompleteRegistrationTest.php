@@ -82,11 +82,11 @@ class GoogleCompleteRegistrationTest extends TestCase
         $this->assertNotNull($user->google_linked_at);
         $this->assertNotNull($user->email_verified_at);
         $this->assertNotNull($user->consent_given_at);
-        // New consent text on the Face paths ("J'ai 16 ans ou plus et j'accepte…").
-        $this->assertSame('2026-08-03', $user->consent_version);
+        // Current consent version (CGU and privacy policy updated for image authorization).
+        $this->assertSame('2026-11-25', $user->consent_version);
     }
 
-    public function test_a_producer_keeps_the_unchanged_consent_version(): void
+    public function test_a_producer_records_the_current_consent_version(): void
     {
         $this->postJson('/api/v1/auth/google/complete-registration', [
             'pending_token' => $this->pendingToken('producer'),
@@ -96,7 +96,7 @@ class GoogleCompleteRegistrationTest extends TestCase
             'accept_cgu' => true,
         ])->assertStatus(201);
 
-        $this->assertSame('2026-04-04', User::query()->firstOrFail()->consent_version);
+        $this->assertSame('2026-11-25', User::query()->firstOrFail()->consent_version);
     }
 
     /**

@@ -294,7 +294,7 @@ class ProducerRegistrationTest extends TestCase
     {
         $this->postJson('/api/v1/auth/register/producer', $this->validAgencyData)->assertCreated();
 
-        $this->assertSame('2026-04-04', User::query()->firstOrFail()->consent_version);
+        $this->assertSame('2026-11-25', User::query()->firstOrFail()->consent_version);
     }
 
     /**

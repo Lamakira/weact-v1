@@ -20,10 +20,12 @@ class FaceRegistrationService
     private const MAX_ATTEMPTS = 3;
 
     /**
-     * Version of the consent text shown on the Face signup paths (email and Google).
-     * Bumped to 2026-08-03 when the label became « J'ai 16 ans ou plus et j'accepte… ».
+     * Version of the consent shown on the Face signup paths (email and Google).
+     * It follows the checkbox label OR the accepted texts (CGU / privacy policy).
+     * History: 2026-08-03 = label became « J'ai 16 ans ou plus et j'accepte… »;
+     * 2026-11-25 = CGU and privacy policy updated for the image authorization.
      */
-    public const CONSENT_VERSION = '2026-08-03';
+    public const CONSENT_VERSION = '2026-11-25';
 
     public function __construct(private readonly UsernameGenerator $usernameGenerator) {}
 

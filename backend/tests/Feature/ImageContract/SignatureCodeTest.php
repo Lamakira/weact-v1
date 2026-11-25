@@ -11,6 +11,7 @@ use App\Models\Booking;
 use App\Models\SignatureChallenge;
 use App\Services\ImageContract\SignatureChallengeService;
 use App\Support\EmailMask;
+use App\Support\ImageContractTemplate;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -351,6 +352,66 @@ class SignatureCodeTest extends TestCase
                 && str_contains($html, 'Rémunération reçue par la Face')
                 && str_contains($html, 'vous signez cette autorisation à la place de')
                 && ! str_contains($html, '—');
+        });
+    }
+
+    public function test_the_guardian_email_contains_the_full_contract(): void
+    {
+        Mail::fake();
+
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/image-contract/code', $this->minorPayload())
+            ->assertOk();
+
+        Mail::assertSent(SignatureCodeMail::class, function (SignatureCodeMail $mail) {
+            $html = $mail->render();
+
+            foreach (ImageContractTemplate::articles() as $article) {
+                $this->assertStringContainsString(e($article['title']), $html);
+                $this->assertStringContainsString(e($article['body']), $html);
+                foreach ($article['bullets'] ?? [] as $bullet) {
+                    $this->assertStringContainsString(e($bullet), $html);
+                }
+            }
+
+            $this->assertStringContainsString('Publicité', $html);
+            $this->assertStringContainsString('Cotonou', $html);
+            $this->assertStringContainsString('>Prise d\'effet</td>', $html);
+            $this->assertStringContainsString('après le paiement de la Face', $html);
+            $this->assertStringNotContainsString('inscrit·e sur WEACT', $html);
+            $this->assertStringNotContainsString('Se désinscrire', $html);
+            $this->assertStringNotContainsString('Le contrat complet vous sera envoyé', $html);
+            $this->assertStringNotContainsString('—', $html);
+
+            return true;
+        });
+    }
+
+    public function test_the_face_and_producer_codes_keep_the_standard_footer_and_carry_no_article(): void
+    {
+        Mail::fake();
+        $booking = $this->pendingCashBooking();
+        $this->makeContract($booking);
+        $firstBody = ImageContractTemplate::articles()[0]['body'];
+
+        $this->actingAs($this->faceUser)
+            ->postJson('/api/v1/image-contract/code', ['purpose' => 'booking_accept', 'booking_id' => $booking->uuid])
+            ->assertOk();
+
+        $this->travel(61)->seconds();
+
+        $this->actingAs($this->producerUser)
+            ->postJson('/api/v1/image-contract/code', ['purpose' => 'booking_request'])
+            ->assertOk();
+
+        Mail::assertSent(SignatureCodeMail::class, 2);
+        Mail::assertSent(SignatureCodeMail::class, function (SignatureCodeMail $mail) use ($firstBody) {
+            $html = $mail->render();
+
+            $this->assertStringContainsString('inscrit·e sur WEACT', $html);
+            $this->assertStringNotContainsString(e($firstBody), $html);
+
+            return true;
         });
     }
 

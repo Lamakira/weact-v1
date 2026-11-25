@@ -28,9 +28,13 @@
                     <tr>
                         <td style="background-color: #f9fafb; padding: 20px 32px; border-top: 1px solid #e5e7eb;">
                             <p style="margin: 0 0 8px; color: #6b7280; font-size: 12px; line-height: 1.5; text-align: center;">
+                                @hasSection('footer_reason')
+                                    @yield('footer_reason')
+                                @else
                                 Vous recevez cet email parce que vous êtes inscrit·e sur WEACT.
                                 <br>
                                 <a href="mailto:{{ config('mail.contact_to') }}?subject=D%C3%A9sinscription%20notifications%20email&body=Bonjour%2C%0A%0AJe%20souhaite%20me%20d%C3%A9sinscrire%20des%20notifications%20email%20WEACT.%0A%0AMerci." style="color: #198496; text-decoration: underline;">Se désinscrire des notifications email</a>
+                                @endif
                             </p>
                             <p style="margin: 0; color: #9ca3af; font-size: 11px; text-align: center;">
                                 @yield('footer_brand', 'WEACT · Bénin') · <a href="{{ rtrim((string) config('app.frontend_url'), '/') }}/mentions-legales" style="color: #9ca3af; text-decoration: underline;">Mentions légales</a>
