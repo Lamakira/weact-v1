@@ -22,6 +22,7 @@ use App\Models\User;
 use App\Support\EmailMask;
 use App\Support\ImageContractTemplate;
 use App\Support\Money;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
@@ -436,9 +437,58 @@ class ImageContractService
     }
 
     /**
+     * Moment où les droits d'utilisation démarrent (PDF et e-mail du parent).
+     *
+     * @param  array<string, mixed>  $contrepartie
+     */
+    public static function effectiveMoment(array $contrepartie): string
+    {
+        return ($contrepartie['kind'] ?? 'cash') === 'ugc_product'
+            ? 'à la réception du produit par la Face'
+            : 'après le paiement de la Face';
+    }
+
+    /**
+     * Lignes « Projet » de l'e-mail du parent (même contenu que le PDF), lignes vides ignorées.
+     *
+     * @param  array<string, mixed>  $projet
+     * @return list<string>
+     */
+    public static function projetLines(array $projet): array
+    {
+        $lines = [];
+
+        if (! empty($projet['titre'])) {
+            $lines[] = (string) $projet['titre'];
+        }
+
+        $type = trim((string) ($projet['type_contenu'] ?? ''));
+        if (! empty($projet['nom_produit'])) {
+            $type .= ' : '.$projet['nom_produit'];
+        }
+        if (trim($type) !== '') {
+            $lines[] = trim($type);
+        }
+
+        if (! empty($projet['lieu'])) {
+            $lines[] = 'Lieu : '.$projet['lieu'];
+        }
+
+        if (! empty($projet['date_debut'])) {
+            $date = 'Date : '.Carbon::parse($projet['date_debut'])->format('d/m/Y');
+            if (! empty($projet['date_fin']) && $projet['date_fin'] !== $projet['date_debut']) {
+                $date .= ' au '.Carbon::parse($projet['date_fin'])->format('d/m/Y');
+            }
+            $lines[] = $date;
+        }
+
+        return $lines;
+    }
+
+    /**
      * Résumé des conditions montré au parent ou tuteur qui signe pour une Face mineure.
      *
-     * @return array{producer: string, finalite: string, supports: string, territoire: string, duree: string, contrepartie: list<string>}
+     * @return array{producer: string, projet: list<string>, finalite: string, supports: string, territoire: string, duree: string, contrepartie: list<string>, prise_effet: string}
      */
     public function guardianSummary(ImageContract $contract): array
     {
@@ -454,7 +504,7 @@ class ImageContractService
     /**
      * Même résumé avant tout contrat : construit depuis les conditions de la mission et la candidature.
      *
-     * @return array{producer: string, finalite: string, supports: string, territoire: string, duree: string, contrepartie: list<string>}
+     * @return array{producer: string, projet: list<string>, finalite: string, supports: string, territoire: string, duree: string, contrepartie: list<string>, prise_effet: string}
      */
     public function guardianSummaryForCandidature(Candidature $candidature, MissionImageTerms $terms): array
     {
@@ -470,19 +520,21 @@ class ImageContractService
     /**
      * @param  array<string, mixed>  $snapshot
      * @param  list<string>  $supports
-     * @return array{producer: string, finalite: string, supports: string, territoire: string, duree: string, contrepartie: list<string>}
+     * @return array{producer: string, projet: list<string>, finalite: string, supports: string, territoire: string, duree: string, contrepartie: list<string>, prise_effet: string}
      */
     private function summary(array $snapshot, string $finalite, array $supports, string $territoire, int $dureeAnnees): array
     {
         return [
             'producer' => (string) ($snapshot['parties']['producer']['name'] ?? ''),
+            'projet' => self::projetLines($snapshot['projet'] ?? []),
             'finalite' => $finalite,
             'supports' => collect($supports)
                 ->map(fn (string $value): string => ImageContractSupport::from($value)->label())
                 ->implode(', '),
             'territoire' => ImageContractTerritoire::from($territoire)->label(),
-            'duree' => $dureeAnnees.' '.($dureeAnnees > 1 ? 'ans' : 'an'),
+            'duree' => $dureeAnnees.' '.($dureeAnnees > 1 ? 'ans' : 'an').' à compter de la prise d\'effet',
             'contrepartie' => self::contrepartieLines($snapshot['contrepartie'] ?? []),
+            'prise_effet' => self::effectiveMoment($snapshot['contrepartie'] ?? []),
         ];
     }
 

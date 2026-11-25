@@ -220,6 +220,15 @@ class ImageContractPdfTest extends TestCase
         $this->assertStringContainsString('123456', $code);
     }
 
+    public function test_the_signed_contract_mail_has_its_own_footer_reason_and_no_unsubscribe(): void
+    {
+        $html = (new ImageContractSignedMail(1, 'WEACT-IMG-AAAA', 'x.pdf'))->render();
+
+        $this->assertStringNotContainsString('inscrit·e sur WEACT', $html);
+        $this->assertStringNotContainsString('Se désinscrire', $html);
+        $this->assertStringContainsString("Vous recevez cet email parce qu'un contrat signé sur WEACT vous concerne.", $html);
+    }
+
     public function test_both_parties_download_the_pdf_as_an_attachment(): void
     {
         Mail::fake();
