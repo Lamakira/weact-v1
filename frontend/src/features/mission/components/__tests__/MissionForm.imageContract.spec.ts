@@ -6,6 +6,14 @@ import { createRouter, createWebHistory } from 'vue-router'
 import MissionForm from '../MissionForm.vue'
 import { useAuthStore } from '@/stores/auth'
 import { setSelectValue } from '@/components/ui/__tests__/selectTestUtils'
+import { formatMoney } from '@/utils/money'
+
+// Seuls les espaces insécables sont normalisés.
+const plain = (text: string): string => text.replace(/[\u00a0\u202f]/g, ' ')
+const contrepartieLines = (wrapper: { findAll: (selector: string) => { text: () => string }[] }): string[] =>
+  wrapper
+    .findAll('[data-testid="summary-contrepartie"] > span:not([data-testid="summary-net"])')
+    .map((span) => plain(span.text()))
 
 /**
  * MissionForm × autorisation d'image (incrément 2, publication) — modèle : BookingFormSheet.imageContract.spec.
@@ -290,7 +298,51 @@ describe('MissionForm : drapeau image_contracts_enabled vrai (création)', () =>
     expect((wrapper.find('[data-testid="image-contract-name"]').element as HTMLInputElement).value).toBe('Jean Producteur')
     expect(wrapper.find('[data-testid="summary-projet"]').text()).toBe('Spot TV jus de bissap')
     expect(wrapper.find('[data-testid="summary-supports"]').text()).toBe('Réseaux sociaux')
-    expect(wrapper.find('[data-testid="summary-contrepartie"]').text()).toContain('par Face')
+    expect(contrepartieLines(wrapper)).toEqual([
+      plain(`Cachet : ${formatMoney(50000)} par Face, avant commission WeAct`),
+    ])
+    expect(wrapper.find('[data-testid="summary-net"]').exists()).toBe(false)
+  })
+
+  async function openUgcSignDialog(initialValues: Record<string, unknown>) {
+    const wrapper = mountForm({ initialValues: { ...standardValues(), type_mission: 'ugc', ...initialValues } })
+    await flushPromises()
+    const input = wrapper.find('[data-testid="product-photos-input"]')
+    const photo = new File(['x'], 'produit.jpg', { type: 'image/jpeg' })
+    Object.defineProperty(photo, 'size', { value: 1024 })
+    Object.defineProperty(input.element, 'files', { value: [photo], writable: true })
+    await input.trigger('change')
+    await flushPromises()
+    await openSignDialog(wrapper)
+    return wrapper
+  }
+
+  it('mission UGC hybride : produit remis puis cachet par Face, sans net', async () => {
+    const wrapper = await openUgcSignDialog({
+      type_compensation: 'hybrid',
+      nom_produit: 'Sérum éclat',
+      valeur_produit: 25000,
+      nombre_videos: 2,
+      montant_remuneration: 10000,
+    })
+
+    expect(contrepartieLines(wrapper)).toEqual([
+      plain(`Produit remis : Sérum éclat (valeur ${formatMoney(25000)})`),
+      plain(`Cachet : ${formatMoney(10000)} par Face, avant commission WeAct`),
+    ])
+    expect(wrapper.find('[data-testid="summary-net"]').exists()).toBe(false)
+  })
+
+  it('mission UGC produit seul : une seule ligne produit', async () => {
+    const wrapper = await openUgcSignDialog({
+      type_compensation: 'product',
+      nom_produit: 'Sérum éclat',
+      valeur_produit: 25000,
+    })
+
+    expect(contrepartieLines(wrapper)).toEqual([
+      plain(`Produit remis : Sérum éclat (valeur ${formatMoney(25000)})`),
+    ])
   })
 
   it('envoie la mission avec image_terms et signature après saisie du code', async () => {

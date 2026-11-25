@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { formatMoney } from '@/utils/money'
+import { contrepartieLines } from '@/features/imageContract/utils/contrepartie'
 import { ref, computed, watch, nextTick, toRef } from 'vue'
 import { useForm, useField } from 'vee-validate'
 import { toTypedSchema } from '@vee-validate/zod'
@@ -515,18 +516,17 @@ const onSubmit = handleSubmit(async (values) => {
   }
 })
 
-// Contrepartie telle que la Face la verra : cachet, ou produit (+ rémunération en hybride).
+// Contrepartie : cachet brut avant commission, ou produit (+ cachet en hybride). Pas de net côté Producteur.
 const signCompensation = computed(() => {
   if (isUgc.value) {
-    const product = `${nom_produit.value || 'Produit'} (${formatMoney(Number(valeur_produit.value) || 0)})`
-    const cash = Number(montant_remuneration.value) || 0
-    return type_compensation.value === 'hybrid' && cash > 0
-      ? `${product} et ${formatMoney(cash)}`
-      : product
+    return contrepartieLines({
+      kind: type_compensation.value === 'hybrid' ? 'ugc_hybrid' : 'ugc_product',
+      nom_produit: nom_produit.value,
+      valeur_produit: Number(valeur_produit.value) || 0,
+      cachet: type_compensation.value === 'hybrid' ? Number(montant_remuneration.value) || 0 : null,
+    })
   }
-  return pricingPreview.value
-    ? `Rémunération de ${formatMoney(pricingPreview.value.tarifBase)} selon le tarif de la Face`
-    : 'Rémunération selon le tarif de la Face'
+  return contrepartieLines({ kind: 'cash', cachet: pricingPreview.value?.tarifBase })
 })
 
 const signSummary = computed(() => ({

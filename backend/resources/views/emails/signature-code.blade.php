@@ -34,7 +34,7 @@
             <tr><td style="padding: 4px 8px 4px 0; font-weight: 700; vertical-align: top;">Supports</td><td style="padding: 4px 0;">{{ $summary['supports'] }}</td></tr>
             <tr><td style="padding: 4px 8px 4px 0; font-weight: 700; vertical-align: top;">Territoire</td><td style="padding: 4px 0;">{{ $summary['territoire'] }}</td></tr>
             <tr><td style="padding: 4px 8px 4px 0; font-weight: 700; vertical-align: top;">Durée</td><td style="padding: 4px 0;">{{ $summary['duree'] }}</td></tr>
-            <tr><td style="padding: 4px 8px 4px 0; font-weight: 700; vertical-align: top;">Contrepartie</td><td style="padding: 4px 0;">@foreach($summary['contrepartie'] as $line){{ $line }}@if(! $loop->last)<br>@endif @endforeach</td></tr>
+            <tr><td style="padding: 4px 8px 4px 0; font-weight: 700; vertical-align: top;">Contrepartie</td><td style="padding: 4px 0;">@foreach($summary['contrepartie'] as $line){{ $line }}@if(! $loop->last)<br>@endif @endforeach @if(! empty($summary['contrepartie_net']))<br><span style="color: #6b7280;">{{ $summary['contrepartie_net'] }}</span>@endif</td></tr>
             <tr><td style="padding: 4px 8px 4px 0; font-weight: 700; vertical-align: top;">Prise d'effet</td><td style="padding: 4px 0;">{{ $summary['prise_effet'] }}</td></tr>
         </table>
         <p style="margin: 0 0 20px; color: #374151; font-size: 14px; line-height: 1.6;">

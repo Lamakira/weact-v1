@@ -3,6 +3,14 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { ref } from 'vue'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import FaceBookingDetailPage from '../FaceBookingDetailPage.vue'
+import { formatMoney } from '@/utils/money'
+
+// Seuls les espaces insécables sont normalisés.
+const plain = (text: string): string => text.replace(/[\u00a0\u202f]/g, ' ')
+const contrepartieLines = (wrapper: { findAll: (selector: string) => { text: () => string }[] }): string[] =>
+  wrapper
+    .findAll('[data-testid="summary-contrepartie"] > span:not([data-testid="summary-net"])')
+    .map((span) => plain(span.text()))
 
 const mockBooking = ref<Record<string, unknown> | null>(null)
 const mockActionError = ref<string | null>(null)
@@ -276,7 +284,10 @@ describe('FaceBookingDetailPage : contrat d\'image', () => {
       const dialog = wrapper.find('[data-testid="image-contract-dialog"]')
       expect(dialog.exists()).toBe(true)
       expect(wrapper.find('[data-testid="summary-finalite"]').text()).toBe('Publicité pour la marque Shade')
-      expect(wrapper.find('[data-testid="summary-contrepartie"]').text()).toContain('net')
+      expect(contrepartieLines(wrapper)).toEqual([
+        plain(`Cachet : ${formatMoney(50000)}, avant commission WeAct`),
+      ])
+      expect(plain(wrapper.get('[data-testid="summary-net"]').text())).toBe(`Vous recevez ${plain(formatMoney(42500))}`)
       expect(wrapper.find('[data-testid="image-contract-protected"]').exists()).toBe(true)
       expect((wrapper.find('[data-testid="image-contract-name"]').element as HTMLInputElement).value).toBe('Aïcha Bello')
     })
@@ -305,6 +316,7 @@ describe('FaceBookingDetailPage : contrat d\'image', () => {
           type_contenu: 'UGC',
           nombre_videos: 2,
           nom_produit: 'Tenue Shade Fit',
+          valeur_produit: 45000,
           type_compensation: 'product',
           image_contract: makeContract(),
         }),
@@ -315,11 +327,39 @@ describe('FaceBookingDetailPage : contrat d\'image', () => {
 
       expect(mockAccept).not.toHaveBeenCalled()
       expect(wrapper.find('[data-testid="image-contract-dialog"]').exists()).toBe(true)
-      expect(wrapper.find('[data-testid="summary-contrepartie"]').text()).toBe('Tenue Shade Fit')
+      expect(contrepartieLines(wrapper)).toEqual([
+        plain(`Produit remis : Tenue Shade Fit (valeur ${formatMoney(45000)})`),
+      ])
+      expect(wrapper.find('[data-testid="summary-net"]').exists()).toBe(false)
 
       await signAndConfirm(wrapper, '654321')
 
       expect(mockAccept).toHaveBeenCalledWith('booking-uuid-1', { name: 'Aïcha Bello', code: '654321' })
+    })
+
+    it('UGC hybride : cachet brut, produit remis et net de la Face', async () => {
+      const wrapper = await mountPage(
+        makeBooking({
+          status: 'commission_paid',
+          type_contenu: 'UGC',
+          nombre_videos: 2,
+          nom_produit: 'Tenue Shade Fit',
+          valeur_produit: 45000,
+          montant_remuneration: 20000,
+          montant_face_recoit: 17000,
+          type_compensation: 'hybrid',
+          image_contract: makeContract(),
+        }),
+      )
+
+      wrapper.findComponent({ name: 'UgcEngagementModal' }).vm.$emit('confirm')
+      await flushPromises()
+
+      expect(contrepartieLines(wrapper)).toEqual([
+        plain(`Produit remis : Tenue Shade Fit (valeur ${formatMoney(45000)})`),
+        plain(`Cachet : ${formatMoney(20000)}, avant commission WeAct`),
+      ])
+      expect(plain(wrapper.get('[data-testid="summary-net"]').text())).toBe(`Vous recevez ${plain(formatMoney(17000))}`)
     })
 
     it('code refusé : la fenêtre reste ouverte avec le message traduit', async () => {

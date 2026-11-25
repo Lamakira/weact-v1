@@ -27,6 +27,7 @@ import MissionImageTermsCard from '@/features/imageContract/components/MissionIm
 import { SIGNATURE_NAME_INVALID } from '@/features/imageContract/utils/signatureErrors'
 import { faceMustSignMission } from '@/features/imageContract/utils/faceMustSign'
 import type { ContractSummary, ImageSignature, SignatureSubmitOutcome } from '@/features/imageContract/types'
+import { contrepartieLines, netLine } from '@/features/imageContract/utils/contrepartie'
 import RatingDisplay from '@/components/RatingDisplay.vue'
 import MissionApplyBlock from './MissionApplyBlock.vue'
 import FaceMissionHub from './FaceMissionHub.vue'
@@ -497,14 +498,21 @@ async function handleConfirmParticipation(): Promise<void> {
 const signSummary = computed<ContractSummary>(() => {
   const m = mission.value
   const terms = m?.image_terms
-  const net = candidature.value?.montant_face_recoit ?? null
-  let contrepartie: string
+  let contrepartie: string[]
+  let net: string | null = null
   if (m && isUgc.value) {
-    const product = `${m.nom_produit || 'Produit offert'} (${formatMoney(m.valeur_produit ?? 0)})`
-    const cash = net ?? m.montant_remuneration ?? 0
-    contrepartie = m.type_compensation === 'hybrid' && cash > 0 ? `${product} et ${formatMoney(cash)} net` : product
+    const hybrid = m.type_compensation === 'hybrid'
+    contrepartie = contrepartieLines({
+      kind: hybrid ? 'ugc_hybrid' : 'ugc_product',
+      nom_produit: m.nom_produit,
+      valeur_produit: m.valeur_produit ?? 0,
+      cachet: hybrid ? m.montant_remuneration : null,
+    })
+    // Produit seul : pas de net en argent.
+    if (hybrid) net = netLine(candidature.value?.montant_face_recoit)
   } else {
-    contrepartie = net !== null ? `${formatMoney(net)} net` : `Rémunération de ${formatMoney(m?.budget ?? 0)}`
+    contrepartie = contrepartieLines({ kind: 'cash', cachet: m?.budget })
+    net = netLine(candidature.value?.montant_face_recoit)
   }
   return {
     projet: m?.titre ?? '',
@@ -513,6 +521,7 @@ const signSummary = computed<ContractSummary>(() => {
     territoire: terms?.territoire.label ?? '',
     dureeAnnees: terms?.duree_annees ?? 1,
     contrepartie,
+    net,
   }
 })
 
