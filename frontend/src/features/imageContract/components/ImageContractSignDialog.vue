@@ -476,7 +476,10 @@ const protectedItems = computed(() => [
               </div>
               <div class="flex justify-between gap-4 px-4 py-2.5">
                 <dt class="text-gray-500">Contrepartie</dt>
-                <dd class="text-right font-medium text-gray-900" data-testid="summary-contrepartie">{{ summary.contrepartie }}</dd>
+                <dd class="min-w-0 break-words text-right font-medium text-gray-900" data-testid="summary-contrepartie">
+                  <span v-for="line in summary.contrepartie" :key="line" class="block">{{ line }}</span>
+                  <span v-if="summary.net" class="mt-0.5 block font-normal text-gray-500" data-testid="summary-net">{{ summary.net }}</span>
+                </dd>
               </div>
             </dl>
 

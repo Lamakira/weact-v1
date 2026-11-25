@@ -74,6 +74,7 @@ import type { BookingDateDecision } from '@/features/dateChange/types'
 import ImageContractSignDialog from '@/features/imageContract/components/ImageContractSignDialog.vue'
 import ImageContractCard from '@/features/imageContract/components/ImageContractCard.vue'
 import type { ContractSummary, ImageSignature, SignatureSubmitOutcome } from '@/features/imageContract/types'
+import { contrepartieLines, netLine } from '@/features/imageContract/utils/contrepartie'
 import { useToast } from '@/composables/useToast'
 import { usePaymentReturn } from '@/composables/usePaymentReturn'
 import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
@@ -704,13 +705,21 @@ const signSummary = computed<ContractSummary>(() => {
   const b = booking.value
   const contract = imageContract.value
   const isUgcBooking = b?.type_contenu === 'UGC'
-  const cash = b?.montant_face_recoit ?? 0
-  let contrepartie = `${formatMoney(cash)} net`
+  let contrepartie: string[]
+  let net: string | null = null
   if (isUgcBooking) {
-    const product = b?.nom_produit || 'Produit offert'
-    contrepartie = b?.type_compensation === 'hybrid' && cash > 0
-      ? `${product} et ${formatMoney(cash)} net`
-      : product
+    const hybrid = b?.type_compensation === 'hybrid'
+    contrepartie = contrepartieLines({
+      kind: hybrid ? 'ugc_hybrid' : 'ugc_product',
+      nom_produit: b?.nom_produit,
+      valeur_produit: b?.valeur_produit ?? 0,
+      cachet: hybrid ? b?.montant_remuneration : null,
+    })
+    // Produit seul : pas de net en argent.
+    if (hybrid) net = netLine(b?.montant_face_recoit)
+  } else {
+    contrepartie = contrepartieLines({ kind: 'cash', cachet: b?.tarif_base })
+    net = netLine(b?.montant_face_recoit)
   }
   return {
     projet: b?.type_contenu ?? '',
@@ -719,6 +728,7 @@ const signSummary = computed<ContractSummary>(() => {
     territoire: contract?.territoire.label ?? '',
     dureeAnnees: contract?.duree_annees ?? 1,
     contrepartie,
+    net,
   }
 })
 

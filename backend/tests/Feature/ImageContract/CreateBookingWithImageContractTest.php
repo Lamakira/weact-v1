@@ -85,6 +85,7 @@ class CreateBookingWithImageContractTest extends TestCase
         $this->assertSame('TestBrowser/1.0', $contract->producer_user_agent);
         $this->assertSame('cash', $contract->snapshot['contrepartie']['kind']);
         $this->assertSame((int) $booking->montant_face_recoit, $contract->snapshot['contrepartie']['montant_face_recoit']);
+        $this->assertSame((int) $booking->tarif_base, $contract->snapshot['contrepartie']['cachet']);
         $this->assertSame('Aïcha Bello', $contract->snapshot['parties']['face']['name']);
         $this->assertSame('Publicité', $contract->snapshot['projet']['type_contenu']);
         $this->assertNotNull(SignatureChallenge::firstOrFail()->consumed_at);
@@ -104,6 +105,10 @@ class CreateBookingWithImageContractTest extends TestCase
 
         $kinds = ImageContract::orderBy('id')->get()->map(fn (ImageContract $c) => $c->snapshot['contrepartie']['kind'])->all();
         $this->assertSame(['ugc_product', 'ugc_hybrid'], $kinds);
+
+        [$product, $hybrid] = ImageContract::orderBy('id')->get()->all();
+        $this->assertArrayNotHasKey('cachet', $product->snapshot['contrepartie']);
+        $this->assertSame((int) Booking::orderBy('id')->get()->last()->montant_remuneration, $hybrid->snapshot['contrepartie']['cachet']);
         $this->assertSame(2, ImageContract::count());
     }
 

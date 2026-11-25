@@ -15,6 +15,7 @@ use App\Models\Notification;
 use App\Models\SignatureChallenge;
 use App\Models\User;
 use App\Support\ImageContractTemplate;
+use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
@@ -97,7 +98,7 @@ class ConfirmCandidatureWithImageContractTest extends TestCase
         $this->assertFalse($snapshot['projet']['is_ugc']);
         $this->assertSame($mission->date_tournage->toDateString(), $snapshot['projet']['date_debut']);
         $this->assertNull($snapshot['projet']['date_fin']);
-        $this->assertSame(['kind' => 'cash', 'montant_face_recoit' => 90000], $snapshot['contrepartie']);
+        $this->assertSame(['kind' => 'cash', 'cachet' => 100000, 'montant_face_recoit' => 90000], $snapshot['contrepartie']);
         $this->assertSame('Aïcha Bello', $snapshot['parties']['face']['name']);
         $this->assertSame($this->producer->display_name, $snapshot['parties']['producer']['name']);
 
@@ -280,10 +281,22 @@ class ConfirmCandidatureWithImageContractTest extends TestCase
 
         $this->reconfirm($candidature, $this->signature())->assertOk();
 
-        $this->assertSame(
-            ['kind' => 'ugc_hybrid', 'nom_produit' => 'Tenue Shade Fit', 'valeur_produit' => 20000, 'montant_face_recoit' => 13500],
+        // assertEquals : MySQL réordonne les clés d'une colonne JSON.
+        $this->assertEquals(
+            ['kind' => 'ugc_hybrid', 'nom_produit' => 'Tenue Shade Fit', 'valeur_produit' => 20000, 'cachet' => 15000, 'montant_face_recoit' => 13500],
             ImageContract::firstOrFail()->snapshot['contrepartie'],
         );
+    }
+
+    public function test_the_cash_snapshot_keeps_the_budget_paid_even_if_the_mission_budget_changes_later(): void
+    {
+        [$mission, $candidature] = $this->cashMissionWithAcceptedFace();
+        $mission->update(['budget' => 123456]);
+        $this->makeChallenge($this->faceUser, $this->candidatePurpose($candidature), '123456');
+
+        $this->confirm($candidature, $this->signature())->assertOk();
+
+        $this->assertSame(100000, ImageContract::firstOrFail()->snapshot['contrepartie']['cachet']);
     }
 
     public function test_a_reconfirm_without_signature_or_with_a_wrong_code_changes_nothing(): void
@@ -482,7 +495,9 @@ class ConfirmCandidatureWithImageContractTest extends TestCase
                 && str_contains($html, 'Bénin')
                 && str_contains($html, '3 ans')
                 && str_contains($html, 'Produit remis : Tenue Shade Fit')
-                && str_contains($html, 'Rémunération reçue par la Face')
+                && str_contains($html, 'Cachet : '.Money::format(15000).', avant commission WeAct')
+                && str_contains($html, 'La Face reçoit '.Money::format(13500))
+                && ! str_contains($html, 'Rémunération reçue')
                 && str_contains($html, e(ImageContractTemplate::articles()[12]['body']))
                 && str_contains($html, 'Appel UGC Unboxing')
                 && ! str_contains($html, '—');
@@ -507,7 +522,9 @@ class ConfirmCandidatureWithImageContractTest extends TestCase
 
             return $mail->hasTo('fatou@example.com')
                 && str_contains($html, 'à la réception du produit par la Face')
-                && str_contains($html, 'Tenue Shade Fit');
+                && str_contains($html, 'Tenue Shade Fit')
+                && ! str_contains($html, 'La Face reçoit')
+                && ! str_contains($html, 'Cachet :');
         });
     }
 

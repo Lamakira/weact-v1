@@ -4,6 +4,11 @@ import { ref, nextTick } from 'vue'
 import BookingFormSheet from '../BookingFormSheet.vue'
 import { addDaysIso, bookingMinStartDateIso } from '@/lib/dates'
 import { setSelectValue } from '@/components/ui/__tests__/selectTestUtils'
+import { formatMoney } from '@/utils/money'
+
+// ProductPhotosUpload crée des préviews via URL.createObjectURL (absent de jsdom).
+global.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
+global.URL.revokeObjectURL = vi.fn()
 
 const { createBookingMock, requestCodeMock, refreshUserMock, authState } = await vi.hoisted(async () => ({
   createBookingMock: vi.fn(),
@@ -61,7 +66,7 @@ vi.mock('@/features/imageContract/services/imageContractApi', () => ({
 
 const FACE_UUID = '550e8400-e29b-41d4-a716-446655440000'
 
-const mountForm = () =>
+const mountForm = (propsOverride: Record<string, unknown> = {}) =>
   mount(BookingFormSheet, {
     props: {
       isOpen: true,
@@ -69,6 +74,7 @@ const mountForm = () =>
       faceName: 'Jane Doe',
       tarifHoraire: 5000,
       tarifJournalier: 30000,
+      ...propsOverride,
     },
     global: { stubs: { Teleport: { template: '<slot />' } } },
   })
@@ -397,5 +403,91 @@ describe('BookingFormSheet : drapeau image_contracts_enabled vrai', () => {
 
     expect(wrapper.find('[data-testid="image-contract-dialog"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('Date refusée par le serveur')
+  })
+})
+
+describe('BookingFormSheet : contrepartie affichée dans la fenêtre de signature', () => {
+  beforeEach(() => {
+    setFlag(true)
+    createBookingMock.mockReset()
+    requestCodeMock.mockReset()
+  })
+
+  const plain = (text: string): string => text.replace(/[\u00a0\u202f]/g, ' ')
+
+  // Lignes de cachet/produit (le net, réservé à la Face, a son propre élément).
+  const contrepartieLines = (wrapper: ReturnType<typeof mountForm>): string[] =>
+    wrapper
+      .findAll('[data-testid="summary-contrepartie"] > span:not([data-testid="summary-net"])')
+      .map((span) => plain(span.text()))
+
+  async function fillUgc(wrapper: ReturnType<typeof mountForm>, hybrid: boolean): Promise<void> {
+    await setSelectValue(wrapper, '#type_contenu', 'UGC')
+    await flushPromises()
+    await wrapper.find('#nom_produit').setValue('Tenue Shade Fit M')
+    await wrapper.find('#valeur_produit').setValue('45000')
+    if (hybrid) {
+      await wrapper.find('[data-testid="compensation-hybrid"]').trigger('click')
+      await flushPromises()
+      await wrapper.find('#nombre_videos').setValue('3')
+      await wrapper.find('#montant_remuneration').setValue('15000')
+    }
+    const input = wrapper.find('[data-testid="product-photos-input"]')
+    const file = new File(['x'], 'produit.jpg', { type: 'image/jpeg' })
+    Object.defineProperty(file, 'size', { value: 1024 })
+    Object.defineProperty(input.element, 'files', { value: [file], writable: true })
+    await input.trigger('change')
+    await flushPromises()
+    await pickSupport(wrapper, 'social')
+    await submitForm(wrapper)
+  }
+
+  it('cash : cachet brut avant commission, sans ligne net', async () => {
+    const wrapper = mountForm()
+
+    await fillValidCashForm(wrapper)
+    await pickSupport(wrapper, 'social')
+    await submitForm(wrapper)
+
+    // Durée par défaut 4 h sur un tarif journalier de 30 000 (8 h) : 15 000 avant commission.
+    expect(contrepartieLines(wrapper)).toEqual([
+      plain(`Cachet : ${formatMoney(15000)}, avant commission WeAct`),
+    ])
+    expect(wrapper.find('[data-testid="summary-net"]').exists()).toBe(false)
+  })
+
+  it('cash sans estimation de tarif : cachet selon le tarif de la Face', async () => {
+    const wrapper = mountForm({ tarifJournalier: 0 })
+
+    await fillValidCashForm(wrapper)
+    await pickSupport(wrapper, 'social')
+    await submitForm(wrapper)
+
+    expect(contrepartieLines(wrapper)).toEqual([
+      'Cachet selon le tarif de la Face, avant commission WeAct',
+    ])
+  })
+
+  it('UGC hybride : produit remis puis cachet', async () => {
+    const wrapper = mountForm()
+
+    await fillUgc(wrapper, true)
+
+    expect(contrepartieLines(wrapper)).toEqual([
+      plain(`Produit remis : Tenue Shade Fit M (valeur ${formatMoney(45000)})`),
+      plain(`Cachet : ${formatMoney(15000)}, avant commission WeAct`),
+    ])
+    expect(wrapper.find('[data-testid="summary-net"]').exists()).toBe(false)
+  })
+
+  it('UGC produit seul : une seule ligne produit', async () => {
+    const wrapper = mountForm()
+
+    await fillUgc(wrapper, false)
+
+    expect(contrepartieLines(wrapper)).toEqual([
+      plain(`Produit remis : Tenue Shade Fit M (valeur ${formatMoney(45000)})`),
+    ])
+    expect(wrapper.find('[data-testid="summary-net"]').exists()).toBe(false)
   })
 })
