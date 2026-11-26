@@ -410,6 +410,15 @@ describe('carte Paiement', () => {
     expect(done.rows.map((r) => r.label)).toContain('Total payé')
   })
 
+  it('standard remboursé : « Total payé » (la pastille dit « Remboursé »), jamais « Total à payer »', () => {
+    const refunded = { status: 'refunded', expires_at: null, paid_at: '2026-10-19T10:00:00+00:00', montant_total_producteur: 330000 }
+    const card = buildPaymentCard(makeMission(), makeSummary('confirmations', { payment: refunded }))
+
+    expect(card.status).toEqual({ label: 'Remboursé', tone: 'mute' })
+    expect(card.rows.map((r) => r.label)).toContain('Total payé')
+    expect(card.rows.map((r) => r.label)).not.toContain('Total à payer')
+  })
+
   it('standard sans paiement : après la sélection', () => {
     const card = buildPaymentCard(makeMission(), makeSummary('recruiting'))
     expect(card.status.label).toBe('Après votre sélection')

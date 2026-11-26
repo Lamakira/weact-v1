@@ -448,6 +448,39 @@ class BookingCancellationTest extends TestCase
             ->assertOk()->assertJsonPath('data.was_paid', false);
     }
 
+    public function test_cancel_response_exposes_was_paid_true_for_a_paid_booking(): void
+    {
+        $booking = Booking::factory()->paid()->withFedapayTransaction()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+        EscrowTransaction::factory()->create([
+            'booking_id' => $booking->id,
+            'amount' => $booking->montant_face_recoit,
+            'status' => 'locked',
+        ]);
+
+        $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", ['cancellation_reason' => 'schedule_conflict'])
+            ->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::CancelledByProducer->value)
+            ->assertJsonPath('data.was_paid', true);
+    }
+
+    public function test_cancel_response_exposes_was_paid_false_for_an_unpaid_accepted_booking(): void
+    {
+        $booking = Booking::factory()->accepted()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+        ]);
+
+        $this->actingAs($this->producerUser)->withApiToken($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/cancel", ['cancellation_reason' => 'acceptance_expired'])
+            ->assertOk()
+            ->assertJsonPath('data.status', BookingStatus::CancelledByProducer->value)
+            ->assertJsonPath('data.was_paid', false);
+    }
+
     public function test_booking_index_omits_was_paid_to_avoid_n_plus_one(): void
     {
         Booking::factory()->count(3)->paid()->create([

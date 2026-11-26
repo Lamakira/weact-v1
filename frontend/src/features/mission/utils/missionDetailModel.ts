@@ -455,7 +455,7 @@ export function buildPaymentCard(mission: Mission, summary: MissionSummary): Pay
 
   const total = summary.payment.montant_total_producteur
   if (total !== null) {
-    rows.push({ label: summary.payment.status === 'paid' ? 'Total payé' : 'Total à payer', value: formatMoney(total) })
+    rows.push({ label: summary.payment.status === 'paid' || summary.payment.status === 'refunded' ? 'Total payé' : 'Total à payer', value: formatMoney(total) })
   }
 
   switch (summary.payment.status) {

@@ -641,3 +641,58 @@ export function bookingListAction(booking: Booking, role: BookingRole, now: numb
       return null
   }
 }
+
+export interface BookingAmountLabels {
+  title: string
+  total: string
+  /** due = reste à payer / à recevoir ; paid = réglé ; planned = montant prévu, jamais réglé. */
+  tone: 'due' | 'paid' | 'planned'
+}
+
+const PAID_STATUSES: string[] = [
+  BookingStatus.PAID,
+  BookingStatus.IN_PROGRESS,
+  BookingStatus.CONFIRMED_BY_FACE,
+  BookingStatus.CONFIRMED_BY_PRODUCER,
+  BookingStatus.COMPLETED,
+  BookingStatus.NO_SHOW,
+]
+
+const CLOSED_STATUSES: string[] = [
+  BookingStatus.REFUSED,
+  BookingStatus.EXPIRED,
+  BookingStatus.CANCELLED_BY_PRODUCER,
+  BookingStatus.CANCELLED_BY_FACE,
+  BookingStatus.NO_SHOW,
+]
+
+/** Booking clos (refus, expiration, annulation, absence) : le parcours est arrêté. */
+export function isBookingClosed(booking: Booking): boolean {
+  return CLOSED_STATUSES.includes(booking.status)
+}
+
+/**
+ * Libellés du bloc d'argent d'un booking cash : « À payer » / « Vous recevrez » seulement tant
+ * que l'argent est à venir ; payé, terminé ou clos, le texte dit ce qui s'est passé.
+ */
+export function bookingAmountLabels(booking: Booking, role: BookingRole): BookingAmountLabels {
+  const closed = isBookingClosed(booking)
+
+  if (role === 'producer') {
+    const paid = PAID_STATUSES.includes(booking.status) || booking.was_paid === true || !!booking.settlement_due_at
+    if (paid) return { title: 'Votre paiement', total: 'Total payé', tone: 'paid' }
+    if (closed) {
+      // Un paiement tenté a pu aboutir après l'annulation puis être recrédité : pas de « Non payé » affirmé.
+      return { title: 'Montant prévu', total: booking.fedapay_transaction_id ? 'Total prévu' : 'Non payé', tone: 'planned' }
+    }
+    return { title: 'À payer', total: 'Total à payer', tone: 'due' }
+  }
+
+  const title = 'Votre rémunération'
+  const received =
+    booking.status === BookingStatus.COMPLETED ||
+    (closed && !!booking.dispute_resolved_at && booking.dispute_outcome === 'favor_face')
+  if (received) return { title, total: 'Vous avez reçu', tone: 'paid' }
+  if (closed) return { title, total: 'Montant prévu', tone: 'planned' }
+  return { title, total: 'Vous recevrez', tone: 'due' }
+}

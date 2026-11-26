@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import type { Booking } from '../../types'
+import { BookingStatus, type Booking } from '../../types'
 import {
+  bookingAmountLabels,
   bookingListAction,
   bookingListSubtitle,
   buildBookingView,
@@ -336,5 +337,123 @@ describe('bookingListAction (lot D7)', () => {
       expect(action({ status }, 'face')).toBeNull()
       expect(action({ status }, 'producer')).toBeNull()
     }
+  })
+})
+
+describe('bookingAmountLabels : libellés du montant selon le statut et le rôle', () => {
+  type Tone = 'due' | 'paid' | 'planned'
+
+  // Un cas par statut : un statut oublié ici fait échouer le test d'exhaustivité.
+  const PRODUCER: Record<string, [string, string, Tone]> = {
+    pending: ['À payer', 'Total à payer', 'due'],
+    accepted: ['À payer', 'Total à payer', 'due'],
+    commission_paid: ['À payer', 'Total à payer', 'due'],
+    paid: ['Votre paiement', 'Total payé', 'paid'],
+    in_progress: ['Votre paiement', 'Total payé', 'paid'],
+    confirmed_by_face: ['Votre paiement', 'Total payé', 'paid'],
+    confirmed_by_producer: ['Votre paiement', 'Total payé', 'paid'],
+    completed: ['Votre paiement', 'Total payé', 'paid'],
+    no_show: ['Votre paiement', 'Total payé', 'paid'],
+    refused: ['Montant prévu', 'Non payé', 'planned'],
+    expired: ['Montant prévu', 'Non payé', 'planned'],
+    cancelled_by_producer: ['Montant prévu', 'Non payé', 'planned'],
+    cancelled_by_face: ['Montant prévu', 'Non payé', 'planned'],
+  }
+
+  const FACE: Record<string, [string, Tone]> = {
+    pending: ['Vous recevrez', 'due'],
+    accepted: ['Vous recevrez', 'due'],
+    commission_paid: ['Vous recevrez', 'due'],
+    paid: ['Vous recevrez', 'due'],
+    in_progress: ['Vous recevrez', 'due'],
+    confirmed_by_face: ['Vous recevrez', 'due'],
+    confirmed_by_producer: ['Vous recevrez', 'due'],
+    completed: ['Vous avez reçu', 'paid'],
+    no_show: ['Montant prévu', 'planned'],
+    refused: ['Montant prévu', 'planned'],
+    expired: ['Montant prévu', 'planned'],
+    cancelled_by_producer: ['Montant prévu', 'planned'],
+    cancelled_by_face: ['Montant prévu', 'planned'],
+  }
+
+  const labels = (overrides: Record<string, unknown>, role: BookingRole) =>
+    bookingAmountLabels(makeBooking(overrides), role)
+
+  it('les tables couvrent exactement tous les statuts connus', () => {
+    const all = Object.values(BookingStatus).sort()
+    expect(Object.keys(PRODUCER).sort()).toEqual(all)
+    expect(Object.keys(FACE).sort()).toEqual(all)
+  })
+
+  it.each(Object.entries(PRODUCER))('Producteur, statut %s, sans was_paid', (status, [title, total, tone]) => {
+    expect(labels({ status }, 'producer')).toEqual({ title, total, tone })
+    expect(labels({ status, was_paid: false }, 'producer')).toEqual({ title, total, tone })
+  })
+
+  it.each(Object.keys(PRODUCER))('Producteur, statut %s, was_paid vrai : payé', (status) => {
+    expect(labels({ status, was_paid: true }, 'producer')).toEqual({
+      title: 'Votre paiement',
+      total: 'Total payé',
+      tone: 'paid',
+    })
+  })
+
+  it.each(Object.keys(PRODUCER))('Producteur, statut %s, règlement en attente sans was_paid : payé', (status) => {
+    expect(labels({ status, settlement_due_at: '2026-10-20T09:00:00Z' }, 'producer')).toEqual({
+      title: 'Votre paiement',
+      total: 'Total payé',
+      tone: 'paid',
+    })
+  })
+
+  it.each(['refused', 'expired', 'cancelled_by_producer', 'cancelled_by_face'])(
+    'Producteur, statut clos %s, paiement tenté mais non confirmé : « Total prévu », jamais « Non payé »',
+    (status) => {
+      expect(labels({ status, fedapay_transaction_id: 4242 }, 'producer')).toEqual({
+        title: 'Montant prévu',
+        total: 'Total prévu',
+        tone: 'planned',
+      })
+    },
+  )
+
+  it('Producteur, statut en cours de paiement avec transaction FedaPay : reste « À payer »', () => {
+    expect(labels({ status: 'accepted', fedapay_transaction_id: 4242 }, 'producer').tone).toBe('due')
+  })
+
+  it.each(Object.entries(FACE))('Face, statut %s, sans litige', (status, [total, tone]) => {
+    expect(labels({ status }, 'face')).toEqual({ title: 'Votre rémunération', total, tone })
+    expect(labels({ status, was_paid: true }, 'face')).toEqual({ title: 'Votre rémunération', total, tone })
+  })
+
+  it.each(['refused', 'expired', 'cancelled_by_producer', 'cancelled_by_face', 'no_show'])(
+    'Face, statut clos %s, litige tranché en sa faveur : « Vous avez reçu »',
+    (status) => {
+      expect(
+        labels({ status, dispute_resolved_at: '2026-10-25T10:00:00Z', dispute_outcome: 'favor_face' }, 'face'),
+      ).toEqual({ title: 'Votre rémunération', total: 'Vous avez reçu', tone: 'paid' })
+    },
+  )
+
+  it.each(['cancelled_by_producer', 'no_show'])(
+    'Face, statut clos %s, litige tranché en faveur du Producteur : « Montant prévu »',
+    (status) => {
+      expect(
+        labels({ status, dispute_resolved_at: '2026-10-25T10:00:00Z', dispute_outcome: 'favor_producer' }, 'face'),
+      ).toEqual({ title: 'Votre rémunération', total: 'Montant prévu', tone: 'planned' })
+    },
+  )
+
+  it('Face, issue favor_face sans date de résolution : « Montant prévu »', () => {
+    expect(labels({ status: 'no_show', dispute_resolved_at: null, dispute_outcome: 'favor_face' }, 'face').total).toBe(
+      'Montant prévu',
+    )
+  })
+
+  it('Face, litige favor_face sur un booking non clos : inchangé', () => {
+    expect(
+      labels({ status: 'paid', dispute_resolved_at: '2026-10-25T10:00:00Z', dispute_outcome: 'favor_face' }, 'face')
+        .total,
+    ).toBe('Vous recevrez')
   })
 })

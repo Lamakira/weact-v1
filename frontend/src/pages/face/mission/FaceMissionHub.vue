@@ -165,7 +165,13 @@ const shootDate = computed(() => formatShortDate(props.mission.date_tournage))
 const moneyLabel = computed(() => {
   const net = props.candidature.montant_face_recoit
   if (!props.isUgc) {
-    return net != null ? `Vous recevrez ${formatMoney(net)}` : `Rémunération proposée ${formatMoney(props.mission.budget)}`
+    if (net != null) {
+      const status = props.candidature.status
+      if (status === 'completed') return `Vous avez reçu ${formatMoney(net)}`
+      if (['rejected', 'cancelled', 'expired'].includes(status)) return `Montant prévu ${formatMoney(net)}`
+      return `Vous recevrez ${formatMoney(net)}`
+    }
+    return `Rémunération proposée ${formatMoney(props.mission.budget)}`
   }
   const cash = props.mission.montant_remuneration
   const product = props.mission.nom_produit ? `Produit offert : ${props.mission.nom_produit}` : 'Dotation produit'
