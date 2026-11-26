@@ -318,12 +318,14 @@ class ImageContractService
         $contrepartie = match (true) {
             ! $isUgc => [
                 'kind' => 'cash',
+                'cachet' => (int) $booking->tarif_base,
                 'montant_face_recoit' => (int) $booking->montant_face_recoit,
             ],
             $isHybrid => [
                 'kind' => 'ugc_hybrid',
                 'nom_produit' => $booking->nom_produit,
                 'valeur_produit' => (int) $booking->valeur_produit,
+                'cachet' => (int) $booking->montant_remuneration,
                 'montant_face_recoit' => (int) $booking->montant_face_recoit,
             ],
             default => [
@@ -374,7 +376,7 @@ class ImageContractService
      */
     private function candidatureSnapshot(Candidature $candidature): array
     {
-        $candidature->loadMissing('mission.producer', 'face', 'paymentEntry');
+        $candidature->loadMissing('mission.producer', 'face', 'paymentEntry.missionPayment');
         /** @var Mission $mission */
         $mission = $candidature->mission;
         /** @var Face $face */
@@ -387,12 +389,15 @@ class ImageContractService
         $contrepartie = match (true) {
             ! $isUgc => [
                 'kind' => 'cash',
+                // budget_par_face est figé au paiement : source de vérité du cachet (le budget de la mission peut bouger).
+                'cachet' => (int) ($candidature->paymentEntry?->missionPayment->budget_par_face ?? $mission->budget),
                 'montant_face_recoit' => $montant,
             ],
             $isHybrid => [
                 'kind' => 'ugc_hybrid',
                 'nom_produit' => $mission->nom_produit,
                 'valeur_produit' => (int) $mission->valeur_produit,
+                'cachet' => (int) $mission->montant_remuneration,
                 'montant_face_recoit' => $montant,
             ],
             default => [
@@ -427,13 +432,32 @@ class ImageContractService
     public static function contrepartieLines(array $contrepartie): array
     {
         $produit = 'Produit remis : '.($contrepartie['nom_produit'] ?? '').' (valeur '.Money::format((int) ($contrepartie['valeur_produit'] ?? 0)).')';
-        $cash = 'Rémunération reçue par la Face : '.Money::format((int) ($contrepartie['montant_face_recoit'] ?? 0));
+        // Repli : les contrats déjà signés n'ont pas de clé « cachet », ils gardent leur ancienne ligne.
+        $cash = array_key_exists('cachet', $contrepartie)
+            ? 'Cachet : '.Money::format((int) $contrepartie['cachet']).', avant commission WeAct'
+            : 'Rémunération reçue par la Face : '.Money::format((int) ($contrepartie['montant_face_recoit'] ?? 0));
 
         return match ((string) ($contrepartie['kind'] ?? 'cash')) {
             'ugc_product' => [$produit],
             'ugc_hybrid' => [$produit, $cash],
             default => [$cash],
         };
+    }
+
+    /**
+     * Ligne d'information sur le net reçu par la Face, pour l'e-mail du parent seulement (jamais le PDF).
+     *
+     * @param  array<string, mixed>  $contrepartie
+     */
+    public static function netLine(array $contrepartie): ?string
+    {
+        if (($contrepartie['kind'] ?? 'cash') === 'ugc_product' || ! array_key_exists('cachet', $contrepartie)) {
+            return null;
+        }
+
+        $net = (int) ($contrepartie['montant_face_recoit'] ?? 0);
+
+        return $net > 0 ? 'La Face reçoit '.Money::format($net) : null;
     }
 
     /**
@@ -488,7 +512,7 @@ class ImageContractService
     /**
      * Résumé des conditions montré au parent ou tuteur qui signe pour une Face mineure.
      *
-     * @return array{producer: string, projet: list<string>, finalite: string, supports: string, territoire: string, duree: string, contrepartie: list<string>, prise_effet: string}
+     * @return array{producer: string, projet: list<string>, finalite: string, supports: string, territoire: string, duree: string, contrepartie: list<string>, contrepartie_net: string|null, prise_effet: string}
      */
     public function guardianSummary(ImageContract $contract): array
     {
@@ -504,7 +528,7 @@ class ImageContractService
     /**
      * Même résumé avant tout contrat : construit depuis les conditions de la mission et la candidature.
      *
-     * @return array{producer: string, projet: list<string>, finalite: string, supports: string, territoire: string, duree: string, contrepartie: list<string>, prise_effet: string}
+     * @return array{producer: string, projet: list<string>, finalite: string, supports: string, territoire: string, duree: string, contrepartie: list<string>, contrepartie_net: string|null, prise_effet: string}
      */
     public function guardianSummaryForCandidature(Candidature $candidature, MissionImageTerms $terms): array
     {
@@ -520,7 +544,7 @@ class ImageContractService
     /**
      * @param  array<string, mixed>  $snapshot
      * @param  list<string>  $supports
-     * @return array{producer: string, projet: list<string>, finalite: string, supports: string, territoire: string, duree: string, contrepartie: list<string>, prise_effet: string}
+     * @return array{producer: string, projet: list<string>, finalite: string, supports: string, territoire: string, duree: string, contrepartie: list<string>, contrepartie_net: string|null, prise_effet: string}
      */
     private function summary(array $snapshot, string $finalite, array $supports, string $territoire, int $dureeAnnees): array
     {
@@ -534,6 +558,7 @@ class ImageContractService
             'territoire' => ImageContractTerritoire::from($territoire)->label(),
             'duree' => $dureeAnnees.' '.($dureeAnnees > 1 ? 'ans' : 'an').' à compter de la prise d\'effet',
             'contrepartie' => self::contrepartieLines($snapshot['contrepartie'] ?? []),
+            'contrepartie_net' => self::netLine($snapshot['contrepartie'] ?? []),
             'prise_effet' => self::effectiveMoment($snapshot['contrepartie'] ?? []),
         ];
     }

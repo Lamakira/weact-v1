@@ -107,8 +107,10 @@ export interface ContractSummary {
   supports: string[]
   territoire: string
   dureeAnnees: number
-  /** Contrepartie en clair (cachet net, produit...). */
-  contrepartie: string
+  /** Lignes de contrepartie : cachet brut avant commission, produit remis (voir utils/contrepartie.ts). */
+  contrepartie: string[]
+  /** Net perçu par la Face (« Vous recevez ... »), affiché en gris sous la contrepartie. Absent côté Producteur. */
+  net?: string | null
 }
 
 /** Résultat de la soumission finale (création du booking ou acceptation). */

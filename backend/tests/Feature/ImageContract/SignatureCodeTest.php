@@ -12,6 +12,7 @@ use App\Models\SignatureChallenge;
 use App\Services\ImageContract\SignatureChallengeService;
 use App\Support\EmailMask;
 use App\Support\ImageContractTemplate;
+use App\Support\Money;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
@@ -349,7 +350,9 @@ class SignatureCodeTest extends TestCase
                 && str_contains($html, 'Réseaux sociaux, Site web')
                 && str_contains($html, 'Bénin')
                 && str_contains($html, '3 ans')
-                && str_contains($html, 'Rémunération reçue par la Face')
+                && str_contains($html, 'Cachet : '.Money::format(100000).', avant commission WeAct')
+                && str_contains($html, 'La Face reçoit '.Money::format(90000))
+                && ! str_contains($html, 'Rémunération reçue')
                 && str_contains($html, 'vous signez cette autorisation à la place de')
                 && ! str_contains($html, '—');
         });

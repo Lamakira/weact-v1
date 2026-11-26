@@ -102,6 +102,26 @@ class BookingNoShowTest extends TestCase
         Event::assertDispatched(BookingNoShowReported::class);
     }
 
+    public function test_no_show_response_exposes_was_paid(): void
+    {
+        $booking = Booking::factory()->paid()->create([
+            'face_id' => $this->faceUser->id,
+            'producer_id' => $this->producerUser->id,
+            'date_debut' => now()->subDay(),
+        ]);
+
+        EscrowTransaction::factory()->create([
+            'booking_id' => $booking->id,
+            'amount' => $booking->montant_face_recoit,
+            'status' => 'locked',
+        ]);
+
+        $this->withApiToken($this->producerUser)
+            ->postJson("/api/v1/bookings/{$booking->uuid}/report-no-show")
+            ->assertOk()
+            ->assertJsonPath('data.was_paid', true);
+    }
+
     public function test_no_show_fails_if_booking_is_not_paid(): void
     {
         $booking = Booking::factory()->accepted()->create([

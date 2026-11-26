@@ -1,0 +1,25 @@
+[
+    {
+        "name": "cash",
+        "contrepartie": {"kind": "cash", "cachet": 100},
+        "lines": ["Cachet : 100 F CFA, avant commission WeAct"]
+    },
+    {
+        "name": "cash avec milliers",
+        "contrepartie": {"kind": "cash", "cachet": 100000},
+        "lines": ["Cachet : 100 000 F CFA, avant commission WeAct"]
+    },
+    {
+        "name": "ugc hybride",
+        "contrepartie": {"kind": "ugc_hybrid", "nom_produit": "Tenue Shade Fit", "valeur_produit": 20000, "cachet": 15000},
+        "lines": [
+            "Produit remis : Tenue Shade Fit (valeur 20 000 F CFA)",
+            "Cachet : 15 000 F CFA, avant commission WeAct"
+        ]
+    },
+    {
+        "name": "ugc produit seul",
+        "contrepartie": {"kind": "ugc_product", "nom_produit": "Tenue Shade Fit", "valeur_produit": 20000},
+        "lines": ["Produit remis : Tenue Shade Fit (valeur 20 000 F CFA)"]
+    }
+]

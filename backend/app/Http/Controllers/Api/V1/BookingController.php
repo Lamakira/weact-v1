@@ -83,6 +83,18 @@ class BookingController extends Controller
     }
 
     /**
+     * Charge un booking pour une réponse « un seul booking » : relations de détail + was_paid
+     * (existence de l'escrow, un seul exists-check, jamais calculé sur les listes : pas de N+1).
+     * Le booking n'est pas sauvegardé ensuite : l'attribut dynamique ne part jamais en base.
+     */
+    private function withDetail(Booking $booking): Booking
+    {
+        $booking->loadExists('escrowTransaction');
+
+        return $booking->load($this->detailRelations());
+    }
+
+    /**
      * @return list<string>
      */
     private function imageContractRelations(): array
@@ -210,11 +222,7 @@ class BookingController extends Controller
     {
         Gate::authorize('view', $booking);
 
-        // was_paid (timeline) : exists-check unique, jamais calculé sur les listes (pas de N+1).
-        $booking->loadExists('escrowTransaction');
-
-        $booking->load([
-            ...$this->detailRelations(),
+        $this->withDetail($booking)->load([
             'shipment.receptionPhotos',
             'deliverables',
             'productPhotos',
@@ -275,7 +283,7 @@ class BookingController extends Controller
         );
 
         return response()->json([
-            'data' => new BookingResource($booking->load($this->detailRelations())),
+            'data' => new BookingResource($this->withDetail($booking)),
             'message' => 'Booking accepté',
         ]);
     }
@@ -293,7 +301,7 @@ class BookingController extends Controller
         );
 
         return response()->json([
-            'data' => new BookingResource($booking->load($this->detailRelations())),
+            'data' => new BookingResource($this->withDetail($booking)),
             'message' => 'Booking refusé',
         ]);
     }
@@ -320,7 +328,7 @@ class BookingController extends Controller
         }
 
         return response()->json([
-            'data' => new BookingResource($booking->load($this->detailRelations())),
+            'data' => new BookingResource($this->withDetail($booking)),
             'message' => 'Booking annulé',
         ]);
     }
@@ -337,7 +345,7 @@ class BookingController extends Controller
         $booking = $this->bookingService->confirm($booking, $request->user());
 
         return response()->json([
-            'data' => new BookingResource($booking->load($this->detailRelations())),
+            'data' => new BookingResource($this->withDetail($booking)),
             'message' => 'Confirmation enregistrée',
         ]);
     }
@@ -352,7 +360,7 @@ class BookingController extends Controller
         $booking = $this->bookingService->reportNoShow($booking, $request->user());
 
         return response()->json([
-            'data' => new BookingResource($booking->load($this->detailRelations())),
+            'data' => new BookingResource($this->withDetail($booking)),
             'message' => 'Absence signalée',
         ]);
     }
@@ -367,7 +375,7 @@ class BookingController extends Controller
         $booking = $this->bookingService->contest($booking, $request->user(), $request->validated('message'));
 
         return response()->json([
-            'data' => new BookingResource($booking->load($this->detailRelations())),
+            'data' => new BookingResource($this->withDetail($booking)),
             'message' => 'Contestation enregistrée',
         ]);
     }
@@ -416,7 +424,7 @@ class BookingController extends Controller
 
     private function dateChangeResponse(Booking $booking, User $viewer, string $message): JsonResponse
     {
-        $booking->load($this->detailRelations());
+        $this->withDetail($booking);
         $booking->setAttribute('date_change', DateChangePayload::forBooking($booking, $viewer));
 
         return response()->json([
@@ -435,7 +443,7 @@ class BookingController extends Controller
         $result = $this->bookingService->initiatePayment($booking);
 
         return response()->json([
-            'data' => new BookingResource($result['booking']->load($this->detailRelations())),
+            'data' => new BookingResource($this->withDetail($result['booking'])),
             'checkout_url' => $result['checkout_url'],
             'message' => 'Paiement initié',
         ]);
@@ -452,7 +460,7 @@ class BookingController extends Controller
         $booking = $this->bookingService->checkAndProcessPayment($booking);
 
         return response()->json([
-            'data' => new BookingResource($booking->load($this->detailRelations())),
+            'data' => new BookingResource($this->withDetail($booking)),
         ]);
     }
 
@@ -465,7 +473,7 @@ class BookingController extends Controller
         $result = $this->ugcCommissionPaymentService->initiateForBooking($booking);
 
         return response()->json([
-            'data' => new BookingResource($result['booking']->load($this->detailRelations())),
+            'data' => new BookingResource($this->withDetail($result['booking'])),
             'checkout_url' => $result['checkout_url'],
             'message' => 'Paiement de la commission initié',
         ]);
@@ -482,7 +490,7 @@ class BookingController extends Controller
         $booking = $this->ugcCommissionPaymentService->checkAndProcessBooking($booking);
 
         return response()->json([
-            'data' => new BookingResource($booking->load($this->detailRelations())),
+            'data' => new BookingResource($this->withDetail($booking)),
             'commission_payment_status' => $this->ugcCommissionPaymentService->lastCommissionPaymentStatus(),
         ]);
     }

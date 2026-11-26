@@ -13,6 +13,7 @@ const mountBreak = (props: {
   mode?: 'booking' | 'mission'
   nombreFaces?: number
   paid?: boolean
+  closed?: boolean
 }) => mount(CommissionBreakdown, { props })
 
 describe('CommissionBreakdown', () => {
@@ -137,6 +138,57 @@ describe('CommissionBreakdown', () => {
 
       expect(wrapper.text()).toContain('À payer maintenant')
       expect(wrapper.text()).toContain('Gratuit')
+    })
+  })
+
+  describe('prop closed (booking clos sans règlement)', () => {
+    it('closed vrai, hybride on-platform non réglé : « Montant prévu », sans coche ni « À payer maintenant »', () => {
+      const wrapper = mountBreak({ productValue: 100000, payAmount: 20000, onPlatform: true, closed: true })
+      const text = normalize(wrapper.text())
+
+      expect(text).toContain('Montant prévu')
+      expect(text).not.toContain('À payer maintenant')
+      expect(text).not.toContain('Réglé')
+      expect(text).toContain('22 000')
+      expect(wrapper.find('svg.lucide-check').exists()).toBe(false)
+    })
+
+    it('closed vrai, produit seul non réglé : « Commission prévue », sans coche', () => {
+      const wrapper = mountBreak({ productValue: 20000, closed: true })
+      const text = normalize(wrapper.text())
+
+      expect(text).toContain('Commission prévue')
+      expect(text).not.toContain('À payer maintenant')
+      expect(text).not.toContain('Commission réglée')
+      expect(text).toContain('2 500')
+      expect(wrapper.find('svg.lucide-check').exists()).toBe(false)
+    })
+
+    it('paid prioritaire sur closed : « Réglé » (hybride) et « Commission réglée » (produit seul)', () => {
+      const hybrid = mountBreak({ productValue: 100000, payAmount: 20000, onPlatform: true, paid: true, closed: true })
+      const productOnly = mountBreak({ productValue: 20000, paid: true, closed: true })
+
+      expect(hybrid.text()).toContain('Réglé')
+      expect(hybrid.find('svg.lucide-check').exists()).toBe(true)
+      expect(hybrid.text()).not.toContain('Montant prévu')
+      expect(productOnly.text()).toContain('Commission réglée')
+      expect(productOnly.text()).not.toContain('Commission prévue')
+    })
+
+    it('sans closed : « À payer maintenant » inchangé', () => {
+      expect(mountBreak({ productValue: 20000 }).text()).toContain('À payer maintenant')
+      expect(mountBreak({ productValue: 100000, payAmount: 20000, onPlatform: true }).text()).toContain(
+        'À payer maintenant',
+      )
+    })
+
+    it('mode mission : closed sans effet', () => {
+      const wrapper = mountBreak({ productValue: 100000, payAmount: 20000, mode: 'mission', closed: true })
+      const productOnly = mountBreak({ productValue: 100000, mode: 'mission', closed: true })
+
+      expect(wrapper.text()).toContain('À payer maintenant')
+      expect(productOnly.text()).toContain('À payer maintenant')
+      expect(productOnly.text()).not.toContain('Commission prévue')
     })
   })
 })

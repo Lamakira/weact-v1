@@ -22,7 +22,7 @@ const summary: ContractSummary = {
   supports: ['Réseaux sociaux', 'Site web'],
   territoire: 'Bénin',
   dureeAnnees: 3,
-  contrepartie: '42 500 FCFA net',
+  contrepartie: ['Cachet : 50 000 F CFA, avant commission WeAct'],
 }
 
 function apiError(status: number, code: string, message = 'Erreur', extra: Record<string, unknown> = {}): AxiosError {
@@ -102,9 +102,38 @@ describe('ImageContractSignDialog', () => {
       expect(wrapper.find('[data-testid="summary-supports"]').text()).toBe('Réseaux sociaux, Site web')
       expect(wrapper.find('[data-testid="summary-territoire"]').text()).toBe('Bénin')
       expect(wrapper.find('[data-testid="summary-duree"]').text()).toBe('3 ans')
-      expect(wrapper.find('[data-testid="summary-contrepartie"]').text()).toBe('42 500 FCFA net')
+      expect(wrapper.find('[data-testid="summary-contrepartie"]').text()).toBe('Cachet : 50 000 F CFA, avant commission WeAct')
       expect((wrapper.find('[data-testid="image-contract-name"]').element as HTMLInputElement).value).toBe('Jean Producteur')
       expect(wrapper.find('[data-testid="image-contract-code-notice"]').exists()).toBe(true)
+    })
+
+    it('contrepartie : sans net, aucun élément net', () => {
+      const wrapper = mountDialog()
+
+      expect(wrapper.find('[data-testid="summary-net"]').exists()).toBe(false)
+    })
+
+    it('contrepartie : le net s\'affiche sous le cachet', () => {
+      const wrapper = mountDialog({ summary: { ...summary, net: 'Vous recevez 45 000 F CFA' } })
+
+      expect(wrapper.findAll('[data-testid="summary-contrepartie"] > span:not([data-testid="summary-net"])').map((s) => s.text())).toEqual([
+        'Cachet : 50 000 F CFA, avant commission WeAct',
+      ])
+      expect(wrapper.find('[data-testid="summary-net"]').text()).toBe('Vous recevez 45 000 F CFA')
+    })
+
+    it('contrepartie : une ligne par élément, dans l\'ordre', () => {
+      const wrapper = mountDialog({
+        summary: {
+          ...summary,
+          contrepartie: ['Produit remis : Sneakers (valeur 35 000 F CFA)', 'Cachet : 20 000 F CFA, avant commission WeAct'],
+        },
+      })
+
+      expect(wrapper.findAll('[data-testid="summary-contrepartie"] > span.block:not([data-testid="summary-net"])').map((s) => s.text())).toEqual([
+        'Produit remis : Sneakers (valeur 35 000 F CFA)',
+        'Cachet : 20 000 F CFA, avant commission WeAct',
+      ])
     })
 
     it('exige un nom d\'au moins 3 caractères', async () => {

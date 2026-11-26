@@ -10,6 +10,7 @@ use App\Mail\SignatureCodeMail;
 use App\Models\Booking;
 use App\Models\ImageContract;
 use App\Support\ImageContractTemplate;
+use App\Support\Money;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -204,6 +205,32 @@ class ImageContractPdfTest extends TestCase
         $this->assertStringNotContainsString('Modèle', $html);
         $this->assertStringNotContainsString('modèle v', $html);
         $this->assertDoesNotMatchRegularExpression('/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/', $html);
+    }
+
+    public function test_the_pdf_view_shows_the_gross_cachet_and_never_the_net(): void
+    {
+        $cases = [
+            'cash' => [['kind' => 'cash', 'cachet' => 100000, 'montant_face_recoit' => 90000], 100000, 90000],
+            'hybride' => [[
+                'kind' => 'ugc_hybrid',
+                'nom_produit' => 'Tenue Shade Fit',
+                'valeur_produit' => 20000,
+                'cachet' => 15000,
+                'montant_face_recoit' => 13500,
+            ], 15000, 13500],
+        ];
+
+        foreach ($cases as $name => [$contrepartie, $cachet, $net]) {
+            $contract = $this->signedContract();
+            $contract->update(['snapshot' => array_replace($contract->snapshot, ['contrepartie' => $contrepartie])]);
+
+            $html = view('contracts.image-authorization', (new GenerateImageContractPdf($contract->id))->viewData($contract->fresh()))->render();
+
+            $this->assertStringContainsString('Cachet : '.Money::format($cachet).', avant commission WeAct', $html, $name);
+            $this->assertStringNotContainsString('Rémunération reçue', $html, $name);
+            $this->assertStringNotContainsString('La Face reçoit', $html, $name);
+            $this->assertStringNotContainsString(Money::format($net), $html, $name);
+        }
     }
 
     public function test_no_quadratic_dash_in_the_template_nor_in_the_contract_mails(): void

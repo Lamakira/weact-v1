@@ -74,6 +74,7 @@ import type { BookingDateDecision } from '@/features/dateChange/types'
 import ImageContractSignDialog from '@/features/imageContract/components/ImageContractSignDialog.vue'
 import ImageContractCard from '@/features/imageContract/components/ImageContractCard.vue'
 import type { ContractSummary, ImageSignature, SignatureSubmitOutcome } from '@/features/imageContract/types'
+import { contrepartieLines, netLine } from '@/features/imageContract/utils/contrepartie'
 import { useToast } from '@/composables/useToast'
 import { usePaymentReturn } from '@/composables/usePaymentReturn'
 import PaymentReturnBanner from '@/components/payment/PaymentReturnBanner.vue'
@@ -81,8 +82,10 @@ import { useUgcShipment } from '@/composables/useUgcShipment'
 import { useUgcDeliverable } from '@/composables/useUgcDeliverable'
 import { formatBookingDeadline } from '@/features/booking/utils/formatBookingDeadline'
 import {
+  bookingAmountLabels,
   buildBookingView,
   formatRemaining,
+  isBookingClosed,
   formatShortDate,
   type BookingRole,
 } from '@/features/booking/utils/bookingPresentation'
@@ -265,6 +268,12 @@ const showAddressHint = computed(
 // Lot C6 : la page parle au rôle de celui qui regarde (titre, pastille, « Et ensuite ? », étapes).
 const role = computed<BookingRole>(() => (isFace.value ? 'face' : 'producer'))
 const view = computed(() => (booking.value ? buildBookingView(booking.value, role.value) : null))
+// Libellés du bloc d'argent (cash) : « À payer » / « Vous recevrez » seulement tant que l'argent est à venir.
+const amountLabels = computed(() =>
+  booking.value
+    ? bookingAmountLabels(booking.value, role.value)
+    : { title: '', total: '', tone: 'due' as const },
+)
 const nextCountdown = computed<string | null>(() => {
   const deadline = view.value?.next.deadlineAt
   return deadline ? formatRemaining(deadline, nowTimestamp.value) : null
@@ -704,13 +713,21 @@ const signSummary = computed<ContractSummary>(() => {
   const b = booking.value
   const contract = imageContract.value
   const isUgcBooking = b?.type_contenu === 'UGC'
-  const cash = b?.montant_face_recoit ?? 0
-  let contrepartie = `${formatMoney(cash)} net`
+  let contrepartie: string[]
+  let net: string | null = null
   if (isUgcBooking) {
-    const product = b?.nom_produit || 'Produit offert'
-    contrepartie = b?.type_compensation === 'hybrid' && cash > 0
-      ? `${product} et ${formatMoney(cash)} net`
-      : product
+    const hybrid = b?.type_compensation === 'hybrid'
+    contrepartie = contrepartieLines({
+      kind: hybrid ? 'ugc_hybrid' : 'ugc_product',
+      nom_produit: b?.nom_produit,
+      valeur_produit: b?.valeur_produit ?? 0,
+      cachet: hybrid ? b?.montant_remuneration : null,
+    })
+    // Produit seul : pas de net en argent.
+    if (hybrid) net = netLine(b?.montant_face_recoit)
+  } else {
+    contrepartie = contrepartieLines({ kind: 'cash', cachet: b?.tarif_base })
+    net = netLine(b?.montant_face_recoit)
   }
   return {
     projet: b?.type_contenu ?? '',
@@ -719,6 +736,7 @@ const signSummary = computed<ContractSummary>(() => {
     territoire: contract?.territoire.label ?? '',
     dureeAnnees: contract?.duree_annees ?? 1,
     contrepartie,
+    net,
   }
 })
 
@@ -1355,6 +1373,7 @@ onUnmounted(() => {
                 :pay-amount="booking.montant_remuneration ?? 0"
                 :on-platform="true"
                 :paid="ugcCommissionPaid"
+                :closed="isBookingClosed(booking)"
               />
             </div>
 
@@ -1589,10 +1608,12 @@ onUnmounted(() => {
 
             <!-- Financial section (cash bookings only) -->
             <div v-if="booking.type_contenu !== 'UGC'" class="bg-white rounded-[10px] border border-gray-200 p-4">
-              <h2 class="text-sm font-semibold text-gray-700 mb-3">{{ isFace ? 'Votre rémunération' : 'À payer' }}</h2>
+              <h2 class="text-sm font-semibold text-gray-700 mb-3" data-testid="booking-amount-title">{{ amountLabels.title }}</h2>
               <BookingPricingBreakdown
                 :tarif-base="booking.tarif_base"
                 :role="isFace ? 'face' : 'producer'"
+                :total-label="amountLabels.total"
+                :muted="amountLabels.tone === 'planned'"
                 :montant-face-recoit="booking.montant_face_recoit"
                 :montant-total-producteur="booking.montant_total_producteur"
               />

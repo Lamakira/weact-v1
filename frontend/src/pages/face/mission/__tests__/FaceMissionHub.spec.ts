@@ -396,3 +396,33 @@ describe('FaceMissionHub — notation du producteur (lot C8)', () => {
     expect(legacyPayload.find('[data-testid="hub-my-rating"]').exists()).toBe(false)
   })
 })
+
+describe('FaceMissionHub : libellé de l’argent selon l’issue de la candidature', () => {
+  const money = (overrides: Partial<MissionCandidature>, extra: { isUgc?: boolean } = {}) =>
+    mountHub(makeCandidature({ montant_face_recoit: 85000, ...overrides }), extra)
+      .get('[data-testid="hub-money"]')
+      .text()
+
+  it('terminée : « Vous avez reçu »', () => {
+    expect(money({ status: 'completed' })).toContain(`Vous avez reçu ${formatMoney(85000)}`)
+  })
+
+  it.each(['rejected', 'cancelled', 'expired'] as const)('%s : « Montant prévu »', (status) => {
+    const text = money({ status })
+    expect(text).toContain(`Montant prévu ${formatMoney(85000)}`)
+    expect(text).not.toContain('Vous recevrez')
+  })
+
+  it.each(['accepted', 'confirmed', 'in_progress'] as const)('%s : « Vous recevrez » inchangé', (status) => {
+    expect(money({ status })).toContain(`Vous recevrez ${formatMoney(85000)}`)
+  })
+
+  it('net inconnu, même terminée : brut proposé inchangé', () => {
+    expect(money({ status: 'completed', montant_face_recoit: null })).toContain('Rémunération proposée')
+  })
+
+  it('UGC : libellé inchangé quelle que soit l’issue', () => {
+    expect(money({ status: 'completed' }, { isUgc: true })).not.toMatch(/Vous avez reçu|Montant prévu/)
+    expect(money({ status: 'rejected' }, { isUgc: true })).not.toMatch(/Vous avez reçu|Montant prévu/)
+  })
+})
