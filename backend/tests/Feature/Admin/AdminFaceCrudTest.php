@@ -396,6 +396,41 @@ class AdminFaceCrudTest extends TestCase
         $this->assertSame(4, Face::query()->where('is_exclusive', true)->count());
     }
 
+    /**
+     * @return array<string, array{0: int|string}>
+     */
+    public static function looseTrueValues(): array
+    {
+        return [
+            'integer 1' => [1],
+            'string "1"' => ['1'],
+        ];
+    }
+
+    #[DataProvider('looseTrueValues')]
+    public function test_a_loose_true_value_goes_through_the_same_checks(int|string $value): void
+    {
+        $pro = Face::factory()->create(['is_exclusive' => false]);
+        FaceSubscription::factory()->pro()->active()->create(['face_id' => $pro->id]);
+
+        $this->withToken($this->adminToken)
+            ->putJson("/api/v1/admin/faces/{$pro->uuid}", ['is_exclusive' => $value])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['is_exclusive' => 'réservée aux Faces Élite']);
+        $this->assertFalse($pro->fresh()->is_exclusive);
+
+        for ($i = 0; $i < 4; $i++) {
+            $this->makeEliteFace(['is_exclusive' => true]);
+        }
+        $fifth = $this->makeEliteFace(['is_exclusive' => false]);
+
+        $this->withToken($this->adminToken)
+            ->putJson("/api/v1/admin/faces/{$fifth->uuid}", ['is_exclusive' => $value])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['is_exclusive' => 'Les 4 places']);
+        $this->assertFalse($fifth->fresh()->is_exclusive);
+    }
+
     public function test_resending_exclusivity_on_an_already_exclusive_face_is_accepted_when_full(): void
     {
         $faces = [];

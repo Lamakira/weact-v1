@@ -44,9 +44,10 @@ class FaceExclusivityService
     }
 
     /**
-     * Apply an admin update. Granting the exclusivity (false → true) runs the
-     * Élite and capacity checks under the global lock, in the same transaction
-     * as the write; any other update (including revoking) is written as is.
+     * Apply an admin update. Any request setting the exclusivity to true runs
+     * under the global lock, in the same transaction as the write; the Élite
+     * and capacity checks apply unless the Face is already exclusive (read
+     * under the lock). Any other update (including revoking) is written as is.
      *
      * @param  array<string, mixed>  $validated
      *
@@ -54,9 +55,12 @@ class FaceExclusivityService
      */
     public function updateFace(Face $face, array $validated): void
     {
-        $grants = ($validated['is_exclusive'] ?? null) === true && ! $face->is_exclusive;
+        // The `boolean` rule also accepts 1 / "1" without casting: normalize,
+        // so every "true" request goes through the lock and the checks.
+        $requestsTrue = array_key_exists('is_exclusive', $validated)
+            && filter_var($validated['is_exclusive'], FILTER_VALIDATE_BOOLEAN);
 
-        if (! $grants) {
+        if (! $requestsTrue) {
             $face->update($validated);
 
             return;
@@ -69,11 +73,13 @@ class FaceExclusivityService
                     /** @var Face $locked */
                     $locked = Face::query()->lockForUpdate()->findOrFail($face->id);
 
+                    // Only the state read under the lock may skip the checks:
+                    // the route-bound model can be stale.
                     if (! $locked->is_exclusive) {
                         $this->assertCanGrant($locked);
                     }
 
-                    $face->update($validated);
+                    $locked->update(['is_exclusive' => true] + $validated);
                 }),
             );
         } catch (LockTimeoutException) {
