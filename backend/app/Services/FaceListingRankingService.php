@@ -131,6 +131,97 @@ class FaceListingRankingService
     }
 
     /**
+     * Take the effective exclusivities out of the queue they sit in.
+     *
+     * Only ids actually present in the queues are taken: an exclusivity
+     * absent from them (Face created after the nightly generation, or not
+     * publicly listable) has no rank to lift and waits for the next night.
+     * The block is ordered by id ascending — the same canonical order for the
+     * nightly rebuild and for every tick — and capped at $limit.
+     *
+     * @param  array<string, list<int>>  $queues  tier => ordered face IDs
+     * @param  list<int>  $exclusiveIds
+     * @return array{list<int>, array<string, list<int>>} the exclusive block, the queues without it
+     */
+    public function separateExclusives(array $queues, array $exclusiveIds, int $limit): array
+    {
+        $present = [];
+        foreach ($queues as $faceIds) {
+            foreach ($faceIds as $faceId) {
+                $present[$faceId] = true;
+            }
+        }
+
+        $block = array_values(array_filter(
+            array_unique($exclusiveIds),
+            fn (int $faceId): bool => isset($present[$faceId]),
+        ));
+        sort($block);
+        $block = array_slice($block, 0, max(0, $limit));
+
+        if ($block === []) {
+            return [[], $queues];
+        }
+
+        $taken = array_flip($block);
+        $rest = [];
+        foreach ($queues as $tier => $faceIds) {
+            $rest[$tier] = array_values(array_filter(
+                $faceIds,
+                fn (int $faceId): bool => ! isset($taken[$faceId]),
+            ));
+        }
+
+        return [$block, $rest];
+    }
+
+    /**
+     * Put the exclusive block at the head of the top tier's queue. The
+     * persisted tier snapshot is derived from these queues, so an exclusivity
+     * is written with that tier even when its nightly tier was lower (Face
+     * promoted during the day).
+     *
+     * @param  array<string, list<int>>  $queues  tier => ordered face IDs, exclusives already removed
+     * @param  list<int>  $block
+     * @return array<string, list<int>>
+     */
+    public function placeExclusivesAtHead(array $queues, array $block, string $topTier): array
+    {
+        if ($block === []) {
+            return $queues;
+        }
+
+        $queues[$topTier] = [...$block, ...($queues[$topTier] ?? [])];
+
+        return $queues;
+    }
+
+    /**
+     * Lift the exclusive block to ranks 1..k of an interleaved sequence.
+     *
+     * Heading the top tier's queue, the exclusives were already drawn within
+     * the page-1 window: lifting them only reorders page 1, it never changes
+     * which Faces it holds nor the per-tier slot counts.
+     *
+     * @param  list<int>  $sequence
+     * @param  list<int>  $block
+     * @return list<int>
+     */
+    public function liftExclusives(array $sequence, array $block): array
+    {
+        if ($block === []) {
+            return $sequence;
+        }
+
+        $taken = array_flip($block);
+
+        return [...$block, ...array_values(array_filter(
+            $sequence,
+            fn (int $faceId): bool => ! isset($taken[$faceId]),
+        ))];
+    }
+
+    /**
      * Order ONE tier queue according to the fairness rules:
      *
      *   1. Faces WITH a profile photo first;
