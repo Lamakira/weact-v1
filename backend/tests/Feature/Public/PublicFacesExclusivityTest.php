@@ -450,4 +450,38 @@ class PublicFacesExclusivityTest extends TestCase
         // The 11 rotating Élites are all on screen; their order still moves.
         $this->assertNotSame(array_slice($before, 4, 11), array_slice($after, 4, 11));
     }
+
+    public function test_when_the_rotating_elites_fill_exactly_their_page_one_slots_their_order_still_changes_every_pass(): void
+    {
+        // 9 Élites, 4 of them exclusive: the 5 others own exactly the 5
+        // remaining Élite slots of page 1. A shift of 5 on a queue of 5 is a
+        // full turn, so without the degenerate-step guard their order would
+        // never move.
+        $exclusives = $this->uuids($this->seedListing(4, elite: 9, pro: 7, starter: 6, free: 40));
+        $rotating = array_values(array_diff($this->tiers['elite'], $exclusives));
+
+        $this->nightly();
+
+        $rotatingOrder = function (): array {
+            $page = $this->page();
+            $this->assertCount(16, $page);
+
+            return array_values(array_filter(
+                array_slice($page, 4),
+                fn (string $uuid): bool => in_array($uuid, $this->tiers['elite'], true),
+            ));
+        };
+
+        $previous = $rotatingOrder();
+        $this->assertSameSet($rotating, $previous);
+
+        foreach (range(1, 3) as $pass) {
+            $this->tick();
+            $current = $rotatingOrder();
+
+            $this->assertSameSet($rotating, $current, "Pass {$pass}: the 5 rotating Élites stay on page 1.");
+            $this->assertNotSame($previous, $current, "Pass {$pass}: the order of the rotating Élites must change.");
+            $previous = $current;
+        }
+    }
 }

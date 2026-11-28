@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\FaceSubscriptionTier;
 use DateTimeInterface;
 use RuntimeException;
 
@@ -131,6 +132,38 @@ class FaceListingRankingService
     }
 
     /**
+     * Rank the per-tier queues with the Exclusivités Élite on top (ADR 0001):
+     * the effective exclusivities leave their queue, head the Élite queue,
+     * the queues are interleaved (buildSequence, with its upward
+     * redistribution), and the exclusive block is lifted to ranks 1..k.
+     *
+     * The ONE chain shared by the nightly rebuild and every carousel tick.
+     * The tick passes $rotate to permute the exclusive block and the
+     * remaining queues once separated, before they are put back together.
+     *
+     * @param  array<string, list<int>>  $queues  tier => ordered face IDs
+     * @param  array<string, mixed>  $weights  tier => listing quota (see buildSequence())
+     * @param  list<int>  $exclusiveIds  effective exclusivities (flag set AND Élite live)
+     * @param  (callable(list<int>, array<string, list<int>>): array{list<int>, array<string, list<int>>})|null  $rotate  (exclusive block, queues without it) => the same, rotated
+     * @return array{list<int>, array<string, list<int>>} the ranked sequence, the queues it was interleaved from (exclusives heading the Élite queue)
+     *
+     * @throws RuntimeException on invalid quotas (see buildSequence())
+     */
+    public function rankWithExclusives(array $queues, array $weights, array $exclusiveIds, ?callable $rotate = null): array
+    {
+        [$exclusiveBlock, $queues] = $this->separateExclusives($queues, $exclusiveIds, FaceExclusivityService::MAX_SLOTS);
+
+        if ($rotate !== null) {
+            [$exclusiveBlock, $queues] = $rotate($exclusiveBlock, $queues);
+        }
+
+        $queues = $this->placeExclusivesAtHead($queues, $exclusiveBlock, FaceSubscriptionTier::Elite->value);
+        $sequence = $this->liftExclusives($this->buildSequence($queues, $weights), $exclusiveBlock);
+
+        return [$sequence, $queues];
+    }
+
+    /**
      * Take the effective exclusivities out of the queue they sit in.
      *
      * Only ids actually present in the queues are taken: an exclusivity
@@ -143,7 +176,7 @@ class FaceListingRankingService
      * @param  list<int>  $exclusiveIds
      * @return array{list<int>, array<string, list<int>>} the exclusive block, the queues without it
      */
-    public function separateExclusives(array $queues, array $exclusiveIds, int $limit): array
+    private function separateExclusives(array $queues, array $exclusiveIds, int $limit): array
     {
         $present = [];
         foreach ($queues as $faceIds) {
@@ -152,18 +185,18 @@ class FaceListingRankingService
             }
         }
 
-        $block = array_values(array_filter(
+        $exclusiveBlock = array_values(array_filter(
             array_unique($exclusiveIds),
             fn (int $faceId): bool => isset($present[$faceId]),
         ));
-        sort($block);
-        $block = array_slice($block, 0, max(0, $limit));
+        sort($exclusiveBlock);
+        $exclusiveBlock = array_slice($exclusiveBlock, 0, max(0, $limit));
 
-        if ($block === []) {
+        if ($exclusiveBlock === []) {
             return [[], $queues];
         }
 
-        $taken = array_flip($block);
+        $taken = array_flip($exclusiveBlock);
         $rest = [];
         foreach ($queues as $tier => $faceIds) {
             $rest[$tier] = array_values(array_filter(
@@ -172,7 +205,7 @@ class FaceListingRankingService
             ));
         }
 
-        return [$block, $rest];
+        return [$exclusiveBlock, $rest];
     }
 
     /**
@@ -182,16 +215,16 @@ class FaceListingRankingService
      * promoted during the day).
      *
      * @param  array<string, list<int>>  $queues  tier => ordered face IDs, exclusives already removed
-     * @param  list<int>  $block
+     * @param  list<int>  $exclusiveBlock
      * @return array<string, list<int>>
      */
-    public function placeExclusivesAtHead(array $queues, array $block, string $topTier): array
+    private function placeExclusivesAtHead(array $queues, array $exclusiveBlock, string $topTier): array
     {
-        if ($block === []) {
+        if ($exclusiveBlock === []) {
             return $queues;
         }
 
-        $queues[$topTier] = [...$block, ...($queues[$topTier] ?? [])];
+        $queues[$topTier] = [...$exclusiveBlock, ...($queues[$topTier] ?? [])];
 
         return $queues;
     }
@@ -204,18 +237,18 @@ class FaceListingRankingService
      * which Faces it holds nor the per-tier slot counts.
      *
      * @param  list<int>  $sequence
-     * @param  list<int>  $block
+     * @param  list<int>  $exclusiveBlock
      * @return list<int>
      */
-    public function liftExclusives(array $sequence, array $block): array
+    private function liftExclusives(array $sequence, array $exclusiveBlock): array
     {
-        if ($block === []) {
+        if ($exclusiveBlock === []) {
             return $sequence;
         }
 
-        $taken = array_flip($block);
+        $taken = array_flip($exclusiveBlock);
 
-        return [...$block, ...array_values(array_filter(
+        return [...$exclusiveBlock, ...array_values(array_filter(
             $sequence,
             fn (int $faceId): bool => ! isset($taken[$faceId]),
         ))];

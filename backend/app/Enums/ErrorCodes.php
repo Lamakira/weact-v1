@@ -105,6 +105,9 @@ enum ErrorCodes: string
     case NoVideo = 'NO_VIDEO';
     case ReorderError = 'REORDER_ERROR';
 
+    // --- Exclusivité Élite ---
+    case ExclusivitySlotsFull = 'EXCLUSIVITY_SLOTS_FULL';
+
     // --- New codes introduced by FIX-22.2 ---
     case ValidationError = 'VALIDATION_ERROR';
     case WithdrawalLock = 'WITHDRAWAL_LOCK';

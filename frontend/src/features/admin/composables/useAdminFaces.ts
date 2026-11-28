@@ -6,11 +6,13 @@ import {
   type UpdateAdminFaceForm,
 } from '../services/adminFacesApi'
 import { getApiErrorDetails, getApiErrorMessage } from '../services/adminAuthApi'
+import { getApiErrorCode } from '@/services/errorFormatter'
 
 interface AdminFaceActionResult {
   success: boolean
   errors?: Record<string, string[]>
   message?: string
+  code?: string | null
 }
 
 interface PaginationMeta {
@@ -84,7 +86,7 @@ export function useAdminFaces() {
     } catch (err) {
       const errors = getApiErrorDetails(err)
       const message = getApiErrorMessage(err)
-      return { success: false, errors, message }
+      return { success: false, errors, message, code: getApiErrorCode(err) }
     } finally {
       isLoading.value = false
     }

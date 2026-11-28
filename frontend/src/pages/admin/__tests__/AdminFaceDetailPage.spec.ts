@@ -231,6 +231,45 @@ describe('AdminFaceDetailPage', () => {
     expect((wrapper.get('[data-testid="edit-exclusive"]').element as HTMLInputElement).checked).toBe(true)
   })
 
+  it('says another Face just took the last place when the server refuses with EXCLUSIVITY_SLOTS_FULL', async () => {
+    mockUpdateFace.mockResolvedValue({
+      success: false,
+      message: 'Les données fournies ne sont pas valides',
+      code: 'EXCLUSIVITY_SLOTS_FULL',
+      errors: { is_exclusive: ['Les 4 places d\u2019exclusivité Élite sont prises. Retirez d\u2019abord une exclusivité.'] },
+    })
+    const { wrapper } = await mountPage(makeFace({ exclusive_slots_taken: 3 }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+    await wrapper.get('[data-testid="edit-exclusive"]').setValue(true)
+    await wrapper.get('[data-testid="edit-prenom"]').setValue('Nouveau prénom')
+    await wrapper.get('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="exclusive-error"]').text()).toBe(
+      'Une autre Face vient de prendre la dernière place. Rechargez la fiche pour voir les places libres.',
+    )
+    expect((wrapper.get('[data-testid="edit-prenom"]').element as HTMLInputElement).value).toBe('Nouveau prénom')
+    expect((wrapper.get('[data-testid="edit-exclusive"]').element as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('keeps the server message when the grant is refused for another reason (lock held)', async () => {
+    mockUpdateFace.mockResolvedValue({
+      success: false,
+      message: 'Les données fournies ne sont pas valides',
+      code: 'VALIDATION_ERROR',
+      errors: { is_exclusive: ['Une autre exclusivité Élite est en cours d\'attribution. Réessayez dans un instant.'] },
+    })
+    const { wrapper } = await mountPage(makeFace({ exclusive_slots_taken: 3 }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+    await wrapper.get('[data-testid="edit-exclusive"]').setValue(true)
+    await wrapper.get('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="exclusive-error"]').text()).toBe(
+      'Une autre exclusivité Élite est en cours d\'attribution. Réessayez dans un instant.',
+    )
+  })
+
   it('includes is_exclusive in the update payload when the checkbox changes', async () => {
     mockUpdateFace.mockResolvedValue({
       success: true,

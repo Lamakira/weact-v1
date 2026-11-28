@@ -372,7 +372,8 @@ class AdminFaceCrudTest extends TestCase
             ->putJson("/api/v1/admin/faces/{$face->uuid}", ['nom' => 'Après', 'is_exclusive' => true]);
 
         $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['is_exclusive' => 'réservée aux Faces Élite']);
+            ->assertJsonValidationErrors(['is_exclusive' => 'réservée aux Faces Élite'])
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
 
         $face->refresh();
         $this->assertFalse($face->is_exclusive);
@@ -390,10 +391,13 @@ class AdminFaceCrudTest extends TestCase
             ->putJson("/api/v1/admin/faces/{$fifth->uuid}", ['is_exclusive' => true]);
 
         $response->assertUnprocessable()
-            ->assertJsonValidationErrors(['is_exclusive' => 'Les 4 places']);
+            ->assertJsonValidationErrors(['is_exclusive' => 'Les 4 places'])
+            // Stable code: the admin screen tells "the last place was just
+            // taken" apart from the other refusals without reading the text.
+            ->assertJsonPath('error.code', 'EXCLUSIVITY_SLOTS_FULL');
 
         $this->assertFalse($fifth->fresh()->is_exclusive);
-        $this->assertSame(4, Face::query()->where('is_exclusive', true)->count());
+        $this->assertSame(4, Face::query()->exclusive()->count());
     }
 
     /**
@@ -496,7 +500,9 @@ class AdminFaceCrudTest extends TestCase
             $lock->release();
         }
 
-        $response->assertUnprocessable()->assertJsonValidationErrors(['is_exclusive']);
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['is_exclusive'])
+            ->assertJsonPath('error.code', 'VALIDATION_ERROR');
         $this->assertFalse($face->fresh()->is_exclusive);
     }
 
@@ -909,7 +915,7 @@ class AdminFaceCrudTest extends TestCase
             ->assertJsonPath('data.subscription_tier', 'free');
     }
 
-    public function test_admin_show_distinguishes_manual_featured_from_subscription_featured(): void
+    public function test_admin_show_reports_exclusivity_independently_of_subscription_tier(): void
     {
         $manualOnly = Face::factory()->create(['is_exclusive' => true]);
 

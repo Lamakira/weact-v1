@@ -162,33 +162,29 @@ class RotateFaceListingRanksCommand extends Command
                 return self::SUCCESS;
             }
 
-            $weights = FaceListingRotation::tierWeightsByPriority($entitlements);
             $eliteTier = FaceSubscriptionTier::Elite->value;
-
-            [$block, $queues] = $ranking->separateExclusives(
-                $queues,
-                $exclusivity->effectiveExclusiveIds(),
-                FaceExclusivityService::MAX_SLOTS,
-            );
-
-            // The rotating part of the Élite queue advances by the Élite
-            // page-1 slots minus the k exclusivities holding the others.
-            if ($block !== [] && isset($slots[$eliteTier])) {
-                $slots[$eliteTier] = max(0, $slots[$eliteTier] - count($block));
-            }
-
-            $rotatedBlock = $this->rotateBlock($block, $tickIndex);
-            $rotatedQueues = $ranking->placeExclusivesAtHead(
-                $this->rotateQueues($queues, $slots, $tickIndex),
-                $rotatedBlock,
-                $eliteTier,
-            );
 
             // Re-interleaving goes through the UNCHANGED nightly engine: the
             // redistribution of an empty tier's slots to the highest-priority
             // remaining queue is what keeps sparse tiers from leaving holes,
             // and reimplementing it here would fork that behaviour.
-            $sequence = $ranking->liftExclusives($ranking->buildSequence($rotatedQueues, $weights), $rotatedBlock);
+            [$sequence, $rotatedQueues] = $ranking->rankWithExclusives(
+                $queues,
+                FaceListingRotation::tierWeightsByPriority($entitlements),
+                $exclusivity->effectiveExclusiveIds(),
+                function (array $exclusiveBlock, array $queues) use ($slots, $tickIndex, $eliteTier): array {
+                    // The rotating part of the Élite queue advances by the Élite
+                    // page-1 slots minus the k exclusivities holding the others.
+                    if ($exclusiveBlock !== [] && isset($slots[$eliteTier])) {
+                        $slots[$eliteTier] = max(0, $slots[$eliteTier] - count($exclusiveBlock));
+                    }
+
+                    return [
+                        $this->rotateBlock($exclusiveBlock, $tickIndex),
+                        $this->rotateQueues($queues, $slots, $tickIndex),
+                    ];
+                },
+            );
 
             [$generation, $rankedCount] = DB::transaction(
                 fn (): array => $this->writeTickGeneration($baseGeneration, $rotatedQueues, $sequence),
@@ -421,15 +417,15 @@ class RotateFaceListingRanksCommand extends Command
      * index like every queue (idempotent): over k ticks each exclusivity
      * takes rank 1 once.
      *
-     * @param  list<int>  $block
+     * @param  list<int>  $exclusiveBlock
      * @return list<int>
      */
-    private function rotateBlock(array $block, int $tickIndex): array
+    private function rotateBlock(array $exclusiveBlock, int $tickIndex): array
     {
-        $size = count($block);
+        $size = count($exclusiveBlock);
         $shift = $size === 0 ? 0 : $tickIndex % $size;
 
-        return array_merge(array_slice($block, $shift), array_slice($block, 0, $shift));
+        return array_merge(array_slice($exclusiveBlock, $shift), array_slice($exclusiveBlock, 0, $shift));
     }
 
     /**

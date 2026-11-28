@@ -135,6 +135,19 @@ class PublicFacesListTest extends TestCase
         $this->getJson('/api/v1/public/faces?per_page=50')->assertUnprocessable();
     }
 
+    public function test_per_page_below_the_four_exclusive_places_is_rejected(): void
+    {
+        // The Exclusivités Élite hold ranks 1 to 4: a smaller page would push
+        // some of them to page 2.
+        $this->getJson('/api/v1/public/faces?per_page=3')
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'per_page' => 'Le nombre de Faces par page doit être d\'au moins 4.',
+            ]);
+
+        $this->getJson('/api/v1/public/faces?per_page=4')->assertOk();
+    }
+
     public function test_supports_page_parameter_for_pagination(): void
     {
         for ($i = 0; $i < 20; $i++) {
@@ -1044,7 +1057,7 @@ class PublicFacesListTest extends TestCase
         $full->assertOk();
         $fullOrder = array_column($full->json('data'), 'id');
 
-        foreach ([1, 4, 9] as $perPage) {
+        foreach ([4, 9] as $perPage) {
             $response = $this->getJson("/api/v1/public/faces?per_page={$perPage}");
             $response->assertOk();
             $this->assertSame(

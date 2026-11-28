@@ -26,6 +26,7 @@ import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import type { UpdateAdminFaceForm, AdminFacePhoto } from '@/features/admin/services/adminFacesApi'
 import { getCategoryLabels, getNicheLabels } from '@/features/admin/utils/faceLabels'
 import { labelledPortfolioVideos } from '@/features/face/lib/portfolioVideos'
+import { TIER_PRESENTATION } from '@/features/face/tierPresentation'
 import ConfirmModal from '@/components/ui/ConfirmModal.vue'
 import AdminFaceSubscriptionSection from '@/features/admin/components/AdminFaceSubscriptionSection.vue'
 import { useToast } from '@/composables/useToast'
@@ -44,12 +45,10 @@ const editForm = ref<UpdateAdminFaceForm>({})
 const editErrors = ref<Record<string, string[]>>({})
 const isToggling = ref(false)
 
-const TIER_LABELS: Record<string, string> = {
-  free: 'Découverte',
-  starter: 'Starter',
-  pro: 'Pro',
-  elite: 'Élite',
-}
+// Refus serveur « 4 places prises » alors que l'écran en montrait une libre :
+// une autre Face l'a prise entre-temps.
+const EXCLUSIVITY_SLOTS_FULL_MESSAGE =
+  'Une autre Face vient de prendre la dernière place. Rechargez la fiche pour voir les places libres.'
 
 const exclusiveSlotsTaken = computed(() => face.value?.exclusive_slots_taken ?? 0)
 const exclusiveSlotsMax = computed(() => face.value?.exclusive_slots_max ?? 4)
@@ -67,8 +66,8 @@ const exclusiveDisabledReason = computed<'tier' | 'full' | null>(() => {
 const exclusiveDisabled = computed(() => exclusiveDisabledReason.value !== null)
 const exclusiveHelp = computed(() => {
   if (exclusiveDisabledReason.value === 'tier') {
-    const tier = face.value?.subscription_tier ?? ''
-    return `Réservée aux Faces Élite. Cette Face est ${TIER_LABELS[tier] ?? tier}.`
+    const tier = face.value?.subscription_tier ?? 'free'
+    return `Réservée aux Faces Élite. Cette Face est ${TIER_PRESENTATION[tier].name}.`
   }
   if (exclusiveDisabledReason.value === 'full') {
     return `Les ${exclusiveSlotsMax.value} places sont prises. Retirez d’abord l’exclusivité d’une autre Face.`
@@ -197,6 +196,9 @@ async function saveEdit(): Promise<void> {
     toast.success(result.message ?? 'Profil mis à jour')
   } else {
     editErrors.value = result.errors ?? {}
+    if (result.code === 'EXCLUSIVITY_SLOTS_FULL') {
+      editErrors.value.is_exclusive = [EXCLUSIVITY_SLOTS_FULL_MESSAGE]
+    }
   }
 }
 

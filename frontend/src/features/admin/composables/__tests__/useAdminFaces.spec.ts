@@ -275,6 +275,28 @@ describe('useAdminFaces - updateFace', () => {
     expect(result.message).toBe('Les données fournies ne sont pas valides')
     expect(result.errors?.username?.[0]).toBe("Ce nom d'utilisateur est déjà utilisé.")
   })
+
+  it('returns the stable error code of a refused update', async () => {
+    mockUpdateFace.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 422,
+        data: {
+          error: {
+            code: 'EXCLUSIVITY_SLOTS_FULL',
+            message: 'Les données fournies ne sont pas valides',
+            details: { is_exclusive: ['Les 4 places d’exclusivité Élite sont prises.'] },
+          },
+        },
+      },
+    })
+
+    const { updateFace } = useAdminFaces()
+    const result = await updateFace(1, { is_exclusive: true })
+
+    expect(result.success).toBe(false)
+    expect(result.code).toBe('EXCLUSIVITY_SLOTS_FULL')
+  })
 })
 
 describe('useAdminFaces - deleteFace', () => {

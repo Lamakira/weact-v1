@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\ErrorCodes;
 use App\Enums\FaceSubscriptionTier;
+use App\Exceptions\CodedValidationException;
 use App\Models\Face;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -40,7 +43,16 @@ class FaceExclusivityService
      */
     public function slotsTaken(): int
     {
-        return Face::query()->where('is_exclusive', true)->count();
+        return Face::query()->exclusive()->count();
+    }
+
+    /**
+     * The one rule deciding whether an exclusivity is effective: the Face is
+     * Élite LIVE (active subscription), whatever the flag says.
+     */
+    public function isEliteLive(Face $face): bool
+    {
+        return $this->entitlement->capabilities($face)->tier === FaceSubscriptionTier::Elite;
     }
 
     /**
@@ -54,14 +66,59 @@ class FaceExclusivityService
     public function effectiveExclusiveIds(): array
     {
         return Face::query()
-            ->where('is_exclusive', true)
+            ->exclusive()
             ->with('activeSubscription')
             ->orderBy('id')
             ->get(['id'])
-            ->filter(fn (Face $face): bool => $this->entitlement->capabilities($face)->tier === FaceSubscriptionTier::Elite)
+            ->filter(fn (Face $face): bool => $this->isEliteLive($face))
             ->map(fn (Face $face): int => (int) $face->id)
             ->values()
             ->all();
+    }
+
+    /**
+     * Drop the flag from every Face that is no longer Élite live, calling
+     * $onReleased right after each clear (before the next Face is read), so
+     * a failing callback leaves the remaining Faces flagged for the next run.
+     *
+     * Conditional write: a concurrent run or admin edit that already cleared
+     * the flag affects 0 rows, so that Face is not reported (no duplicate
+     * mail from the caller).
+     *
+     * @param  callable(Face, FaceSubscriptionTier): void  $onReleased  receives the Face and its live tier
+     * @return int number of Faces actually released
+     */
+    public function releaseLostExclusivities(callable $onReleased): int
+    {
+        $released = 0;
+
+        Face::query()
+            ->exclusive()
+            ->orderBy('id')
+            ->each(function (Face $face) use ($onReleased, &$released): void {
+                if ($this->isEliteLive($face)) {
+                    return;
+                }
+
+                $cleared = Face::query()
+                    ->whereKey($face->id)
+                    ->exclusive()
+                    ->update(['is_exclusive' => false]);
+
+                if ($cleared === 0) {
+                    return;
+                }
+
+                $released++;
+                $tier = $this->entitlement->capabilities($face)->tier;
+                Log::info('Face exclusivity released: no longer Elite', [
+                    'face_id' => $face->id,
+                    'tier' => $tier->value,
+                ]);
+                $onReleased($face, $tier);
+            });
+
+        return $released;
     }
 
     /**
@@ -74,7 +131,7 @@ class FaceExclusivityService
      *
      * @throws ValidationException when the grant is refused
      */
-    public function updateFace(Face $face, array $validated): void
+    public function applyAdminUpdate(Face $face, array $validated): void
     {
         // The `boolean` rule also accepts 1 / "1" without casting: normalize,
         // so every "true" request goes through the lock and the checks.
@@ -115,16 +172,16 @@ class FaceExclusivityService
      */
     private function assertCanGrant(Face $face): void
     {
-        if ($this->entitlement->capabilities($face)->tier !== FaceSubscriptionTier::Elite) {
+        if (! $this->isEliteLive($face)) {
             throw ValidationException::withMessages([
                 'is_exclusive' => 'L\'exclusivité Élite est réservée aux Faces Élite.',
             ]);
         }
 
-        $taken = Face::query()->where('is_exclusive', true)->lockForUpdate()->count();
+        $taken = Face::query()->exclusive()->lockForUpdate()->count();
 
         if ($taken >= self::MAX_SLOTS) {
-            throw ValidationException::withMessages([
+            throw CodedValidationException::withCode(ErrorCodes::ExclusivitySlotsFull, [
                 'is_exclusive' => 'Les '.self::MAX_SLOTS.' places d\'exclusivité Élite sont prises. Retirez d\'abord une exclusivité.',
             ]);
         }
