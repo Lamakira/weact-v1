@@ -151,7 +151,15 @@ describe('AdminFaceDetailPage', () => {
     expect(wrapper.get('[data-testid="exclusive-slots"]').text()).toBe('2 / 4 places prises')
   })
 
-  it('never shows the old "En vedette" or "Mise en avant" wording', async () => {
+  it('shows a grey "Non" pill on a flagged face that is no longer Élite', async () => {
+    const { wrapper } = await mountPage(makeFace({ is_exclusive: true, subscription_tier: 'pro' }))
+
+    const badge = wrapper.get('[data-testid="exclusive-badge"]')
+    expect(badge.text()).toBe('Non')
+    expect(badge.classes()).toContain('bg-gray-100')
+  })
+
+  it('keeps the retired labels out of the edit form', async () => {
     const { wrapper } = await mountPage(makeFace({ is_exclusive: true }))
     await wrapper.get('[data-testid="edit-button"]').trigger('click')
 
@@ -231,7 +239,7 @@ describe('AdminFaceDetailPage', () => {
     expect((wrapper.get('[data-testid="edit-exclusive"]').element as HTMLInputElement).checked).toBe(true)
   })
 
-  it('says another Face just took the last place when the server refuses with EXCLUSIVITY_SLOTS_FULL', async () => {
+  it('turns the counter to 4 / 4 on EXCLUSIVITY_SLOTS_FULL without reloading, and keeps what was typed', async () => {
     mockUpdateFace.mockResolvedValue({
       success: false,
       message: 'Les données fournies ne sont pas valides',
@@ -239,17 +247,59 @@ describe('AdminFaceDetailPage', () => {
       errors: { is_exclusive: ['Les 4 places d\u2019exclusivité Élite sont prises. Retirez d\u2019abord une exclusivité.'] },
     })
     const { wrapper } = await mountPage(makeFace({ exclusive_slots_taken: 3 }))
+    mockFetchFace.mockClear()
     await wrapper.get('[data-testid="edit-button"]').trigger('click')
     await wrapper.get('[data-testid="edit-exclusive"]').setValue(true)
     await wrapper.get('[data-testid="edit-prenom"]').setValue('Nouveau prénom')
     await wrapper.get('[data-testid="save-button"]').trigger('click')
     await flushPromises()
 
-    expect(wrapper.get('[data-testid="exclusive-error"]').text()).toBe(
-      'Une autre Face vient de prendre la dernière place. Rechargez la fiche pour voir les places libres.',
+    expect(wrapper.get('[data-testid="edit-exclusive"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="exclusive-help"]').text()).toBe(
+      'Les 4 places sont prises. Retirez d\u2019abord l\u2019exclusivité d\u2019une autre Face.',
     )
+    expect(wrapper.get('[data-testid="exclusive-help"]').attributes('aria-live')).toBe('polite')
+    expect(wrapper.get('[data-testid="exclusive-error"]').text()).toBe('')
+    expect(wrapper.text()).not.toContain('Rechargez la fiche')
+    expect(wrapper.text()).not.toContain('Une autre Face vient de prendre')
+    expect(mockFetchFace).not.toHaveBeenCalled()
     expect((wrapper.get('[data-testid="edit-prenom"]').element as HTMLInputElement).value).toBe('Nouveau prénom')
-    expect((wrapper.get('[data-testid="edit-exclusive"]').element as HTMLInputElement).checked).toBe(true)
+    expect(wrapper.find('[data-testid="save-button"]').exists()).toBe(true)
+  })
+
+  it('unticks the refused exclusivity so a retry does not resend it', async () => {
+    mockUpdateFace
+      .mockResolvedValueOnce({
+        success: false,
+        message: 'Les données fournies ne sont pas valides',
+        code: 'EXCLUSIVITY_SLOTS_FULL',
+        errors: { is_exclusive: ['Les 4 places d\u2019exclusivité Élite sont prises. Retirez d\u2019abord une exclusivité.'] },
+      })
+      .mockResolvedValueOnce({ success: true, message: 'ok' })
+    const { wrapper } = await mountPage(makeFace({ exclusive_slots_taken: 3 }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+    await wrapper.get('[data-testid="edit-exclusive"]').setValue(true)
+    await wrapper.get('[data-testid="edit-prenom"]').setValue('Nouveau prénom')
+    await wrapper.get('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+
+    expect((wrapper.get('[data-testid="edit-exclusive"]').element as HTMLInputElement).checked).toBe(false)
+
+    await wrapper.get('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(mockUpdateFace).toHaveBeenLastCalledWith('1', { prenom: 'Nouveau prénom' })
+  })
+
+  it('labels the disabled exclusivity box without an opacity class and aligns the availability box at the start', async () => {
+    const { wrapper } = await mountPage(makeFace({ exclusive_slots_taken: 4 }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+
+    const exclusiveLabel = wrapper.get('label[for="edit-exclusive"]')
+    expect(wrapper.get('[data-testid="edit-exclusive"]').attributes('disabled')).toBeDefined()
+    expect(exclusiveLabel.classes()).toContain('cursor-not-allowed')
+    expect(exclusiveLabel.classes().filter((c) => c.startsWith('opacity-'))).toEqual([])
+    expect(wrapper.get('[data-testid="edit-availability"]').element.closest('label')?.classList.contains('self-start')).toBe(true)
   })
 
   it('keeps the server message when the grant is refused for another reason (lock held)', async () => {
