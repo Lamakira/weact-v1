@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Exceptions\CodedValidationException;
 use App\Http\Middleware\CachePublicResponse;
 use App\Http\Middleware\EnsureAdminRole;
 use App\Http\Middleware\EnsureAdminTwoFactorEnrolled;
@@ -157,7 +158,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return response()->json([
                 'error' => [
-                    'code' => 'VALIDATION_ERROR',
+                    'code' => $e instanceof CodedValidationException ? $e->errorCode->value : 'VALIDATION_ERROR',
                     'message' => $message,
                     'details' => $errors,
                 ],

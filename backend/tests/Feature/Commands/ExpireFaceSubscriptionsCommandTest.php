@@ -263,9 +263,9 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
         $this->assertSame('presentation.mp4', $face->fresh()->presentation_video);
     }
 
-    public function test_command_does_not_modify_faces_is_featured(): void
+    public function test_command_does_not_modify_faces_is_exclusive(): void
     {
-        $face = Face::factory()->create(['is_featured' => true]);
+        $face = Face::factory()->create(['is_exclusive' => true]);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
 
         FaceSubscription::factory()->active()->create([
@@ -276,7 +276,7 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
 
         $this->artisan('subscriptions:expire-faces')->assertExitCode(0);
 
-        $this->assertTrue($face->fresh()->is_featured);
+        $this->assertTrue($face->fresh()->is_exclusive);
     }
 
     public function test_command_writes_no_audit_row_for_expiration(): void
@@ -344,7 +344,7 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
     {
         $faceA = Face::factory()->create([
             'prenom' => 'Face A — stale active',
-            'is_featured' => false,
+            'is_exclusive' => false,
             'profile_photo' => null,
             'tarif_journalier' => null,
             'created_at' => now()->subDay(),
@@ -358,7 +358,7 @@ class ExpireFaceSubscriptionsCommandTest extends TestCase
 
         $faceB = Face::factory()->create([
             'prenom' => 'Face B — fresh active',
-            'is_featured' => false,
+            'is_exclusive' => false,
             'profile_photo' => null,
             'tarif_journalier' => null,
             'created_at' => now()->subHours(2),

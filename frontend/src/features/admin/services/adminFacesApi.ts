@@ -1,5 +1,5 @@
 import adminApiClient from './adminApiClient'
-import type { FaceVideoView } from '@/features/face/types'
+import type { FaceSubscriptionTier, FaceVideoView } from '@/features/face/types'
 
 /**
  * Face data from admin API
@@ -37,8 +37,10 @@ export interface AdminFaceData {
   categories: Array<{ value: string; label: string }>
   niches: Array<{ value: string; label: string }>
   is_available: boolean
-  is_featured: boolean
-  is_featured_by_subscription?: boolean
+  is_exclusive: boolean
+  subscription_tier?: FaceSubscriptionTier
+  exclusive_slots_taken?: number
+  exclusive_slots_max?: number
   profile_completion_percentage: number
   profile_completion_missing: Array<{ key: string; label: string }>
   profile_completion_is_complete: boolean
@@ -100,7 +102,7 @@ export interface UpdateAdminFaceForm {
   categories?: string[]
   niches?: string[]
   is_available?: boolean
-  is_featured?: boolean
+  is_exclusive?: boolean
 }
 
 /**

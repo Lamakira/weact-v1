@@ -52,7 +52,10 @@ function makeFace(overrides: Partial<AdminFaceData> = {}): AdminFaceData {
     categories: [{ value: 'acteur', label: 'Acteur' }],
     niches: [{ value: 'beaute', label: 'Beauté' }],
     is_available: true,
-    is_featured: false,
+    is_exclusive: false,
+    subscription_tier: 'elite',
+    exclusive_slots_taken: 1,
+    exclusive_slots_max: 4,
     profile_completion_percentage: 80,
     profile_completion_missing: [],
     profile_completion_is_complete: false,
@@ -131,28 +134,206 @@ describe('AdminFaceDetailPage', () => {
     mockToastInfo.mockReset()
   })
 
-  it('shows a featured badge in read-only mode when the face is featured', async () => {
-    const { wrapper } = await mountPage(makeFace({ is_featured: true }))
+  it('shows the exclusivity pill and the slot counter in read-only mode when the face is exclusive', async () => {
+    const { wrapper } = await mountPage(makeFace({ is_exclusive: true, exclusive_slots_taken: 3 }))
 
-    const badge = wrapper.get('[data-testid="featured-badge"]')
+    const badge = wrapper.get('[data-testid="exclusive-badge"]')
 
-    expect(badge.text()).toContain('En vedette')
+    expect(badge.text()).toContain('En tête de la page 1')
+    expect(wrapper.get('[data-testid="exclusive-slots"]').text()).toBe('3 / 4 places prises')
+    expect(wrapper.text()).toContain('Exclusivité Élite')
   })
 
-  it('includes is_featured in the update payload when the checkbox changes', async () => {
+  it('shows a grey "Non" pill and the slot counter when the face is not exclusive', async () => {
+    const { wrapper } = await mountPage(makeFace({ is_exclusive: false, exclusive_slots_taken: 2 }))
+
+    expect(wrapper.get('[data-testid="exclusive-badge"]').text()).toBe('Non')
+    expect(wrapper.get('[data-testid="exclusive-slots"]').text()).toBe('2 / 4 places prises')
+  })
+
+  it('shows a grey "Non" pill on a flagged face that is no longer Élite', async () => {
+    const { wrapper } = await mountPage(makeFace({ is_exclusive: true, subscription_tier: 'pro' }))
+
+    const badge = wrapper.get('[data-testid="exclusive-badge"]')
+    expect(badge.text()).toBe('Non')
+    expect(badge.classes()).toContain('bg-gray-100')
+  })
+
+  it('keeps the retired labels out of the edit form', async () => {
+    const { wrapper } = await mountPage(makeFace({ is_exclusive: true }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+
+    expect(wrapper.text()).not.toContain('En vedette')
+    expect(wrapper.text()).not.toContain('Mise en avant')
+  })
+
+  it('enables the checkbox with the slot counter as help text for an Elite face', async () => {
+    const { wrapper } = await mountPage(makeFace({ exclusive_slots_taken: 2 }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+
+    const checkbox = wrapper.get('[data-testid="edit-exclusive"]')
+    expect(checkbox.attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('[data-testid="exclusive-help"]').text()).toBe(
+      'Place la Face en tête de la page 1. 2 / 4 places prises.',
+    )
+    const helpId = wrapper.get('[data-testid="exclusive-help"]').attributes('id')
+    expect(checkbox.attributes('aria-describedby')).toContain(helpId)
+    expect(wrapper.get('label[for="edit-exclusive"]').text()).toContain('Exclusivité Élite')
+  })
+
+  it.each([
+    ['free', 'Découverte'],
+    ['starter', 'Starter'],
+    ['pro', 'Pro'],
+  ] as const)('disables the checkbox for a %s face and names its tier', async (tier, label) => {
+    const { wrapper } = await mountPage(makeFace({ subscription_tier: tier }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="edit-exclusive"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="exclusive-help"]').text()).toBe(
+      `Réservée aux Faces Élite. Cette Face est ${label}.`,
+    )
+  })
+
+  it('disables the checkbox when the 4 slots are taken and the face does not hold one', async () => {
+    const { wrapper } = await mountPage(makeFace({ exclusive_slots_taken: 4 }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="edit-exclusive"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="exclusive-help"]').text()).toBe(
+      'Les 4 places sont prises. Retirez d\u2019abord l\u2019exclusivité d\u2019une autre Face.',
+    )
+  })
+
+  it('lets a face that holds a slot uncheck it even when the 4 slots are taken', async () => {
+    mockUpdateFace.mockResolvedValue({ success: true, message: 'ok' })
+    const { wrapper } = await mountPage(makeFace({ is_exclusive: true, exclusive_slots_taken: 4 }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+
+    const checkbox = wrapper.get('[data-testid="edit-exclusive"]')
+    expect(checkbox.attributes('disabled')).toBeUndefined()
+    await checkbox.setValue(false)
+    await wrapper.get('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(mockUpdateFace).toHaveBeenCalledWith('1', { is_exclusive: false })
+  })
+
+  it('shows the server is_exclusive error under the checkbox and keeps the other edits', async () => {
+    mockUpdateFace.mockResolvedValue({
+      success: false,
+      message: 'Les données fournies sont invalides.',
+      errors: { is_exclusive: ['Les 4 places d\u2019exclusivité Élite sont prises. Retirez d\u2019abord une exclusivité.'] },
+    })
+    const { wrapper } = await mountPage(makeFace())
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+    await wrapper.get('[data-testid="edit-exclusive"]').setValue(true)
+    await wrapper.get('[data-testid="edit-prenom"]').setValue('Nouveau prénom')
+    await wrapper.get('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+
+    const error = wrapper.get('[data-testid="exclusive-error"]')
+    expect(error.text()).toContain('Les 4 places')
+    expect(error.attributes('aria-live')).toBe('polite')
+    expect((wrapper.get('[data-testid="edit-prenom"]').element as HTMLInputElement).value).toBe('Nouveau prénom')
+    expect((wrapper.get('[data-testid="edit-exclusive"]').element as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('turns the counter to 4 / 4 on EXCLUSIVITY_SLOTS_FULL without reloading, and keeps what was typed', async () => {
+    mockUpdateFace.mockResolvedValue({
+      success: false,
+      message: 'Les données fournies ne sont pas valides',
+      code: 'EXCLUSIVITY_SLOTS_FULL',
+      errors: { is_exclusive: ['Les 4 places d\u2019exclusivité Élite sont prises. Retirez d\u2019abord une exclusivité.'] },
+    })
+    const { wrapper } = await mountPage(makeFace({ exclusive_slots_taken: 3 }))
+    mockFetchFace.mockClear()
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+    await wrapper.get('[data-testid="edit-exclusive"]').setValue(true)
+    await wrapper.get('[data-testid="edit-prenom"]').setValue('Nouveau prénom')
+    await wrapper.get('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="edit-exclusive"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="exclusive-help"]').text()).toBe(
+      'Les 4 places sont prises. Retirez d\u2019abord l\u2019exclusivité d\u2019une autre Face.',
+    )
+    expect(wrapper.get('[data-testid="exclusive-help"]').attributes('aria-live')).toBe('polite')
+    expect(wrapper.get('[data-testid="exclusive-error"]').text()).toBe('')
+    expect(wrapper.text()).not.toContain('Rechargez la fiche')
+    expect(wrapper.text()).not.toContain('Une autre Face vient de prendre')
+    expect(mockFetchFace).not.toHaveBeenCalled()
+    expect((wrapper.get('[data-testid="edit-prenom"]').element as HTMLInputElement).value).toBe('Nouveau prénom')
+    expect(wrapper.find('[data-testid="save-button"]').exists()).toBe(true)
+  })
+
+  it('unticks the refused exclusivity so a retry does not resend it', async () => {
+    mockUpdateFace
+      .mockResolvedValueOnce({
+        success: false,
+        message: 'Les données fournies ne sont pas valides',
+        code: 'EXCLUSIVITY_SLOTS_FULL',
+        errors: { is_exclusive: ['Les 4 places d\u2019exclusivité Élite sont prises. Retirez d\u2019abord une exclusivité.'] },
+      })
+      .mockResolvedValueOnce({ success: true, message: 'ok' })
+    const { wrapper } = await mountPage(makeFace({ exclusive_slots_taken: 3 }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+    await wrapper.get('[data-testid="edit-exclusive"]').setValue(true)
+    await wrapper.get('[data-testid="edit-prenom"]').setValue('Nouveau prénom')
+    await wrapper.get('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+
+    expect((wrapper.get('[data-testid="edit-exclusive"]').element as HTMLInputElement).checked).toBe(false)
+
+    await wrapper.get('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(mockUpdateFace).toHaveBeenLastCalledWith('1', { prenom: 'Nouveau prénom' })
+  })
+
+  it('labels the disabled exclusivity box without an opacity class and aligns the availability box at the start', async () => {
+    const { wrapper } = await mountPage(makeFace({ exclusive_slots_taken: 4 }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+
+    const exclusiveLabel = wrapper.get('label[for="edit-exclusive"]')
+    expect(wrapper.get('[data-testid="edit-exclusive"]').attributes('disabled')).toBeDefined()
+    expect(exclusiveLabel.classes()).toContain('cursor-not-allowed')
+    expect(exclusiveLabel.classes().filter((c) => c.startsWith('opacity-'))).toEqual([])
+    expect(wrapper.get('[data-testid="edit-availability"]').element.closest('label')?.classList.contains('self-start')).toBe(true)
+  })
+
+  it('keeps the server message when the grant is refused for another reason (lock held)', async () => {
+    mockUpdateFace.mockResolvedValue({
+      success: false,
+      message: 'Les données fournies ne sont pas valides',
+      code: 'VALIDATION_ERROR',
+      errors: { is_exclusive: ['Une autre exclusivité Élite est en cours d\'attribution. Réessayez dans un instant.'] },
+    })
+    const { wrapper } = await mountPage(makeFace({ exclusive_slots_taken: 3 }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+    await wrapper.get('[data-testid="edit-exclusive"]').setValue(true)
+    await wrapper.get('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="exclusive-error"]').text()).toBe(
+      'Une autre exclusivité Élite est en cours d\'attribution. Réessayez dans un instant.',
+    )
+  })
+
+  it('includes is_exclusive in the update payload when the checkbox changes', async () => {
     mockUpdateFace.mockResolvedValue({
       success: true,
       message: 'Profil Face mis à jour avec succès',
     })
 
-    const { wrapper } = await mountPage(makeFace({ is_featured: false }))
+    const { wrapper } = await mountPage(makeFace({ is_exclusive: false }))
 
     await wrapper.get('[data-testid="edit-button"]').trigger('click')
-    await wrapper.get('[data-testid="edit-featured"]').setValue(true)
+    await wrapper.get('[data-testid="edit-exclusive"]').setValue(true)
     await wrapper.get('[data-testid="save-button"]').trigger('click')
     await flushPromises()
 
-    expect(mockUpdateFace).toHaveBeenCalledWith('1', { is_featured: true })
+    expect(mockUpdateFace).toHaveBeenCalledWith('1', { is_exclusive: true })
     expect(mockToastSuccess).toHaveBeenCalled()
   })
 
@@ -241,16 +422,16 @@ describe('AdminFaceDetailPage', () => {
       makeFace({
         pays: 'France',
         ville: 'Paris',
-        is_featured: false,
+        is_exclusive: false,
       }),
     )
 
     await wrapper.get('[data-testid="edit-button"]').trigger('click')
-    await wrapper.get('[data-testid="edit-featured"]').setValue(true)
+    await wrapper.get('[data-testid="edit-exclusive"]').setValue(true)
     await wrapper.get('[data-testid="save-button"]').trigger('click')
     await flushPromises()
 
-    expect(mockUpdateFace).toHaveBeenCalledWith('1', { is_featured: true })
+    expect(mockUpdateFace).toHaveBeenCalledWith('1', { is_exclusive: true })
   })
 
   it('liste les vidéos du portfolio et marque la vidéo verrouillée', async () => {

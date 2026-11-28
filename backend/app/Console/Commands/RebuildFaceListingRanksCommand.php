@@ -7,6 +7,7 @@ namespace App\Console\Commands;
 use App\Enums\FaceSubscriptionTier;
 use App\Models\Face;
 use App\Services\FaceEntitlementService;
+use App\Services\FaceExclusivityService;
 use App\Services\FaceListingRankingService;
 use App\Support\FaceListingRotation;
 use Illuminate\Console\Command;
@@ -42,7 +43,7 @@ class RebuildFaceListingRanksCommand extends Command
      * becomes MAX(generation) at commit (atomic switch), and any failure
      * rolls back so the previous generation keeps being served.
      */
-    public function handle(FaceListingRankingService $ranking, FaceEntitlementService $entitlements): int
+    public function handle(FaceListingRankingService $ranking, FaceEntitlementService $entitlements, FaceExclusivityService $exclusivity): int
     {
         // ONE writer of face_listing_ranks at a time — the SAME named lock as
         // faces:rotate-listing-ranks. The scheduler's withoutOverlapping()
@@ -64,10 +65,19 @@ class RebuildFaceListingRanksCommand extends Command
             $weights = FaceListingRotation::tierWeightsByPriority($entitlements);
             $queues = $this->buildTierQueues($ranking, array_keys($weights));
 
-            $sequence = $ranking->buildSequence($queues, $weights);
+            // Exclusivité Élite (ADR 0001): the effective exclusivities leave
+            // their queue, head the Élite queue, and are lifted to ranks 1..k
+            // after the interleave. Filtered searches and the kill switch
+            // serve this generation, so it must already carry them on top.
+            [$sequence, $queues] = $ranking->rankWithExclusives(
+                $queues,
+                $weights,
+                $exclusivity->effectiveExclusiveIds(),
+            );
             // Snapshot of the per-tier queues, persisted alongside the
             // generation: it is the ONLY input of faces:rotate-listing-ranks,
-            // which may not re-read Faces nor subscriptions.
+            // which re-reads neither Faces nor subscriptions (only the
+            // effective exclusivities, see its handle()).
             $tierPositions = $this->tierPositions($queues);
 
             [$generation, $rankedCount, $stampedCount] = DB::transaction(function () use ($sequence, $ranking, $tierPositions): array {
@@ -197,7 +207,7 @@ class RebuildFaceListingRanksCommand extends Command
      *
      * A Face's tier is its `activeSubscription` plan's tier, Free otherwise —
      * the canonical plan→tier mapping, same as FaceEntitlementService. The
-     * queues only need 4 scalar fields, so only those columns are hydrated
+     * queues only need 3 scalar fields, so only those columns are hydrated
      * (the ofMany aggregation subquery is self-contained: the constrained
      * eager-load columns MUST be qualified but need not include
      * status/expires_at).
@@ -214,7 +224,7 @@ class RebuildFaceListingRanksCommand extends Command
         // deactivations would shift an OFFSET and silently skip Faces.
         Face::query()
             ->publiclyListable()
-            ->select(['id', 'is_featured', 'profile_photo', 'last_page1_exposed_at'])
+            ->select(['id', 'profile_photo', 'last_page1_exposed_at'])
             ->with(['activeSubscription' => fn ($q) => $q->select(
                 'face_subscriptions.id',
                 'face_subscriptions.face_id',
@@ -227,7 +237,6 @@ class RebuildFaceListingRanksCommand extends Command
 
                     $grouped[$tier][] = [
                         'id' => (int) $face->id,
-                        'is_featured' => (bool) $face->is_featured,
                         'has_photo' => $face->profile_photo !== null,
                         'last_page1_exposed_at' => $face->last_page1_exposed_at,
                     ];

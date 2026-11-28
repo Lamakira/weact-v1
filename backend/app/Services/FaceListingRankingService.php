@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\FaceSubscriptionTier;
 use DateTimeInterface;
 use RuntimeException;
 
@@ -131,17 +132,139 @@ class FaceListingRankingService
     }
 
     /**
+     * Rank the per-tier queues with the Exclusivités Élite on top (ADR 0001):
+     * the effective exclusivities leave their queue, head the Élite queue,
+     * the queues are interleaved (buildSequence, with its upward
+     * redistribution), and the exclusive block is lifted to ranks 1..k.
+     *
+     * The ONE chain shared by the nightly rebuild and every carousel tick.
+     * The tick passes $rotate to permute the exclusive block and the
+     * remaining queues once separated, before they are put back together.
+     *
+     * @param  array<string, list<int>>  $queues  tier => ordered face IDs
+     * @param  array<string, mixed>  $weights  tier => listing quota (see buildSequence())
+     * @param  list<int>  $exclusiveIds  effective exclusivities (flag set AND Élite live)
+     * @param  (callable(list<int>, array<string, list<int>>): array{list<int>, array<string, list<int>>})|null  $rotate  (exclusive block, queues without it) => the same, rotated
+     * @return array{list<int>, array<string, list<int>>} the ranked sequence, the queues it was interleaved from (exclusives heading the Élite queue)
+     *
+     * @throws RuntimeException on invalid quotas (see buildSequence())
+     */
+    public function rankWithExclusives(array $queues, array $weights, array $exclusiveIds, ?callable $rotate = null): array
+    {
+        [$exclusiveBlock, $queues] = $this->separateExclusives($queues, $exclusiveIds, FaceExclusivityService::MAX_SLOTS);
+
+        if ($rotate !== null) {
+            [$exclusiveBlock, $queues] = $rotate($exclusiveBlock, $queues);
+        }
+
+        $queues = $this->placeExclusivesAtHead($queues, $exclusiveBlock, FaceSubscriptionTier::Elite->value);
+        $sequence = $this->liftExclusives($this->buildSequence($queues, $weights), $exclusiveBlock);
+
+        return [$sequence, $queues];
+    }
+
+    /**
+     * Take the effective exclusivities out of the queue they sit in.
+     *
+     * Only ids actually present in the queues are taken: an exclusivity
+     * absent from them (Face created after the nightly generation, or not
+     * publicly listable) has no rank to lift and waits for the next night.
+     * The block is ordered by id ascending — the same canonical order for the
+     * nightly rebuild and for every tick — and capped at $limit.
+     *
+     * @param  array<string, list<int>>  $queues  tier => ordered face IDs
+     * @param  list<int>  $exclusiveIds
+     * @return array{list<int>, array<string, list<int>>} the exclusive block, the queues without it
+     */
+    private function separateExclusives(array $queues, array $exclusiveIds, int $limit): array
+    {
+        $present = [];
+        foreach ($queues as $faceIds) {
+            foreach ($faceIds as $faceId) {
+                $present[$faceId] = true;
+            }
+        }
+
+        $exclusiveBlock = array_values(array_filter(
+            array_unique($exclusiveIds),
+            fn (int $faceId): bool => isset($present[$faceId]),
+        ));
+        sort($exclusiveBlock);
+        $exclusiveBlock = array_slice($exclusiveBlock, 0, max(0, $limit));
+
+        if ($exclusiveBlock === []) {
+            return [[], $queues];
+        }
+
+        $taken = array_flip($exclusiveBlock);
+        $rest = [];
+        foreach ($queues as $tier => $faceIds) {
+            $rest[$tier] = array_values(array_filter(
+                $faceIds,
+                fn (int $faceId): bool => ! isset($taken[$faceId]),
+            ));
+        }
+
+        return [$exclusiveBlock, $rest];
+    }
+
+    /**
+     * Put the exclusive block at the head of the top tier's queue. The
+     * persisted tier snapshot is derived from these queues, so an exclusivity
+     * is written with that tier even when its nightly tier was lower (Face
+     * promoted during the day).
+     *
+     * @param  array<string, list<int>>  $queues  tier => ordered face IDs, exclusives already removed
+     * @param  list<int>  $exclusiveBlock
+     * @return array<string, list<int>>
+     */
+    private function placeExclusivesAtHead(array $queues, array $exclusiveBlock, string $topTier): array
+    {
+        if ($exclusiveBlock === []) {
+            return $queues;
+        }
+
+        $queues[$topTier] = [...$exclusiveBlock, ...($queues[$topTier] ?? [])];
+
+        return $queues;
+    }
+
+    /**
+     * Lift the exclusive block to ranks 1..k of an interleaved sequence.
+     *
+     * Heading the top tier's queue, the exclusives were already drawn within
+     * the page-1 window: lifting them only reorders page 1, it never changes
+     * which Faces it holds nor the per-tier slot counts.
+     *
+     * @param  list<int>  $sequence
+     * @param  list<int>  $exclusiveBlock
+     * @return list<int>
+     */
+    private function liftExclusives(array $sequence, array $exclusiveBlock): array
+    {
+        if ($exclusiveBlock === []) {
+            return $sequence;
+        }
+
+        $taken = array_flip($exclusiveBlock);
+
+        return [...$exclusiveBlock, ...array_values(array_filter(
+            $sequence,
+            fn (int $faceId): bool => ! isset($taken[$faceId]),
+        ))];
+    }
+
+    /**
      * Order ONE tier queue according to the fairness rules:
      *
-     *   1. `is_featured` Faces pinned first (admin boost);
-     *   2. then Faces WITH a profile photo;
-     *   3. then photo-less Faces relegated to the back;
+     *   1. Faces WITH a profile photo first;
+     *   2. then photo-less Faces relegated to the back;
      *
      * each block LRU-ordered by `last_page1_exposed_at` ASC with NULL (never
      * exposed — new-profile boost) first, final tiebreak `id` ASC everywhere
      * (strict total order).
      *
-     * @param  list<array{id: int, is_featured: bool, has_photo: bool, last_page1_exposed_at: DateTimeInterface|null}>  $faces
+     * @param  list<array{id: int, has_photo: bool, last_page1_exposed_at: DateTimeInterface|null}>  $faces
      * @return list<int> ordered face IDs
      */
     public function orderTierQueue(array $faces): array
@@ -168,16 +291,12 @@ class FaceListingRankingService
     /**
      * Comparable sort key implementing the tier-queue total order.
      *
-     * @param  array{id: int, is_featured: bool, has_photo: bool, last_page1_exposed_at: DateTimeInterface|null}  $face
+     * @param  array{id: int, has_photo: bool, last_page1_exposed_at: DateTimeInterface|null}  $face
      * @return array{int, int, int}
      */
     private function queueSortKey(array $face): array
     {
-        $block = match (true) {
-            $face['is_featured'] => 0,
-            $face['has_photo'] => 1,
-            default => 2,
-        };
+        $block = $face['has_photo'] ? 0 : 1;
 
         // NULL exposure = never on page 1 = head of its block.
         $exposedAt = $face['last_page1_exposed_at']?->getTimestamp() ?? PHP_INT_MIN;

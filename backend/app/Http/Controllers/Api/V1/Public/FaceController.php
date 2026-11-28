@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1\Public;
 use App\Constants\BeninCities;
 use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
+use App\Enums\FaceSubscriptionTier;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Public\ListFacesRequest;
 use App\Http\Resources\PublicFaceProfileResource;
@@ -33,6 +34,18 @@ class FaceController extends Controller
      * Nombre maximal de mots pris en compte dans la recherche.
      */
     private const MAX_SEARCH_WORDS = 5;
+
+    /**
+     * Ordre des paliers à l'intérieur d'une page (priorité décroissante).
+     * Volontairement figé ici : la lecture du listing ne relit pas la config
+     * des priorités (le rang matérialisé fait foi, cf. le test dédié).
+     */
+    private const PAGE_TIER_ORDER = [
+        FaceSubscriptionTier::Elite->value,
+        FaceSubscriptionTier::Pro->value,
+        FaceSubscriptionTier::Starter->value,
+        FaceSubscriptionTier::Free->value,
+    ];
 
     /**
      * Display a paginated list of public Faces.
@@ -144,12 +157,18 @@ class FaceController extends Controller
             ->orderByRaw('face_listing_ranks.rank is null')
             ->orderBy('face_listing_ranks.rank')
             ->orderBy('faces.id', 'desc')
-            ->paginate($perPage, ['faces.id'], 'page', $page);
+            ->paginate($perPage, ['faces.id', 'face_listing_ranks.tier', 'face_listing_ranks.rank'], 'page', $page);
 
-        /** @var list<int> $ids */
-        $ids = $paginator->getCollection()->pluck('id')->map(fn ($id): int => (int) $id)->all();
+        $rows = [];
+        foreach ($paginator->items() as $face) {
+            $rows[] = [
+                'id' => (int) $face->getAttribute('id'),
+                'tier' => $face->getAttribute('tier'),
+                'ranked' => $face->getAttribute('rank') !== null,
+            ];
+        }
 
-        return [$ids, $paginator->total()];
+        return [$this->orderPageByTier($rows), $paginator->total()];
     }
 
     /**
@@ -182,14 +201,14 @@ class FaceController extends Controller
             ->orderByDesc('r.face_id')
             ->offset($offset)
             ->limit($perPage)
-            ->pluck('r.face_id')
-            ->map(fn ($id): int => (int) $id)
+            ->get(['r.face_id', 'r.tier'])
+            ->map(fn ($row): array => ['id' => (int) $row->face_id, 'tier' => $row->tier, 'ranked' => true])
             ->all();
 
         $missing = $perPage - count($rankedIds);
 
         if ($missing <= 0) {
-            return [$rankedIds, $total];
+            return [$this->orderPageByTier($rankedIds), $total];
         }
 
         // The ranked part is exhausted. When this page already holds ranked
@@ -222,7 +241,35 @@ class FaceController extends Controller
             ->map(fn ($id): int => (int) $id)
             ->all();
 
-        return [[...$rankedIds, ...$unrankedIds], $total];
+        // Unranked Faces have no tier and stay at the end of the page.
+        return [[...$this->orderPageByTier($rankedIds), ...$unrankedIds], $total];
+    }
+
+    /**
+     * Reorder the Faces of ONE page by tier (élite, pro, starter, free), then
+     * by their current relative order (= rank). Which Faces sit on the page is
+     * already decided: only their position changes. Unranked Faces and rows
+     * without a materialized tier go after the tiered ones, in place.
+     *
+     * @param  list<array{id: int, tier: string|null, ranked: bool}>  $rows  in rank order
+     * @return list<int>
+     */
+    private function orderPageByTier(array $rows): array
+    {
+        $tierIndex = static function (array $row): int {
+            if (! $row['ranked'] || $row['tier'] === null) {
+                return count(self::PAGE_TIER_ORDER) + 1;
+            }
+
+            $index = array_search($row['tier'], self::PAGE_TIER_ORDER, true);
+
+            return $index === false ? count(self::PAGE_TIER_ORDER) : $index;
+        };
+
+        // usort is stable (PHP 8): equal tiers keep their rank order.
+        usort($rows, fn (array $a, array $b): int => $tierIndex($a) <=> $tierIndex($b));
+
+        return array_map(fn (array $row): int => $row['id'], $rows);
     }
 
     /**

@@ -76,7 +76,7 @@ class UpdateAdminFaceRequest extends FormRequest
             'niches' => ['sometimes', 'nullable', 'array'],
             'niches.*' => [new Enum(FaceNiche::class)],
             'is_available' => ['sometimes', 'boolean'],
-            'is_featured' => ['sometimes', 'boolean'],
+            'is_exclusive' => ['sometimes', 'boolean'],
         ];
     }
 
@@ -101,7 +101,7 @@ class UpdateAdminFaceRequest extends FormRequest
             'niches.array' => 'Les niches doivent être un tableau.',
             'niches.*.Illuminate\Validation\Rules\Enum' => 'La niche sélectionnée est invalide.',
             'is_available.boolean' => 'Le statut de disponibilité doit être vrai ou faux.',
-            'is_featured.boolean' => 'Le statut de mise en vedette doit être vrai ou faux.',
+            'is_exclusive.boolean' => 'Le statut d\'exclusivité Élite doit être vrai ou faux.',
         ];
     }
 

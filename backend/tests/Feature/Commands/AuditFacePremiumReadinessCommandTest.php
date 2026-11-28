@@ -434,7 +434,7 @@ class AuditFacePremiumReadinessCommandTest extends TestCase
         ]);
 
         $beforeSubscriptions = FaceSubscription::query()->orderBy('id')->get()->toArray();
-        $beforeFaces = Face::query()->orderBy('id')->get(['id', 'is_featured', 'presentation_video'])->toArray();
+        $beforeFaces = Face::query()->orderBy('id')->get(['id', 'is_exclusive', 'presentation_video'])->toArray();
         $beforePhotos = FacePhoto::query()->orderBy('id')->get()->toArray();
         $beforeVideos = FaceVideo::query()->orderBy('id')->get()->toArray();
         $beforeAuditRows = DB::table('face_subscription_audits')->orderBy('id')->get()->toArray();
@@ -443,7 +443,7 @@ class AuditFacePremiumReadinessCommandTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertEquals($beforeSubscriptions, FaceSubscription::query()->orderBy('id')->get()->toArray());
-        $this->assertEquals($beforeFaces, Face::query()->orderBy('id')->get(['id', 'is_featured', 'presentation_video'])->toArray());
+        $this->assertEquals($beforeFaces, Face::query()->orderBy('id')->get(['id', 'is_exclusive', 'presentation_video'])->toArray());
         $this->assertEquals($beforePhotos, FacePhoto::query()->orderBy('id')->get()->toArray());
         $this->assertEquals($beforeVideos, FaceVideo::query()->orderBy('id')->get()->toArray());
         $this->assertEquals($beforeAuditRows, DB::table('face_subscription_audits')->orderBy('id')->get()->toArray());

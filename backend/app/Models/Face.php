@@ -39,7 +39,7 @@ use Illuminate\Database\Eloquent\Relations\MorphOne;
  * @property int|null $tarif_horaire
  * @property int|null $tarif_journalier
  * @property bool $show_age
- * @property bool $is_featured
+ * @property bool $is_exclusive
  * @property string|null $presentation_video
  * @property \App\Enums\FaceGender|null $sexe
  * @property \Carbon\CarbonInterface|null $date_naissance
@@ -106,7 +106,7 @@ class Face extends Model
         'tarif_horaire',
         'tarif_journalier',
         'is_available',
-        'is_featured',
+        'is_exclusive',
         'show_age',
         'rating_penalty',
     ];
@@ -123,7 +123,7 @@ class Face extends Model
         'categories' => 'array',
         'niches' => 'array',
         'is_available' => 'boolean',
-        'is_featured' => 'boolean',
+        'is_exclusive' => 'boolean',
         'show_age' => 'boolean',
         'rating_penalty' => 'float',
         'last_page1_exposed_at' => 'datetime',
@@ -341,6 +341,18 @@ class Face extends Model
     public function scopePubliclyListable(Builder $query): Builder
     {
         return $query->whereHas('user', fn ($q) => $q->where('is_active', true));
+    }
+
+    /**
+     * Faces carrying the Exclusivité Élite flag (effective or not: the Élite
+     * live check is FaceExclusivityService's job).
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeExclusive(Builder $query): Builder
+    {
+        return $query->where('is_exclusive', true);
     }
 
     /**
