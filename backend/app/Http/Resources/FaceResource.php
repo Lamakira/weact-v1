@@ -9,6 +9,7 @@ use App\Models\Admin;
 use App\Models\Face;
 use App\Models\FaceVideo;
 use App\Services\FaceEntitlementService;
+use App\Services\FaceExclusivityService;
 use App\ValueObjects\TierCapabilities;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -24,6 +25,19 @@ class FaceResource extends JsonResource
      * Google responses, where `$request->user()` is not reliable).
      */
     private bool $renderedForOwner = false;
+
+    /**
+     * Admin only: precomputed exclusivity slot count, so a listing page
+     * counts once instead of once per row. Null = counted on render.
+     */
+    private ?int $exclusiveSlotsTaken = null;
+
+    public function withExclusiveSlotsTaken(int $taken): self
+    {
+        $this->exclusiveSlotsTaken = $taken;
+
+        return $this;
+    }
 
     public static function forOwner(Face $face): self
     {
@@ -88,10 +102,12 @@ class FaceResource extends JsonResource
             'formatted_tarif_horaire' => $this->formatted_tarif_horaire,
             'formatted_tarif_journalier' => $this->formatted_tarif_journalier,
             'is_available' => $this->is_available,
-            'is_featured' => $this->is_featured,
+            'is_exclusive' => $this->is_exclusive,
             'has_elite_badge' => $capabilities->hasEliteBadge,
             ...($viewer === 'admin' ? [
                 'subscription_tier' => $capabilities->tier->value,
+                'exclusive_slots_taken' => $this->exclusiveSlotsTaken ?? app(FaceExclusivityService::class)->slotsTaken(),
+                'exclusive_slots_max' => FaceExclusivityService::MAX_SLOTS,
             ] : []),
             'availability_badge' => $this->availability_badge,
             'availability_badge_color' => $this->availability_badge_color,

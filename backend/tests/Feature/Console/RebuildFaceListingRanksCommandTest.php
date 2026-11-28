@@ -90,17 +90,19 @@ class RebuildFaceListingRanksCommandTest extends TestCase
         $this->assertSame([$elite->id, $free->id, $expiredElite->id], $this->generationOrder(1));
     }
 
-    public function test_featured_and_photo_less_rules_shape_each_tier_queue(): void
+    public function test_photo_less_rule_shapes_each_tier_queue_and_the_exclusive_flag_does_not(): void
     {
-        // All free tier: sequence = free queue order.
+        // All free tier: sequence = free queue order. The exclusivity flag
+        // no longer pins a Face at the head of its tier queue (#244): the
+        // exclusive photo-less Face stays behind the Face with a photo.
         $photoLess = $this->makeFace(['profile_photo' => null]);
         $withPhoto = $this->makeFace(['profile_photo' => 'p.jpg']);
-        $featured = $this->makeFace(['is_featured' => true, 'profile_photo' => null]);
+        $exclusive = $this->makeFace(['is_exclusive' => true, 'profile_photo' => null]);
 
         $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
 
         $this->assertSame(
-            [$featured->id, $withPhoto->id, $photoLess->id],
+            [$withPhoto->id, $photoLess->id, $exclusive->id],
             $this->generationOrder(1),
         );
     }

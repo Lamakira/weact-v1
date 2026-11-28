@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateAdminFaceRequest;
 use App\Http\Resources\FaceResource;
 use App\Models\Face;
+use App\Services\FaceExclusivityService;
 use App\Services\Ugc\UgcMediaCleanupService;
 use App\Support\AccountDeletionGuard;
 use App\Support\LockedEscrowGuard;
@@ -22,7 +23,7 @@ class FaceController extends Controller
     /**
      * List all faces with pagination, search, and filters.
      */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request, FaceExclusivityService $exclusivity): JsonResponse
     {
         $query = Face::with(['user', 'activeSubscription'])->withRatingAggregates()->withActingVideoFlag()->orderBy('created_at', 'desc');
 
@@ -51,8 +52,15 @@ class FaceController extends Controller
 
         $faces = $query->paginate(15);
 
+        // One count for the whole page instead of one per row.
+        $exclusiveSlotsTaken = $exclusivity->slotsTaken();
+        $resources = FaceResource::collection($faces);
+        $resources->collection->each(
+            fn (FaceResource $resource) => $resource->withExclusiveSlotsTaken($exclusiveSlotsTaken)
+        );
+
         return response()->json([
-            'data' => FaceResource::collection($faces),
+            'data' => $resources,
             'meta' => [
                 'current_page' => $faces->currentPage(),
                 'last_page' => $faces->lastPage(),
@@ -76,11 +84,9 @@ class FaceController extends Controller
     /**
      * Update a face's admin-editable fields.
      */
-    public function update(UpdateAdminFaceRequest $request, Face $face): JsonResponse
+    public function update(UpdateAdminFaceRequest $request, Face $face, FaceExclusivityService $exclusivity): JsonResponse
     {
-        $validated = $request->validated();
-
-        $face->update($validated);
+        $exclusivity->updateFace($face, $request->validated());
 
         return response()->json([
             'data' => new FaceResource($this->loadDetailRelations($face->refresh())),

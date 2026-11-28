@@ -197,7 +197,7 @@ class RebuildFaceListingRanksCommand extends Command
      *
      * A Face's tier is its `activeSubscription` plan's tier, Free otherwise —
      * the canonical plan→tier mapping, same as FaceEntitlementService. The
-     * queues only need 4 scalar fields, so only those columns are hydrated
+     * queues only need 3 scalar fields, so only those columns are hydrated
      * (the ofMany aggregation subquery is self-contained: the constrained
      * eager-load columns MUST be qualified but need not include
      * status/expires_at).
@@ -214,7 +214,7 @@ class RebuildFaceListingRanksCommand extends Command
         // deactivations would shift an OFFSET and silently skip Faces.
         Face::query()
             ->publiclyListable()
-            ->select(['id', 'is_featured', 'profile_photo', 'last_page1_exposed_at'])
+            ->select(['id', 'profile_photo', 'last_page1_exposed_at'])
             ->with(['activeSubscription' => fn ($q) => $q->select(
                 'face_subscriptions.id',
                 'face_subscriptions.face_id',
@@ -227,7 +227,6 @@ class RebuildFaceListingRanksCommand extends Command
 
                     $grouped[$tier][] = [
                         'id' => (int) $face->id,
-                        'is_featured' => (bool) $face->is_featured,
                         'has_photo' => $face->profile_photo !== null,
                         'last_page1_exposed_at' => $face->last_page1_exposed_at,
                     ];

@@ -40,7 +40,7 @@ function makeFace(overrides: Partial<AdminFaceData> = {}): AdminFaceData {
     categories: [],
     niches: [],
     is_available: true,
-    is_featured: false,
+    is_exclusive: false,
     profile_completion_percentage: 80,
     profile_completion_missing: [],
     profile_completion_is_complete: false,

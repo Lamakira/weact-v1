@@ -31,8 +31,8 @@ use Tests\TestCase;
  *   - 12 paid × non-active cells (3 plans × 4 non-active states; every cell
  *     falls back to Free quota on every lens — that's the heart of the pin)
  *   - 1 chained-renewal cell (Expired + Active row → resolves to the Active tier)
- *   - 1 admin-featured-without-tier cell (`is_featured` is a listing flag, not an entitlement)
- *   - 1 admin-featured-with-active-Elite cell (manual + paid compose without subtraction)
+ *   - 1 admin-exclusive-without-tier cell (`is_exclusive` is a listing flag, not an entitlement)
+ *   - 1 admin-exclusive-with-active-Elite cell (manual + paid compose without subtraction)
  *   - 1 admin-cancel-no-storage-delete cell (extended with UGC video seed)
  *   - 1 UGC quota Pro → Elite flip cell
  *
@@ -83,10 +83,10 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
     private function seedFace(
         ?FaceSubscriptionPlan $plan = null,
         ?string $stateFactory = null,
-        bool $isFeatured = false,
+        bool $isExclusive = false,
     ): array {
         $face = Face::factory()->create([
-            'is_featured' => $isFeatured,
+            'is_exclusive' => $isExclusive,
             'presentation_video' => self::SEEDED_PRESENTATION_FILENAME,
         ]);
 
@@ -147,11 +147,11 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
     /**
      * @return array{face: Face, user: User, sub: ?FaceSubscription}
      */
-    private function seedFeaturedFace(
+    private function seedExclusiveFace(
         ?FaceSubscriptionPlan $plan = null,
         ?string $stateFactory = null,
     ): array {
-        return $this->seedFace($plan, $stateFactory, isFeatured: true);
+        return $this->seedFace($plan, $stateFactory, isExclusive: true);
     }
 
     private function actingProducer(): User
@@ -550,19 +550,19 @@ class FaceSubscriptionRegressionMatrixTest extends TestCase
     }
 
     // -------------------------------------------------------------------
-    // Admin-featured boundary — `is_featured` is a listing flag, NOT an entitlement.
+    // Admin-exclusive boundary — `is_exclusive` is a listing flag, NOT an entitlement.
     // -------------------------------------------------------------------
 
-    public function test_public_lens_does_not_grant_tier_to_admin_manually_featured_free_face(): void
+    public function test_public_lens_does_not_grant_tier_to_admin_exclusive_free_face(): void
     {
-        ['face' => $face] = $this->seedFeaturedFace(null, null);
+        ['face' => $face] = $this->seedExclusiveFace(null, null);
 
         $this->assertPublicLens($face, FaceSubscriptionTier::Free);
     }
 
-    public function test_public_lens_admin_featured_with_active_elite_subscription_sees_elite_quota(): void
+    public function test_public_lens_admin_exclusive_with_active_elite_subscription_sees_elite_quota(): void
     {
-        ['face' => $face] = $this->seedFeaturedFace(FaceSubscriptionPlan::Elite);
+        ['face' => $face] = $this->seedExclusiveFace(FaceSubscriptionPlan::Elite);
 
         $this->assertPublicLens($face, FaceSubscriptionTier::Elite);
     }
