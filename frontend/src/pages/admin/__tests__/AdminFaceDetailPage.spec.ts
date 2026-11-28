@@ -53,6 +53,9 @@ function makeFace(overrides: Partial<AdminFaceData> = {}): AdminFaceData {
     niches: [{ value: 'beaute', label: 'Beauté' }],
     is_available: true,
     is_exclusive: false,
+    subscription_tier: 'elite',
+    exclusive_slots_taken: 1,
+    exclusive_slots_max: 4,
     profile_completion_percentage: 80,
     profile_completion_missing: [],
     profile_completion_is_complete: false,
@@ -131,12 +134,101 @@ describe('AdminFaceDetailPage', () => {
     mockToastInfo.mockReset()
   })
 
-  it('shows a featured badge in read-only mode when the face is featured', async () => {
+  it('shows the exclusivity pill and the slot counter in read-only mode when the face is exclusive', async () => {
+    const { wrapper } = await mountPage(makeFace({ is_exclusive: true, exclusive_slots_taken: 3 }))
+
+    const badge = wrapper.get('[data-testid="exclusive-badge"]')
+
+    expect(badge.text()).toContain('En tête de la page 1')
+    expect(wrapper.get('[data-testid="exclusive-slots"]').text()).toBe('3 / 4 places prises')
+    expect(wrapper.text()).toContain('Exclusivité Élite')
+  })
+
+  it('shows a grey "Non" pill and the slot counter when the face is not exclusive', async () => {
+    const { wrapper } = await mountPage(makeFace({ is_exclusive: false, exclusive_slots_taken: 2 }))
+
+    expect(wrapper.get('[data-testid="exclusive-badge"]').text()).toBe('Non')
+    expect(wrapper.get('[data-testid="exclusive-slots"]').text()).toBe('2 / 4 places prises')
+  })
+
+  it('never shows the old "En vedette" or "Mise en avant" wording', async () => {
     const { wrapper } = await mountPage(makeFace({ is_exclusive: true }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
 
-    const badge = wrapper.get('[data-testid="featured-badge"]')
+    expect(wrapper.text()).not.toContain('En vedette')
+    expect(wrapper.text()).not.toContain('Mise en avant')
+  })
 
-    expect(badge.text()).toContain('En vedette')
+  it('enables the checkbox with the slot counter as help text for an Elite face', async () => {
+    const { wrapper } = await mountPage(makeFace({ exclusive_slots_taken: 2 }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+
+    const checkbox = wrapper.get('[data-testid="edit-exclusive"]')
+    expect(checkbox.attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('[data-testid="exclusive-help"]').text()).toBe(
+      'Place la Face en tête de la page 1. 2 / 4 places prises.',
+    )
+    const helpId = wrapper.get('[data-testid="exclusive-help"]').attributes('id')
+    expect(checkbox.attributes('aria-describedby')).toContain(helpId)
+    expect(wrapper.get('label[for="edit-exclusive"]').text()).toContain('Exclusivité Élite')
+  })
+
+  it.each([
+    ['free', 'Découverte'],
+    ['starter', 'Starter'],
+    ['pro', 'Pro'],
+  ] as const)('disables the checkbox for a %s face and names its tier', async (tier, label) => {
+    const { wrapper } = await mountPage(makeFace({ subscription_tier: tier }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="edit-exclusive"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="exclusive-help"]').text()).toBe(
+      `Réservée aux Faces Élite. Cette Face est ${label}.`,
+    )
+  })
+
+  it('disables the checkbox when the 4 slots are taken and the face does not hold one', async () => {
+    const { wrapper } = await mountPage(makeFace({ exclusive_slots_taken: 4 }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+
+    expect(wrapper.get('[data-testid="edit-exclusive"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('[data-testid="exclusive-help"]').text()).toBe(
+      'Les 4 places sont prises. Retirez d\u2019abord l\u2019exclusivité d\u2019une autre Face.',
+    )
+  })
+
+  it('lets a face that holds a slot uncheck it even when the 4 slots are taken', async () => {
+    mockUpdateFace.mockResolvedValue({ success: true, message: 'ok' })
+    const { wrapper } = await mountPage(makeFace({ is_exclusive: true, exclusive_slots_taken: 4 }))
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+
+    const checkbox = wrapper.get('[data-testid="edit-exclusive"]')
+    expect(checkbox.attributes('disabled')).toBeUndefined()
+    await checkbox.setValue(false)
+    await wrapper.get('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+
+    expect(mockUpdateFace).toHaveBeenCalledWith('1', { is_exclusive: false })
+  })
+
+  it('shows the server is_exclusive error under the checkbox and keeps the other edits', async () => {
+    mockUpdateFace.mockResolvedValue({
+      success: false,
+      message: 'Les données fournies sont invalides.',
+      errors: { is_exclusive: ['Les 4 places d\u2019exclusivité Élite sont prises. Retirez d\u2019abord une exclusivité.'] },
+    })
+    const { wrapper } = await mountPage(makeFace())
+    await wrapper.get('[data-testid="edit-button"]').trigger('click')
+    await wrapper.get('[data-testid="edit-exclusive"]').setValue(true)
+    await wrapper.get('[data-testid="edit-prenom"]').setValue('Nouveau prénom')
+    await wrapper.get('[data-testid="save-button"]').trigger('click')
+    await flushPromises()
+
+    const error = wrapper.get('[data-testid="exclusive-error"]')
+    expect(error.text()).toContain('Les 4 places')
+    expect(error.attributes('aria-live')).toBe('polite')
+    expect((wrapper.get('[data-testid="edit-prenom"]').element as HTMLInputElement).value).toBe('Nouveau prénom')
+    expect((wrapper.get('[data-testid="edit-exclusive"]').element as HTMLInputElement).checked).toBe(true)
   })
 
   it('includes is_exclusive in the update payload when the checkbox changes', async () => {
@@ -148,7 +240,7 @@ describe('AdminFaceDetailPage', () => {
     const { wrapper } = await mountPage(makeFace({ is_exclusive: false }))
 
     await wrapper.get('[data-testid="edit-button"]').trigger('click')
-    await wrapper.get('[data-testid="edit-featured"]').setValue(true)
+    await wrapper.get('[data-testid="edit-exclusive"]').setValue(true)
     await wrapper.get('[data-testid="save-button"]').trigger('click')
     await flushPromises()
 
@@ -246,7 +338,7 @@ describe('AdminFaceDetailPage', () => {
     )
 
     await wrapper.get('[data-testid="edit-button"]').trigger('click')
-    await wrapper.get('[data-testid="edit-featured"]').setValue(true)
+    await wrapper.get('[data-testid="edit-exclusive"]').setValue(true)
     await wrapper.get('[data-testid="save-button"]').trigger('click')
     await flushPromises()
 

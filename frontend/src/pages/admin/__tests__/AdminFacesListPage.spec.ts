@@ -104,6 +104,21 @@ describe('AdminFacesListPage - Premium badge (FEATURE-FP-1.11)', () => {
     vi.clearAllMocks()
   })
 
+  it('renders an Exclusivité Élite pill only on exclusive faces', async () => {
+    facesRef.value = [
+      makeFace({ id: 'face-1', username: 'exclusive-user', is_exclusive: true }),
+      makeFace({ id: 'face-2', username: 'plain-user', is_exclusive: false }),
+    ]
+    paginationRef.value = { current_page: 1, last_page: 1, per_page: 15, total: 2 }
+
+    const wrapper = await mountPage()
+
+    const pills = wrapper.findAll('[data-testid="face-row-exclusive-badge"]')
+    expect(pills).toHaveLength(1)
+    expect(pills[0].text()).toContain('Exclusivité Élite')
+    expect(wrapper.text()).not.toContain('En vedette')
+  })
+
   it('renders a Premium badge for faces with is_featured_by_subscription: true', async () => {
     facesRef.value = [
       makeFace({ id: 'face-1', username: 'premium-user', is_featured_by_subscription: true }),

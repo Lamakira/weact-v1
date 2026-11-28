@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, onDeactivated, computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Users, AlertCircle, Loader2, X, Crown } from 'lucide-vue-next'
+import { Search, Users, AlertCircle, Loader2, X, Crown, Star } from 'lucide-vue-next'
 import { useAdminFaces } from '@/features/admin/composables/useAdminFaces'
 import { getCategoryColor } from '@/features/admin/utils/faceLabels'
 import { useRefreshOnReturn } from '@/composables/useRefreshOnReturn'
@@ -274,6 +274,14 @@ function formatDate(dateString: string): string {
                   data-testid="status-badge"
                 >
                   {{ f.is_active !== false ? 'Actif' : 'Inactif' }}
+                </span>
+                <span
+                  v-if="f.is_exclusive"
+                  class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+                  data-testid="face-row-exclusive-badge"
+                >
+                  <Star class="h-3.5 w-3.5" aria-hidden="true" />
+                  Exclusivité Élite
                 </span>
                 <span
                   v-if="f.is_featured_by_subscription"
