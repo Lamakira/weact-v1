@@ -45,10 +45,11 @@ const editForm = ref<UpdateAdminFaceForm>({})
 const editErrors = ref<Record<string, string[]>>({})
 const isToggling = ref(false)
 
-// Refus serveur « 4 places prises » alors que l'écran en montrait une libre :
-// une autre Face l'a prise entre-temps.
-const EXCLUSIVITY_SLOTS_FULL_MESSAGE =
-  'Une autre Face vient de prendre la dernière place. Rechargez la fiche pour voir les places libres.'
+// L'exclusivité ne compte que si la Face est encore Élite : un drapeau resté
+// sur une Face qui a perdu le palier s'affiche comme « Non ».
+const exclusiveEffective = computed(
+  () => face.value?.is_exclusive === true && face.value.subscription_tier === 'elite',
+)
 
 const exclusiveSlotsTaken = computed(() => face.value?.exclusive_slots_taken ?? 0)
 const exclusiveSlotsMax = computed(() => face.value?.exclusive_slots_max ?? 4)
@@ -196,8 +197,14 @@ async function saveEdit(): Promise<void> {
     toast.success(result.message ?? 'Profil mis à jour')
   } else {
     editErrors.value = result.errors ?? {}
-    if (result.code === 'EXCLUSIVITY_SLOTS_FULL') {
-      editErrors.value.is_exclusive = [EXCLUSIVITY_SLOTS_FULL_MESSAGE]
+    if (result.code === 'EXCLUSIVITY_SLOTS_FULL' && face.value) {
+      // Une autre Face a pris la dernière place : le compteur passe à 4 / 4
+      // sur place (la case se désactive et l'aide dit pourquoi), sans recharger
+      // la fiche ni toucher au reste de la saisie. La demande refusée est
+      // décochée pour qu'un nouvel enregistrement ne la renvoie pas.
+      face.value = { ...face.value, exclusive_slots_taken: face.value.exclusive_slots_max ?? 4 }
+      editForm.value.is_exclusive = false
+      delete editErrors.value.is_exclusive
     }
   }
 }
@@ -462,11 +469,11 @@ function closeVideoModal(): void {
                 <dd class="flex flex-col items-end gap-1">
                   <span
                     class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium"
-                    :class="face.is_exclusive ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'"
+                    :class="exclusiveEffective ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'"
                     data-testid="exclusive-badge"
                   >
-                    <Star v-if="face.is_exclusive" class="h-3.5 w-3.5" aria-hidden="true" />
-                    {{ face.is_exclusive ? 'En tête de la page 1' : 'Non' }}
+                    <Star v-if="exclusiveEffective" class="h-3.5 w-3.5" aria-hidden="true" />
+                    {{ exclusiveEffective ? 'En tête de la page 1' : 'Non' }}
                   </span>
                   <span class="text-xs text-gray-500" data-testid="exclusive-slots">{{ exclusiveSlotsLabel }}</span>
                 </dd>
@@ -585,7 +592,7 @@ function closeVideoModal(): void {
                     <Star class="h-4 w-4 text-amber-600" aria-hidden="true" />
                     <span class="text-sm text-gray-700">Exclusivité Élite</span>
                   </label>
-                  <p id="edit-exclusive-help" class="mt-1 text-xs text-gray-600" data-testid="exclusive-help">
+                  <p id="edit-exclusive-help" class="mt-1 text-xs text-gray-600" aria-live="polite" data-testid="exclusive-help">
                     {{ exclusiveHelp }}
                   </p>
                   <p

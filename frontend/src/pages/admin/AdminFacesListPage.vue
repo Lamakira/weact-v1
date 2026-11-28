@@ -276,7 +276,7 @@ function formatDate(dateString: string): string {
                   {{ f.is_active !== false ? 'Actif' : 'Inactif' }}
                 </span>
                 <span
-                  v-if="f.is_exclusive"
+                  v-if="f.is_exclusive && f.subscription_tier === 'elite'"
                   class="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
                   data-testid="face-row-exclusive-badge"
                 >

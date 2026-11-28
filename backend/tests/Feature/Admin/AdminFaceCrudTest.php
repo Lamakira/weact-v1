@@ -885,7 +885,7 @@ class AdminFaceCrudTest extends TestCase
         $response->assertForbidden();
     }
 
-    // ─── Subscription-driven Featured (FEATURE-FP-1.6) ────────────
+    // ─── Subscription tier and exclusivity exposed to the admin ────
 
     public function test_admin_show_exposes_subscription_tier_for_active_subscriber(): void
     {
@@ -915,33 +915,35 @@ class AdminFaceCrudTest extends TestCase
             ->assertJsonPath('data.subscription_tier', 'free');
     }
 
-    public function test_admin_show_reports_exclusivity_independently_of_subscription_tier(): void
+    public function test_admin_show_reports_the_exclusivity_flag_and_the_live_tier_independently(): void
     {
-        $manualOnly = Face::factory()->create(['is_exclusive' => true]);
+        $exclusiveElite = Face::factory()->create(['is_exclusive' => true]);
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $exclusiveElite->id]);
 
-        $subscriptionOnly = Face::factory()->create(['is_exclusive' => false]);
-        FaceSubscription::factory()->active()->create(['face_id' => $subscriptionOnly->id]);
+        $plainElite = Face::factory()->create(['is_exclusive' => false]);
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $plainElite->id]);
 
-        $bothFlags = Face::factory()->create(['is_exclusive' => true]);
-        FaceSubscription::factory()->active()->create(['face_id' => $bothFlags->id]);
+        // Flag left behind by a lapsed Élite subscription, before the hourly job drops it.
+        $lapsedElite = Face::factory()->create(['is_exclusive' => true]);
+        FaceSubscription::factory()->elite()->expired()->create(['face_id' => $lapsedElite->id]);
 
-        $manualResponse = $this->withToken($this->adminToken)
-            ->getJson("/api/v1/admin/faces/{$manualOnly->uuid}");
-        $manualResponse->assertOk()
+        $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$exclusiveElite->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.is_exclusive', true)
+            ->assertJsonPath('data.subscription_tier', 'elite');
+
+        $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$plainElite->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.is_exclusive', false)
+            ->assertJsonPath('data.subscription_tier', 'elite');
+
+        $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$lapsedElite->uuid}")
+            ->assertOk()
             ->assertJsonPath('data.is_exclusive', true)
             ->assertJsonPath('data.subscription_tier', 'free');
-
-        $subscriptionResponse = $this->withToken($this->adminToken)
-            ->getJson("/api/v1/admin/faces/{$subscriptionOnly->uuid}");
-        $subscriptionResponse->assertOk()
-            ->assertJsonPath('data.is_exclusive', false)
-            ->assertJsonPath('data.subscription_tier', 'pro');
-
-        $bothResponse = $this->withToken($this->adminToken)
-            ->getJson("/api/v1/admin/faces/{$bothFlags->uuid}");
-        $bothResponse->assertOk()
-            ->assertJsonPath('data.is_exclusive', true)
-            ->assertJsonPath('data.subscription_tier', 'pro');
     }
 
     public function test_admin_index_exposes_subscription_tier_for_each_face(): void
@@ -987,7 +989,7 @@ class AdminFaceCrudTest extends TestCase
 
         $response->assertOk();
         $body = $response->json('data');
-        $this->assertArrayHasKey('is_exclusive', $body);
+        $this->assertArrayNotHasKey('is_exclusive', $body);
         $this->assertArrayNotHasKey('exclusive_slots_taken', $body);
         $this->assertArrayNotHasKey('exclusive_slots_max', $body);
         $this->assertArrayNotHasKey('is_featured_by_subscription', $body);
@@ -1010,7 +1012,7 @@ class AdminFaceCrudTest extends TestCase
 
         $response->assertOk();
         $body = $response->json('data');
-        $this->assertArrayHasKey('is_exclusive', $body);
+        $this->assertArrayNotHasKey('is_exclusive', $body);
         $this->assertArrayNotHasKey('exclusive_slots_taken', $body);
         $this->assertArrayNotHasKey('exclusive_slots_max', $body);
         $this->assertArrayNotHasKey('is_featured_by_subscription', $body);

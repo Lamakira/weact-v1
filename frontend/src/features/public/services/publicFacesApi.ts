@@ -167,7 +167,7 @@ export interface PublicFacesResponse {
  * URL, which useKeepAliveListingGuard signs to decide whether to refetch.
  *
  * @param page - Page number (1-indexed)
- * @param perPage - Items per page (default: 15, max: 30)
+ * @param perPage - Items per page (default: 15, min: 4, max: 30)
  * @param filters - Optional filter parameters
  * @param generation - Optional pinned ranking generation (from a previous meta.generation)
  * @returns Promise with faces data and pagination meta
@@ -178,8 +178,8 @@ export async function fetchPublicFaces(
   filters: FacesFilterParams = {},
   generation?: number | null
 ): Promise<PublicFacesResponse> {
-  // Clamp perPage to max 30
-  const validPerPage = Math.min(Math.max(1, perPage), 30)
+  // Clamp perPage to 4..30 (the server refuses less than 4: the exclusivities fill page 1 places 1 to 4)
+  const validPerPage = Math.min(Math.max(4, perPage), 30)
 
   // Build params, only including non-empty filter values
   const params: Record<string, string | number> = {

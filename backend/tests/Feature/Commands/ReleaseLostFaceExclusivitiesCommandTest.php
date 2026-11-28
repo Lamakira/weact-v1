@@ -8,9 +8,14 @@ use App\Models\Face;
 use App\Models\FaceSubscription;
 use App\Notifications\FaceExclusivitySlotFreedNotification;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Contracts\Bus\Dispatcher;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Notifications\AnonymousNotifiable;
+use Illuminate\Notifications\SendQueuedNotifications;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
+use Mockery;
+use RuntimeException;
 use Tests\TestCase;
 
 class ReleaseLostFaceExclusivitiesCommandTest extends TestCase
@@ -194,6 +199,53 @@ class ReleaseLostFaceExclusivitiesCommandTest extends TestCase
         $this->artisan('exclusivity:release-lost')->assertExitCode(0);
 
         $this->assertFalse($face->fresh()->is_exclusive);
+    }
+
+    public function test_a_failing_mail_is_logged_as_critical_and_the_next_recipient_and_face_are_still_processed(): void
+    {
+        Log::spy();
+        $this->alertRecipients(['ops@weact.test', 'tech@weact.test']);
+        $first = $this->exclusiveFace(['username' => 'premiere']);
+        $second = $this->exclusiveFace(['username' => 'seconde']);
+
+        // The mail is queued: make the queue refuse the first dispatch only.
+        $dispatched = 0;
+        $queued = [];
+        $bus = Mockery::mock(Dispatcher::class);
+        $bus->shouldReceive('dispatch')->andReturnUsing(function (SendQueuedNotifications $job) use (&$dispatched, &$queued): void {
+            $dispatched++;
+            if ($dispatched === 1) {
+                throw new RuntimeException('queue unavailable');
+            }
+            $queued[] = $job->notifiables->first()->routes['mail'];
+        });
+        $this->app->instance(Dispatcher::class, $bus);
+
+        $this->artisan('exclusivity:release-lost')->assertExitCode(0);
+
+        $this->assertFalse($first->fresh()->is_exclusive);
+        $this->assertFalse($second->fresh()->is_exclusive);
+        $this->assertSame(['tech@weact.test', 'ops@weact.test', 'tech@weact.test'], $queued);
+        Log::shouldHaveReceived('critical')->once()->withArgs(
+            fn (string $message, array $context): bool => $context['face_id'] === $first->id
+                && $context['tier'] === 'free'
+                && $context['recipient'] === 'ops@weact.test'
+                && $context['exception'] === 'queue unavailable'
+        );
+    }
+
+    public function test_a_warning_is_logged_when_an_exclusivity_is_removed_with_no_alert_address(): void
+    {
+        Log::spy();
+        Notification::fake();
+        $this->alertRecipients([]);
+        $face = $this->exclusiveFace();
+
+        $this->artisan('exclusivity:release-lost')->assertExitCode(0);
+
+        Log::shouldHaveReceived('warning')->once()->withArgs(
+            fn (string $message, array $context): bool => $context['face_id'] === $face->id
+        );
     }
 
     public function test_it_is_scheduled_hourly_after_the_subscription_expiry_tasks(): void

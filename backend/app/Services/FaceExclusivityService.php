@@ -92,30 +92,33 @@ class FaceExclusivityService
     {
         $released = 0;
 
+        // chunkById pages on the id, not on an offset: clearing the flag
+        // inside the loop must not shift the rows still to be read.
         Face::query()
             ->exclusive()
-            ->orderBy('id')
-            ->each(function (Face $face) use ($onReleased, &$released): void {
-                if ($this->isEliteLive($face)) {
-                    return;
+            ->chunkById(100, function ($faces) use ($onReleased, &$released): void {
+                foreach ($faces as $face) {
+                    if ($this->isEliteLive($face)) {
+                        continue;
+                    }
+
+                    $cleared = Face::query()
+                        ->whereKey($face->id)
+                        ->exclusive()
+                        ->update(['is_exclusive' => false]);
+
+                    if ($cleared === 0) {
+                        continue;
+                    }
+
+                    $released++;
+                    $tier = $this->entitlement->capabilities($face)->tier;
+                    Log::info('Face exclusivity released: no longer Elite', [
+                        'face_id' => $face->id,
+                        'tier' => $tier->value,
+                    ]);
+                    $onReleased($face, $tier);
                 }
-
-                $cleared = Face::query()
-                    ->whereKey($face->id)
-                    ->exclusive()
-                    ->update(['is_exclusive' => false]);
-
-                if ($cleared === 0) {
-                    return;
-                }
-
-                $released++;
-                $tier = $this->entitlement->capabilities($face)->tier;
-                Log::info('Face exclusivity released: no longer Elite', [
-                    'face_id' => $face->id,
-                    'tier' => $tier->value,
-                ]);
-                $onReleased($face, $tier);
             });
 
         return $released;
