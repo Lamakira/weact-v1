@@ -557,7 +557,7 @@ function closeVideoModal(): void {
                 </div>
               </div>
               <div class="grid gap-3 sm:grid-cols-2">
-                <label class="flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2">
+                <label class="flex items-center gap-2 self-start rounded-lg border border-gray-200 px-3 py-2">
                   <input
                     v-model="editForm.is_available"
                     type="checkbox"
@@ -571,7 +571,7 @@ function closeVideoModal(): void {
                   <label
                     for="edit-exclusive"
                     class="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2"
-                    :class="exclusiveDisabled ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'"
+                    :class="exclusiveDisabled ? 'cursor-not-allowed' : 'cursor-pointer'"
                   >
                     <input
                       v-model="editForm.is_exclusive"
