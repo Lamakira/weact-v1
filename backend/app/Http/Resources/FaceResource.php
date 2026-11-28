@@ -102,9 +102,9 @@ class FaceResource extends JsonResource
             'formatted_tarif_horaire' => $this->formatted_tarif_horaire,
             'formatted_tarif_journalier' => $this->formatted_tarif_journalier,
             'is_available' => $this->is_available,
-            'is_exclusive' => $this->is_exclusive,
             'has_elite_badge' => $capabilities->hasEliteBadge,
             ...($viewer === 'admin' ? [
+                'is_exclusive' => $this->is_exclusive,
                 'subscription_tier' => $capabilities->tier->value,
                 'exclusive_slots_taken' => $this->exclusiveSlotsTaken ?? app(FaceExclusivityService::class)->slotsTaken(),
                 'exclusive_slots_max' => FaceExclusivityService::MAX_SLOTS,
