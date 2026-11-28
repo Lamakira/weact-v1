@@ -7,6 +7,7 @@ namespace App\Http\Requests\Api\V1\Public;
 use App\Constants\BeninCities;
 use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
+use App\Services\FaceExclusivityService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -36,7 +37,9 @@ class ListFacesRequest extends FormRequest
     {
         return [
             'page' => ['sometimes', 'integer', 'min:1'],
-            'per_page' => ['sometimes', 'integer', 'min:1', 'max:30'],
+            // Au moins MAX_SLOTS : les Exclusivités Élite occupent les places
+            // 1 à 4, une page plus petite en renverrait en page 2.
+            'per_page' => ['sometimes', 'integer', 'min:'.FaceExclusivityService::MAX_SLOTS, 'max:30'],
             'categorie' => ['sometimes', 'nullable', Rule::enum(FaceCategory::class)],
             'niche' => ['sometimes', 'nullable', Rule::enum(FaceNiche::class)],
             'ville' => ['sometimes', 'nullable', 'string', Rule::in(BeninCities::values())],
@@ -50,6 +53,16 @@ class ListFacesRequest extends FormRequest
             // la main, client qui sérialise un null). Absente ou vide = pas
             // d'épinglage, exactement le même chemin.
             'generation' => ['sometimes', 'nullable', 'integer', 'min:1'],
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function messages(): array
+    {
+        return [
+            'per_page.min' => 'Le nombre de Faces par page doit être d\'au moins '.FaceExclusivityService::MAX_SLOTS.'.',
         ];
     }
 
