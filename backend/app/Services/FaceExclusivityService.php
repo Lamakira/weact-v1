@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Services;
 
+use App\Enums\ErrorCodes;
 use App\Enums\FaceSubscriptionTier;
+use App\Exceptions\CodedValidationException;
 use App\Models\Face;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
@@ -175,7 +177,7 @@ class FaceExclusivityService
         $taken = Face::query()->exclusive()->lockForUpdate()->count();
 
         if ($taken >= self::MAX_SLOTS) {
-            throw ValidationException::withMessages([
+            throw CodedValidationException::withCode(ErrorCodes::ExclusivitySlotsFull, [
                 'is_exclusive' => 'Les '.self::MAX_SLOTS.' places d\'exclusivité Élite sont prises. Retirez d\'abord une exclusivité.',
             ]);
         }
