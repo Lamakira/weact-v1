@@ -1089,6 +1089,132 @@ class PublicFacesListTest extends TestCase
         $this->assertSame(['elite' => 9, 'pro' => 4, 'starter' => 2, 'free' => 1], $counts);
     }
 
+    /**
+     * Seed Faces per tier (forme de prod : 20 Élite, 7 Pro, 6 Starter, beaucoup
+     * de Découverte) and return tier by Face uuid.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, string>
+     */
+    private function seedTiers(int $elite, int $pro, int $starter, int $free, array $attributes = []): array
+    {
+        $tierByUuid = [];
+        foreach (['elite' => $elite, 'pro' => $pro, 'starter' => $starter, 'free' => $free] as $tier => $count) {
+            for ($i = 0; $i < $count; $i++) {
+                $face = $this->makeListedFace($attributes);
+                if ($tier !== 'free') {
+                    FaceSubscription::factory()->{$tier}()->active()->create(['face_id' => $face->id]);
+                }
+                $tierByUuid[$face->uuid] = $tier;
+            }
+        }
+
+        return $tierByUuid;
+    }
+
+    /**
+     * @param  array<string, string>  $tierByUuid
+     * @return list<string> tiers of the page, in served order
+     */
+    private function pageTiers(string $url, array $tierByUuid): array
+    {
+        $response = $this->getJson($url);
+        $response->assertOk();
+
+        return array_map(fn (string $uuid): string => $tierByUuid[$uuid], array_column($response->json('data'), 'id'));
+    }
+
+    public function test_every_page_lists_its_tiers_in_blocks_elite_first(): void
+    {
+        $tierByUuid = $this->seedTiers(20, 7, 6, 40);
+        $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
+
+        $this->assertSame(
+            [...array_fill(0, 9, 'elite'), ...array_fill(0, 4, 'pro'), ...array_fill(0, 2, 'starter'), 'free'],
+            $this->pageTiers('/api/v1/public/faces', $tierByUuid),
+        );
+
+        $order = ['elite' => 0, 'pro' => 1, 'starter' => 2, 'free' => 3];
+        foreach ([2, 3, 4, 5] as $page) {
+            $indexes = array_map(fn (string $t): int => $order[$t], $this->pageTiers("/api/v1/public/faces?page={$page}", $tierByUuid));
+            $sorted = $indexes;
+            sort($sorted);
+            $this->assertSame($sorted, $indexes, "page {$page} is not ordered by tier");
+        }
+    }
+
+    public function test_reordering_keeps_the_same_faces_on_each_page_and_the_total(): void
+    {
+        $this->seedTiers(20, 7, 6, 40);
+        $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
+
+        $facesByRank = Face::query()->get()->keyBy('id');
+        $rankedUuids = DB::table('face_listing_ranks')->orderBy('rank')->pluck('face_id')
+            ->map(fn ($id) => $facesByRank[(int) $id]->uuid)->all();
+
+        foreach ([1, 2, 3] as $page) {
+            $response = $this->getJson("/api/v1/public/faces?page={$page}");
+            $served = array_column($response->json('data'), 'id');
+            $expected = array_slice($rankedUuids, ($page - 1) * 16, 16);
+            $this->assertEqualsCanonicalizing($expected, $served);
+            $this->assertSame(73, $response->json('meta.total'));
+        }
+    }
+
+    public function test_empty_middle_tiers_keep_elite_then_free_in_blocks(): void
+    {
+        // Pro et Starter vides : leurs places remontent vers l'Élite, l'ordre
+        // reste en blocs.
+        $tierByUuid = $this->seedTiers(20, 0, 0, 30);
+        $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
+
+        $tiers = $this->pageTiers('/api/v1/public/faces', $tierByUuid);
+
+        $this->assertCount(16, $tiers);
+        $eliteCount = count(array_filter($tiers, fn (string $t): bool => $t === 'elite'));
+        $this->assertSame(
+            [...array_fill(0, $eliteCount, 'elite'), ...array_fill(0, 16 - $eliteCount, 'free')],
+            $tiers,
+        );
+        $this->assertGreaterThanOrEqual(9, $eliteCount);
+    }
+
+    public function test_filtered_pages_are_ordered_by_tier_without_rotation(): void
+    {
+        $tierByUuid = $this->seedTiers(20, 7, 6, 40, ['ville' => 'Cotonou']);
+        $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
+
+        $order = ['elite' => 0, 'pro' => 1, 'starter' => 2, 'free' => 3];
+        foreach ([1, 2] as $page) {
+            $tiers = $this->pageTiers("/api/v1/public/faces?ville=Cotonou&page={$page}", $tierByUuid);
+            $indexes = array_map(fn (string $t): int => $order[$t], $tiers);
+            $sorted = $indexes;
+            sort($sorted);
+            $this->assertSame($sorted, $indexes, "filtered page {$page} is not ordered by tier");
+        }
+
+        $this->assertSame(
+            [...array_fill(0, 9, 'elite'), ...array_fill(0, 4, 'pro'), ...array_fill(0, 2, 'starter'), 'free'],
+            $this->pageTiers('/api/v1/public/faces?ville=Cotonou', $tierByUuid),
+        );
+    }
+
+    public function test_unranked_faces_stay_at_the_end_of_the_page_whatever_their_tier(): void
+    {
+        $tierByUuid = $this->seedTiers(2, 0, 0, 2, ['ville' => 'Cotonou']);
+        $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
+
+        // Créée après le calcul de nuit : non classée, Élite en direct.
+        $late = $this->makeListedFace(['ville' => 'Cotonou']);
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $late->id]);
+        $tierByUuid[$late->uuid] = 'elite-late';
+
+        foreach (['/api/v1/public/faces', '/api/v1/public/faces?ville=Cotonou'] as $url) {
+            $tiers = $this->pageTiers($url, $tierByUuid);
+            $this->assertSame(['elite', 'elite', 'free', 'free', 'elite-late'], $tiers, $url);
+        }
+    }
+
     public function test_expired_subscription_face_ranks_in_the_free_queue(): void
     {
         // KEEP this test even though tier classification is also covered at
