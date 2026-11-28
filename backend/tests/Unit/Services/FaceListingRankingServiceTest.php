@@ -310,4 +310,74 @@ class FaceListingRankingServiceTest extends TestCase
 
         $this->assertSame([], $this->service->buildSequence($queues, $this->weights));
     }
+
+    public function test_exclusives_are_capped_at_four_and_the_extra_ones_stay_in_their_queue(): void
+    {
+        $queues = $this->makeQueues(['elite' => 8, 'pro' => 0, 'starter' => 0, 'free' => 0]);
+
+        [$sequence, $ranked] = $this->service->rankWithExclusives(
+            $queues,
+            $this->weights,
+            [1006, 1002, 1008, 1004, 1001, 1003],
+        );
+
+        // The four lowest ids win, in ascending order; 1006 and 1008 are not exclusive.
+        $this->assertSame([1001, 1002, 1003, 1004], array_slice($sequence, 0, 4));
+        $this->assertSame([1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008], $sequence);
+        $this->assertSame([1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008], $ranked['elite']);
+    }
+
+    public function test_duplicate_exclusive_ids_count_once(): void
+    {
+        $queues = $this->makeQueues(['elite' => 6, 'pro' => 0, 'starter' => 0, 'free' => 0]);
+
+        [$sequence] = $this->service->rankWithExclusives($queues, $this->weights, [1004, 1004, 1004, 1002, 1002]);
+
+        $this->assertSame([1002, 1004, 1001, 1003, 1005, 1006], $sequence);
+    }
+
+    public function test_exclusive_ids_absent_from_the_queues_are_ignored(): void
+    {
+        $queues = $this->makeQueues(['elite' => 3, 'pro' => 2, 'starter' => 0, 'free' => 0]);
+
+        [$sequence, $ranked] = $this->service->rankWithExclusives($queues, $this->weights, [9999, 1003, 8888]);
+
+        $this->assertSame(1003, $sequence[0]);
+        $this->assertCount(5, $sequence);
+        $this->assertNotContains(9999, $sequence);
+        $this->assertNotContains(8888, $sequence);
+        $this->assertSame([1003, 1001, 1002], $ranked['elite']);
+    }
+
+    public function test_every_elite_being_exclusive_leaves_an_empty_rotating_queue_and_a_full_sequence(): void
+    {
+        $queues = $this->makeQueues(['elite' => 3, 'pro' => 2, 'starter' => 0, 'free' => 1]);
+        $seen = [];
+
+        [$sequence, $ranked] = $this->service->rankWithExclusives(
+            $queues,
+            $this->weights,
+            [1001, 1002, 1003],
+            function (array $block, array $rest) use (&$seen): array {
+                $seen = $rest;
+
+                return [$block, $rest];
+            },
+        );
+
+        $this->assertSame([], $seen['elite']);
+        $this->assertSame([1001, 1002, 1003], array_slice($sequence, 0, 3));
+        $this->assertSame([1001, 1002, 1003], $ranked['elite']);
+        $this->assertEqualsCanonicalizing([1001, 1002, 1003, 2001, 2002, 4001], $sequence);
+    }
+
+    public function test_without_any_exclusive_the_sequence_is_the_plain_interleaving(): void
+    {
+        $queues = $this->makeQueues(['elite' => 12, 'pro' => 6, 'starter' => 3, 'free' => 3]);
+
+        [$sequence, $ranked] = $this->service->rankWithExclusives($queues, $this->weights, []);
+
+        $this->assertSame($this->service->buildSequence($queues, $this->weights), $sequence);
+        $this->assertSame($queues, $ranked);
+    }
 }
