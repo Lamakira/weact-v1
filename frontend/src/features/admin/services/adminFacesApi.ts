@@ -38,6 +38,9 @@ export interface AdminFaceData {
   niches: Array<{ value: string; label: string }>
   is_available: boolean
   is_exclusive: boolean
+  subscription_tier?: 'free' | 'starter' | 'pro' | 'elite'
+  exclusive_slots_taken?: number
+  exclusive_slots_max?: number
   is_featured_by_subscription?: boolean
   profile_completion_percentage: number
   profile_completion_missing: Array<{ key: string; label: string }>

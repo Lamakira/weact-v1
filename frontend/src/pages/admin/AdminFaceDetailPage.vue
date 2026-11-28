@@ -43,6 +43,38 @@ const isEditing = ref(false)
 const editForm = ref<UpdateAdminFaceForm>({})
 const editErrors = ref<Record<string, string[]>>({})
 const isToggling = ref(false)
+
+const TIER_LABELS: Record<string, string> = {
+  free: 'Découverte',
+  starter: 'Starter',
+  pro: 'Pro',
+  elite: 'Élite',
+}
+
+const exclusiveSlotsTaken = computed(() => face.value?.exclusive_slots_taken ?? 0)
+const exclusiveSlotsMax = computed(() => face.value?.exclusive_slots_max ?? 4)
+const exclusiveSlotsLabel = computed(
+  () => `${exclusiveSlotsTaken.value} / ${exclusiveSlotsMax.value} places prises`,
+)
+// Une Face qui a déjà l'exclusivité peut toujours la décocher (la désactivation est toujours acceptée).
+const exclusiveDisabledReason = computed<'tier' | 'full' | null>(() => {
+  if (!face.value || face.value.is_exclusive) return null
+  const tier = face.value.subscription_tier
+  if (tier !== undefined && tier !== 'elite') return 'tier'
+  if (exclusiveSlotsTaken.value >= exclusiveSlotsMax.value) return 'full'
+  return null
+})
+const exclusiveDisabled = computed(() => exclusiveDisabledReason.value !== null)
+const exclusiveHelp = computed(() => {
+  if (exclusiveDisabledReason.value === 'tier') {
+    const tier = face.value?.subscription_tier ?? ''
+    return `Réservée aux Faces Élite. Cette Face est ${TIER_LABELS[tier] ?? tier}.`
+  }
+  if (exclusiveDisabledReason.value === 'full') {
+    return `Les ${exclusiveSlotsMax.value} places sont prises. Retirez d’abord l’exclusivité d’une autre Face.`
+  }
+  return `Place la Face en tête de la page 1. ${exclusiveSlotsTaken.value} / ${exclusiveSlotsMax.value} places prises.`
+})
 const showToggleModal = ref(false)
 const showDeleteModal = ref(false)
 
@@ -423,17 +455,18 @@ function closeVideoModal(): void {
                   </span>
                 </dd>
               </div>
-              <div class="flex justify-between">
-                <dt class="text-sm text-gray-500">Mise en avant</dt>
-                <dd>
+              <div class="flex justify-between items-start gap-4">
+                <dt class="text-sm text-gray-500">Exclusivité Élite</dt>
+                <dd class="flex flex-col items-end gap-1">
                   <span
                     class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium"
-                    :class="face.is_exclusive ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'"
-                    data-testid="featured-badge"
+                    :class="face.is_exclusive ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'"
+                    data-testid="exclusive-badge"
                   >
-                    <Star class="h-3.5 w-3.5" />
-                    {{ face.is_exclusive ? 'En vedette' : 'Standard' }}
+                    <Star v-if="face.is_exclusive" class="h-3.5 w-3.5" aria-hidden="true" />
+                    {{ face.is_exclusive ? 'En tête de la page 1' : 'Non' }}
                   </span>
+                  <span class="text-xs text-gray-500" data-testid="exclusive-slots">{{ exclusiveSlotsLabel }}</span>
                 </dd>
               </div>
             </dl>
@@ -532,17 +565,36 @@ function closeVideoModal(): void {
                   />
                   <span class="text-sm text-gray-700">Disponible</span>
                 </label>
-                <label class="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
-                  <input
-                    v-model="editForm.is_exclusive"
-                    type="checkbox"
-                    id="edit-featured"
-                    class="h-4 w-4 rounded border-amber-300 text-amber-500 focus:ring-amber-400"
-                    data-testid="edit-featured"
-                  />
-                  <Star class="h-4 w-4 text-amber-500" />
-                  <span class="text-sm text-gray-700">En vedette</span>
-                </label>
+                <div>
+                  <label
+                    for="edit-exclusive"
+                    class="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2"
+                    :class="exclusiveDisabled ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'"
+                  >
+                    <input
+                      v-model="editForm.is_exclusive"
+                      type="checkbox"
+                      id="edit-exclusive"
+                      :disabled="exclusiveDisabled"
+                      :aria-describedby="editErrors.is_exclusive ? 'edit-exclusive-help edit-exclusive-error' : 'edit-exclusive-help'"
+                      class="h-4 w-4 rounded border-amber-300 text-amber-500 focus:ring-amber-400"
+                      data-testid="edit-exclusive"
+                    />
+                    <Star class="h-4 w-4 text-amber-600" aria-hidden="true" />
+                    <span class="text-sm text-gray-700">Exclusivité Élite</span>
+                  </label>
+                  <p id="edit-exclusive-help" class="mt-1 text-xs text-gray-600" data-testid="exclusive-help">
+                    {{ exclusiveHelp }}
+                  </p>
+                  <p
+                    id="edit-exclusive-error"
+                    class="mt-1 text-xs text-red-700"
+                    aria-live="polite"
+                    data-testid="exclusive-error"
+                  >
+                    {{ editErrors.is_exclusive?.[0] }}
+                  </p>
+                </div>
               </div>
             </div>
           </template>
