@@ -19,13 +19,11 @@ class ReleaseLostFaceExclusivitiesCommand extends Command
 
     public function handle(FaceExclusivityService $exclusivity): int
     {
-        $released = $exclusivity->releaseLostExclusivities();
+        $released = $exclusivity->releaseLostExclusivities(
+            fn (Face $face, FaceSubscriptionTier $tier) => $this->notifyAdmins($face, $tier),
+        );
 
-        foreach ($released as ['face' => $face, 'tier' => $tier]) {
-            $this->notifyAdmins($face, $tier);
-        }
-
-        $this->info('Done. Released: '.count($released).'.');
+        $this->info("Done. Released: {$released}.");
 
         return self::SUCCESS;
     }

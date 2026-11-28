@@ -77,22 +77,25 @@ class FaceExclusivityService
     }
 
     /**
-     * Drop the flag from every Face that is no longer Élite live.
+     * Drop the flag from every Face that is no longer Élite live, calling
+     * $onReleased right after each clear (before the next Face is read), so
+     * a failing callback leaves the remaining Faces flagged for the next run.
      *
      * Conditional write: a concurrent run or admin edit that already cleared
      * the flag affects 0 rows, so that Face is not reported (no duplicate
      * mail from the caller).
      *
-     * @return list<array{face: Face, tier: FaceSubscriptionTier}> the Faces actually released, with their live tier
+     * @param  callable(Face, FaceSubscriptionTier): void  $onReleased  receives the Face and its live tier
+     * @return int number of Faces actually released
      */
-    public function releaseLostExclusivities(): array
+    public function releaseLostExclusivities(callable $onReleased): int
     {
-        $released = [];
+        $released = 0;
 
         Face::query()
             ->exclusive()
             ->orderBy('id')
-            ->each(function (Face $face) use (&$released): void {
+            ->each(function (Face $face) use ($onReleased, &$released): void {
                 if ($this->isEliteLive($face)) {
                     return;
                 }
@@ -106,12 +109,13 @@ class FaceExclusivityService
                     return;
                 }
 
+                $released++;
                 $tier = $this->entitlement->capabilities($face)->tier;
                 Log::info('Face exclusivity released: no longer Elite', [
                     'face_id' => $face->id,
                     'tier' => $tier->value,
                 ]);
-                $released[] = ['face' => $face, 'tier' => $tier];
+                $onReleased($face, $tier);
             });
 
         return $released;
