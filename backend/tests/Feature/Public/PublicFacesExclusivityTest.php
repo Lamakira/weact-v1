@@ -484,5 +484,4 @@ class PublicFacesExclusivityTest extends TestCase
             $previous = $current;
         }
     }
-
 }
