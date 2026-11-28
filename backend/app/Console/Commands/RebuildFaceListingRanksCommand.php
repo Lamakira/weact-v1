@@ -69,14 +69,11 @@ class RebuildFaceListingRanksCommand extends Command
             // their queue, head the Élite queue, and are lifted to ranks 1..k
             // after the interleave. Filtered searches and the kill switch
             // serve this generation, so it must already carry them on top.
-            [$block, $queues] = $ranking->separateExclusives(
+            [$sequence, $queues] = $ranking->rankWithExclusives(
                 $queues,
+                $weights,
                 $exclusivity->effectiveExclusiveIds(),
-                FaceExclusivityService::MAX_SLOTS,
             );
-            $queues = $ranking->placeExclusivesAtHead($queues, $block, FaceSubscriptionTier::Elite->value);
-
-            $sequence = $ranking->liftExclusives($ranking->buildSequence($queues, $weights), $block);
             // Snapshot of the per-tier queues, persisted alongside the
             // generation: it is the ONLY input of faces:rotate-listing-ranks,
             // which re-reads neither Faces nor subscriptions (only the
