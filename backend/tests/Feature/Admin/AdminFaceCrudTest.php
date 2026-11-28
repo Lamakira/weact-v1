@@ -909,7 +909,7 @@ class AdminFaceCrudTest extends TestCase
             ->assertJsonPath('data.subscription_tier', 'free');
     }
 
-    public function test_admin_show_distinguishes_manual_featured_from_subscription_featured(): void
+    public function test_admin_show_reports_exclusivity_independently_of_subscription_tier(): void
     {
         $manualOnly = Face::factory()->create(['is_exclusive' => true]);
 
