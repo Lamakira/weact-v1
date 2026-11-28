@@ -714,9 +714,9 @@ class PublicFacesListTest extends TestCase
         $this->assertEquals(3, $response->json('meta.total'));
     }
 
-    // ─── Response Shape (FEATURE-FP-1.6) ──────────────────────────────
+    // ─── Response shape ──────────────────────────────
 
-    public function test_public_response_omits_subscription_fields_for_subscription_featured_face(): void
+    public function test_public_response_omits_subscription_fields_for_a_subscribed_face(): void
     {
         $face = Face::factory()->create([
             'is_exclusive' => false,
@@ -745,7 +745,8 @@ class PublicFacesListTest extends TestCase
     // Tier/rotation SEMANTICS (quotas, WRR, LRU, photo-less) are
     // covered by FaceListingRankingServiceTest and
     // RebuildFaceListingRanksCommandTest; here we prove the controller
-    // faithfully follows the materialized rank and nothing else.
+    // follows the materialized rank to pick each page, then orders that page
+    // by tier (a no-op for ranks seeded without a tier).
 
     /**
      * Create a Face attached to an active User (publicly listable).
@@ -759,10 +760,12 @@ class PublicFacesListTest extends TestCase
 
     /**
      * Seed one ranking generation directly (rank 1 = first array entry).
+     * Ranks carry no tier unless $tierByFaceId says so.
      *
      * @param  list<int>  $faceIdsInRankOrder
+     * @param  array<int, string>  $tierByFaceId
      */
-    private function seedRankGeneration(int $generation, array $faceIdsInRankOrder, ?string $source = null): void
+    private function seedRankGeneration(int $generation, array $faceIdsInRankOrder, ?string $source = null, array $tierByFaceId = []): void
     {
         $rows = [];
         foreach ($faceIdsInRankOrder as $index => $faceId) {
@@ -770,6 +773,7 @@ class PublicFacesListTest extends TestCase
                 'generation' => $generation,
                 'face_id' => $faceId,
                 'rank' => $index + 1,
+                'tier' => $tierByFaceId[$faceId] ?? null,
                 // NULL by default: a generation with no `source` is not
                 // identifiable as the nightly base, which is exactly the state
                 // the pre-carousel tests exercise (the filtered path then
@@ -820,7 +824,7 @@ class PublicFacesListTest extends TestCase
         $this->assertSame($expected, array_column($response->json('data'), 'id'));
     }
 
-    public function test_list_order_follows_seeded_rank_regardless_of_profile_attributes(): void
+    public function test_list_order_follows_seeded_untiered_rank_regardless_of_profile_attributes(): void
     {
         // Deliberately anti-correlated with every legacy FP-2.6 sort key:
         // the WORST profile (bare, old, not exclusive) gets rank 1, the best
@@ -1045,25 +1049,34 @@ class PublicFacesListTest extends TestCase
         $this->assertSame(array_slice($expected, 15), array_column($pageTwo->json('data'), 'id'));
     }
 
-    public function test_any_per_page_returns_a_prefix_of_the_ranked_order(): void
+    public function test_any_per_page_serves_the_first_ranked_faces_ordered_by_tier_within_the_page(): void
     {
+        // Rank order, by index: the tier sort applies INSIDE a page, so a
+        // smaller page is the first n ranked Faces regrouped by tier, not a
+        // prefix of the larger page.
+        $tiers = ['pro', 'elite', 'free', 'elite', 'starter', 'pro', 'free', 'elite', 'starter', 'free'];
         $faces = [];
-        for ($i = 0; $i < 10; $i++) {
-            $faces[] = $this->makeListedFace();
+        $tierByFaceId = [];
+        foreach ($tiers as $i => $tier) {
+            $faces[$i] = $this->makeListedFace();
+            $tierByFaceId[$faces[$i]->id] = $tier;
         }
-        $this->seedRankGeneration(1, array_map(fn (Face $f) => $f->id, $faces));
+        $this->seedRankGeneration(1, array_map(fn (Face $f) => $f->id, $faces), null, $tierByFaceId);
 
-        $full = $this->getJson('/api/v1/public/faces?per_page=30');
-        $full->assertOk();
-        $fullOrder = array_column($full->json('data'), 'id');
+        // Worked by hand: stable sort of the first n by elite, pro, starter, free.
+        $expectedIndexes = [
+            4 => [1, 3, 0, 2],
+            9 => [1, 3, 7, 0, 5, 4, 8, 2, 6],
+            30 => [1, 3, 7, 0, 5, 4, 8, 2, 6, 9],
+        ];
 
-        foreach ([4, 9] as $perPage) {
+        foreach ($expectedIndexes as $perPage => $indexes) {
             $response = $this->getJson("/api/v1/public/faces?per_page={$perPage}");
             $response->assertOk();
             $this->assertSame(
-                array_slice($fullOrder, 0, $perPage),
+                array_map(fn (int $i) => $faces[$i]->uuid, $indexes),
                 array_column($response->json('data'), 'id'),
-                "per_page={$perPage} must return the first {$perPage} ranked Faces.",
+                "per_page={$perPage} must serve the first {$perPage} ranked Faces, grouped by tier.",
             );
         }
     }
