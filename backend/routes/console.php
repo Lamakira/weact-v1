@@ -25,6 +25,7 @@ use App\Console\Commands\RebuildFaceListingRanksCommand;
 use App\Console\Commands\ReconcileWalletCommand;
 use App\Console\Commands\RefundFreedPlacesCommand;
 use App\Console\Commands\RemindBookingPaymentCommand;
+use App\Console\Commands\ReleaseLostFaceExclusivitiesCommand;
 use App\Console\Commands\RemindCandidatureResponseCommand;
 use App\Console\Commands\RemindFaceBookingResponseCommand;
 use App\Console\Commands\RemindFaceSubscriptionRenewalsCommand;
@@ -98,6 +99,9 @@ app(Schedule::class)->command(RemindShootingDayCommand::class)->dailyAt('18:00')
 app(Schedule::class)->command(ExpireFaceSubscriptionsCommand::class)->hourly();
 app(Schedule::class)->command(FailStalePendingFaceSubscriptionsCommand::class)->hourly();
 app(Schedule::class)->command(RemindFaceSubscriptionRenewalsCommand::class)->hourly();
+// Exclusivité Élite perdue (expiration, annulation, passage en Pro, correction) : drapeau retiré + alerte admin « place libre ».
+// Après les tâches d'expiration ci-dessus. Idempotente (écriture conditionnelle ⇒ aucun e-mail en double).
+app(Schedule::class)->command(ReleaseLostFaceExclusivitiesCommand::class)->hourly()->withoutOverlapping()->onOneServer();
 app(Schedule::class)->command(PurgeExpiredMediaCommand::class)
     ->dailyAt('03:00')
     ->timezone('UTC')
