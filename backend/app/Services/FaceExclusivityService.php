@@ -44,6 +44,27 @@ class FaceExclusivityService
     }
 
     /**
+     * Effective exclusivities: flagged Faces that are Élite LIVE. A flag left
+     * on a Face that lost the Élite tier is ignored here until the hourly job
+     * drops it. Read by the nightly ranking AND by every carousel tick (a
+     * small query: at most a handful of flagged rows).
+     *
+     * @return list<int> face IDs, ascending
+     */
+    public function effectiveExclusiveIds(): array
+    {
+        return Face::query()
+            ->where('is_exclusive', true)
+            ->with('activeSubscription')
+            ->orderBy('id')
+            ->get(['id'])
+            ->filter(fn (Face $face): bool => $this->entitlement->capabilities($face)->tier === FaceSubscriptionTier::Elite)
+            ->map(fn (Face $face): int => (int) $face->id)
+            ->values()
+            ->all();
+    }
+
+    /**
      * Apply an admin update. Any request setting the exclusivity to true runs
      * under the global lock, in the same transaction as the write; the Élite
      * and capacity checks apply unless the Face is already exclusive (read

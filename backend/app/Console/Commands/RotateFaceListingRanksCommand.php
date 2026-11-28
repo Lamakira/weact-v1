@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Console\Commands;
 
+use App\Enums\FaceSubscriptionTier;
 use App\Services\FaceEntitlementService;
+use App\Services\FaceExclusivityService;
 use App\Services\FaceListingRankingService;
 use App\Support\FaceListingRotation;
 use Illuminate\Console\Command;
@@ -35,19 +37,27 @@ class RotateFaceListingRanksCommand extends Command
      * Execute the console command.
      *
      * This command is deliberately POOR: it re-reads NOTHING about the Faces
-     * themselves — no publiclyListable(), no `faces` query, no
-     * `face_subscriptions` query. It only permutes rows already written by
+     * themselves — no publiclyListable(), no full `faces` scan, no tier
+     * re-evaluation. It only permutes rows already written by
      * faces:rebuild-listing-ranks, using the `tier` / `tier_rank` snapshot
      * that rebuild persisted. All the fairness (LRU page-1 exposure,
      * photo-less relegation, new-profile boost) stays in the nightly
      * rebuild, which keeps its schedule and its staleness watchdog.
+     *
+     * ONE assumed exception (spec #241, ADR 0001): every tick re-reads the
+     * effective Exclusivités Élite (flag set AND Élite live — a handful of
+     * rows), so an admin grant shows on page 1 within one interval. They
+     * leave their queue, head the Élite queue and are lifted to ranks 1..k.
+     * Only Faces already in the nightly generation can be lifted: one created
+     * after it has no rank and waits for the next night (a tick is a
+     * permutation, it never adds a Face).
      *
      * Idempotence is carried by the TICK INDEX — the number of complete
      * intervals elapsed since the nightly base was born. Two runs inside the
      * same interval write one generation, so a manual run, a retried cron and
      * a scheduler hiccup are all harmless.
      */
-    public function handle(FaceListingRankingService $ranking, FaceEntitlementService $entitlements): int
+    public function handle(FaceListingRankingService $ranking, FaceEntitlementService $entitlements, FaceExclusivityService $exclusivity): int
     {
         $tickMinutes = FaceListingRotation::tickMinutes();
 
@@ -152,16 +162,33 @@ class RotateFaceListingRanksCommand extends Command
                 return self::SUCCESS;
             }
 
-            $rotatedQueues = $this->rotateQueues($queues, $slots, $tickIndex);
+            $weights = FaceListingRotation::tierWeightsByPriority($entitlements);
+            $eliteTier = FaceSubscriptionTier::Elite->value;
+
+            [$block, $queues] = $ranking->separateExclusives(
+                $queues,
+                $exclusivity->effectiveExclusiveIds(),
+                FaceExclusivityService::MAX_SLOTS,
+            );
+
+            // The rotating part of the Élite queue advances by the Élite
+            // page-1 slots minus the k exclusivities holding the others.
+            if ($block !== [] && isset($slots[$eliteTier])) {
+                $slots[$eliteTier] = max(0, $slots[$eliteTier] - count($block));
+            }
+
+            $rotatedBlock = $this->rotateBlock($block, $tickIndex);
+            $rotatedQueues = $ranking->placeExclusivesAtHead(
+                $this->rotateQueues($queues, $slots, $tickIndex),
+                $rotatedBlock,
+                $eliteTier,
+            );
 
             // Re-interleaving goes through the UNCHANGED nightly engine: the
             // redistribution of an empty tier's slots to the highest-priority
             // remaining queue is what keeps sparse tiers from leaving holes,
             // and reimplementing it here would fork that behaviour.
-            $sequence = $ranking->buildSequence(
-                $rotatedQueues,
-                FaceListingRotation::tierWeightsByPriority($entitlements),
-            );
+            $sequence = $ranking->liftExclusives($ranking->buildSequence($rotatedQueues, $weights), $rotatedBlock);
 
             [$generation, $rankedCount] = DB::transaction(
                 fn (): array => $this->writeTickGeneration($baseGeneration, $rotatedQueues, $sequence),
@@ -387,6 +414,22 @@ class RotateFaceListingRanksCommand extends Command
         }
 
         return $rotated;
+    }
+
+    /**
+     * Rotate the exclusive block by one place per tick, anchored on the tick
+     * index like every queue (idempotent): over k ticks each exclusivity
+     * takes rank 1 once.
+     *
+     * @param  list<int>  $block
+     * @return list<int>
+     */
+    private function rotateBlock(array $block, int $tickIndex): array
+    {
+        $size = count($block);
+        $shift = $size === 0 ? 0 : $tickIndex % $size;
+
+        return array_merge(array_slice($block, $shift), array_slice($block, 0, $shift));
     }
 
     /**

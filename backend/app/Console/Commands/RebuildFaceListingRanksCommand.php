@@ -7,6 +7,7 @@ namespace App\Console\Commands;
 use App\Enums\FaceSubscriptionTier;
 use App\Models\Face;
 use App\Services\FaceEntitlementService;
+use App\Services\FaceExclusivityService;
 use App\Services\FaceListingRankingService;
 use App\Support\FaceListingRotation;
 use Illuminate\Console\Command;
@@ -42,7 +43,7 @@ class RebuildFaceListingRanksCommand extends Command
      * becomes MAX(generation) at commit (atomic switch), and any failure
      * rolls back so the previous generation keeps being served.
      */
-    public function handle(FaceListingRankingService $ranking, FaceEntitlementService $entitlements): int
+    public function handle(FaceListingRankingService $ranking, FaceEntitlementService $entitlements, FaceExclusivityService $exclusivity): int
     {
         // ONE writer of face_listing_ranks at a time — the SAME named lock as
         // faces:rotate-listing-ranks. The scheduler's withoutOverlapping()
@@ -64,10 +65,22 @@ class RebuildFaceListingRanksCommand extends Command
             $weights = FaceListingRotation::tierWeightsByPriority($entitlements);
             $queues = $this->buildTierQueues($ranking, array_keys($weights));
 
-            $sequence = $ranking->buildSequence($queues, $weights);
+            // Exclusivité Élite (ADR 0001): the effective exclusivities leave
+            // their queue, head the Élite queue, and are lifted to ranks 1..k
+            // after the interleave. Filtered searches and the kill switch
+            // serve this generation, so it must already carry them on top.
+            [$block, $queues] = $ranking->separateExclusives(
+                $queues,
+                $exclusivity->effectiveExclusiveIds(),
+                FaceExclusivityService::MAX_SLOTS,
+            );
+            $queues = $ranking->placeExclusivesAtHead($queues, $block, FaceSubscriptionTier::Elite->value);
+
+            $sequence = $ranking->liftExclusives($ranking->buildSequence($queues, $weights), $block);
             // Snapshot of the per-tier queues, persisted alongside the
             // generation: it is the ONLY input of faces:rotate-listing-ranks,
-            // which may not re-read Faces nor subscriptions.
+            // which re-reads neither Faces nor subscriptions (only the
+            // effective exclusivities, see its handle()).
             $tierPositions = $this->tierPositions($queues);
 
             [$generation, $rankedCount, $stampedCount] = DB::transaction(function () use ($sequence, $ranking, $tierPositions): array {
