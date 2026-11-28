@@ -86,7 +86,7 @@ class FaceController extends Controller
      */
     public function update(UpdateAdminFaceRequest $request, Face $face, FaceExclusivityService $exclusivity): JsonResponse
     {
-        $exclusivity->updateFace($face, $request->validated());
+        $exclusivity->applyAdminUpdate($face, $request->validated());
 
         return response()->json([
             'data' => new FaceResource($this->loadDetailRelations($face->refresh())),

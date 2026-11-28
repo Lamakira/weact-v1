@@ -125,7 +125,7 @@ class FaceExclusivityService
      *
      * @throws ValidationException when the grant is refused
      */
-    public function updateFace(Face $face, array $validated): void
+    public function applyAdminUpdate(Face $face, array $validated): void
     {
         // The `boolean` rule also accepts 1 / "1" without casting: normalize,
         // so every "true" request goes through the lock and the checks.
