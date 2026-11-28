@@ -22,7 +22,10 @@ use App\Models\MissionPayment;
 use App\Models\MissionPaymentCandidature;
 use App\Models\Producer;
 use App\Models\User;
+use App\Services\FaceExclusivityService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class AdminFaceCrudTest extends TestCase
@@ -160,7 +163,7 @@ class AdminFaceCrudTest extends TestCase
             'bio' => 'Test bio',
             'whatsapp_number' => '+22997000000',
             'categories' => [FaceCategory::ACTEUR->value],
-            'is_featured' => true,
+            'is_exclusive' => true,
         ]);
 
         $response = $this->withToken($this->adminToken)
@@ -175,7 +178,7 @@ class AdminFaceCrudTest extends TestCase
             ->assertJsonPath('data.prenom', 'Jane')
             ->assertJsonPath('data.bio', 'Test bio')
             ->assertJsonPath('data.whatsapp_number', '+22997000000')
-            ->assertJsonPath('data.is_featured', true)
+            ->assertJsonPath('data.is_exclusive', true)
             ->assertJsonPath('data.categories.0.value', 'acteur');
     }
 
@@ -275,8 +278,9 @@ class AdminFaceCrudTest extends TestCase
         $face = Face::factory()->create([
             'nom' => 'OldName',
             'bio' => 'Old bio',
-            'is_featured' => false,
+            'is_exclusive' => false,
         ]);
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $face->id]);
         User::factory()->create([
             'email' => 'face-admin@example.com',
             'userable_type' => Face::class,
@@ -293,14 +297,14 @@ class AdminFaceCrudTest extends TestCase
                 'nom' => 'NewName',
                 'bio' => 'Updated bio',
                 'is_available' => false,
-                'is_featured' => true,
+                'is_exclusive' => true,
             ]);
 
         $response->assertOk()
             ->assertJsonPath('data.nom', 'NewName')
             ->assertJsonPath('data.bio', 'Updated bio')
             ->assertJsonPath('data.is_available', false)
-            ->assertJsonPath('data.is_featured', true)
+            ->assertJsonPath('data.is_exclusive', true)
             ->assertJsonPath('data.email', 'face-admin@example.com')
             ->assertJsonPath('data.photos_count', 1)
             ->assertJsonPath('data.experiences_count', 1)
@@ -312,8 +316,172 @@ class AdminFaceCrudTest extends TestCase
             'id' => $face->id,
             'nom' => 'NewName',
             'bio' => 'Updated bio',
-            'is_featured' => true,
+            'is_exclusive' => true,
         ]);
+    }
+
+    // ─── Exclusivité Élite (#244) ─────────────────────────────────
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    private function makeEliteFace(array $attributes = []): Face
+    {
+        $face = Face::factory()->create($attributes);
+        FaceSubscription::factory()->elite()->active()->create(['face_id' => $face->id]);
+
+        return $face;
+    }
+
+    public function test_admin_can_grant_exclusivity_to_an_elite_face(): void
+    {
+        $face = $this->makeEliteFace(['is_exclusive' => false]);
+
+        $response = $this->withToken($this->adminToken)
+            ->putJson("/api/v1/admin/faces/{$face->uuid}", ['is_exclusive' => true]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.is_exclusive', true)
+            ->assertJsonPath('data.exclusive_slots_taken', 1)
+            ->assertJsonPath('data.exclusive_slots_max', 4);
+
+        $this->assertTrue($face->fresh()->is_exclusive);
+    }
+
+    /**
+     * @return array<string, array{0: string|null}>
+     */
+    public static function nonEliteTiers(): array
+    {
+        return [
+            'pro' => ['pro'],
+            'starter' => ['starter'],
+            'découverte' => [null],
+        ];
+    }
+
+    #[DataProvider('nonEliteTiers')]
+    public function test_granting_exclusivity_to_a_non_elite_face_is_refused(?string $tier): void
+    {
+        $face = Face::factory()->create(['nom' => 'Avant', 'is_exclusive' => false]);
+        if ($tier !== null) {
+            FaceSubscription::factory()->{$tier}()->active()->create(['face_id' => $face->id]);
+        }
+
+        $response = $this->withToken($this->adminToken)
+            ->putJson("/api/v1/admin/faces/{$face->uuid}", ['nom' => 'Après', 'is_exclusive' => true]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['is_exclusive' => 'réservée aux Faces Élite']);
+
+        $face->refresh();
+        $this->assertFalse($face->is_exclusive);
+        $this->assertSame('Avant', $face->nom, 'A refused request must not persist the other fields either.');
+    }
+
+    public function test_a_fifth_exclusivity_is_refused(): void
+    {
+        for ($i = 0; $i < 4; $i++) {
+            $this->makeEliteFace(['is_exclusive' => true]);
+        }
+        $fifth = $this->makeEliteFace(['is_exclusive' => false]);
+
+        $response = $this->withToken($this->adminToken)
+            ->putJson("/api/v1/admin/faces/{$fifth->uuid}", ['is_exclusive' => true]);
+
+        $response->assertUnprocessable()
+            ->assertJsonValidationErrors(['is_exclusive' => 'Les 4 places']);
+
+        $this->assertFalse($fifth->fresh()->is_exclusive);
+        $this->assertSame(4, Face::query()->where('is_exclusive', true)->count());
+    }
+
+    public function test_resending_exclusivity_on_an_already_exclusive_face_is_accepted_when_full(): void
+    {
+        $faces = [];
+        for ($i = 0; $i < 4; $i++) {
+            $faces[] = $this->makeEliteFace(['is_exclusive' => true]);
+        }
+
+        $response = $this->withToken($this->adminToken)
+            ->putJson("/api/v1/admin/faces/{$faces[0]->uuid}", ['is_exclusive' => true]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.is_exclusive', true)
+            ->assertJsonPath('data.exclusive_slots_taken', 4);
+    }
+
+    public function test_removing_exclusivity_is_always_accepted(): void
+    {
+        for ($i = 0; $i < 3; $i++) {
+            $this->makeEliteFace(['is_exclusive' => true]);
+        }
+        // A Face that lost the Élite tier but still carries the flag.
+        $formerElite = Face::factory()->create(['is_exclusive' => true]);
+
+        $response = $this->withToken($this->adminToken)
+            ->putJson("/api/v1/admin/faces/{$formerElite->uuid}", ['is_exclusive' => false]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.is_exclusive', false)
+            ->assertJsonPath('data.exclusive_slots_taken', 3);
+
+        $this->assertFalse($formerElite->fresh()->is_exclusive);
+    }
+
+    public function test_a_freed_slot_can_be_granted_again(): void
+    {
+        $faces = [];
+        for ($i = 0; $i < 4; $i++) {
+            $faces[] = $this->makeEliteFace(['is_exclusive' => true]);
+        }
+        $fifth = $this->makeEliteFace(['is_exclusive' => false]);
+
+        $this->withToken($this->adminToken)
+            ->putJson("/api/v1/admin/faces/{$faces[0]->uuid}", ['is_exclusive' => false])
+            ->assertOk();
+
+        $this->withToken($this->adminToken)
+            ->putJson("/api/v1/admin/faces/{$fifth->uuid}", ['is_exclusive' => true])
+            ->assertOk()
+            ->assertJsonPath('data.exclusive_slots_taken', 4);
+    }
+
+    public function test_exclusivity_is_not_granted_while_another_grant_holds_the_lock(): void
+    {
+        $face = $this->makeEliteFace(['is_exclusive' => false]);
+
+        $lock = Cache::lock(FaceExclusivityService::LOCK_KEY, 10);
+        $this->assertTrue($lock->get());
+
+        try {
+            $response = $this->withToken($this->adminToken)
+                ->putJson("/api/v1/admin/faces/{$face->uuid}", ['is_exclusive' => true]);
+        } finally {
+            $lock->release();
+        }
+
+        $response->assertUnprocessable()->assertJsonValidationErrors(['is_exclusive']);
+        $this->assertFalse($face->fresh()->is_exclusive);
+    }
+
+    public function test_exclusive_slots_are_exposed_on_admin_show_and_index(): void
+    {
+        $this->makeEliteFace(['is_exclusive' => true]);
+        $face = $this->makeEliteFace(['is_exclusive' => true]);
+
+        $this->withToken($this->adminToken)
+            ->getJson("/api/v1/admin/faces/{$face->uuid}")
+            ->assertOk()
+            ->assertJsonPath('data.is_exclusive', true)
+            ->assertJsonPath('data.exclusive_slots_taken', 2)
+            ->assertJsonPath('data.exclusive_slots_max', 4);
+
+        $this->withToken($this->adminToken)
+            ->getJson('/api/v1/admin/faces')
+            ->assertOk()
+            ->assertJsonPath('data.0.exclusive_slots_taken', 2)
+            ->assertJsonPath('data.1.exclusive_slots_taken', 2);
     }
 
     public function test_update_with_invalid_data_returns_422(): void
@@ -680,14 +848,14 @@ class AdminFaceCrudTest extends TestCase
 
     public function test_admin_show_exposes_subscription_tier_for_active_subscriber(): void
     {
-        $face = Face::factory()->create(['is_featured' => false]);
+        $face = Face::factory()->create(['is_exclusive' => false]);
         FaceSubscription::factory()->active()->create(['face_id' => $face->id]);
 
         $response = $this->withToken($this->adminToken)
             ->getJson("/api/v1/admin/faces/{$face->uuid}");
 
         $response->assertOk()
-            ->assertJsonPath('data.is_featured', false)
+            ->assertJsonPath('data.is_exclusive', false)
             ->assertJsonPath('data.subscription_tier', 'pro');
 
         $this->assertArrayNotHasKey('is_featured_by_subscription', $response->json('data'));
@@ -695,43 +863,43 @@ class AdminFaceCrudTest extends TestCase
 
     public function test_admin_show_exposes_free_subscription_tier_when_no_active_subscription(): void
     {
-        $face = Face::factory()->create(['is_featured' => false]);
+        $face = Face::factory()->create(['is_exclusive' => false]);
         FaceSubscription::factory()->expired()->create(['face_id' => $face->id]);
 
         $response = $this->withToken($this->adminToken)
             ->getJson("/api/v1/admin/faces/{$face->uuid}");
 
         $response->assertOk()
-            ->assertJsonPath('data.is_featured', false)
+            ->assertJsonPath('data.is_exclusive', false)
             ->assertJsonPath('data.subscription_tier', 'free');
     }
 
     public function test_admin_show_distinguishes_manual_featured_from_subscription_featured(): void
     {
-        $manualOnly = Face::factory()->create(['is_featured' => true]);
+        $manualOnly = Face::factory()->create(['is_exclusive' => true]);
 
-        $subscriptionOnly = Face::factory()->create(['is_featured' => false]);
+        $subscriptionOnly = Face::factory()->create(['is_exclusive' => false]);
         FaceSubscription::factory()->active()->create(['face_id' => $subscriptionOnly->id]);
 
-        $bothFlags = Face::factory()->create(['is_featured' => true]);
+        $bothFlags = Face::factory()->create(['is_exclusive' => true]);
         FaceSubscription::factory()->active()->create(['face_id' => $bothFlags->id]);
 
         $manualResponse = $this->withToken($this->adminToken)
             ->getJson("/api/v1/admin/faces/{$manualOnly->uuid}");
         $manualResponse->assertOk()
-            ->assertJsonPath('data.is_featured', true)
+            ->assertJsonPath('data.is_exclusive', true)
             ->assertJsonPath('data.subscription_tier', 'free');
 
         $subscriptionResponse = $this->withToken($this->adminToken)
             ->getJson("/api/v1/admin/faces/{$subscriptionOnly->uuid}");
         $subscriptionResponse->assertOk()
-            ->assertJsonPath('data.is_featured', false)
+            ->assertJsonPath('data.is_exclusive', false)
             ->assertJsonPath('data.subscription_tier', 'pro');
 
         $bothResponse = $this->withToken($this->adminToken)
             ->getJson("/api/v1/admin/faces/{$bothFlags->uuid}");
         $bothResponse->assertOk()
-            ->assertJsonPath('data.is_featured', true)
+            ->assertJsonPath('data.is_exclusive', true)
             ->assertJsonPath('data.subscription_tier', 'pro');
     }
 
@@ -762,7 +930,7 @@ class AdminFaceCrudTest extends TestCase
 
     public function test_producer_view_does_not_expose_subscription_tier(): void
     {
-        $face = Face::factory()->create(['is_featured' => false]);
+        $face = Face::factory()->create(['is_exclusive' => false]);
         User::factory()->create(['userable_type' => Face::class, 'userable_id' => $face->id]);
         FaceSubscription::factory()->active()->create(['face_id' => $face->id]);
 
@@ -778,14 +946,16 @@ class AdminFaceCrudTest extends TestCase
 
         $response->assertOk();
         $body = $response->json('data');
-        $this->assertArrayHasKey('is_featured', $body);
+        $this->assertArrayHasKey('is_exclusive', $body);
+        $this->assertArrayNotHasKey('exclusive_slots_taken', $body);
+        $this->assertArrayNotHasKey('exclusive_slots_max', $body);
         $this->assertArrayNotHasKey('is_featured_by_subscription', $body);
         $this->assertArrayNotHasKey('subscription_tier', $body);
     }
 
     public function test_face_owner_profile_does_not_expose_subscription_tier(): void
     {
-        $face = Face::factory()->create(['is_featured' => false]);
+        $face = Face::factory()->create(['is_exclusive' => false]);
         FaceSubscription::factory()->active()->create(['face_id' => $face->id]);
 
         $faceUser = User::factory()->create([
@@ -799,14 +969,16 @@ class AdminFaceCrudTest extends TestCase
 
         $response->assertOk();
         $body = $response->json('data');
-        $this->assertArrayHasKey('is_featured', $body);
+        $this->assertArrayHasKey('is_exclusive', $body);
+        $this->assertArrayNotHasKey('exclusive_slots_taken', $body);
+        $this->assertArrayNotHasKey('exclusive_slots_max', $body);
         $this->assertArrayNotHasKey('is_featured_by_subscription', $body);
         $this->assertArrayNotHasKey('subscription_tier', $body);
     }
 
     public function test_admin_show_exposes_starter_subscription_tier(): void
     {
-        $face = Face::factory()->create(['is_featured' => false]);
+        $face = Face::factory()->create(['is_exclusive' => false]);
         FaceSubscription::factory()->starter()->active()->create(['face_id' => $face->id]);
 
         $response = $this->withToken($this->adminToken)
@@ -818,7 +990,7 @@ class AdminFaceCrudTest extends TestCase
 
     public function test_admin_show_exposes_elite_subscription_tier(): void
     {
-        $face = Face::factory()->create(['is_featured' => false]);
+        $face = Face::factory()->create(['is_exclusive' => false]);
         FaceSubscription::factory()->elite()->active()->create(['face_id' => $face->id]);
 
         $response = $this->withToken($this->adminToken)

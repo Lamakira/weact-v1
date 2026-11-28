@@ -201,28 +201,13 @@ class FaceListingRankingServiceTest extends TestCase
         $this->assertSame([4001, 4002, 4003, 4004], $sequence);
     }
 
-    public function test_order_tier_queue_pins_featured_faces_first(): void
-    {
-        $now = new DateTimeImmutable('2026-07-01 00:00:00');
-
-        $queue = $this->service->orderTierQueue([
-            ['id' => 1, 'is_featured' => false, 'has_photo' => true, 'last_page1_exposed_at' => null],
-            ['id' => 2, 'is_featured' => true, 'has_photo' => false, 'last_page1_exposed_at' => $now],
-            ['id' => 3, 'is_featured' => true, 'has_photo' => true, 'last_page1_exposed_at' => null],
-        ]);
-
-        // Featured first (never-exposed #3 before exposed #2), photo-less
-        // status irrelevant inside the featured block.
-        $this->assertSame([3, 2, 1], $queue);
-    }
-
     public function test_order_tier_queue_relegates_photo_less_faces_to_the_back(): void
     {
         $queue = $this->service->orderTierQueue([
-            ['id' => 1, 'is_featured' => false, 'has_photo' => false, 'last_page1_exposed_at' => null],
-            ['id' => 2, 'is_featured' => false, 'has_photo' => true, 'last_page1_exposed_at' => null],
-            ['id' => 3, 'is_featured' => false, 'has_photo' => false, 'last_page1_exposed_at' => null],
-            ['id' => 4, 'is_featured' => false, 'has_photo' => true, 'last_page1_exposed_at' => null],
+            ['id' => 1, 'has_photo' => false, 'last_page1_exposed_at' => null],
+            ['id' => 2, 'has_photo' => true, 'last_page1_exposed_at' => null],
+            ['id' => 3, 'has_photo' => false, 'last_page1_exposed_at' => null],
+            ['id' => 4, 'has_photo' => true, 'last_page1_exposed_at' => null],
         ]);
 
         // Photo block first (id ASC), then the photo-less block (id ASC).
@@ -233,7 +218,6 @@ class FaceListingRankingServiceTest extends TestCase
     {
         $makeFace = fn (int $id, ?DateTimeImmutable $exposedAt): array => [
             'id' => $id,
-            'is_featured' => false,
             'has_photo' => true,
             'last_page1_exposed_at' => $exposedAt,
         ];
@@ -259,9 +243,9 @@ class FaceListingRankingServiceTest extends TestCase
         $exposedAt = new DateTimeImmutable('2026-07-01 03:15:00');
 
         $queue = $this->service->orderTierQueue([
-            ['id' => 9, 'is_featured' => false, 'has_photo' => true, 'last_page1_exposed_at' => $exposedAt],
-            ['id' => 4, 'is_featured' => false, 'has_photo' => true, 'last_page1_exposed_at' => $exposedAt],
-            ['id' => 7, 'is_featured' => false, 'has_photo' => true, 'last_page1_exposed_at' => $exposedAt],
+            ['id' => 9, 'has_photo' => true, 'last_page1_exposed_at' => $exposedAt],
+            ['id' => 4, 'has_photo' => true, 'last_page1_exposed_at' => $exposedAt],
+            ['id' => 7, 'has_photo' => true, 'last_page1_exposed_at' => $exposedAt],
         ]);
 
         $this->assertSame([4, 7, 9], $queue);

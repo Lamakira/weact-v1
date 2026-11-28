@@ -126,8 +126,8 @@ function buildUpdatePayload(): UpdateAdminFaceForm {
     payload.is_available = editForm.value.is_available
   }
 
-  if (editForm.value.is_featured !== currentFace.is_featured) {
-    payload.is_featured = editForm.value.is_featured
+  if (editForm.value.is_exclusive !== currentFace.is_exclusive) {
+    payload.is_exclusive = editForm.value.is_exclusive
   }
 
   return payload
@@ -145,7 +145,7 @@ function startEdit(): void {
     categories: face.value.categories?.map((c: { value: string }) => c.value) ?? [],
     niches: face.value.niches?.map((n: { value: string }) => n.value) ?? [],
     is_available: face.value.is_available,
-    is_featured: face.value.is_featured,
+    is_exclusive: face.value.is_exclusive,
   }
   editErrors.value = {}
   isEditing.value = true
@@ -428,11 +428,11 @@ function closeVideoModal(): void {
                 <dd>
                   <span
                     class="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium"
-                    :class="face.is_featured ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'"
+                    :class="face.is_exclusive ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'"
                     data-testid="featured-badge"
                   >
                     <Star class="h-3.5 w-3.5" />
-                    {{ face.is_featured ? 'En vedette' : 'Standard' }}
+                    {{ face.is_exclusive ? 'En vedette' : 'Standard' }}
                   </span>
                 </dd>
               </div>
@@ -534,7 +534,7 @@ function closeVideoModal(): void {
                 </label>
                 <label class="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
                   <input
-                    v-model="editForm.is_featured"
+                    v-model="editForm.is_exclusive"
                     type="checkbox"
                     id="edit-featured"
                     class="h-4 w-4 rounded border-amber-300 text-amber-500 focus:ring-amber-400"

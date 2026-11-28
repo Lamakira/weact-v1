@@ -52,7 +52,7 @@ function makeFace(overrides: Partial<AdminFaceData> = {}): AdminFaceData {
     categories: [{ value: 'acteur', label: 'Acteur' }],
     niches: [{ value: 'beaute', label: 'Beauté' }],
     is_available: true,
-    is_featured: false,
+    is_exclusive: false,
     profile_completion_percentage: 80,
     profile_completion_missing: [],
     profile_completion_is_complete: false,
@@ -132,27 +132,27 @@ describe('AdminFaceDetailPage', () => {
   })
 
   it('shows a featured badge in read-only mode when the face is featured', async () => {
-    const { wrapper } = await mountPage(makeFace({ is_featured: true }))
+    const { wrapper } = await mountPage(makeFace({ is_exclusive: true }))
 
     const badge = wrapper.get('[data-testid="featured-badge"]')
 
     expect(badge.text()).toContain('En vedette')
   })
 
-  it('includes is_featured in the update payload when the checkbox changes', async () => {
+  it('includes is_exclusive in the update payload when the checkbox changes', async () => {
     mockUpdateFace.mockResolvedValue({
       success: true,
       message: 'Profil Face mis à jour avec succès',
     })
 
-    const { wrapper } = await mountPage(makeFace({ is_featured: false }))
+    const { wrapper } = await mountPage(makeFace({ is_exclusive: false }))
 
     await wrapper.get('[data-testid="edit-button"]').trigger('click')
     await wrapper.get('[data-testid="edit-featured"]').setValue(true)
     await wrapper.get('[data-testid="save-button"]').trigger('click')
     await flushPromises()
 
-    expect(mockUpdateFace).toHaveBeenCalledWith('1', { is_featured: true })
+    expect(mockUpdateFace).toHaveBeenCalledWith('1', { is_exclusive: true })
     expect(mockToastSuccess).toHaveBeenCalled()
   })
 
@@ -241,7 +241,7 @@ describe('AdminFaceDetailPage', () => {
       makeFace({
         pays: 'France',
         ville: 'Paris',
-        is_featured: false,
+        is_exclusive: false,
       }),
     )
 
@@ -250,7 +250,7 @@ describe('AdminFaceDetailPage', () => {
     await wrapper.get('[data-testid="save-button"]').trigger('click')
     await flushPromises()
 
-    expect(mockUpdateFace).toHaveBeenCalledWith('1', { is_featured: true })
+    expect(mockUpdateFace).toHaveBeenCalledWith('1', { is_exclusive: true })
   })
 
   it('liste les vidéos du portfolio et marque la vidéo verrouillée', async () => {

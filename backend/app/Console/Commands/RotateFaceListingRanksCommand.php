@@ -38,8 +38,8 @@ class RotateFaceListingRanksCommand extends Command
      * themselves — no publiclyListable(), no `faces` query, no
      * `face_subscriptions` query. It only permutes rows already written by
      * faces:rebuild-listing-ranks, using the `tier` / `tier_rank` snapshot
-     * that rebuild persisted. All the fairness (LRU page-1 exposure, featured
-     * boost, photo-less relegation, new-profile boost) stays in the nightly
+     * that rebuild persisted. All the fairness (LRU page-1 exposure,
+     * photo-less relegation, new-profile boost) stays in the nightly
      * rebuild, which keeps its schedule and its staleness watchdog.
      *
      * Idempotence is carried by the TICK INDEX — the number of complete

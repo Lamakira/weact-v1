@@ -108,7 +108,7 @@ class PublicFacesListTest extends TestCase
         $this->assertArrayNotHasKey('bio', $faceData);
         $this->assertArrayNotHasKey('tarif_horaire', $faceData);
         $this->assertArrayNotHasKey('tarif_journalier', $faceData);
-        $this->assertArrayNotHasKey('is_featured', $faceData);
+        $this->assertArrayNotHasKey('is_exclusive', $faceData);
         $this->assertArrayNotHasKey('quartier', $faceData);
         $this->assertArrayNotHasKey('pays', $faceData);
         $this->assertArrayNotHasKey('whatsapp_number', $faceData);
@@ -706,7 +706,7 @@ class PublicFacesListTest extends TestCase
     public function test_public_response_omits_subscription_fields_for_subscription_featured_face(): void
     {
         $face = Face::factory()->create([
-            'is_featured' => false,
+            'is_exclusive' => false,
             'profile_photo' => 'p.jpg',
             'profile_photo_thumbnail' => 'p-thumb.jpg',
             'tarif_journalier' => 100000,
@@ -718,7 +718,7 @@ class PublicFacesListTest extends TestCase
         $response->assertOk();
         $faceData = $response->json('data.0');
 
-        $this->assertArrayNotHasKey('is_featured', $faceData);
+        $this->assertArrayNotHasKey('is_exclusive', $faceData);
         $this->assertArrayNotHasKey('is_featured_by_subscription', $faceData);
         $this->assertArrayNotHasKey('subscription_tier', $faceData);
         $this->assertArrayNotHasKey('subscriptions', $faceData);
@@ -729,7 +729,7 @@ class PublicFacesListTest extends TestCase
     //
     // The controller ORDER BY follows the rank materialized nightly by
     // `faces:rebuild-listing-ranks` (rank IS NULL, rank ASC, id DESC).
-    // Tier/rotation SEMANTICS (quotas, WRR, LRU, featured, photo-less) are
+    // Tier/rotation SEMANTICS (quotas, WRR, LRU, photo-less) are
     // covered by FaceListingRankingServiceTest and
     // RebuildFaceListingRanksCommandTest; here we prove the controller
     // faithfully follows the materialized rank and nothing else.
@@ -791,7 +791,7 @@ class PublicFacesListTest extends TestCase
         $pro = $this->makeListedFace();
         FaceSubscription::factory()->pro()->active()->create(['face_id' => $pro->id]);
         $this->makeListedFace();
-        $this->makeListedFace(['is_featured' => true]);
+        $this->makeListedFace(['is_exclusive' => true]);
 
         $this->artisan('faces:rebuild-listing-ranks')->assertExitCode(0);
 
@@ -810,10 +810,10 @@ class PublicFacesListTest extends TestCase
     public function test_list_order_follows_seeded_rank_regardless_of_profile_attributes(): void
     {
         // Deliberately anti-correlated with every legacy FP-2.6 sort key:
-        // the WORST profile (bare, old, unfeatured) gets rank 1, the best
-        // (featured, photo, tarif, newest) gets rank 3. Rank must win.
+        // the WORST profile (bare, old, not exclusive) gets rank 1, the best
+        // (exclusive, photo, tarif, newest) gets rank 3. Rank must win.
         $bare = $this->makeListedFace([
-            'is_featured' => false,
+            'is_exclusive' => false,
             'profile_photo' => null,
             'profile_photo_thumbnail' => null,
             'tarif_journalier' => null,
@@ -825,7 +825,7 @@ class PublicFacesListTest extends TestCase
             'created_at' => now()->subDays(2),
         ]);
         $best = $this->makeListedFace([
-            'is_featured' => true,
+            'is_exclusive' => true,
             'profile_photo' => 'best.jpg',
             'profile_photo_thumbnail' => 'best-thumb.jpg',
             'tarif_journalier' => 120000,

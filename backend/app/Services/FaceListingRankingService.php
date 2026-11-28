@@ -133,15 +133,14 @@ class FaceListingRankingService
     /**
      * Order ONE tier queue according to the fairness rules:
      *
-     *   1. `is_featured` Faces pinned first (admin boost);
-     *   2. then Faces WITH a profile photo;
-     *   3. then photo-less Faces relegated to the back;
+     *   1. Faces WITH a profile photo first;
+     *   2. then photo-less Faces relegated to the back;
      *
      * each block LRU-ordered by `last_page1_exposed_at` ASC with NULL (never
      * exposed — new-profile boost) first, final tiebreak `id` ASC everywhere
      * (strict total order).
      *
-     * @param  list<array{id: int, is_featured: bool, has_photo: bool, last_page1_exposed_at: DateTimeInterface|null}>  $faces
+     * @param  list<array{id: int, has_photo: bool, last_page1_exposed_at: DateTimeInterface|null}>  $faces
      * @return list<int> ordered face IDs
      */
     public function orderTierQueue(array $faces): array
@@ -168,16 +167,12 @@ class FaceListingRankingService
     /**
      * Comparable sort key implementing the tier-queue total order.
      *
-     * @param  array{id: int, is_featured: bool, has_photo: bool, last_page1_exposed_at: DateTimeInterface|null}  $face
+     * @param  array{id: int, has_photo: bool, last_page1_exposed_at: DateTimeInterface|null}  $face
      * @return array{int, int, int}
      */
     private function queueSortKey(array $face): array
     {
-        $block = match (true) {
-            $face['is_featured'] => 0,
-            $face['has_photo'] => 1,
-            default => 2,
-        };
+        $block = $face['has_photo'] ? 0 : 1;
 
         // NULL exposure = never on page 1 = head of its block.
         $exposedAt = $face['last_page1_exposed_at']?->getTimestamp() ?? PHP_INT_MIN;

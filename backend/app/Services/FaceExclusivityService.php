@@ -1,0 +1,105 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Services;
+
+use App\Enums\FaceSubscriptionTier;
+use App\Models\Face;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
+/**
+ * Exclusivité Élite (ADR 0001) : l'admin accorde au plus MAX_SLOTS
+ * exclusivités, uniquement à des Faces Élite en direct.
+ */
+class FaceExclusivityService
+{
+    public const MAX_SLOTS = 4;
+
+    /**
+     * Global mutex: every grant is serialized, whatever the number of rows
+     * already flagged. A row lock on the flagged Faces alone would not cover
+     * the row being added (two concurrent grants would both count 3).
+     */
+    public const LOCK_KEY = 'face_exclusivity_grant';
+
+    private const LOCK_TTL_SECONDS = 10;
+
+    private const LOCK_WAIT_SECONDS = 2;
+
+    public function __construct(
+        private readonly FaceEntitlementService $entitlement,
+    ) {}
+
+    /**
+     * Number of Faces currently carrying the flag (effective or not): this is
+     * what the MAX_SLOTS limit counts.
+     */
+    public function slotsTaken(): int
+    {
+        return Face::query()->where('is_exclusive', true)->count();
+    }
+
+    /**
+     * Apply an admin update. Granting the exclusivity (false → true) runs the
+     * Élite and capacity checks under the global lock, in the same transaction
+     * as the write; any other update (including revoking) is written as is.
+     *
+     * @param  array<string, mixed>  $validated
+     *
+     * @throws ValidationException when the grant is refused
+     */
+    public function updateFace(Face $face, array $validated): void
+    {
+        $grants = ($validated['is_exclusive'] ?? null) === true && ! $face->is_exclusive;
+
+        if (! $grants) {
+            $face->update($validated);
+
+            return;
+        }
+
+        try {
+            Cache::lock(self::LOCK_KEY, self::LOCK_TTL_SECONDS)->block(
+                self::LOCK_WAIT_SECONDS,
+                fn () => DB::transaction(function () use ($face, $validated): void {
+                    /** @var Face $locked */
+                    $locked = Face::query()->lockForUpdate()->findOrFail($face->id);
+
+                    if (! $locked->is_exclusive) {
+                        $this->assertCanGrant($locked);
+                    }
+
+                    $face->update($validated);
+                }),
+            );
+        } catch (LockTimeoutException) {
+            throw ValidationException::withMessages([
+                'is_exclusive' => 'Une autre exclusivité Élite est en cours d\'attribution. Réessayez dans un instant.',
+            ]);
+        }
+    }
+
+    /**
+     * @throws ValidationException
+     */
+    private function assertCanGrant(Face $face): void
+    {
+        if ($this->entitlement->capabilities($face)->tier !== FaceSubscriptionTier::Elite) {
+            throw ValidationException::withMessages([
+                'is_exclusive' => 'L\'exclusivité Élite est réservée aux Faces Élite.',
+            ]);
+        }
+
+        $taken = Face::query()->where('is_exclusive', true)->lockForUpdate()->count();
+
+        if ($taken >= self::MAX_SLOTS) {
+            throw ValidationException::withMessages([
+                'is_exclusive' => 'Les '.self::MAX_SLOTS.' places d\'exclusivité Élite sont prises. Retirez d\'abord une exclusivité.',
+            ]);
+        }
+    }
+}

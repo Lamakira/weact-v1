@@ -141,7 +141,7 @@ class PublicFaceProfileTest extends TestCase
         $this->assertArrayNotHasKey('tarif_horaire', $data);
         $this->assertArrayNotHasKey('tarif_journalier', $data);
         $this->assertArrayNotHasKey('poids', $data);
-        $this->assertArrayNotHasKey('is_featured', $data);
+        $this->assertArrayNotHasKey('is_exclusive', $data);
         $this->assertArrayNotHasKey('quartier', $data);
         $this->assertArrayNotHasKey('whatsapp_number', $data);
         $this->assertArrayNotHasKey('email', $data);
