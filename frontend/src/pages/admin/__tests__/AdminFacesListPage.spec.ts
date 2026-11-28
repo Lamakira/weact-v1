@@ -95,7 +95,7 @@ async function mountPage() {
   return wrapper
 }
 
-describe('AdminFacesListPage - Premium badge (FEATURE-FP-1.11)', () => {
+describe('AdminFacesListPage - exclusivity pill', () => {
   beforeEach(() => {
     facesRef = ref<AdminFaceData[]>([])
     paginationRef = ref(null)
@@ -106,8 +106,8 @@ describe('AdminFacesListPage - Premium badge (FEATURE-FP-1.11)', () => {
 
   it('renders an Exclusivité Élite pill only on exclusive faces', async () => {
     facesRef.value = [
-      makeFace({ id: 'face-1', username: 'exclusive-user', is_exclusive: true }),
-      makeFace({ id: 'face-2', username: 'plain-user', is_exclusive: false }),
+      makeFace({ id: 'face-1', username: 'exclusive-user', is_exclusive: true, subscription_tier: 'elite' }),
+      makeFace({ id: 'face-2', username: 'plain-user', is_exclusive: false, subscription_tier: 'elite' }),
     ]
     paginationRef.value = { current_page: 1, last_page: 1, per_page: 15, total: 2 }
 
@@ -117,5 +117,17 @@ describe('AdminFacesListPage - Premium badge (FEATURE-FP-1.11)', () => {
     expect(pills).toHaveLength(1)
     expect(pills[0].text()).toContain('Exclusivité Élite')
     expect(wrapper.text()).not.toContain('En vedette')
+  })
+
+  it('does not render the pill on a flagged face that is no longer Élite', async () => {
+    facesRef.value = [
+      makeFace({ id: 'face-1', username: 'lapsed-user', is_exclusive: true, subscription_tier: 'pro' }),
+      makeFace({ id: 'face-2', username: 'free-user', is_exclusive: true, subscription_tier: 'free' }),
+    ]
+    paginationRef.value = { current_page: 1, last_page: 1, per_page: 15, total: 2 }
+
+    const wrapper = await mountPage()
+
+    expect(wrapper.findAll('[data-testid="face-row-exclusive-badge"]')).toHaveLength(0)
   })
 })
