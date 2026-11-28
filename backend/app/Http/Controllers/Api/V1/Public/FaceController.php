@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Api\V1\Public;
 use App\Constants\BeninCities;
 use App\Enums\FaceCategory;
 use App\Enums\FaceNiche;
+use App\Enums\FaceSubscriptionTier;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Public\ListFacesRequest;
 use App\Http\Resources\PublicFaceProfileResource;
@@ -39,7 +40,12 @@ class FaceController extends Controller
      * Volontairement figé ici : la lecture du listing ne relit pas la config
      * des priorités (le rang matérialisé fait foi, cf. le test dédié).
      */
-    private const PAGE_TIER_ORDER = ['elite', 'pro', 'starter', 'free'];
+    private const PAGE_TIER_ORDER = [
+        FaceSubscriptionTier::Elite->value,
+        FaceSubscriptionTier::Pro->value,
+        FaceSubscriptionTier::Starter->value,
+        FaceSubscriptionTier::Free->value,
+    ];
 
     /**
      * Display a paginated list of public Faces.
