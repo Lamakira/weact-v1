@@ -51,6 +51,11 @@ const TIER_LABELS: Record<string, string> = {
   elite: 'Élite',
 }
 
+// Refus serveur « 4 places prises » alors que l'écran en montrait une libre :
+// une autre Face l'a prise entre-temps.
+const EXCLUSIVITY_SLOTS_FULL_MESSAGE =
+  'Une autre Face vient de prendre la dernière place. Rechargez la fiche pour voir les places libres.'
+
 const exclusiveSlotsTaken = computed(() => face.value?.exclusive_slots_taken ?? 0)
 const exclusiveSlotsMax = computed(() => face.value?.exclusive_slots_max ?? 4)
 const exclusiveSlotsLabel = computed(
@@ -197,6 +202,9 @@ async function saveEdit(): Promise<void> {
     toast.success(result.message ?? 'Profil mis à jour')
   } else {
     editErrors.value = result.errors ?? {}
+    if (result.code === 'EXCLUSIVITY_SLOTS_FULL') {
+      editErrors.value.is_exclusive = [EXCLUSIVITY_SLOTS_FULL_MESSAGE]
+    }
   }
 }
 
