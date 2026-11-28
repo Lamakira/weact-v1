@@ -393,7 +393,7 @@ class AdminFaceCrudTest extends TestCase
             ->assertJsonValidationErrors(['is_exclusive' => 'Les 4 places']);
 
         $this->assertFalse($fifth->fresh()->is_exclusive);
-        $this->assertSame(4, Face::query()->where('is_exclusive', true)->count());
+        $this->assertSame(4, Face::query()->exclusive()->count());
     }
 
     /**

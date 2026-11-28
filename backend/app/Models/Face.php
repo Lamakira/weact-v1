@@ -344,6 +344,18 @@ class Face extends Model
     }
 
     /**
+     * Faces carrying the Exclusivité Élite flag (effective or not: the Élite
+     * live check is FaceExclusivityService's job).
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeExclusive(Builder $query): Builder
+    {
+        return $query->where('is_exclusive', true);
+    }
+
+    /**
      * Get the professional experiences for this Face.
      */
     public function experiences(): HasMany

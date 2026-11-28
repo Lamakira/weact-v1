@@ -129,7 +129,7 @@ class ReleaseLostFaceExclusivitiesCommandTest extends TestCase
         $this->artisan('exclusivity:release-lost')->assertExitCode(0);
 
         Notification::assertSentOnDemandTimes(FaceExclusivitySlotFreedNotification::class, 4);
-        $this->assertSame(1, Face::query()->where('is_exclusive', true)->count());
+        $this->assertSame(1, Face::query()->exclusive()->count());
     }
 
     public function test_nothing_is_sent_when_there_is_nothing_to_remove(): void
